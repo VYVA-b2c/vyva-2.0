@@ -48,10 +48,7 @@ type StoryRecallResult = {
 type StoryRecallGameProps = {
   plan: Recommendation;
   localizedVariant: MemoryGameVariantContent;
-  gameTitle: string;
   gamePrompt: string;
-  accentColor: string;
-  iconBg: string;
   cognitiveDomain: CognitiveDomain;
   userId: string;
   language: LanguageCode;
@@ -144,10 +141,7 @@ function getFactList(indices: number[], facts: string[]) {
 export default function StoryRecallGame({
   plan,
   localizedVariant,
-  gameTitle,
   gamePrompt,
-  accentColor,
-  iconBg,
   cognitiveDomain,
   userId,
   language,
@@ -384,27 +378,17 @@ export default function StoryRecallGame({
       ) : null}
 
       <section className="mt-4 overflow-hidden rounded-[24px] border border-[#F8D37A] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#A3470D] shadow-sm">
-              <BookOpen size={14} />
-              {currentLevelLabel}
-            </div>
-            <h1 className="mt-3 font-display text-[31px] leading-[1.06] text-vyva-text-1 sm:text-[38px]">{gameTitle}</h1>
-            <p className="mt-2 max-w-[34ch] text-[17px] font-semibold leading-[1.45] text-vyva-text-2">
-              {phase === "read"
-                ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
-                : phase === "quiz"
-                  ? t("storyRecall.quizHint", "Answer from memory.")
-                  : t("storyRecall.retellHint", "Tell the story in your own words.")}
-            </p>
-          </div>
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[22px] bg-white shadow-vyva-card">
-            <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px]" style={{ background: iconBg, color: accentColor }}>
-              <BookOpen size={27} />
-            </div>
-          </div>
+        <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#A3470D] shadow-sm">
+          <BookOpen size={14} />
+          {currentLevelLabel}
         </div>
+        <p className="mt-3 max-w-[34ch] text-[17px] font-semibold leading-[1.45] text-vyva-text-2">
+          {phase === "read"
+            ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
+            : phase === "quiz"
+              ? t("storyRecall.quizHint", "Answer from memory.")
+              : t("storyRecall.retellHint", "Tell the story in your own words.")}
+        </p>
       </section>
 
       {phase === "read" && (

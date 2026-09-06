@@ -581,13 +581,9 @@ export default function ListenClosely({ userId, onExit }) {
                 {t("games.listenClosely.instructions", "Instructions")}
               </button>
             </div>
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[20px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <Headphones size={36} />
-            </div>
-            <h1 className="mt-4 font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">{t("games.listenClosely.title", "Listen Closely")}</h1>
-            <p className="mt-2 text-[16px] font-semibold leading-relaxed sm:text-[17px]" style={{ color: BRAND.muted }}>
+            <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">
               {t("games.listenClosely.introShort", "Listen, then choose.")}
-            </p>
+            </h1>
 
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
@@ -682,11 +678,8 @@ export default function ListenClosely({ userId, onExit }) {
           <section className="rounded-[28px] border bg-white p-4 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-5" style={{ borderColor: "#EEE8F1" }}>
             <ListenTutorialVisual />
             <h1 className="mt-3 font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] sm:text-[27px]">
-              {t("games.listenClosely.title", "Listen Closely")}
-            </h1>
-            <p className="mt-1 text-[15px] font-extrabold leading-tight sm:text-[16px]" style={{ color: BRAND.muted }}>
               {t("games.listenClosely.tutorialSubtitle", "Hear the sound. Then respond.")}
-            </p>
+            </h1>
 
             <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {[
@@ -736,12 +729,11 @@ export default function ListenClosely({ userId, onExit }) {
           <header className="rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="font-display text-[34px] font-bold leading-[1.05]">{t("games.listenClosely.title", "Listen Closely")}</h1>
-                <p className="mt-1 text-[20px] font-bold" style={{ color: BRAND.muted }}>
+                <h1 className="font-display text-[28px] font-semibold leading-[1.1]" style={{ color: BRAND.muted }}>
                   {isCompareMode
                     ? t("games.listenClosely.justListen", "Just listen.")
-                  : t("games.listenClosely.tapWhenHeard", "Tap when you hear it.")}
-                </p>
+                    : t("games.listenClosely.tapWhenHeard", "Tap when you hear it.")}
+                </h1>
               </div>
             </div>
             <div className="mt-4">

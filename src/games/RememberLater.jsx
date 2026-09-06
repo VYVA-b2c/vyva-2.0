@@ -1530,10 +1530,9 @@ export default function RememberLater({
               <p className="inline-flex rounded-full px-4 py-2 text-[17px] font-black sm:text-[18px]" style={{ background: "#FEF3C7", color: "#92400E" }}>
                 {t("common.level", "Level")} {normalizedRound.difficulty_tier} - {currentTierBand.label}
               </p>
-              <h1 className="mt-4 font-display text-[38px] leading-tight sm:text-[44px]">{t("games.rememberLater.title", "Remember Later")}</h1>
-              <p className="mt-2 max-w-[560px] text-[22px] font-extrabold leading-snug sm:text-[24px]" style={{ color: BRAND.muted }}>
+              <h1 className="mt-4 max-w-[560px] font-display text-[30px] font-semibold leading-snug sm:text-[34px]" style={{ color: BRAND.ink }}>
                 {t("games.rememberLater.introLead", "Watch for two things.")}
-              </p>
+              </h1>
               <label className="mt-4 inline-flex cursor-pointer items-center gap-3 rounded-full border bg-white px-4 py-3 text-[17px] font-extrabold leading-snug shadow-[0_10px_24px_rgba(80,52,109,0.08)]" style={{ borderColor: BRAND.border, color: BRAND.muted }}>
                 <input
                   type="checkbox"

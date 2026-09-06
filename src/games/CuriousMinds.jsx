@@ -424,10 +424,7 @@ export default function CuriousMinds({
 
         {screen === "error" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <BrainCircuit size={52} aria-hidden="true" />
-            </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.curiousMinds.title", "Curious Minds")}</h1>
+            <h1 className="font-display text-[34px] leading-tight">{t("games.curiousMinds.unavailable", "This activity could not open")}</h1>
             <p className="mt-4 text-[24px] font-bold" style={{ color: BRAND.muted }}>{loadError}</p>
             <button
               type="button"

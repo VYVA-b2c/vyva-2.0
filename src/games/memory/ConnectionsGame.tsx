@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BriefcaseBusiness, Check, Clock3, Link2, ListOrdered, MapPin } from "lucide-react";
+import { BriefcaseBusiness, Check, Clock3, ListOrdered, MapPin } from "lucide-react";
 import type { LanguageCode } from "@/i18n/languages";
 import { BRAIN_COACH_MAX_LEVEL, getBrainCoachProgressLabel } from "../shared/brainCoachProgression";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
@@ -177,17 +177,11 @@ export default function ConnectionsGame({
   return (
     <div className="mx-auto w-full max-w-[760px] px-4 pb-5 pt-2">
       <section className="rounded-[26px] border border-[#E8DDF2] bg-white p-4 shadow-vyva-card sm:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[12px] font-black uppercase tracking-[0.06em] text-vyva-purple">{getBrainCoachProgressLabel(plan.level)}</p>
-            <h1 className="mt-2 font-display text-[30px] leading-tight text-vyva-text-1 sm:text-[36px]">{localizedVariant.title}</h1>
-          </div>
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-[#F3E8FF] text-vyva-purple"><Link2 size={26} /></div>
-        </div>
+        <p className="text-[12px] font-black uppercase tracking-[0.06em] text-vyva-purple">{getBrainCoachProgressLabel(plan.level)}</p>
 
         {phase === "study" ? (
           <>
-            <div className="mt-5">
+            <div className="mt-4">
               <h2 className="font-display text-[24px] text-vyva-text-1">{copy.study}</h2>
               <p className="mt-1 text-[15px] font-semibold text-vyva-text-2">{copy.studyHint}</p>
             </div>

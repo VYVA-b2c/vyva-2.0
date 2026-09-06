@@ -1612,10 +1612,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       <StoryRecallGame
         plan={plan}
         localizedVariant={localizedVariant}
-        gameTitle={gameTitle}
         gamePrompt={gamePrompt}
-        accentColor={definition.accentColor}
-        iconBg={definition.iconBg}
         cognitiveDomain={definition.cognitiveDomain}
         userId={userId}
         language={language}
@@ -1656,16 +1653,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return renderBrainRunnerScreen("stub", "stub", "message", (
       <div className="px-[22px] pb-6">
         <div className="rounded-[26px] bg-white p-6 shadow-vyva-card">
-          <div
-            className="inline-flex h-[64px] w-[64px] items-center justify-center rounded-[20px]"
-            style={gameIconStyle}
-          >
-            <GameIcon size={28} />
-          </div>
-          <h1 className="mt-4 font-display text-[30px] text-vyva-text-1">{gameTitle}</h1>
+          <h2 className="font-display text-[26px] text-vyva-text-1">{t("common.comingSoon")}</h2>
           <p className="mt-2 text-[17px] leading-[1.6] text-vyva-text-2">{getGameDescription(plan.gameType, language)}</p>
           <div className="mt-5 rounded-[20px] border border-vyva-border bg-vyva-cream p-5">
-            <p className="text-[18px] font-semibold text-vyva-text-1">{t("common.comingSoon")}</p>
             <p className="mt-2 text-[15px] leading-[1.6] text-vyva-text-2">{t("memory.stubBody")}</p>
           </div>
           <button
@@ -2052,24 +2042,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return renderBrainRunnerScreen(`number_memory_${numberMemoryPhase}`, "playing", `number_memory_${numberMemoryPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
         <section className="overflow-hidden rounded-[24px] border border-[#BFDBFE] bg-[#F3F8FF] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#2563EB] shadow-sm">
-                {currentLevelLabel}
-              </p>
-              <h1 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[38px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[34ch] text-[17px] font-semibold leading-[1.45] text-vyva-text-2 sm:text-[19px]">
-                {numberMemoryPhase === "study"
-                  ? t("memory.numberStudyGoal", "Study the digits, then hide them.")
-                  : localizedVariant.payload.reverse
-                    ? t("memory.numberRecallReverseGoal", "Enter the digits backwards.")
-                    : t("memory.numberRecallGoal", "Enter the digits in the same order.")}
-              </p>
-            </div>
-            <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[22px] bg-white text-[#2563EB] shadow-vyva-card">
-              <Hash size={32} />
-            </div>
-          </div>
+          <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#2563EB] shadow-sm">
+            {currentLevelLabel}
+          </p>
+          <h2 className="mt-3 max-w-[34ch] font-display text-[25px] leading-tight text-vyva-text-1 sm:text-[29px]">
+            {numberMemoryPhase === "study"
+              ? t("memory.numberStudyGoal", "Study the digits, then hide them.")
+              : localizedVariant.payload.reverse
+                ? t("memory.numberRecallReverseGoal", "Enter the digits backwards.")
+                : t("memory.numberRecallGoal", "Enter the digits in the same order.")}
+          </h2>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-vyva-text-1 shadow-sm">
@@ -2139,27 +2121,17 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return renderBrainRunnerScreen(`word_recall_${wordRecallPhase}`, "playing", `word_recall_${wordRecallPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
         <section className="overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
-          <div className="flex items-start justify-between gap-3 sm:gap-4">
-            <div className="min-w-0">
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
-                <NotebookPen size={14} />
-                <span>{wordRecallPhase === "memorize" ? t("wordRecall.memorizeLabel", "Remember words") : t("wordRecall.recall", "Recall")}</span>
-              </div>
-              <h1 className="mt-3 font-display text-[28px] leading-[1.02] text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[28ch] text-[14px] font-semibold leading-[1.45] text-vyva-text-2 sm:text-[15px]">
-                {wordRecallPhase === "memorize"
-                  ? t("wordRecall.studyHint", "Study the words. Hide them when you are ready.")
-                  : wordRecallPhase === "distraction"
-                    ? t("wordRecall.distractionInstruction", "Take a short pause before recalling the words.")
-                    : t("wordRecall.recallInstruction", "Recall as many words as you can.")}
-              </p>
-            </div>
-            <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[20px] bg-white shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-              <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[16px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-                <GameIcon size={24} />
-              </div>
-            </div>
+          <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
+            <NotebookPen size={14} />
+            <span>{wordRecallPhase === "memorize" ? t("wordRecall.memorizeLabel", "Remember words") : t("wordRecall.recall", "Recall")}</span>
           </div>
+          <h2 className="mt-3 max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">
+            {wordRecallPhase === "memorize"
+              ? t("wordRecall.studyHint", "Study the words. Hide them when you are ready.")
+              : wordRecallPhase === "distraction"
+                ? t("wordRecall.distractionInstruction", "Take a short pause before recalling the words.")
+                : t("wordRecall.recallInstruction", "Recall as many words as you can.")}
+          </h2>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-vyva-text-1 shadow-sm">{currentLevelLabel}</span>
@@ -2387,8 +2359,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                 <Route size={14} />
                 {t("memory.sequenceWatchShort", "Watch order")}
               </div>
-              <h1 className="mt-3 font-display text-[28px] leading-[1.02] text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[28ch] text-[14px] leading-[1.45] text-vyva-text-2 sm:text-[15px]">{gamePrompt}</p>
+              <h2 className="mt-3 max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">{gamePrompt}</h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {sequenceTutorialSeen ? (
@@ -2402,11 +2373,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                   <CircleHelp size={23} aria-hidden="true" />
                 </button>
               ) : null}
-              <div className="flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-white shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-                <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[16px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-                  <GameIcon size={24} />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -2642,17 +2608,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#EEE5FA] bg-white shadow-sm" style={gameIconStyle}>
-                <GameIcon size={19} />
-              </span>
-              <div className="min-w-0">
-                <h1 className="truncate font-display text-[20px] leading-none text-vyva-text-1 sm:text-[27px]">{gameTitle}</h1>
-                <p className="mt-1 hidden truncate text-[13px] font-semibold text-vyva-text-2 xl:block">
-                  {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}
-                </p>
-              </div>
-            </div>
+            <h2 className="truncate font-display text-[20px] font-semibold leading-tight text-vyva-text-1 sm:text-[25px]">
+              {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.prompt}
+            </h2>
           </div>
 
           <div className="hidden min-w-[350px] grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm sm:grid">
