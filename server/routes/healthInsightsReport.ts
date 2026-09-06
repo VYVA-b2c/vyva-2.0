@@ -3300,7 +3300,6 @@ function fallbackVideoCandidatesForStep(
     templateCandidate,
     ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => candidate.language === normalizedLanguage && candidate.searchQuery === step.video_query),
     ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => candidate.language === normalizedLanguage),
-    ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => !suppressed.has(candidate.videoId)),
   ].filter((candidate): candidate is LongevityVideoCandidate => Boolean(candidate))
     .map(videoCandidateWithInsights);
 
@@ -3324,7 +3323,7 @@ async function searchYoutubeCandidates(input: {
 }): Promise<LongevityVideoCandidate[]> {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return [];
-  const language = normalizeLanguage(input.profile.language_preference);
+  const language = normalizeVideoLanguage(input.profile.language_preference);
   const query = `${input.step.video_query} senior friendly calm`;
   try {
     const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
@@ -3404,10 +3403,15 @@ async function curateVideoCandidate(input: {
   feedbackHistory: LongevityActionEventRow[];
   rotationDate: string;
 }): Promise<LongevityVideoCandidate | null> {
+  const language = normalizeVideoLanguage(input.profile.language_preference);
+  if (language !== "en") {
+    return fallbackVideoCandidatesForStep(input.step, input.feedbackHistory, input.rotationDate, language)[0] ?? null;
+  }
+
   const liveCandidates = await searchYoutubeCandidates(input);
-  const live = liveCandidates[0];
+  const live = liveCandidates.find((candidate) => normalizeVideoLanguage(candidate.language) === language);
   if (live) return live;
-  return fallbackVideoCandidatesForStep(input.step, input.feedbackHistory, input.rotationDate, input.profile.language_preference)[0] ?? null;
+  return fallbackVideoCandidatesForStep(input.step, input.feedbackHistory, input.rotationDate, language)[0] ?? null;
 }
 
 async function getOrCreateLongevityProgram(input: {
@@ -3417,6 +3421,7 @@ async function getOrCreateLongevityProgram(input: {
   rotationDate: string;
 }): Promise<LongevityProgramRow> {
   const priorityPillar = priorityPillarForPlan(input.plan);
+  const desiredLanguage = normalizeLanguage(input.profile.language_preference);
   const existing = await optionalQuery<LongevityProgramRow>("longevity_programs", `
     select *
     from public.longevity_programs
@@ -3426,7 +3431,18 @@ async function getOrCreateLongevityProgram(input: {
     order by created_at desc
     limit 1
   `, [input.userId, LONGEVITY_PROGRAM_KEY]);
-  if (existing[0]) return existing[0];
+  if (existing[0]) {
+    if (normalizeLanguage(existing[0].language) !== desiredLanguage) {
+      const updated = await optionalQuery<LongevityProgramRow>("longevity_programs", `
+        update public.longevity_programs
+        set language = $2, updated_at = now()
+        where id = $1::uuid
+        returning *
+      `, [existing[0].id, desiredLanguage]);
+      return updated[0] ?? { ...existing[0], language: desiredLanguage, updated_at: new Date().toISOString() };
+    }
+    return existing[0];
+  }
 
   const startDate = input.rotationDate;
   const inserted = await optionalQuery<LongevityProgramRow>("longevity_programs", `
@@ -3442,7 +3458,7 @@ async function getOrCreateLongevityProgram(input: {
     orderedStarterProgramTemplates(priorityPillar).map((template) => template.pillar),
     startDate,
     LONGEVITY_PROGRAM_TOTAL_DAYS,
-    normalizeLanguage(input.profile.language_preference),
+    desiredLanguage,
   ]);
   return inserted[0] ?? fallbackProgramRow({ userId: input.userId, profile: input.profile, priorityPillar, startDate, rotationDate: input.rotationDate });
 }
@@ -3512,19 +3528,23 @@ async function getTodayProgramDay(input: {
 async function getCachedProgramVideo(input: {
   step: LongevityProgramDayRow;
   feedbackHistory: LongevityActionEventRow[];
+  language: string | null | undefined;
 }): Promise<{ row: LongevityVideoResourceRow; status: LongevityVideoCurationStatus } | null> {
   const suppressed = suppressedVideoIds(input.feedbackHistory);
+  const desiredLanguage = normalizeVideoLanguage(input.language);
   const rows = await optionalQuery<LongevityVideoResourceRow>("longevity_video_resources", `
     select *
     from public.longevity_video_resources
     where program_day_id = $1::uuid
+      and language = $2
       and (expires_at is null or expires_at > now())
     order by fetched_at desc
     limit 6
-  `, [input.step.id]);
+  `, [input.step.id, desiredLanguage]);
   const usable = rows.find((row) =>
     isExactYoutubeWatchUrl(row.url)
     && !suppressed.has(row.video_id)
+    && normalizeVideoLanguage(row.language) === desiredLanguage
     && videoCandidateIsSafe({
       videoId: row.video_id,
       url: row.url,
@@ -3549,7 +3569,7 @@ async function getOrCreateProgramVideo(input: {
   feedbackHistory: LongevityActionEventRow[];
   rotationDate: string;
 }): Promise<{ video: LongevityVideoResource | null; status: LongevityVideoCurationStatus }> {
-  const cached = await getCachedProgramVideo({ step: input.step, feedbackHistory: input.feedbackHistory });
+  const cached = await getCachedProgramVideo({ step: input.step, feedbackHistory: input.feedbackHistory, language: input.profile.language_preference });
   if (cached) return { video: mapVideoRow(cached.row), status: cached.status };
 
   const candidate = await curateVideoCandidate(input);
@@ -4849,7 +4869,21 @@ async function recordLongevityActionEvent(input: {
   ]);
 }
 
-function isCachedLongevityCompanionPayload(value: unknown, activeMoment: LongevityMoment): value is LongevityCompanionPayload {
+function cachedPayloadMatchesLanguage(payload: Partial<LongevityCompanionPayload>, language: string | null | undefined): boolean {
+  const desiredLanguage = normalizeVideoLanguage(language);
+  const payloadLanguage = typeof payload.todayVideo?.language === "string"
+    ? normalizeVideoLanguage(payload.todayVideo.language)
+    : typeof payload.activeProgram?.language === "string"
+      ? normalizeVideoLanguage(payload.activeProgram.language)
+      : desiredLanguage;
+  return payloadLanguage === desiredLanguage;
+}
+
+function isCachedLongevityCompanionPayload(
+  value: unknown,
+  activeMoment: LongevityMoment,
+  language: string | null | undefined,
+): value is LongevityCompanionPayload {
   const payload = safeJson<Partial<LongevityCompanionPayload> | null>(value, null);
   return Boolean(
     payload
@@ -4857,6 +4891,7 @@ function isCachedLongevityCompanionPayload(value: unknown, activeMoment: Longevi
     && payload.currentMomentSession
     && payload.currentMomentSession.moment === activeMoment
     && payload.activeMoment === activeMoment
+    && cachedPayloadMatchesLanguage(payload, language)
     && payload.primaryAction
     && payload.todayFocus,
   );
@@ -4866,6 +4901,7 @@ async function getCachedLongevityMomentPayload(input: {
   userId: string;
   rotationDate: string;
   activeMoment: LongevityMoment;
+  language: string | null | undefined;
 }): Promise<LongevityCompanionPayload | null> {
   const rows = await optionalQuery<{ payload: unknown }>("longevity_moment_sessions", `
     select payload
@@ -4884,7 +4920,7 @@ async function getCachedLongevityMomentPayload(input: {
     limit 1
   `, [input.userId, input.rotationDate, input.activeMoment]);
   const payload = rows[0]?.payload;
-  return isCachedLongevityCompanionPayload(payload, input.activeMoment)
+  return isCachedLongevityCompanionPayload(payload, input.activeMoment, input.language)
     ? safeJson<LongevityCompanionPayload>(payload, {} as LongevityCompanionPayload)
     : null;
 }
@@ -5402,7 +5438,12 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
     ]);
     const rotationDate = todaySeed(profile.timezone);
     const activeMoment = activeLongevityMoment(profile.timezone);
-    const cachedPayload = await getCachedLongevityMomentPayload({ userId, rotationDate, activeMoment });
+    const cachedPayload = await getCachedLongevityMomentPayload({
+      userId,
+      rotationDate,
+      activeMoment,
+      language: profile.language_preference,
+    });
     if (cachedPayload) return res.json(cachedPayload);
 
     const dailyContent = await getDailyContentBundle(userId, conditions, profile, activeMoment);
