@@ -219,7 +219,9 @@ export default function NumberMemoryGame({ plan, localizedVariant, cognitiveDoma
           <div className="pb-5 pt-3 text-center">
             <h2 className="font-display text-[28px] font-semibold">{copy[guidanceMode]}</h2>
             <p className={cn("mx-auto mt-3 max-w-[34rem] text-[18px] font-semibold leading-relaxed", isDark ? "text-[#D8CDDF]" : "text-vyva-text-2")}>{copy[`${guidanceMode}Guide` as const]}</p>
-            <p className={cn("mx-auto mt-5 rounded-[18px] px-4 py-4 font-mono text-[17px] font-bold", isDark ? "bg-white/[0.08]" : "bg-[#FAF6FF]")}>{copy[`${guidanceMode}Example` as const]}</p>
+            {guidanceMode !== "forward" ? (
+              <p className={cn("mx-auto mt-5 rounded-[18px] px-4 py-4 font-mono text-[17px] font-bold", isDark ? "bg-white/[0.08]" : "bg-[#FAF6FF]")}>{copy[`${guidanceMode}Example` as const]}</p>
+            ) : null}
             <button type="button" onClick={startAfterGuidance} className="mt-6 min-h-[60px] w-full rounded-full bg-vyva-purple px-6 text-[20px] font-black text-white shadow-vyva-card">{copy.begin}</button>
           </div>
         ) : null}

@@ -51,6 +51,7 @@ describe("NumberMemoryGame", () => {
   it("shows first-use guidance, then presents one digit at a time", () => {
     renderGame();
     expect(screen.getByRole("heading", { name: "Same order" })).toBeInTheDocument();
+    expect(screen.queryByText(/Example:/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByText("Round 1 of 3")).toBeInTheDocument();
 
