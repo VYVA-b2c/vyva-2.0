@@ -1383,8 +1383,8 @@
       description: "Order day-to-day activities and train practical memory.",
     },
     associationMemory: {
-      title: "Association",
-      description: "Study one link, then choose its match.",
+      title: "Connections",
+      description: "Remember people, places, and practical details.",
     },
     storyRecall: {
       title: "Story Recall",

@@ -25,7 +25,7 @@ describe("SensesPage", () => {
 
     expect(screen.getByTestId("senses-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
     expect(screen.getByTestId("senses-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.sharpen_senses");
-    expect(screen.getByTestId("senses-flow-shell").querySelector('[data-vyva-icon-tile="signal"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-brain-coach-category-voice")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Listen Closely/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Association/i })).not.toBeInTheDocument();
     expect(container.querySelector(".xl\\:grid-cols-4")).not.toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BRAIN_COACH_MAX_LEVEL } from "../shared/brainCoachProgression";
 import { memoryGameRegistry } from "./memoryGameRegistry";
+import type { ConnectionsPayload } from "./connectionsData";
 import type { MemoryGameType, MemoryGameVariant } from "./types";
 
 const visibleLeveledGames: MemoryGameType[] = [
@@ -65,17 +66,41 @@ describe("memory game registry", () => {
     expect(masteryLevel!.variants).toHaveLength(new Set(titles).size);
   });
 
-  it("provides English Association content instead of Spanish-only fallback", () => {
-    const variant = memoryGameRegistry.association_memory.levels[0].variants[0];
-    const content = variant.content.en;
+  it.each([
+    [1, 3, 3, 0],
+    [3, 3, 4, 3],
+    [6, 4, 5, 4],
+    [11, 5, 6, 4],
+    [16, 5, 7, 5],
+  ])("builds adult Connections rounds at level %i", (level, connectionCount, questionCount, resetCount) => {
+    const content = memoryGameRegistry.association_memory.levels[level - 1].variants[0].content.en!;
+    const payload = content.payload as ConnectionsPayload;
 
-    expect(content?.title).toBe("Association 1");
-    expect(content?.prompt).toBe("Link the item to its group.");
-    expect(content?.payload).toEqual(expect.objectContaining({
-      left: "apple",
-      right: "fruit",
-      choiceCount: 2,
-    }));
+    expect(content.title).toBe("Connections");
+    expect(payload.roundVersion).toBe("connections_v2");
+    expect(payload.connections).toHaveLength(connectionCount);
+    expect(payload.questions).toHaveLength(questionCount);
+    expect(payload.resetNumbers).toHaveLength(resetCount);
+    payload.questions.forEach((question) => {
+      expect(question.prompt.length).toBeGreaterThan(8);
+      expect(question.options).toContain(question.answer);
+      expect(new Set(question.options).size).toBe(question.options.length);
+    });
+  });
+
+  it("localizes every Connections variant in all supported languages", () => {
+    const languages = ["en", "es", "fr", "de", "it", "pt"] as const;
+    memoryGameRegistry.association_memory.levels.forEach((level) => {
+      level.variants.forEach((variant) => {
+        languages.forEach((language) => {
+          const content = variant.content[language];
+          const payload = content?.payload as ConnectionsPayload | undefined;
+          expect(content?.title).toBeTruthy();
+          expect(payload?.connections.length).toBeGreaterThanOrEqual(3);
+          expect(payload?.questions.every((question) => question.prompt && question.answer)).toBe(true);
+        });
+      });
+    });
   });
 
   it("provides English Number Memory prompts for order modes", () => {

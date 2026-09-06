@@ -22,7 +22,7 @@ describe("ExecutiveFunctionPage", () => {
 
     expect(screen.getByTestId("executive-function-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
     expect(screen.getByTestId("executive-function-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.improve_thinking");
-    expect(screen.getByTestId("executive-function-flow-shell").querySelector('[data-vyva-icon-tile="knobs"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-brain-coach-category-voice")).toBeInTheDocument();
     const numberTrailsButton = screen.getByRole("button", { name: /Number Trails/i });
     expect(numberTrailsButton.querySelector('[data-vyva-accent="path"]')).toBeInTheDocument();
 
