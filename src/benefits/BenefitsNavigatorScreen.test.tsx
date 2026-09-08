@@ -4,10 +4,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BenefitsNavigatorScreen from "./BenefitsNavigatorScreen";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
-const voiceHeroMock = vi.hoisted(() => vi.fn());
+const canonicalVoiceButtonMock = vi.hoisted(() => vi.fn());
+const profileState = vi.hoisted(() => ({
+  profile: {
+    country: "ES",
+    region: "Madrid",
+    dateOfBirth: "1947-02-14",
+    livingSituation: "alone",
+  } as Record<string, unknown> | null,
+  isLoading: false,
+}));
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+}));
+
+vi.mock("@/contexts/ProfileContext", () => ({
+  useProfile: () => ({ ...profileState, fullName: "Elena García", initials: "EG", firstName: "Elena" }),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -17,12 +30,16 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@/components/VoiceHero", () => ({
-  default: (props: { voiceAgentSlug?: string; onChatClick?: () => void }) => {
-    voiceHeroMock(props);
-    return <button type="button" data-testid="mock-benefits-chat" onClick={props.onChatClick}>Chat with Inés</button>;
-  },
-}));
+vi.mock("@/components/CanonicalDetailFlowShell", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/CanonicalDetailFlowShell")>();
+  return {
+    ...actual,
+    CanonicalVoiceButton: (props: { agentSlug?: string; dynamicVariables?: Record<string, string> }) => {
+      canonicalVoiceButtonMock(props);
+      return <button type="button" data-testid="button-benefits-voice">Talk to Inés</button>;
+    },
+  };
+});
 
 function LocationProbe() {
   const location = useLocation();
@@ -43,7 +60,14 @@ function renderScreen() {
 describe("BenefitsNavigatorScreen", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    voiceHeroMock.mockReset();
+    canonicalVoiceButtonMock.mockReset();
+    profileState.profile = {
+      country: "ES",
+      region: "Madrid",
+      dateOfBirth: "1947-02-14",
+      livingSituation: "alone",
+    };
+    profileState.isLoading = false;
   });
 
   afterEach(() => {
@@ -54,16 +78,18 @@ describe("BenefitsNavigatorScreen", () => {
   it("uses Inés for the permanent voice and chat entry point", () => {
     renderScreen();
 
-    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
-      voiceAgentSlug: "ines",
-      voiceDynamicVariables: expect.objectContaining({ app_entrypoint: "benefits_navigator" }),
+    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", "light");
+    expect(canonicalVoiceButtonMock).toHaveBeenCalledWith(expect.objectContaining({
+      agentSlug: "ines",
+      dynamicVariables: expect.objectContaining({ app_entrypoint: "benefits_navigator" }),
     }));
+    expect(screen.getByTestId("button-benefits-voice")).toHaveAccessibleName("Talk to Inés");
 
-    fireEvent.click(screen.getByTestId("mock-benefits-chat"));
+    fireEvent.click(screen.getByTestId("button-benefits-chat"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/ines");
   });
 
-  it("submits the five-question screener and hands a result to Inés as a starter", async () => {
+  it("uses known profile facts and submits only the remaining confirmation", async () => {
     apiFetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -79,12 +105,23 @@ describe("BenefitsNavigatorScreen", () => {
     });
     renderScreen();
 
+    expect(screen.getByTestId("benefits-profile-summary")).toHaveTextContent("Madrid");
+    expect(screen.getByTestId("benefits-profile-summary")).toHaveTextContent("I live alone");
+    expect(screen.queryByLabelText("Country")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByTestId("button-benefits-check"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/benefits/screenings?lang=en", expect.objectContaining({
         method: "POST",
       }));
+    });
+    const request = apiFetchMock.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(request.body)).toMatchObject({
+      country: "ES",
+      region: "Madrid",
+      livingSituation: "alone",
+      currentBenefits: [],
     });
     expect(await screen.findByRole("heading", { name: "Minimum Living Income" })).toBeInTheDocument();
 
@@ -107,5 +144,19 @@ describe("BenefitsNavigatorScreen", () => {
     fireEvent.click(screen.getByTestId("button-benefits-check"));
 
     expect(await screen.findByText("No reviewed matches yet")).toBeInTheDocument();
+  });
+
+  it("shows an honest service state when the local API is unavailable", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => ({ code: "LOCAL_API_UNAVAILABLE" }),
+    });
+    renderScreen();
+
+    fireEvent.click(screen.getByTestId("button-benefits-check"));
+
+    expect(await screen.findByText("Benefits service unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/Your details are still here/)).toBeInTheDocument();
   });
 });

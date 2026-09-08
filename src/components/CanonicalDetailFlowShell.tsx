@@ -133,6 +133,7 @@ type CanonicalDetailFlowShellProps = {
   children: ReactNode;
   shellContract: CanonicalDetailFlowShellContract;
   onBack: () => void;
+  appearance?: "adaptive" | "light";
   interactionMode?: "voice" | "touch";
   onInteractionModeChange?: (mode: "voice" | "touch") => void;
   inlineVoiceControl?: boolean;
@@ -156,6 +157,7 @@ export function CanonicalDetailFlowShell({
   children,
   shellContract,
   onBack,
+  appearance = "adaptive",
   interactionMode = "touch",
   onInteractionModeChange,
   inlineVoiceControl = false,
@@ -164,7 +166,8 @@ export function CanonicalDetailFlowShell({
   contentTestId = "canonical-detail-flow-content",
   backTestId = "button-prototype-back",
 }: CanonicalDetailFlowShellProps) {
-  const { isDark } = useHomeMasterTheme();
+  const { isDark: prefersDark } = useHomeMasterTheme();
+  const isDark = appearance === "adaptive" && prefersDark;
   const { size: readableTextSize } = useReadableTextSize();
 
   return (

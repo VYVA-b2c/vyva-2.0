@@ -2230,6 +2230,7 @@ const es = {
     },
   },
   benefits: {
+    title: "Mis ayudas",
     back: "Volver a Comunidad",
     heroTitle: "Encuentra ayudas que quizá no estés recibiendo",
     heroSubtitle: "Responde unas preguntas o habla con Inés para recibir orientación personal.",
