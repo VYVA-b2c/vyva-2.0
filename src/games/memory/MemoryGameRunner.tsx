@@ -1,7 +1,9 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Check,
   CircleHelp,
+  Grid2x2,
   Mic,
   RotateCcw,
   Route,
@@ -48,7 +50,9 @@ import {
 import type { GameResult, MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
-import StoryRecallGame from "./StoryRecallGame";`r`nimport ConnectionsGame from "./ConnectionsGame";`r`nimport NumberMemoryGame from "./NumberMemoryGame";
+import StoryRecallGame from "./StoryRecallGame";
+import ConnectionsGame from "./ConnectionsGame";
+import NumberMemoryGame from "./NumberMemoryGame";
 import MemoryMatchVisual from "./MemoryMatchVisual";
 import {
   getVisualMemoryProgressLabel,
@@ -616,7 +620,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     stopWordRecallAudio();
     navigate(resolvedReturnPath);
   };
-  const buildGameRoute = (recommendation: Recommendation) => {
+  const buildGameRoute = useCallback((recommendation: Recommendation) => {
     const query = `level=${recommendation.level}&variant=${recommendation.variantId}`;
     if (location.pathname === "/dev/connections" && recommendation.gameType === "association_memory") {
       return `/dev/connections?${query}`;
@@ -625,7 +629,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return activity
       ? `${getBrainCoachActivityPath(activity.id)}?${query}`
       : `/memory-games/${recommendation.gameType}?${query}`;
-  };
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!forcedGameType && gameType === "sequence_memory") {
@@ -751,7 +755,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       stopTts();
       wordRecallNarrationKeyRef.current = "";
     };
-  }, [initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType]);
+  }, [buildGameRoute, initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType]);
 
   useEffect(() => {
     return () => {
@@ -1520,8 +1524,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const summaryMistakes = plan.gameType === "sequence_memory" ? sequenceTotalMistakes : mistakes;
   const gameTitle = getGameTitle(plan.gameType, language);
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
-  const GameIcon = getMemoryGameIcon(plan.gameType);
-  const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
   const currentLevelLabel = plan.gameType === "memory_match"
     ? getVisualMemoryProgressLabel(plan.level, language)
     : getBrainCoachProgressLabel(plan.level);

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BRAIN_COACH_MAX_LEVEL } from "../shared/brainCoachProgression";
 import { getVisualMemoryDifficulty, memoryGameRegistry } from "./memoryGameRegistry";
-import type { ConnectionsPayload } from "./connectionsData";`r`nimport type { MemoryGameType, MemoryGameVariant } from "./types";
+import type { ConnectionsPayload } from "./connectionsData";
+import type { MemoryGameType, MemoryGameVariant } from "./types";
 import { getVisualMemoryBand, VISUAL_MEMORY_MAX_LEVEL } from "./visualMemoryJourney";
 
 const sharedLeveledGames: MemoryGameType[] = [
