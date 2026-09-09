@@ -1,9 +1,18 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "../db.js";
-import { communicationsLog } from "../../shared/schema.js";
+import { communicationsLog, whatsappPrivateCheckins } from "../../shared/schema.js";
 import * as lifecycleService from "../services/lifecycle.js";
 import { verifyTwilioSignature } from "../lib/webhookVerification.js";
+import { decryptPrivateCheckinResponse, encryptPrivateCheckinResponse } from "../lib/whatsappPrivateCheckin.js";
+import {
+  advanceHip24hConversation,
+  HIP_24H_QUESTIONS_EN,
+  HIP_24H_STEP_ID,
+  hip24hTemplateSid,
+  type Hip24hConversationState,
+} from "../lib/whatsapp24hConversation.js";
+import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 
 const router = Router();
 
@@ -17,6 +26,21 @@ function twilioSignatureValid(req: { header(name: string): string | undefined; o
     authToken,
     signature: req.header("X-Twilio-Signature"),
     url: `${publicBaseUrl(req)}${req.originalUrl}`,
+    params: req.body,
+  });
+}
+
+function strictTwilioSignatureValid(req: Parameters<typeof twilioSignatureValid>[0]) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  if (!authToken) {
+    console.error("[whatsapp-24h] TWILIO_AUTH_TOKEN is required for inbound health responses");
+    return false;
+  }
+  const baseUrl = (process.env.TWILIO_WEBHOOK_BASE_URL ?? publicBaseUrl(req)).replace(/\/$/, "");
+  return verifyTwilioSignature({
+    authToken,
+    signature: req.header("X-Twilio-Signature"),
+    url: `${baseUrl}${req.originalUrl}`,
     params: req.body,
   });
 }
@@ -122,6 +146,100 @@ router.post("/message-status", async (req, res) => {
   await updateByProviderId(providerId, patch);
 
   return res.sendStatus(204);
+});
+
+router.post("/whatsapp-24h", async (req, res) => {
+  if (!strictTwilioSignatureValid(req)) {
+    console.warn("[whatsapp-24h] rejected inbound message with invalid signature");
+    return res.sendStatus(403);
+  }
+
+  const recipient = String(req.body.From ?? "").replace(/^whatsapp:/i, "").trim();
+  const messageSid = String(req.body.MessageSid ?? req.body.SmsMessageSid ?? "").trim();
+  const body = String(req.body.Body ?? "").trim().slice(0, 2_000);
+  const buttonPayload = String(req.body.ButtonPayload ?? "").trim().slice(0, 200);
+  if (!/^\+[1-9]\d{7,14}$/.test(recipient) || !/^SM[a-zA-Z0-9]{20,40}$/.test(messageSid)) {
+    return res.sendStatus(400);
+  }
+
+  const now = new Date();
+  try {
+    const queuedReply = await db.transaction(async (tx) => {
+      const [checkin] = await tx.select().from(whatsappPrivateCheckins).where(and(
+        eq(whatsappPrivateCheckins.recipient, recipient),
+        eq(whatsappPrivateCheckins.language, "en"),
+        eq(whatsappPrivateCheckins.step_id, HIP_24H_STEP_ID),
+        inArray(whatsappPrivateCheckins.status, ["sent", "in_progress"]),
+        gt(whatsappPrivateCheckins.expires_at, now),
+      )).orderBy(desc(whatsappPrivateCheckins.created_at)).limit(1).for("update");
+
+      if (!checkin?.response_payload) return null;
+      const state = decryptPrivateCheckinResponse(checkin.response_payload) as Hip24hConversationState;
+      if (state.mode !== "whatsapp_conversation") return null;
+      if (state.processed_message_sids.includes(messageSid)) return null;
+
+      const transition = advanceHip24hConversation(state, { body, buttonPayload }, now);
+      transition.state.processed_message_sids = [...transition.state.processed_message_sids, messageSid].slice(-20);
+      const status = transition.cancelled ? "cancelled" : transition.completed ? "completed" : "in_progress";
+
+      const replyBody = transition.reply.kind === "template"
+        ? HIP_24H_QUESTIONS_EN[transition.reply.question - 1].prompt
+        : transition.reply.body;
+      const [communication] = await tx.insert(communicationsLog).values({
+        channel: "whatsapp",
+        recipient,
+        purpose: "hip_24h_whatsapp_checkin",
+        status: "queued",
+        body: replyBody,
+        metadata: {
+          ...(transition.reply.kind === "template" ? { content_sid: hip24hTemplateSid(transition.reply.question) } : {}),
+          private_checkin_id: checkin.id,
+          workflow_id: checkin.workflow_id,
+          step_id: checkin.step_id,
+          language: "en",
+          conversation_mode: "whatsapp_24h_direct",
+          inbound_message_sid: messageSid,
+          health_data_in_message: false,
+        },
+      }).returning({ id: communicationsLog.id });
+
+      await tx.update(whatsappPrivateCheckins).set({
+        response_payload: encryptPrivateCheckinResponse(transition.state),
+        status,
+        consumed_at: transition.completed || transition.cancelled ? now : null,
+        updated_at: now,
+      }).where(eq(whatsappPrivateCheckins.id, checkin.id));
+
+      return {
+        communicationId: communication.id,
+        checkinId: checkin.id,
+        previousResponsePayload: checkin.response_payload,
+        previousStatus: checkin.status,
+        previousConsumedAt: checkin.consumed_at,
+      };
+    });
+
+    if (queuedReply) {
+      const dispatch = await dispatchCommunicationsByIds([queuedReply.communicationId]);
+      if (dispatch.results[0]?.status !== "sent") {
+        await db.update(whatsappPrivateCheckins).set({
+          response_payload: queuedReply.previousResponsePayload,
+          status: queuedReply.previousStatus,
+          consumed_at: queuedReply.previousConsumedAt,
+          updated_at: new Date(),
+        }).where(and(
+          eq(whatsappPrivateCheckins.id, queuedReply.checkinId),
+          eq(whatsappPrivateCheckins.updated_at, now),
+        ));
+        console.error("[whatsapp-24h] reply dispatch failed", { communicationId: queuedReply.communicationId });
+        return res.sendStatus(500);
+      }
+    }
+    return twiml(res, "");
+  } catch (error) {
+    console.error("[whatsapp-24h] inbound processing failed", error);
+    return res.sendStatus(500);
+  }
 });
 
 router.post("/voice-status", async (req, res) => {
