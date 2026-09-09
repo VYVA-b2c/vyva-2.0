@@ -18,6 +18,7 @@ import {
 import {
   HIP_24H_QUESTIONS_EN,
   hip24hTemplateSid,
+  hip24hWhatsappFrom,
   initialHip24hConversationState,
   isHip24hDirectPilot,
 } from "../lib/whatsapp24hConversation.js";
@@ -159,6 +160,7 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
         : "VYVA private check-in notice. Open the secure link; do not send medical information in WhatsApp.",
       metadata: directPilot ? {
         content_sid: hip24hTemplateSid(1),
+        whatsapp_from: hip24hWhatsappFrom(),
         private_checkin_id: checkin.id,
         workflow_id: input.workflowId,
         step_id: input.stepId,

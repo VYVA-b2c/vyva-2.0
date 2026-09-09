@@ -10,6 +10,7 @@ import {
   HIP_24H_QUESTIONS_EN,
   HIP_24H_STEP_ID,
   hip24hTemplateSid,
+  hip24hWhatsappFrom,
   type Hip24hConversationState,
 } from "../lib/whatsapp24hConversation.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
@@ -193,6 +194,7 @@ router.post("/whatsapp-24h", async (req, res) => {
         body: replyBody,
         metadata: {
           ...(transition.reply.kind === "template" ? { content_sid: hip24hTemplateSid(transition.reply.question) } : {}),
+          whatsapp_from: hip24hWhatsappFrom(),
           private_checkin_id: checkin.id,
           workflow_id: checkin.workflow_id,
           step_id: checkin.step_id,
