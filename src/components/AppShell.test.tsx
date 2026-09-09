@@ -207,6 +207,8 @@ describe("app shell route layout", () => {
     ["/dev/home-master/vitals", "vitals"],
     ["/social-rooms/music-room", "wide"],
     ["/companions", "wide"],
+    ["/benefits", "wide"],
+    ["/dev/benefits", "wide"],
     ["/concierge/shopping", "wide"],
     ["/senses", "wide"],
     ["/brain-coach/remember", "wide"],
@@ -277,6 +279,20 @@ describe("app shell route layout", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("gives Benefits its own topbar and keeps its B2C surface light", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/benefits"]}>
+        <AppShell>
+          <div>Benefits content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "light");
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 

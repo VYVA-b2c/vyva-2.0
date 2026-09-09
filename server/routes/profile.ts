@@ -1398,12 +1398,14 @@ router.get("/", async (req: Request, res: Response) => {
     const lastName  = nameParts.slice(1).join(" ");
     const language = resolvedProfileLanguage(p);
     const profileSignals = buildProfileServiceSignals(p);
+    const conditions = consentSection(p.data_sharing_consent, "conditions");
 
     return res.json({
       firstName,
       lastName,
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
+      livingSituation:  trimToNull(conditions.living_situation),
       gender:           readProfileGender(p.data_sharing_consent),
       email:            profileEmailForAccount(accountEmails, p.email) ?? "",
       accountEmail:     accountEmail ?? "",

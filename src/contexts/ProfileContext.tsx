@@ -18,6 +18,8 @@ interface ProfileData {
   full_name?: string | null;
   preferred_name?: string | null;
   display_name?: string | null;
+  dateOfBirth?: string | null;
+  livingSituation?: string | null;
   email: string;
   phone: string;
   country: string;

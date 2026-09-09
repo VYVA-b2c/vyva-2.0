@@ -284,6 +284,58 @@ function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
     try {
       const body = chunks.length ? Buffer.concat(chunks) : undefined;
       const isHomeMasterPreview = isHomeMasterAskDrAiPreview(req);
+      const isBenefitsPreview = String(req.headers.referer ?? "").includes("/dev/benefits");
+      if (isBenefitsPreview && req.method === "GET" && req.url?.startsWith("/api/profile")) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("cache-control", "no-store");
+        res.end(JSON.stringify({
+          profileId: "benefits-preview-profile",
+          firstName: "Elena",
+          lastName: "García",
+          preferredName: "Elena",
+          dateOfBirth: "1947-02-14",
+          livingSituation: "alone",
+          country: "ES",
+          region: "Madrid",
+          language: "es",
+          timezone: "Europe/Madrid",
+        }));
+        return;
+      }
+      if (isBenefitsPreview && req.method === "POST" && req.url?.startsWith("/api/benefits/screenings")) {
+        const payload = body?.length
+          ? JSON.parse(body.toString("utf8")) as { country?: string; currentBenefits?: string[] }
+          : {};
+        const isSpanish = req.url.includes("lang=es");
+        const isGerman = req.url.includes("lang=de");
+        const result = payload.country === "DE"
+          ? {
+            id: "de-grundsicherung-preview",
+            country: "DE",
+            region: null,
+            name: isGerman ? "Grundsicherung im Alter" : "Basic income support in old age",
+            description: isGerman ? "Eine bedarfsabhängige Unterstützung für Menschen im Rentenalter mit niedrigem Einkommen." : "Income-tested support for people of pension age with a low income.",
+            askInesStarter: isGerman ? "Kannst du mir die Grundsicherung im Alter erklären?" : "Can you explain basic income support in old age?",
+          }
+          : {
+            id: "es-imv-preview",
+            country: "ES",
+            region: null,
+            name: isSpanish ? "Ingreso Mínimo Vital" : "Minimum Living Income",
+            description: isSpanish ? "Una ayuda sujeta a ingresos para hogares con recursos limitados." : "Income-tested support for households with limited resources.",
+            askInesStarter: isSpanish ? "¿Puedes explicarme el Ingreso Mínimo Vital?" : "Can you explain Minimum Living Income?",
+          };
+        const alreadyReceived = payload.currentBenefits?.includes(payload.country === "DE" ? "de-grundsicherung" : "es-imv");
+        res.statusCode = 201;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("cache-control", "no-store");
+        res.end(JSON.stringify({
+          screeningId: "benefits-preview-screening",
+          results: alreadyReceived ? [] : [result],
+        }));
+        return;
+      }
       if (isHomeMasterPreview && req.method === "POST" && req.url?.startsWith("/api/triage/message")) {
         const payload = body?.length
           ? JSON.parse(body.toString("utf8")) as Record<string, unknown>

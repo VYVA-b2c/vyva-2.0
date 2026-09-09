@@ -2101,6 +2101,7 @@ const de = {
     },
   },
   benefits: {
+    title: "Meine Leistungen",
     back: "Zurück zur Community",
     heroTitle: "Finden Sie Unterstützung, die Ihnen zustehen könnte",
     heroSubtitle: "Beantworten Sie einige Fragen oder sprechen Sie mit Inés persönlich.",

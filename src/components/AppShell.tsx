@@ -365,6 +365,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     isSymptomCheckRoute ||
     isDevSymptomAssessmentRoute;
   const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const isBenefitsRoute = location.pathname === "/benefits" || location.pathname === "/dev/benefits";
   const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute || location.pathname === "/health";
   const ownsPrototypeTopbar = isBrainCoachRoute || isHomeNavPrototypeTopbarRoute(location.pathname);
   const ownsBrainCoachTopbar = ownsPrototypeTopbar && isBrainCoachRoute;
@@ -382,18 +383,19 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
   const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const usesDarkCompactSurface = usesCompactVoiceSurface && isHomeMasterDark && !isBenefitsRoute;
   const { size: readableTextSize } = useReadableTextSize();
   const homeMasterPrototypeSurfaceClass = isHomeMasterDark
     ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
   const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
     ? homeMasterPrototypeSurfaceClass
-    : isHomeMasterDark
+    : usesDarkCompactSurface
       ? "bg-[#080715]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
     ? homeMasterPrototypeSurfaceClass
-    : isHomeMasterDark
+    : usesDarkCompactSurface
       ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
@@ -782,7 +784,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        data-home-master-theme={usesCompactVoiceSurface && isHomeMasterDark ? "dark" : "light"}
+        data-home-master-theme={usesDarkCompactSurface ? "dark" : "light"}
         data-vyva-text-size={readableTextSize}
         className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
@@ -859,7 +861,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               setDockVoiceOverlayOpen(true);
             }}
             compact={usesCompactVoiceSurface}
-            compactDark={usesCompactVoiceSurface && isHomeMasterDark}
+            compactDark={usesDarkCompactSurface}
           />
         )}
         <CrossPillarHandoffRecovery />

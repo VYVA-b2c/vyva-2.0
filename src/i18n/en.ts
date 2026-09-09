@@ -2381,6 +2381,7 @@
     },
   },
   benefits: {
+    title: "My benefits",
     back: "Back to Community",
     heroTitle: "Find support you may be missing",
     heroSubtitle: "Answer a few questions, or talk to Inés for personal guidance.",
