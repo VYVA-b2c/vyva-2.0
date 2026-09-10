@@ -1,5 +1,4 @@
 export const HIP_24H_STEP_ID = "24h_transition_check";
-const DEFAULT_HIP_24H_WHATSAPP_FROM = "+15558003512";
 
 export const HIP_24H_QUESTIONS_EN = [
   { id: "q1", prompt: "Do you have your hospital discharge plan and medicines list?", type: "yes_no" as const, required: true },
@@ -68,10 +67,6 @@ export function isHip24hDirectPilot(stepId: string, language: string) {
 
 export function hip24hTemplateSid(question: Hip24hQuestionNumber) {
   return process.env[TEMPLATE_ENV_KEYS[question]]?.trim() || DEFAULT_TEMPLATE_SIDS[question];
-}
-
-export function hip24hWhatsappFrom() {
-  return process.env.TWILIO_WHATSAPP_HIP_24H_FROM?.trim() || DEFAULT_HIP_24H_WHATSAPP_FROM;
 }
 
 export function initialHip24hConversationState(now = new Date()): Hip24hConversationState {

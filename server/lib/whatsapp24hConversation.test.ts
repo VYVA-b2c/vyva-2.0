@@ -3,15 +3,10 @@ import {
   advanceHip24hConversation,
   HIP_24H_COMPLETION_MESSAGE,
   HIP_24H_INVALID_REPLY_MESSAGE,
-  hip24hWhatsappFrom,
   initialHip24hConversationState,
 } from "./whatsapp24hConversation.js";
 
 describe("24-hour hip replacement WhatsApp conversation", () => {
-  it("uses the dedicated pilot sender by default", () => {
-    expect(hip24hWhatsappFrom()).toBe("+15558003512");
-  });
-
   it("advances through all five Yes/No questions and completes", () => {
     let state = initialHip24hConversationState(new Date("2026-09-09T10:00:00Z"));
     for (let question = 1; question <= 4; question += 1) {

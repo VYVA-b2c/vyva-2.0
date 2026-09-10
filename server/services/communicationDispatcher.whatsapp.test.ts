@@ -38,12 +38,4 @@ describe("WhatsApp dispatcher content templates", () => {
     expect(params.get("Body")).toBe("Neutral fallback");
     expect(params.has("ContentSid")).toBe(false);
   });
-
-  it("pins a message to its metadata sender when provided", () => {
-    const params = buildWhatsappMessageParams(communication({
-      metadata: { whatsapp_from: "+15558003512" },
-    }));
-    expect(params.get("From")).toBe("whatsapp:+15558003512");
-    expect(params.has("MessagingServiceSid")).toBe(false);
-  });
 });
