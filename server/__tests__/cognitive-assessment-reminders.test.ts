@@ -10,6 +10,7 @@ type QueryResult<T = unknown> = { rows: T[]; rowCount?: number | null };
 
 class FakeDatabase {
   dueRows: unknown[] = [];
+  lockedDueRows: unknown[] = [];
   completionRows: unknown[] = [];
   testReminderRows: unknown[] = [];
   existingCommunicationRows: unknown[] = [];
@@ -18,6 +19,9 @@ class FakeDatabase {
   updates: unknown[][] = [];
 
   async query<T = unknown>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
+    if (sql.includes("si.next_run_at = $2::timestamptz") && sql.includes("for update of si")) {
+      return { rows: (this.lockedDueRows.length ? this.lockedDueRows : this.dueRows) as T[] };
+    }
     if (sql.includes("where e.user_id = $1::uuid") && sql.includes("left join public.profiles")) {
       return { rows: this.testReminderRows as T[] };
     }
@@ -69,6 +73,7 @@ describe("Cognitive Assessment reminders", () => {
       channel_notifications: "whatsapp",
       preferred_reminder_channel: "whatsapp_outbound",
     });
+    database.lockedDueRows.push({ ...database.dueRows[0] });
 
     const previousPublicUrl = process.env.PUBLIC_APP_URL;
     process.env.PUBLIC_APP_URL = "https://app.example";
@@ -100,6 +105,7 @@ describe("Cognitive Assessment reminders", () => {
         "2026-07-08T04:00:00.000Z",
         "REMINDER_QUEUED",
       ]);
+      expect(database.logs[0][4]).toBeNull();
       expect(database.updates[0][0]).toBe("REMINDER_QUEUED");
       expect((database.updates[0][1] as Date).toISOString()).toBe("2026-08-08T04:00:00.000Z");
     } finally {
@@ -136,6 +142,7 @@ describe("Cognitive Assessment reminders", () => {
       "2026-07-08T04:00:00.000Z",
       "COMPLETED",
     ]);
+    expect((database.logs[0][4] as Date).toISOString()).toBe("2026-07-08T04:30:00.000Z");
     expect(database.updates[0][0]).toBe("COMPLETED");
     expect((database.updates[0][1] as Date).toISOString()).toBe("2026-07-22T04:00:00.000Z");
     expect((database.updates[0][2] as Date).toISOString()).toBe("2026-07-08T04:30:00.000Z");
@@ -202,5 +209,39 @@ describe("Cognitive Assessment reminders", () => {
       if (previousPublicUrl === undefined) delete process.env.PUBLIC_APP_URL;
       else process.env.PUBLIC_APP_URL = previousPublicUrl;
     }
+  });
+
+  it("falls back to SMS when a member has a phone but no WhatsApp number", async () => {
+    const database = new FakeDatabase();
+    database.dueRows.push({
+      id: scheduleId,
+      user_id: userId,
+      next_run_at: new Date("2026-07-08T04:00:00.000Z"),
+      start_date: "2026-07-08",
+      frequency: "monthly",
+      reminder_time: "04:00",
+      timezone: "UTC",
+      preferred_language: "en",
+      preferred_name: "Lola",
+      full_name: "Lola Martin",
+      phone_number: "+34600000001",
+      whatsapp_number: null,
+      email: "lola@example.com",
+      channel_notifications: "whatsapp",
+      preferred_reminder_channel: "whatsapp_outbound",
+    });
+    database.lockedDueRows.push({ ...database.dueRows[0] });
+
+    const result = await queueDueCognitiveAssessmentReminders({
+      database,
+      now: new Date("2026-07-08T04:05:00.000Z"),
+    });
+
+    expect(result.queued).toBe(1);
+    expect(database.communications[0].slice(0, 3)).toEqual([
+      userId,
+      "sms",
+      "+34600000001",
+    ]);
   });
 });

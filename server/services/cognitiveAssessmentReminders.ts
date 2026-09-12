@@ -11,6 +11,10 @@ type Queryable = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
+type TransactionClient = Queryable & {
+  release(): void;
+};
+
 type DueReminderRow = {
   id: string;
   user_id: string;
@@ -41,10 +45,30 @@ type CompletionScheduleRow = {
 
 type TestReminderRow = DueReminderRow;
 
+type LockedScheduleRow = Pick<DueReminderRow, "id" | "user_id" | "next_run_at" | "start_date" | "frequency" | "reminder_time" | "timezone">;
+
 type DeliveryTarget = {
   channel: "whatsapp" | "sms" | "voice" | "email";
   recipient: string;
 };
+
+async function withTransaction<T>(database: Queryable, work: (transaction: Queryable) => Promise<T>) {
+  const connect = (database as Queryable & { connect?: () => Promise<TransactionClient> }).connect;
+  if (typeof connect !== "function") return work(database);
+
+  const client = await connect.call(database);
+  await client.query("begin");
+  try {
+    const result = await work(client);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 function cleanString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -88,12 +112,13 @@ function appUrl(path: string) {
 function deliveryTargetFor(row: DueReminderRow): DeliveryTarget | null {
   const preferred = cleanString(row.preferred_reminder_channel)?.toLowerCase();
   const profileChannel = cleanString(row.channel_notifications)?.toLowerCase();
-  const whatsapp = cleanString(row.whatsapp_number) ?? cleanString(row.phone_number);
-  const phone = cleanString(row.phone_number) ?? cleanString(row.whatsapp_number);
+  const whatsapp = cleanString(row.whatsapp_number);
+  const phone = cleanString(row.phone_number);
   const email = cleanString(row.email);
 
   if (preferred?.startsWith("whatsapp")) {
     if (whatsapp) return { channel: "whatsapp", recipient: whatsapp };
+    if (phone) return { channel: "sms", recipient: phone };
   }
   if (preferred === "voice_outbound") {
     if (phone) return { channel: "voice", recipient: phone };
@@ -114,11 +139,6 @@ function deliveryTargetFor(row: DueReminderRow): DeliveryTarget | null {
   if (phone) return { channel: "sms", recipient: phone };
   if (email) return { channel: "email", recipient: email };
   return null;
-}
-
-function whatsappTargetFor(row: DueReminderRow): DeliveryTarget | null {
-  const recipient = cleanString(row.whatsapp_number) ?? cleanString(row.phone_number);
-  return recipient ? { channel: "whatsapp", recipient } : null;
 }
 
 function reminderBody(row: DueReminderRow, url: string) {
@@ -198,21 +218,48 @@ async function recordReminderLog(input: {
   outcome: string;
   summary: string;
   riskFlags?: string[];
+  completedAt?: Date | null;
 }) {
   await input.database.query(`
     insert into public.interaction_logs (
       user_id, scheduled_interaction_id, interaction_type, scheduled_for,
       started_at, completed_at, outcome, summary, sentiment, risk_flags
-    ) values ($1, $2::uuid, 'BRAIN_COACH', $3::timestamptz, now(), now(), $4, $5, $6, $7::jsonb)
+    ) values ($1, $2::uuid, 'BRAIN_COACH', $3::timestamptz, null, $5::timestamptz, $4, $6, $7, $8::jsonb)
   `, [
     input.row.user_id,
     input.row.id,
     input.scheduledFor,
     input.outcome,
+    input.outcome === "COMPLETED" ? input.completedAt ?? new Date() : null,
     input.summary,
     input.outcome === "COMPLETED" ? "responded" : "neutral",
     JSON.stringify(input.riskFlags ?? []),
   ]);
+}
+
+async function lockDueSchedule(database: Queryable, row: DueReminderRow, now: Date) {
+  const { rows } = await database.query<LockedScheduleRow>(`
+    select
+      si.id::text,
+      si.user_id::text,
+      si.next_run_at,
+      e.start_date,
+      e.frequency,
+      e.reminder_time::text,
+      e.timezone
+    from public.scheduled_interactions si
+    join public.cc_program_enrollments e on e.scheduled_interaction_id = si.id
+    where si.id = $1::uuid
+      and si.next_run_at = $2::timestamptz
+      and si.next_run_at <= $3::timestamptz
+      and si.interaction_type = 'BRAIN_COACH'
+      and si.source_ref_id = 'cognitive_assessment'
+      and si.status = 'ACTIVE'
+      and si.is_paused = false
+      and e.status = 'active'
+    for update of si
+  `, [row.id, row.next_run_at, now]);
+  return rows[0] ?? null;
 }
 
 async function advanceReminderSchedule(input: {
@@ -236,6 +283,91 @@ async function advanceReminderSchedule(input: {
     input.completedAt ?? null,
     input.scheduleId,
   ]);
+}
+
+async function processDueReminder(database: Queryable, row: DueReminderRow, now: Date) {
+  return withTransaction(database, async (transaction) => {
+    const locked = await lockDueSchedule(transaction, row, now);
+    if (!locked) return "stale" as const;
+
+    const activeRow = { ...row, ...locked };
+    const scheduledFor = iso(locked.next_run_at);
+    if (!scheduledFor) return "skipped" as const;
+
+    const nextRunAt = nextRunFromSchedule(locked, now);
+    const existingCommunicationId = await communicationAlreadyQueued(
+      transaction,
+      activeRow.user_id,
+      activeRow.id,
+      scheduledFor,
+    );
+    if (existingCommunicationId) {
+      await advanceReminderSchedule({
+        database: transaction,
+        scheduleId: activeRow.id,
+        result: "REMINDER_QUEUED",
+        nextRunAt,
+      });
+      return "alreadyQueued" as const;
+    }
+
+    const delivery = deliveryTargetFor(activeRow);
+    if (!delivery) {
+      await recordReminderLog({
+        database: transaction,
+        row: activeRow,
+        scheduledFor,
+        outcome: "REMINDER_SKIPPED",
+        summary: "Cognitive Assessment reminder was due, but no outbound reminder channel was available.",
+        riskFlags: ["cognitive_assessment_no_reminder_channel"],
+      });
+      await advanceReminderSchedule({
+        database: transaction,
+        scheduleId: activeRow.id,
+        result: "REMINDER_SKIPPED",
+        nextRunAt,
+      });
+      return "skipped" as const;
+    }
+
+    const url = appUrl(REMINDER_ROUTE);
+    const body = reminderBody(activeRow, url);
+    await transaction.query<{ id: string }>(`
+      insert into public.communications_log (
+        user_id, channel, recipient, purpose, status, body, metadata
+      ) values ($1, $2, $3, $4, 'queued', $5, $6::jsonb)
+      returning id::text
+    `, [
+      activeRow.user_id,
+      delivery.channel,
+      delivery.recipient,
+      REMINDER_PURPOSE,
+      body,
+      JSON.stringify({
+        source: "cognitive_assessment",
+        route: REMINDER_ROUTE,
+        url,
+        schedule_id: activeRow.id,
+        scheduled_for: scheduledFor,
+        next_run_at: nextRunAt?.toISOString() ?? null,
+      }),
+    ]);
+
+    await recordReminderLog({
+      database: transaction,
+      row: activeRow,
+      scheduledFor,
+      outcome: "REMINDER_QUEUED",
+      summary: `Cognitive Assessment reminder queued via ${delivery.channel}.`,
+    });
+    await advanceReminderSchedule({
+      database: transaction,
+      scheduleId: activeRow.id,
+      result: "REMINDER_QUEUED",
+      nextRunAt,
+    });
+    return "queued" as const;
+  });
 }
 
 export async function queueDueCognitiveAssessmentReminders(options: {
@@ -283,83 +415,15 @@ export async function queueDueCognitiveAssessmentReminders(options: {
   let alreadyQueued = 0;
 
   for (const row of rows) {
-    const scheduledFor = iso(row.next_run_at);
-    if (!scheduledFor) {
+    try {
+      const result = await processDueReminder(database, row, now);
+      if (result === "queued") queued += 1;
+      else if (result === "alreadyQueued") alreadyQueued += 1;
+      else if (result === "skipped") skipped += 1;
+    } catch (error) {
+      console.error("[communications] Cognitive Assessment reminder transaction failed:", error);
       skipped += 1;
-      continue;
     }
-
-    const nextRunAt = nextRunFromSchedule(row, now);
-    const existingCommunicationId = await communicationAlreadyQueued(database, row.user_id, row.id, scheduledFor);
-    if (existingCommunicationId) {
-      alreadyQueued += 1;
-      await advanceReminderSchedule({
-        database,
-        scheduleId: row.id,
-        result: "REMINDER_QUEUED",
-        nextRunAt,
-      });
-      continue;
-    }
-
-    const delivery = deliveryTargetFor(row);
-    if (!delivery) {
-      skipped += 1;
-      await recordReminderLog({
-        database,
-        row,
-        scheduledFor,
-        outcome: "REMINDER_SKIPPED",
-        summary: "Cognitive Assessment reminder was due, but no outbound reminder channel was available.",
-        riskFlags: ["cognitive_assessment_no_reminder_channel"],
-      });
-      await advanceReminderSchedule({
-        database,
-        scheduleId: row.id,
-        result: "REMINDER_SKIPPED",
-        nextRunAt,
-      });
-      continue;
-    }
-
-    const url = appUrl(REMINDER_ROUTE);
-    const body = reminderBody(row, url);
-    const communication = await database.query<{ id: string }>(`
-      insert into public.communications_log (
-        user_id, channel, recipient, purpose, status, body, metadata
-      ) values ($1, $2, $3, $4, 'queued', $5, $6::jsonb)
-      returning id::text
-    `, [
-      row.user_id,
-      delivery.channel,
-      delivery.recipient,
-      REMINDER_PURPOSE,
-      body,
-      JSON.stringify({
-        source: "cognitive_assessment",
-        route: REMINDER_ROUTE,
-        url,
-        schedule_id: row.id,
-        scheduled_for: scheduledFor,
-        next_run_at: nextRunAt?.toISOString() ?? null,
-      }),
-    ]);
-
-    queued += 1;
-    await recordReminderLog({
-      database,
-      row,
-      scheduledFor,
-      outcome: "REMINDER_QUEUED",
-      summary: `Cognitive Assessment reminder queued via ${delivery.channel}.`,
-      riskFlags: communication.rows[0]?.id ? [] : ["cognitive_assessment_reminder_queue_unknown"],
-    });
-    await advanceReminderSchedule({
-      database,
-      scheduleId: row.id,
-      result: "REMINDER_QUEUED",
-      nextRunAt,
-    });
   }
 
   return {
@@ -413,46 +477,49 @@ export async function queueCognitiveAssessmentTestReminder(options: {
     throw new Error("No active Cognitive Assessment enrollment found for this member.");
   }
 
-  const delivery = whatsappTargetFor(row);
+  const delivery = deliveryTargetFor(row);
   if (!delivery) {
-    throw new Error("This member does not have a WhatsApp or phone number for the test reminder.");
+    throw new Error("This member does not have an outbound reminder channel for the test reminder.");
   }
 
   const url = appUrl(REMINDER_ROUTE);
-  const communication = await database.query<{ id: string }>(`
-    insert into public.communications_log (
-      user_id, channel, recipient, purpose, status, body, metadata
-    ) values ($1, $2, $3, $4, 'queued', $5, $6::jsonb)
-    returning id::text
-  `, [
-    row.user_id,
-    delivery.channel,
-    delivery.recipient,
-    REMINDER_PURPOSE,
-    testReminderBody(row, url),
-    JSON.stringify({
-      source: "cognitive_assessment",
-      route: REMINDER_ROUTE,
-      url,
-      schedule_id: row.id,
-      scheduled_for: scheduledFor,
-      test: true,
-      requested_by: options.requestedBy,
-      queued_by_admin_at: scheduledFor,
-    }),
-  ]);
+  const communicationId = await withTransaction(database, async (transaction) => {
+    const communication = await transaction.query<{ id: string }>(`
+      insert into public.communications_log (
+        user_id, channel, recipient, purpose, status, body, metadata
+      ) values ($1, $2, $3, $4, 'queued', $5, $6::jsonb)
+      returning id::text
+    `, [
+      row.user_id,
+      delivery.channel,
+      delivery.recipient,
+      REMINDER_PURPOSE,
+      testReminderBody(row, url),
+      JSON.stringify({
+        source: "cognitive_assessment",
+        route: REMINDER_ROUTE,
+        url,
+        schedule_id: row.id,
+        scheduled_for: scheduledFor,
+        test: true,
+        requested_by: options.requestedBy,
+        queued_by_admin_at: scheduledFor,
+      }),
+    ]);
 
-  await recordReminderLog({
-    database,
-    row,
-    scheduledFor,
-    outcome: "TEST_REMINDER_QUEUED",
-    summary: "Cognitive Assessment test reminder queued via WhatsApp.",
-    riskFlags: ["cognitive_assessment_test_reminder"],
+    await recordReminderLog({
+      database: transaction,
+      row,
+      scheduledFor,
+      outcome: "TEST_REMINDER_QUEUED",
+      summary: `Cognitive Assessment test reminder queued via ${delivery.channel}.`,
+      riskFlags: ["cognitive_assessment_test_reminder"],
+    });
+    return communication.rows[0]?.id ?? null;
   });
 
   return {
-    communicationId: communication.rows[0]?.id ?? null,
+    communicationId,
     channel: delivery.channel,
     recipient: delivery.recipient,
   };
@@ -488,24 +555,51 @@ export async function markCognitiveAssessmentReminderCompleted(options: {
   const row = rows[0];
   if (!row) return { updated: false };
 
-  const nextRunAt = nextRunFromSchedule(row, completedAt);
-  await recordReminderLog({
-    database,
-    row,
-    scheduledFor: iso(row.next_run_at),
-    outcome: "COMPLETED",
-    summary: "Cognitive Assessment completed.",
-  });
-  await advanceReminderSchedule({
-    database,
-    scheduleId: row.id,
-    result: "COMPLETED",
-    nextRunAt,
-    completedAt,
+  const result = await withTransaction(database, async (transaction) => {
+    const lockedResult = await transaction.query<CompletionScheduleRow>(`
+      select
+        si.id::text,
+        si.user_id::text,
+        si.next_run_at,
+        e.start_date,
+        e.frequency,
+        e.reminder_time::text,
+        e.timezone
+      from public.cc_program_enrollments e
+      join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
+      where e.user_id = $1::uuid
+        and e.status = 'active'
+        and si.interaction_type = 'BRAIN_COACH'
+        and si.source_ref_id = 'cognitive_assessment'
+        and si.status = 'ACTIVE'
+      order by si.updated_at desc
+      limit 1
+      for update of si
+    `, [options.userId]);
+    const lockedRow = lockedResult.rows[0];
+    if (!lockedRow) return null;
+
+    const nextRunAt = nextRunFromSchedule(lockedRow, completedAt);
+    await recordReminderLog({
+      database: transaction,
+      row: lockedRow,
+      scheduledFor: iso(lockedRow.next_run_at),
+      outcome: "COMPLETED",
+      summary: "Cognitive Assessment completed.",
+      completedAt,
+    });
+    await advanceReminderSchedule({
+      database: transaction,
+      scheduleId: lockedRow.id,
+      result: "COMPLETED",
+      nextRunAt,
+      completedAt,
+    });
+    return nextRunAt;
   });
 
   return {
     updated: true,
-    nextRunAt: nextRunAt?.toISOString() ?? null,
+    nextRunAt: result?.toISOString() ?? null,
   };
 }

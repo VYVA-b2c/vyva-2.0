@@ -102,6 +102,15 @@ function formatAdminDateTime(value: string | null) {
   }).format(date);
 }
 
+function formatChannelLabel(value: string | null | undefined) {
+  const channel = value?.trim().toLowerCase();
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "sms") return "SMS";
+  if (channel === "voice") return "Voice";
+  if (channel === "email") return "Email";
+  return value?.trim() || "configured channel";
+}
+
 function MonitorCard({
   icon,
   label,
@@ -156,10 +165,10 @@ function CognitiveOperationsMonitor({
     ? operations.whatsapp.provider
     : `Missing ${operations.whatsapp.missingConfig.join(", ")}`;
   const lastQueuedDetail = lastQueued
-    ? `${lastQueued.channel} - ${formatAdminDateTime(lastQueued.createdAt)}`
+    ? `${formatChannelLabel(lastQueued.channel)} - ${formatAdminDateTime(lastQueued.createdAt)}`
     : "No Cognitive reminder has been queued yet.";
   const lastErrorDetail = lastError
-    ? lastError.error ?? `${lastError.channel} failed ${formatAdminDateTime(lastError.createdAt)}`
+    ? lastError.error ?? `${formatChannelLabel(lastError.channel)} failed ${formatAdminDateTime(lastError.createdAt)}`
     : "No failed Cognitive reminder sends.";
   const canSendTest = Boolean(selectedCandidateId) && !sendingTest;
 
@@ -178,9 +187,9 @@ function CognitiveOperationsMonitor({
         return;
       }
       if (body.status === "sent") {
-        setTestReminderStatus({ tone: "good", message: "Test sent via WhatsApp." });
+        setTestReminderStatus({ tone: "good", message: `Test sent via ${formatChannelLabel(body.channel)}.` });
       } else if (body.status === "failed") {
-        setTestReminderStatus({ tone: "bad", message: body.error ? `Failed: ${body.error}` : "WhatsApp send failed." });
+        setTestReminderStatus({ tone: "bad", message: body.error ? `Failed: ${body.error}` : `${formatChannelLabel(body.channel)} send failed.` });
       } else {
         setTestReminderStatus({ tone: "neutral", message: `Queued with status: ${body.status ?? "queued"}.` });
       }
@@ -259,7 +268,7 @@ function CognitiveOperationsMonitor({
                   {candidate.label} - {candidate.recipient}
                 </option>
               )) : (
-                <option value="">No enrolled member with WhatsApp</option>
+                <option value="">No enrolled member with an outbound channel</option>
               )}
             </select>
           </label>
@@ -274,7 +283,7 @@ function CognitiveOperationsMonitor({
           </button>
         </div>
         <p className="mt-2 text-xs font-bold text-[#7d6b65]">
-          Sends one real WhatsApp reminder through the same dispatcher path.
+          Sends one real reminder through the member&apos;s configured channel path.
         </p>
         {testReminderStatus ? (
           <p className={`mt-3 rounded-xl border px-3 py-2 text-sm font-black ${monitorTone(testReminderStatus.tone)}`}>
