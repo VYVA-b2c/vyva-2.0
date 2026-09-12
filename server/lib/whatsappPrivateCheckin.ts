@@ -3,14 +3,6 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEq
 export const WHATSAPP_CHECKIN_LANGUAGES = ["en", "es", "de", "fr"] as const;
 export type WhatsappCheckinLanguage = typeof WHATSAPP_CHECKIN_LANGUAGES[number];
 
-export const WHATSAPP_CHECKIN_STEPS = [
-  "24h_transition_check",
-  "day_3_wound_mobility",
-  "day_7_function_review",
-  "day_30_transition_close",
-] as const;
-export type WhatsappCheckinStep = typeof WHATSAPP_CHECKIN_STEPS[number];
-
 const DEFAULT_TEMPLATE_SIDS: Record<WhatsappCheckinLanguage, string> = {
   en: "HX04321e0de59f9be80a1e21e6d8628f3f",
   es: "HX5d27e70c62b15eadc84535dce4e7f452",
@@ -25,49 +17,7 @@ const TEMPLATE_ENV_KEYS: Record<WhatsappCheckinLanguage, string> = {
   fr: "TWILIO_WHATSAPP_PRIVATE_CHECKIN_TEMPLATE_FR",
 };
 
-const STEP_TEMPLATE_ENV_PREFIXES: Record<WhatsappCheckinStep, string> = {
-  "24h_transition_check": "TWILIO_WHATSAPP_PRIVATE_CHECKIN_24H_TRANSITION_TEMPLATE",
-  "day_3_wound_mobility": "TWILIO_WHATSAPP_PRIVATE_CHECKIN_DAY3_WOUND_MOBILITY_TEMPLATE",
-  "day_7_function_review": "TWILIO_WHATSAPP_PRIVATE_CHECKIN_DAY7_FUNCTION_SUPPORT_TEMPLATE",
-  "day_30_transition_close": "TWILIO_WHATSAPP_PRIVATE_CHECKIN_DAY30_TRANSITION_TEMPLATE",
-};
-
-const DEFAULT_STEP_TEMPLATE_SIDS: Record<
-  WhatsappCheckinStep,
-  Record<WhatsappCheckinLanguage, string>
-> = {
-  "24h_transition_check": {
-    en: "HXae0df9d93746e65b67d0c6e73e63c56b",
-    es: "HX5c308a612de560d49835134a3151a3e4",
-    de: "HX66151cd15683b5007d29815d6db92e36",
-    fr: "HX1e38bb8bf0bafd196ff83fd29180de19",
-  },
-  "day_3_wound_mobility": {
-    en: "HX6d1bdfb77da36e12a66d26b2a996ab8d",
-    es: "HX08800c4df06b19d2b282d37b28831217",
-    de: "HX0e1acb3f772ba36644aa207f26fa2233",
-    fr: "HX744b350bb719e619df01e35dfbb51b3e",
-  },
-  "day_7_function_review": {
-    en: "HXc0ab159baf411c2caed1ba2ac50a3757",
-    es: "HX55d2fc75d43244e49d3b083aafffd5e1",
-    de: "HX7375fff39e12f3ddfd84cb7c121c6283",
-    fr: "HXc33da363200f8620bd01a8f8796c75a4",
-  },
-  "day_30_transition_close": {
-    en: "HX0338e843d1720b7a3d0bf5aa809e1257",
-    es: "HXf6bdff966cc9f9e1fa6bd09b89d5025f",
-    de: "HX3f432303cd1c6174ced8025e245dd331",
-    fr: "HXab53b9e120e76d9d645593d652c7e0c2",
-  },
-};
-
-export function privateCheckinTemplateSid(language: WhatsappCheckinLanguage, stepId?: string) {
-  if (stepId && WHATSAPP_CHECKIN_STEPS.includes(stepId as WhatsappCheckinStep)) {
-    const key = `${STEP_TEMPLATE_ENV_PREFIXES[stepId as WhatsappCheckinStep]}_${language.toUpperCase()}`;
-    const stepTemplateSid = process.env[key]?.trim();
-    return stepTemplateSid || DEFAULT_STEP_TEMPLATE_SIDS[stepId as WhatsappCheckinStep][language];
-  }
+export function privateCheckinTemplateSid(language: WhatsappCheckinLanguage) {
   return process.env[TEMPLATE_ENV_KEYS[language]]?.trim() || DEFAULT_TEMPLATE_SIDS[language];
 }
 
