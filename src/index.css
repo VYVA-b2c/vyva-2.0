@@ -852,6 +852,16 @@
   color: #21152f;
 }
 
+/* Brain activities use light instructional and game cards on both shell themes.
+   Keep inherited copy readable when those cards sit on the dark Brain surface. */
+[data-home-master-theme="dark"].brain-coach-activity-shell :is(
+  .bg-white,
+  [class*="bg-[#F"],
+  [class*="bg-[#E"]
+) {
+  color: #2b2233;
+}
+
 .prototype-checkin-card {
   color: #24152f;
 }

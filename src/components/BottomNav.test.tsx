@@ -105,6 +105,17 @@ describe("BottomNav", () => {
     expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
   });
 
+  it("uses the floating preview dock and preview destinations on development Brain hubs", () => {
+    renderBottomNav("/dev/brain/focus");
+
+    const dock = screen.getByRole("navigation");
+    expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]");
+    expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
+
+    fireEvent.click(screen.getByTestId("nav-tab-home"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master");
+  });
+
   it("localizes the shared dock on development preview routes", () => {
     mocks.translations = {
       "nav.home": "Accueil",

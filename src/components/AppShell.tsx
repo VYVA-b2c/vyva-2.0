@@ -371,6 +371,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const ownsBrainCoachTopbar = ownsPrototypeTopbar && isBrainCoachRoute;
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
+  const usesDevBrainPrototypeSurface = location.pathname.startsWith("/dev/brain");
   const usesDevHomeMasterCompactShell =
     usesHomeMasterShell ||
     location.pathname === "/dev/home-master/profile";
@@ -380,8 +381,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname === "/dev/home-master/community" ||
     location.pathname === "/dev/home-master/concierge" ||
     location.pathname === "/dev/home-master/reports";
-  const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
-  const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
+  const usesDevHomeMasterPrototypeSurface =
+    location.pathname.startsWith("/dev/home-master") ||
+    usesDevBrainPrototypeSurface;
+  const usesCompactVoiceSurface =
+    usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute || usesDevBrainPrototypeSurface;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const usesDarkCompactSurface = usesCompactVoiceSurface && isHomeMasterDark && !isBenefitsRoute;
   const { size: readableTextSize } = useReadableTextSize();

@@ -158,6 +158,7 @@ type BrainCoachActivityShellProps = {
   sceneLayout?: string;
   state?: "default" | "loading" | "complete";
   voiceDynamicVariables?: Record<string, string | number | boolean>;
+  appearance?: "theme" | "light";
 };
 
 export function BrainCoachActivityShell({
@@ -178,8 +179,10 @@ export function BrainCoachActivityShell({
   sceneLayout = "game",
   state = "default",
   voiceDynamicVariables,
+  appearance = "theme",
 }: BrainCoachActivityShellProps) {
   const { isDark } = useHomeMasterTheme();
+  const usesDarkSurface = appearance === "theme" && isDark;
   const { size: readableTextSize } = useReadableTextSize();
   const backAriaLabel = typeof backLabel === "string" ? backLabel : "Back";
 
@@ -187,14 +190,14 @@ export function BrainCoachActivityShell({
     <section
       aria-label={typeof title === "string" ? title : "Brain Coach"}
       className={cn(
-        "prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden",
-        isDark
+        "brain-coach-activity-shell prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden",
+        usesDarkSurface
           ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]"
           : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
         className,
       )}
       data-testid={testId}
-      data-home-master-theme={isDark ? "dark" : "light"}
+      data-home-master-theme={usesDarkSurface ? "dark" : "light"}
       data-vyva-text-size={readableTextSize}
       {...getBrainCoachPresentationAttributes({
         presentationId,
@@ -212,7 +215,7 @@ export function BrainCoachActivityShell({
         {showHeader ? (
           <div className={cn(
             "sticky top-0 z-40 -mx-3 px-3 py-1 backdrop-blur-xl",
-            isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
+            usesDarkSurface ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
           )}>
             <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
               <button
@@ -230,7 +233,7 @@ export function BrainCoachActivityShell({
                 }}
                 className={cn(
                   "vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-full transition-colors duration-150",
-                  isDark
+                  usesDarkSurface
                     ? "bg-white/[0.07] text-[#F7F0FF] ring-1 ring-inset ring-white/[0.18]"
                     : "bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05]",
                 )}
