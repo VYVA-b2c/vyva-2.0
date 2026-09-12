@@ -1,4 +1,4 @@
-﻿const en = {
+const en = {
   common: {
     back: "Back",
     continue: "Continue",

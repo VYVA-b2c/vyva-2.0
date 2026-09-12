@@ -40,6 +40,24 @@ const COPY: Record<LanguageCode, {
   pt: { study: "Recorde estes planos", studyHint: "Cada pessoa tem detalhes diferentes.", startRecall: "Começar a recordar", reset: "Liberte a mente", resetHint: "Toque nos números do menor para o maior.", resetTry: "Escolha o próximo número mais pequeno.", recall: "Recorde as ligações", question: "Pergunta", notSure: "Não tenho a certeza", review: "Revisão", remembered: "Ligações recordadas", missed: "Reveja estas ligações", yourAnswer: "A sua resposta", correctAnswer: "Ligação correta", noAnswer: "Não tenho a certeza", seeResults: "Ver resultados", nextRound: "Próxima ronda", nextLevel: "Nível seguinte", tryAgain: "Tentar novamente", moreActivities: "Mais atividades", complete: "Ligações concluídas", accuracy: "Precisão", time: "Tempo" },
 };
 
+const COMPLETION_TITLES: Record<LanguageCode, { perfect: string; strong: string; steady: string; practice: string }> = {
+  en: { perfect: "Excellent recall!", strong: "Wonderful recall!", steady: "Good progress!", practice: "Keep practising!" },
+  es: { perfect: "¡Memoria excelente!", strong: "¡Muy bien!", steady: "¡Buen progreso!", practice: "¡Sigue practicando!" },
+  fr: { perfect: "Mémoire excellente !", strong: "Très bien !", steady: "Beaux progrès !", practice: "Continuez ainsi !" },
+  de: { perfect: "Hervorragend erinnert!", strong: "Sehr gut!", steady: "Guter Fortschritt!", practice: "Weiter üben!" },
+  it: { perfect: "Memoria eccellente!", strong: "Molto bene!", steady: "Buoni progressi!", practice: "Continua così!" },
+  pt: { perfect: "Memória excelente!", strong: "Muito bem!", steady: "Bom progresso!", practice: "Continue assim!" },
+};
+
+const PROGRESSION_SUMMARIES: Record<LanguageCode, { unlocked: string; locked: string; final: string }> = {
+  en: { unlocked: "Level {level} unlocked", locked: "80% to advance", final: "Final level reached" },
+  es: { unlocked: "Nivel {level} desbloqueado", locked: "80% para avanzar", final: "Nivel final alcanzado" },
+  fr: { unlocked: "Niveau {level} débloqué", locked: "80% pour avancer", final: "Niveau final atteint" },
+  de: { unlocked: "Level {level} freigeschaltet", locked: "80% zum Aufstieg", final: "Letztes Level erreicht" },
+  it: { unlocked: "Livello {level} sbloccato", locked: "80% per avanzare", final: "Livello finale raggiunto" },
+  pt: { unlocked: "Nível {level} desbloqueado", locked: "80% para avançar", final: "Nível final alcançado" },
+};
+
 const TONE_CLASSES: Record<ConnectionRecord["tone"], string> = {
   purple: "bg-[#F3E8FF] text-[#6B21A8]",
   teal: "bg-[#DDF7F1] text-[#0F766E]",
@@ -143,24 +161,36 @@ export default function ConnectionsGame({
   if (phase === "complete" && result) {
     const nextLevel = Math.min(BRAIN_COACH_MAX_LEVEL, plan.level + 1);
     const canAdvance = result.accuracy >= 80 && plan.level < BRAIN_COACH_MAX_LEVEL;
+    const completionTitles = COMPLETION_TITLES[language] ?? COMPLETION_TITLES.en;
+    const completionTitle = result.accuracy === 100
+      ? completionTitles.perfect
+      : result.accuracy >= 80
+        ? completionTitles.strong
+        : result.accuracy >= 50
+          ? completionTitles.steady
+          : completionTitles.practice;
+    const progressionCopy = PROGRESSION_SUMMARIES[language] ?? PROGRESSION_SUMMARIES.en;
+    const progressionSummary = plan.level >= BRAIN_COACH_MAX_LEVEL
+      ? progressionCopy.final
+      : (canAdvance ? progressionCopy.unlocked : progressionCopy.locked).replaceAll("{level}", String(nextLevel));
     return (
       <div className="min-h-[100dvh] bg-[#FFF9F3]">
         <BrainGameCompletionDialog
-          title={copy.complete}
-          summary={`${result.correctCount}/${result.questionCount} ${copy.remembered.toLowerCase()}`}
+          title={completionTitle}
+          summary={progressionSummary}
           metrics={[
             { label: copy.remembered, value: `${result.correctCount}/${result.questionCount}` },
             { label: copy.accuracy, value: `${result.accuracy}%` },
             { label: copy.time, value: `${result.durationSeconds}s` },
           ]}
-          continueLabel={copy.nextRound}
+          continueLabel={copy.tryAgain}
           nextLevelLabel={canAdvance ? `${copy.nextLevel} ${nextLevel}` : undefined}
           nextLevelDisplayLabel={canAdvance ? copy.nextLevel : undefined}
-          replayLabel={copy.tryAgain}
+          replayLabel={canAdvance ? copy.tryAgain : undefined}
           anotherLabel={copy.moreActivities}
           onContinue={() => void onOpenSameGame(plan.level)}
           onNextLevel={canAdvance ? () => void onOpenSameGame(nextLevel) : undefined}
-          onReplay={() => void onOpenSameGame(plan.level)}
+          onReplay={canAdvance ? () => void onOpenSameGame(plan.level) : undefined}
           onAnother={onBack}
           disabled={actionLoading !== null}
         />
