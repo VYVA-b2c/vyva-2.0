@@ -20,6 +20,22 @@ export type MemoryGameType =
   | "association_memory"
   | "story_recall";
 
+export const STORY_THEME_IDS = [
+  "home",
+  "nature",
+  "travel",
+  "food",
+  "hobbies",
+  "community",
+  "celebrations",
+  "mystery",
+] as const;
+
+export type StoryThemeId = (typeof STORY_THEME_IDS)[number];
+export type StoryThemeChoice = StoryThemeId | "surprise";
+export type StoryQuestionKind = "detail" | "sequence" | "inference";
+export type StoryDifficultyChoice = "gentle" | "recommended" | "stretch";
+
 export type MemoryGameVariant = {
   id: string;
   level: number;

@@ -748,8 +748,8 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const closeTutorial = useCallback(() => {
     markTutorialSeen();
-    setScreen(tutorialReturnScreen || "intro");
-  }, [markTutorialSeen, tutorialReturnScreen]);
+    startRound(sequenceRef.current ?? sequence ?? FALLBACK_SEQUENCE);
+  }, [markTutorialSeen, sequence, startRound]);
 
   useEffect(() => {
     let active = true;
@@ -765,7 +765,11 @@ export default function DualTaskWalk({ userId, onExit }) {
         setPickerValue(nextSequence.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
+        if (readTutorialSeen(userId)) {
+          startRound(nextSequence);
+        } else {
+          setScreen("tutorial");
+        }
       } catch {
         if (!active) return;
         const fallbackState = getDefaultUserState(userId);
@@ -774,7 +778,11 @@ export default function DualTaskWalk({ userId, onExit }) {
         setPickerValue(FALLBACK_SEQUENCE.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
+        if (readTutorialSeen(userId)) {
+          startRound(FALLBACK_SEQUENCE);
+        } else {
+          setScreen("tutorial");
+        }
       }
     }
 
@@ -782,7 +790,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     return () => {
       active = false;
     };
-  }, [loadSequence, loadUserState, userId]);
+  }, [loadSequence, loadUserState, startRound, userId]);
 
   useEffect(() => clearRoundTimers, [clearRoundTimers]);
 

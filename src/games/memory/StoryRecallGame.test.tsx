@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { translate } from "@/i18n";
 import { saveGameResult } from "./gameStorage";
 import StoryRecallGame from "./StoryRecallGame";
@@ -35,12 +36,14 @@ vi.mock("./gameStorage", async () => {
   return {
     ...actual,
     saveGameResult: vi.fn(() => Promise.resolve()),
+    getGameHistory: vi.fn(() => Promise.resolve([])),
   };
 });
 
 const t = (path: string, fallback?: string) => translate("en", path, fallback);
 
 function renderStoryRecall() {
+  vi.clearAllMocks();
   mocks.scoreRetell.mockResolvedValue({
     covered: [1],
     not_covered: [2],
@@ -50,7 +53,8 @@ function renderStoryRecall() {
   });
 
   return render(
-    <StoryRecallGame
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <StoryRecallGame
       plan={{
         gameType: "story_recall",
         level: 6,
@@ -85,23 +89,37 @@ function renderStoryRecall() {
       onOpenNextLevel={vi.fn()}
       onOpenSameGame={vi.fn()}
       actionLoading={null}
-    />,
+      />
+    </MemoryRouter>,
   );
+}
+
+function answerGeneratedQuiz(questionCount = 3) {
+  for (let index = 0; index < questionCount; index += 1) {
+    const answer = screen.getAllByRole("button").find((button) => button.hasAttribute("aria-pressed"));
+    expect(answer).toBeDefined();
+    fireEvent.click(answer!);
+    fireEvent.click(screen.getByRole("button", {
+      name: index < questionCount - 1 ? "Next question" : "Continue to retell",
+    }));
+  }
 }
 
 describe("StoryRecallGame", () => {
   it("guides the story round into the shared completion dialog", async () => {
     renderStoryRecall();
 
-    expect(screen.getByText("Level 6 - Build")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Choose your story" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start story" }));
+
+    expect(await screen.findByText(/Build 1\/5/)).toBeInTheDocument();
     expect(screen.getByText("Read, then hide the story.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /listen|pause audio|stop audio/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Listen" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Answer questions" }));
     expect(await screen.findByText("Answer from memory.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Blue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue to retell" }));
+    answerGeneratedQuiz();
 
     fireEvent.change(await screen.findByPlaceholderText("Write the story here..."), {
       target: { value: "Ana had a blue bag and bought bread." },
@@ -114,8 +132,24 @@ describe("StoryRecallGame", () => {
       userId: "user-1",
       gameType: "story_recall",
       cognitiveDomain: "language",
-      variantId: "story_recall-l6-v1",
+      variantId: expect.stringMatching(/^story_recall-l6-/),
       language: "en",
+      metadata: expect.objectContaining({
+        adaptiveBaseline: 6,
+        difficultyChoice: "recommended",
+        scoringMode: "composite",
+      }),
     }));
+  });
+
+  it("lets a player finish when no more details come back", async () => {
+    renderStoryRecall();
+    fireEvent.click(screen.getByRole("button", { name: "Start story" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Answer questions" }));
+    answerGeneratedQuiz();
+    fireEvent.click(screen.getByRole("button", { name: "I can't recall" }));
+
+    expect(await screen.findByRole("dialog", { name: "Well done" })).toBeInTheDocument();
+    expect(mocks.scoreRetell).not.toHaveBeenCalled();
   });
 });

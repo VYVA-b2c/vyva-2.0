@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import { getGameHistory, saveGameResult } from "./gameStorage";
 import type { GameResult } from "./types";
-import MemoryGameRunner, { scoreWordRecallChoices } from "./MemoryGameRunner";
+import MemoryGameRunner, { createWordRecallNumberChallenge, scoreWordRecallChoices } from "./MemoryGameRunner";
 
 const mocks = vi.hoisted(() => ({
   speakSequence: vi.fn(),
@@ -131,19 +131,47 @@ describe("MemoryGameRunner word recall", () => {
     expect(scoreWordRecallChoices(
       ["bread", "milk", "cheese"],
       ["bread", "milk", "cheese", "table", "coat", "door", "dog"],
-    )).toMatchObject({
-      accuracy: 43,
-      score: 43,
-      mistakes: 4,
-    });
+    )).toMatchObject({ accuracy: 43, score: 43, mistakes: 4 });
   });
 
+  it("adds a small first-word and order challenge without replacing recognition", () => {
+    expect(scoreWordRecallChoices(["bread", "milk", "cheese"], ["milk", "bread", "cheese"], "first")).toMatchObject({ accuracy: 80, mistakes: 1 });
+    expect(scoreWordRecallChoices(["bread", "milk", "cheese"], ["bread", "cheese", "milk"], "order")).toMatchObject({ accuracy: 80, mistakes: 2 });
+  });
+
+  it("randomizes a larger number-order pause as difficulty increases", () => {
+    const build = createWordRecallNumberChallenge(9);
+    const challenge = createWordRecallNumberChallenge(13);
+    const mastery = createWordRecallNumberChallenge(17);
+
+    expect(build).toHaveLength(4);
+    expect(challenge).toHaveLength(5);
+    expect(mastery).toHaveLength(6);
+    expect(new Set(mastery).size).toBe(6);
+    expect(mastery.some((value) => value >= 10)).toBe(true);
+  });
+
+  it("chooses the theme before opening the word round", async () => {
+    renderWordRecall();
+
+    expect(await screen.findByRole("heading", { name: "Choose a theme" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Remember 3 words/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Garden/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
+
+    expect(await screen.findByRole("heading", { name: "Remember 3 words" })).toBeInTheDocument();
+    expect(screen.getByText("bird")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Garden/i })).not.toBeInTheDocument();
+  });
   it("never narrates Word Recall even when the saved audio preference is enabled", async () => {
     window.localStorage.setItem("vyva_memory_audio_muted", "false");
     renderWordRecall();
+    expect(await screen.findByRole("heading", { name: "Choose a theme" })).toBeInTheDocument();
+    expect(screen.queryByText("bread")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
     await screen.findByRole("button", { name: "Hide words" });
     expect(screen.getByRole("heading", { name: "Remember 3 words" })).toBeInTheDocument();
-    expect(screen.queryByText("{{count}}", { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText("3 words", { selector: "span" })).not.toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 700));
     expect(mocks.speakSequence).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Hide words" }));
@@ -153,13 +181,13 @@ describe("MemoryGameRunner word recall", () => {
 
   it("caps recall choices at the number of studied words", async () => {
     renderWordRecall();
+    fireEvent.click(await screen.findByRole("button", { name: "Start game" }));
     fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
     for (const word of ["bread", "milk", "cheese"]) {
       fireEvent.click(await screen.findByRole("button", { name: word }));
     }
     fireEvent.click(await screen.findByRole("button", { name: "soup" }));
 
-    expect(screen.getByText("Choose no more than 3 words.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "soup" })).toHaveAttribute("aria-pressed", "false");
   });
   beforeEach(() => {
@@ -180,37 +208,33 @@ describe("MemoryGameRunner word recall", () => {
   it("keeps the next-level action available when result persistence is still pending", async () => {
     renderWordRecall();
 
+    fireEvent.click(await screen.findByRole("button", { name: "Start game" }));
     fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
     expect(screen.getByRole("heading", { name: "Which 3 words do you remember?" })).toBeInTheDocument();
-    expect(screen.queryByText("0/3")).not.toBeInTheDocument();
+    expect(screen.getByText("Choose every word you remember.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /say the words/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/remembered 0\/3/i)).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "bread" }));
     fireEvent.click(await screen.findByRole("button", { name: "milk" }));
     fireEvent.click(await screen.findByRole("button", { name: "cheese" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Next round" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
-    for (const word of ["table", "chair", "lamp"]) {
-      fireEvent.click(await screen.findByRole("button", { name: word }));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "Next round" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
-    for (const word of ["bird", "fish", "horse"]) {
-      fireEvent.click(await screen.findByRole("button", { name: word }));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "See results" }));
-
-    expect(await screen.findByText("You remembered 9 of 9")).toBeInTheDocument();
+    expect(await screen.findByText("3/3")).toBeInTheDocument();
     expect(screen.getByText(/building the base/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue to Level 2" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Another round" })).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Same theme" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New theme" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play another game" })).not.toBeDisabled();
+    expect(screen.queryByText("Themes explored")).not.toBeInTheDocument();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
       cognitiveDomain: "episodic_memory",
       variantId: "word_recall-l1-v1",
       language: "en",
-      metadata: expect.objectContaining({ roundVersion: "word_recall_v2", roundCount: 3 }),
+      metadata: expect.objectContaining({ themeId: "food", wordCount: 3, correctCount: 3 }),
     }));
   });
 
@@ -252,11 +276,14 @@ describe("MemoryGameRunner word recall", () => {
     }));
 
     fireEvent.click(screen.getByRole("button", { name: "See results" }));
-    const nextRoundButton = await screen.findByRole("button", { name: "Next round" });
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    const tryAgainButton = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("dialog", { name: "Keep practising!" })).toBeInTheDocument();
+    expect(screen.getByText("80% to advance")).toBeInTheDocument();
+    expect(screen.queryByText("0/4 connections remembered")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Next level/i })).not.toBeInTheDocument();
 
-    fireEvent.click(nextRoundButton);
+    fireEvent.click(tryAgainButton);
     expect(await screen.findByText("Remember these plans")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Connections complete" })).not.toBeInTheDocument();
   });
@@ -275,6 +302,8 @@ describe("MemoryGameRunner word recall", () => {
     fireEvent.click(screen.getByRole("button", { name: "Maya" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "See results" }));
+    expect(await screen.findByRole("dialog", { name: "Excellent recall!" })).toBeInTheDocument();
+    expect(screen.getByText("Level 4 unlocked")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Next level 4" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();

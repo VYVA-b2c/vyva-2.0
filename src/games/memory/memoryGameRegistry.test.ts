@@ -137,32 +137,109 @@ describe("memory game registry", () => {
 
   it("changes Word Recall content across levels and variants", () => {
     const levels = memoryGameRegistry.word_recall.levels;
-    const firstVariantSignatures = levels.map((level) => getWordRecallSignature(level.variants[0]));
+    const signature = (variant: MemoryGameVariant) => {
+      const content = variant.content.en ?? variant.content.es;
+      return ((content.payload.words as string[]) ?? []).join("|");
+    };
+    const firstVariantSignatures = levels.map((level) => signature(level.variants[0]));
 
-    firstVariantSignatures.slice(1).forEach((signature, index) => {
-      expect(signature).not.toBe(firstVariantSignatures[index]);
+    firstVariantSignatures.slice(1).forEach((value, index) => {
+      expect(value).not.toBe(firstVariantSignatures[index]);
     });
+    levels.forEach((level) => {
+      expect(new Set(level.variants.map(signature)).size).toBe(level.variants.length);
+    });
+  });
+
+  it("offers a fresh same-theme word set at every next level", () => {
+    const levels = memoryGameRegistry.word_recall.levels;
+
+    levels.slice(0, -1).forEach((level, levelIndex) => {
+      const nextLevel = levels[levelIndex + 1];
+
+      level.variants.forEach((variant) => {
+        const payload = (variant.content.en ?? variant.content.es).payload;
+        const currentWords = new Set((payload.words as string[]) ?? []);
+        const sameThemeNextVariants = nextLevel.variants.filter((candidate) => {
+          const candidatePayload = (candidate.content.en ?? candidate.content.es).payload;
+          return candidatePayload.themeId === payload.themeId;
+        });
+        const hasFreshSet = sameThemeNextVariants.some((candidate) => {
+          const candidatePayload = (candidate.content.en ?? candidate.content.es).payload;
+          return ((candidatePayload.words as string[]) ?? []).every((word) => !currentWords.has(word));
+        });
+
+        expect(hasFreshSet, `${variant.id} should have a fresh same-theme set at level ${nextLevel.level}`).toBe(true);
+      });
+    });
+  });
+
+  it("uses five-step Word Recall bands with richer challenge metadata", () => {
+    const levels = memoryGameRegistry.word_recall.levels;
+    const expectedCounts = [3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6];
+
+    levels.forEach((level, index) => {
+      level.variants.forEach((variant) => {
+        const payload = (variant.content.en ?? variant.content.es).payload;
+        expect(payload.words).toHaveLength(expectedCounts[index]);
+        expect(["home", "garden", "food", "travel", "community"]).toContain(payload.themeId);
+        expect(payload.wordIcons).toHaveLength(expectedCounts[index]);
+        expect(payload.showWordCues).toBe(level.level <= 8);
+      });
+    });
+
+    expect((levels[9].variants[0].content.en ?? levels[9].variants[0].content.es).payload.challengeKind).toBe("first");
+    expect((levels[12].variants[0].content.en ?? levels[12].variants[0].content.es).payload.challengeKind).toBe("category");
+    expect((levels[16].variants[0].content.en ?? levels[16].variants[0].content.es).payload.challengeKind).toBe("order");
+    expect(new Set(levels.slice(5).map((level) => (level.variants[0].content.en ?? level.variants[0].content.es).payload.distractionType))).toEqual(
+      new Set(["count_backwards", "choose_blue", "breathe_continue", "number_order"]),
+    );
+  });
+
+  it("provides 64 themed Story Recall concepts across four bands and six languages", () => {
+    const levels = memoryGameRegistry.story_recall.levels;
+    const languages = ["en", "es", "fr", "de", "it", "pt"] as const;
+    const storyIds = new Set<string>();
+    const themeIds = new Set<string>();
 
     levels.forEach((level) => {
-      const signatures = level.variants.map(getWordRecallSignature);
-      expect(new Set(signatures).size).toBe(signatures.length);
+      expect(level.variants).toHaveLength(16);
+      level.variants.forEach((variant) => {
+        languages.forEach((language) => {
+          const content = variant.content[language];
+          expect(content?.payload.story).toBeTruthy();
+          expect(content?.payload.choiceQuestions).toBeInstanceOf(Array);
+        });
+        const payload = variant.content.en!.payload;
+        storyIds.add(String(payload.storyId));
+        themeIds.add(String(payload.themeId));
+      });
     });
+
+    expect(storyIds.size).toBe(64);
+    expect(themeIds.size).toBe(8);
   });
 
-  it("increases the Word Recall load across Foundation levels", () => {
-    const wordCounts = memoryGameRegistry.word_recall.levels
-      .slice(0, 5)
-      .map((level) => (level.variants[0].content.en?.payload.words as string[]).length);
+  it("ramps Story Recall length, facts, and questions across the four bands", () => {
+    const ranges = [
+      { levels: [1, 5], words: [35, 60], facts: [3, 5], questions: [2, 3] },
+      { levels: [6, 10], words: [60, 90], facts: [5, 7], questions: [3, 4] },
+      { levels: [11, 15], words: [90, 125], facts: [7, 9], questions: [4, 5] },
+      { levels: [16, 20], words: [125, 170], facts: [9, 12], questions: [5, 6] },
+    ];
 
-    expect(wordCounts).toEqual([3, 4, 5, 6, 6]);
-  });
-
-  it("uses category-matched Word Recall distractors", () => {
-    const clothingRound = memoryGameRegistry.word_recall.levels[13].variants[0].content.en?.payload;
-
-    expect(clothingRound?.words).toEqual(expect.arrayContaining(["sock", "glove", "scarf"]));
-    expect(clothingRound?.distractors).toEqual(expect.arrayContaining(["trousers", "jacket", "cap"]));
-    expect(clothingRound?.distractors).not.toContain("train");
+    ranges.forEach((band) => {
+      for (let level = band.levels[0]; level <= band.levels[1]; level += 1) {
+        const payload = memoryGameRegistry.story_recall.levels[level - 1].variants[0].content.en!.payload;
+        const wordCount = String(payload.story).trim().split(/\s+/).length;
+        expect(wordCount).toBeGreaterThanOrEqual(band.words[0]);
+        expect(wordCount).toBeLessThanOrEqual(band.words[1]);
+        expect((payload.keyFacts as unknown[]).length).toBeGreaterThanOrEqual(band.facts[0]);
+        expect((payload.keyFacts as unknown[]).length).toBeLessThanOrEqual(band.facts[1]);
+        expect((payload.choiceQuestions as unknown[]).length).toBeGreaterThanOrEqual(band.questions[0]);
+        expect((payload.choiceQuestions as unknown[]).length).toBeLessThanOrEqual(band.questions[1]);
+      }
+    });
   });
 
   it("localizes every Connections variant in all supported languages", () => {

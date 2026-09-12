@@ -151,12 +151,35 @@ type CompletionDetails = {
   expectedAnswer?: string;
   givenAnswer?: string;
   cueLabel?: string;
-  rememberedCount?: number;
-  totalWordCount?: number;
 };
 
-type WordRecallDistractionType = "count_backwards" | "choose_blue" | "breathe_continue";
-type WordRecallRoundResult = ReturnType<typeof scoreWordRecallChoices>;
+type WordRecallDistractionType = "count_backwards" | "choose_blue" | "breathe_continue" | "number_order";
+type WordRecallThemeId = "home" | "garden" | "food" | "travel" | "community";
+type WordRecallThemeChoice = WordRecallThemeId | "surprise";
+type WordRecallChallengeKind = "recognition" | "category" | "first" | "order";
+const WORD_RECALL_THEMES: Array<{ id: WordRecallThemeId; emoji: string; labels: Record<string, string> }> = [
+  { id: "home", emoji: "🏡", labels: { en: "Home", es: "Hogar", fr: "Maison", de: "Zuhause", it: "Casa", pt: "Casa" } },
+  { id: "garden", emoji: "🌿", labels: { en: "Garden", es: "Jardín", fr: "Jardin", de: "Garten", it: "Giardino", pt: "Jardim" } },
+  { id: "food", emoji: "🍲", labels: { en: "Food", es: "Comida", fr: "Cuisine", de: "Essen", it: "Cibo", pt: "Comida" } },
+  { id: "travel", emoji: "🧳", labels: { en: "Travel", es: "Viajes", fr: "Voyage", de: "Reise", it: "Viaggio", pt: "Viagem" } },
+  { id: "community", emoji: "🤝", labels: { en: "Community", es: "Comunidad", fr: "Quartier", de: "Gemeinschaft", it: "Comunità", pt: "Comunidade" } },
+];
+const WORD_RECALL_UI: Record<string, Record<string, string>> = {
+  en: { theme: "Choose a theme", surprise: "Surprise me", sameTheme: "Same theme", newTheme: "New theme", anotherRound: "Another round", playAnotherGame: "Play another game", stamp: "Theme stamp", explored: "themes explored", order: "Choose the words in the order you saw them.", first: "Choose the word you saw first before any others.", category: "Look carefully: the choices are more similar now.", numberOrder: "Tap the numbers from smallest to largest.", strong: "You held onto the whole set.", almost: "A strong start—these remaining words are ready for another look.", gentle: "Every attempt gives your memory useful practice.", milestone: "A lovely collection of themes is taking shape.", levelUnlocked: "Level {level} is unlocked. Tap Level {level} to continue with the same theme.", levelNeeded: "Recall at least 80% of the words to unlock Level {level}. Choose Another round to try again.", masteryComplete: "You have reached the final level. Choose Another round to keep practising." },
+  es: { theme: "Elige un tema", surprise: "Sorpréndeme", sameTheme: "Mismo tema", newTheme: "Otro tema", anotherRound: "Otra ronda", playAnotherGame: "Jugar a otro juego", stamp: "Sello de tema", explored: "temas explorados", order: "Elige las palabras en el orden en que aparecieron.", first: "Elige primero la primera palabra que viste.", category: "Mira con atención: ahora las opciones son más parecidas.", numberOrder: "Toca los números de menor a mayor.", strong: "Has recordado todo el grupo.", almost: "Un buen comienzo; puedes volver a mirar las palabras restantes.", gentle: "Cada intento ofrece una práctica útil para la memoria.", milestone: "Tu colección de temas está creciendo muy bien.", levelUnlocked: "Has desbloqueado el nivel {level}. Toca Nivel {level} para continuar con el mismo tema.", levelNeeded: "Recuerda al menos el 80 % de las palabras para desbloquear el nivel {level}. Elige Otra ronda para intentarlo de nuevo.", masteryComplete: "Has llegado al último nivel. Elige Otra ronda para seguir practicando." },
+  fr: { theme: "Choisissez un thème", surprise: "Surprenez-moi", sameTheme: "Même thème", newTheme: "Autre thème", anotherRound: "Une autre partie", playAnotherGame: "Jouer à un autre jeu", stamp: "Tampon de thème", explored: "thèmes explorés", order: "Choisissez les mots dans l’ordre où vous les avez vus.", first: "Choisissez d’abord le premier mot que vous avez vu.", category: "Regardez bien : les choix se ressemblent davantage.", numberOrder: "Touchez les nombres du plus petit au plus grand.", strong: "Vous avez retenu toute la série.", almost: "Un bon début : les mots restants sont prêts pour un nouveau regard.", gentle: "Chaque essai offre un entraînement utile à votre mémoire.", milestone: "Votre collection de thèmes prend joliment forme.", levelUnlocked: "Le niveau {level} est débloqué. Touchez Niveau {level} pour continuer avec le même thème.", levelNeeded: "Retenez au moins 80 % des mots pour débloquer le niveau {level}. Choisissez Une autre partie pour réessayer.", masteryComplete: "Vous avez atteint le dernier niveau. Choisissez Une autre partie pour continuer à vous entraîner." },
+  de: { theme: "Thema wählen", surprise: "Überraschen Sie mich", sameTheme: "Gleiches Thema", newTheme: "Neues Thema", anotherRound: "Noch eine Runde", playAnotherGame: "Ein anderes Spiel spielen", stamp: "Themenstempel", explored: "Themen entdeckt", order: "Wählen Sie die Wörter in der gesehenen Reihenfolge.", first: "Wählen Sie zuerst das Wort, das Sie zuerst gesehen haben.", category: "Schauen Sie genau hin: Die Auswahl ist jetzt ähnlicher.", numberOrder: "Tippen Sie die Zahlen von klein nach groß an.", strong: "Sie haben sich an die ganze Gruppe erinnert.", almost: "Ein guter Anfang – die übrigen Wörter warten auf einen neuen Blick.", gentle: "Jeder Versuch ist eine wertvolle Gedächtnisübung.", milestone: "Ihre Themensammlung wächst wunderbar.", levelUnlocked: "Level {level} ist freigeschaltet. Tippen Sie auf Level {level}, um mit demselben Thema weiterzumachen.", levelNeeded: "Merken Sie sich mindestens 80 % der Wörter, um Level {level} freizuschalten. Wählen Sie Noch eine Runde, um es erneut zu versuchen.", masteryComplete: "Sie haben das letzte Level erreicht. Wählen Sie Noch eine Runde, um weiter zu üben." },
+  it: { theme: "Scegli un tema", surprise: "Sorprendimi", sameTheme: "Stesso tema", newTheme: "Nuovo tema", anotherRound: "Un altro giro", playAnotherGame: "Gioca a un altro gioco", stamp: "Timbro del tema", explored: "temi esplorati", order: "Scegli le parole nell’ordine in cui le hai viste.", first: "Scegli per prima la prima parola che hai visto.", category: "Guarda bene: ora le opzioni sono più simili.", numberOrder: "Tocca i numeri dal più piccolo al più grande.", strong: "Hai ricordato tutto il gruppo.", almost: "Un ottimo inizio: le parole restanti sono pronte per un altro sguardo.", gentle: "Ogni tentativo offre un esercizio utile alla memoria.", milestone: "La tua collezione di temi sta crescendo molto bene.", levelUnlocked: "Hai sbloccato il livello {level}. Tocca Livello {level} per continuare con lo stesso tema.", levelNeeded: "Ricorda almeno l’80% delle parole per sbloccare il livello {level}. Scegli Un altro giro per riprovare.", masteryComplete: "Hai raggiunto l’ultimo livello. Scegli Un altro giro per continuare ad allenarti." },
+  pt: { theme: "Escolha um tema", surprise: "Surpreenda-me", sameTheme: "Mesmo tema", newTheme: "Novo tema", anotherRound: "Outra ronda", playAnotherGame: "Jogar outro jogo", stamp: "Selo do tema", explored: "temas explorados", order: "Escolha as palavras pela ordem em que as viu.", first: "Escolha primeiro a primeira palavra que viu.", category: "Observe com atenção: as opções são agora mais semelhantes.", numberOrder: "Toque nos números do menor para o maior.", strong: "Recordou todo o grupo.", almost: "Um bom começo — as palavras restantes estão prontas para outra tentativa.", gentle: "Cada tentativa oferece uma prática útil para a memória.", milestone: "A sua coleção de temas está a crescer muito bem.", levelUnlocked: "O nível {level} está desbloqueado. Toque em Nível {level} para continuar com o mesmo tema.", levelNeeded: "Recorde pelo menos 80% das palavras para desbloquear o nível {level}. Escolha Outra ronda para tentar novamente.", masteryComplete: "Chegou ao último nível. Escolha Outra ronda para continuar a praticar." },
+};
+const WORD_RECALL_SETUP_UI: Record<string, { hint: string; start: string }> = {
+  en: { hint: "Pick a topic for this round.", start: "Start game" },
+  es: { hint: "Elige un tema para esta ronda.", start: "Empezar juego" },
+  fr: { hint: "Choisissez un sujet pour cette partie.", start: "Commencer" },
+  de: { hint: "Wählen Sie ein Thema für diese Runde.", start: "Spiel starten" },
+  it: { hint: "Scegli un argomento per questo giro.", start: "Inizia il gioco" },
+  pt: { hint: "Escolha um tema para esta ronda.", start: "Começar o jogo" },
+};
 type MemoryCompanionMessageKind =
   | "start"
   | "keepGoing"
@@ -221,6 +244,17 @@ function shuffleItems<T>(items: T[], seed = 1) {
   return copy;
 }
 
+export function createWordRecallNumberChallenge(level: number) {
+  const count = level >= 16 ? 6 : level >= 11 ? 5 : 4;
+  const pool = [2, 4, 7, 9, 12, 15, 18, 21, 24, 27, 31, 36];
+  const shuffled = [...pool];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, count);
+}
+
 function normalizeRecallWord(value: string) {
   return value
     .normalize("NFD")
@@ -258,7 +292,7 @@ function dedupeWords(words: string[]) {
   return unique;
 }
 
-export function scoreWordRecallChoices(targetWords: string[], selectedWords: string[]) {
+export function scoreWordRecallChoices(targetWords: string[], selectedWords: string[], challengeKind: WordRecallChallengeKind = "recognition") {
   const rememberedWords = dedupeWords(selectedWords);
   const correctWords = targetWords.filter((targetWord) =>
     rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
@@ -270,17 +304,20 @@ export function scoreWordRecallChoices(targetWords: string[], selectedWords: str
     (targetWord) => !rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
   );
   const decisionCount = correctWords.length + wrongWords.length + missedWords.length;
-  const accuracy = Math.round((correctWords.length / Math.max(1, decisionCount)) * 100);
+  const recognitionAccuracy = correctWords.length / Math.max(1, decisionCount);
+  const selectedTargets = rememberedWords.filter((candidate) => targetWords.some((targetWord) => wordsMatch(candidate, targetWord)));
+  const orderedCorrect = selectedTargets.reduce((total, candidate, index) => total + (wordsMatch(candidate, targetWords[index] ?? "") ? 1 : 0), 0);
+  const orderAccuracy = orderedCorrect / Math.max(1, targetWords.length);
+  const firstAccuracy = selectedTargets.length > 0 && wordsMatch(selectedTargets[0], targetWords[0] ?? "") ? 1 : 0;
+  const weightedAccuracy = challengeKind === "order"
+    ? recognitionAccuracy * 0.7 + orderAccuracy * 0.3
+    : challengeKind === "first"
+      ? recognitionAccuracy * 0.8 + firstAccuracy * 0.2
+      : recognitionAccuracy;
+  const accuracy = Math.round(weightedAccuracy * 100);
+  const orderMistakes = challengeKind === "order" ? Math.max(0, correctWords.length - orderedCorrect) : challengeKind === "first" && firstAccuracy === 0 ? 1 : 0;
 
-  return {
-    rememberedWords,
-    correctWords,
-    wrongWords,
-    missedWords,
-    accuracy,
-    score: accuracy,
-    mistakes: wrongWords.length + missedWords.length,
-  };
+  return { rememberedWords, correctWords, wrongWords, missedWords, accuracy, score: accuracy, mistakes: wrongWords.length + missedWords.length + orderMistakes };
 }
 
 function getPayloadString(payload: Record<string, unknown>, key: string, fallback = "") {
@@ -569,6 +606,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   );
   const initialLevel = Number(searchParams.get("level") ?? "1");
   const initialVariantId = searchParams.get("variant") ?? "";
+  const wordRecallNavigationState = location.state as { wordRecallAutoStart?: boolean; wordRecallThemeChoice?: WordRecallThemeChoice } | null;
 
   const [plan, setPlan] = useState<Recommendation | null>(null);
   const [gameHistory, setGameHistory] = useState<GameResult[]>([]);
@@ -592,11 +630,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const [sequenceCountdown, setSequenceCountdown] = useState(3);
   const [sequenceStatus, setSequenceStatus] = useState<"idle" | "wrong" | "wait">("idle");
   const [sequencePreviewStep, setSequencePreviewStep] = useState(0);
-  const [wordRecallPhase, setWordRecallPhase] = useState<"memorize" | "distraction" | "recall">("memorize");
-  const [wordRecallRoundIndex, setWordRecallRoundIndex] = useState(0);
-  const [wordRecallRoundResults, setWordRecallRoundResults] = useState<WordRecallRoundResult[]>([]);
+  const [wordRecallPhase, setWordRecallPhase] = useState<"setup" | "memorize" | "distraction" | "recall">("setup");
+  const [wordRecallThemeChoice, setWordRecallThemeChoice] = useState<WordRecallThemeChoice>("surprise");
   const [wordRecallSelectedWords, setWordRecallSelectedWords] = useState<string[]>([]);
   const [wordRecallChoicesSeed, setWordRecallChoicesSeed] = useState(0);
+  const [wordRecallNumberOrder, setWordRecallNumberOrder] = useState<number[]>([]);
+  const [wordRecallNumberChoices, setWordRecallNumberChoices] = useState<number[]>([]);
   const [wordRecallMessage, setWordRecallMessage] = useState<string | null>(null);
   // Built-in narration is retired; explicit VYVA voice sessions are separate.
   const isMemoryAudioMuted = true;
@@ -667,7 +706,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       setLoading(true);
       const directDefinition = getGameDefinition(validGameType);
       const directMaxLevel = directDefinition.levels.reduce((highest, levelConfig) => Math.max(highest, levelConfig.level), 1);
-      const historyPromise = validGameType === "memory_match" ? getGameHistory(userId) : Promise.resolve([]);
+      const historyPromise = validGameType === "memory_match" || validGameType === "word_recall" ? getGameHistory(userId) : Promise.resolve([]);
       const history = await historyPromise;
       const requestedLevel = Math.min(directMaxLevel, Math.max(1, initialLevel));
       let nextPlan: Recommendation;
@@ -741,11 +780,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       setSequenceRun(0);
       setSequenceCountdown(3);
       setSequenceStatus("idle");
-      setWordRecallPhase("memorize");
-      setWordRecallRoundIndex(0);
-      setWordRecallRoundResults([]);
+      setWordRecallPhase(nextPlan.gameType === "word_recall" && !wordRecallNavigationState?.wordRecallAutoStart ? "setup" : "memorize");
+      setWordRecallThemeChoice(wordRecallNavigationState?.wordRecallThemeChoice ?? "surprise");
       setWordRecallSelectedWords([]);
       setWordRecallChoicesSeed((current) => current + 1);
+      setWordRecallNumberOrder([]);
+      setWordRecallNumberChoices([]);
       setWordRecallMessage(null);
       setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
       const hasSeenVisualMemoryTutorial = readVisualMemoryTutorialSeen(userId);
@@ -772,7 +812,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       stopTts();
       wordRecallNarrationKeyRef.current = "";
     };
-  }, [buildGameRoute, initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType]);
+  }, [initialLevel, initialVariantId, language, location.key, stopTts, userId, validGameType, wordRecallNavigationState?.wordRecallAutoStart, wordRecallNavigationState?.wordRecallThemeChoice]);
 
   useEffect(() => {
     return () => {
@@ -797,36 +837,28 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return getVariantContent(variant, language);
   }, [language, variant]);
 
-  const wordRecallRoundContent = useMemo(() => {
-    if (!plan || plan.gameType !== "word_recall") return localizedVariant;
-    const variants = getGameLevel(plan.gameType, plan.level).variants;
-    const startIndex = Math.max(0, variants.findIndex((entry) => entry.id === plan.variantId));
-    const roundVariant = variants[(startIndex + wordRecallRoundIndex) % variants.length] ?? variant;
-    return roundVariant ? getVariantContent(roundVariant, language) : localizedVariant;
-  }, [language, localizedVariant, plan, variant, wordRecallRoundIndex]);
-
-  const wordRecallRoundVariantIds = useMemo(() => {
-    if (!plan || plan.gameType !== "word_recall") return [];
-    const variants = getGameLevel(plan.gameType, plan.level).variants;
-    const startIndex = Math.max(0, variants.findIndex((entry) => entry.id === plan.variantId));
-    return Array.from({ length: Math.min(3, variants.length) }, (_, index) => variants[(startIndex + index) % variants.length].id);
-  }, [plan]);
-
   const wordRecallWords = useMemo(() => {
-    if (!plan || plan.gameType !== "word_recall" || !wordRecallRoundContent) return [];
-    return ((wordRecallRoundContent.payload.words as string[]) ?? []).filter(Boolean);
-  }, [plan, wordRecallRoundContent]);
+    if (!plan || plan.gameType !== "word_recall" || !localizedVariant) return [];
+    return ((localizedVariant.payload.words as string[]) ?? []).filter(Boolean);
+  }, [localizedVariant, plan]);
 
   const wordRecallDistractors = useMemo(() => {
-    if (!plan || plan.gameType !== "word_recall" || !wordRecallRoundContent) return [];
-    return ((wordRecallRoundContent.payload.distractors as string[]) ?? []).filter(Boolean);
-  }, [plan, wordRecallRoundContent]);
+    if (!plan || plan.gameType !== "word_recall" || !localizedVariant) return [];
+    return ((localizedVariant.payload.distractors as string[]) ?? []).filter(Boolean);
+  }, [localizedVariant, plan]);
 
   const wordRecallDistractionType = useMemo(() => {
-    if (!plan || plan.gameType !== "word_recall" || !wordRecallRoundContent) return null;
-    return (wordRecallRoundContent.payload.distractionType as WordRecallDistractionType | null) ?? null;
-  }, [plan, wordRecallRoundContent]);
+    if (!plan || plan.gameType !== "word_recall" || !localizedVariant) return null;
+    return (localizedVariant.payload.distractionType as WordRecallDistractionType | null) ?? null;
+  }, [localizedVariant, plan]);
 
+  const wordRecallThemeId = ((localizedVariant?.payload.themeId as WordRecallThemeId | undefined) ?? "home");
+  const wordRecallTheme = WORD_RECALL_THEMES.find((theme) => theme.id === wordRecallThemeId) ?? WORD_RECALL_THEMES[0];
+  const wordRecallUi = WORD_RECALL_UI[language] ?? WORD_RECALL_UI.en;
+  const wordRecallSetupUi = WORD_RECALL_SETUP_UI[language] ?? WORD_RECALL_SETUP_UI.en;
+  const wordRecallWordIcons = ((localizedVariant?.payload.wordIcons as string[] | undefined) ?? []);
+  const wordRecallShowWordCues = Boolean(localizedVariant?.payload.showWordCues);
+  const wordRecallChallengeKind = ((localizedVariant?.payload.challengeKind as WordRecallChallengeKind | undefined) ?? "recognition");
   const wordRecallChoiceWords = useMemo(() => {
     void wordRecallChoicesSeed;
     if (plan?.gameType !== "word_recall") return [];
@@ -835,6 +867,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
   const wordRecallCoachSegments = useMemo(() => {
     if (plan?.gameType !== "word_recall") return [];
+    if (wordRecallPhase === "setup") return [];
 
     if (wordRecallPhase === "memorize") {
       return [
@@ -852,6 +885,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
           ? t("wordRecall.distractionChooseBlue")
           : wordRecallDistractionType === "breathe_continue"
             ? t("wordRecall.distractionBreathe")
+            : wordRecallDistractionType === "number_order"
+              ? wordRecallUi.numberOrder
             : t("wordRecall.distractionCountBackwards");
 
       return [
@@ -864,7 +899,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       { text: t("wordRecall.coachRecall"), delayMs: 450 },
       { text: t("wordRecall.selectRememberedWords"), delayMs: 350 },
     ];
-  }, [localizedVariant?.prompt, plan?.gameType, t, wordRecallDistractionType, wordRecallPhase, wordRecallWords]);
+  }, [localizedVariant?.prompt, plan?.gameType, t, wordRecallDistractionType, wordRecallPhase, wordRecallUi.numberOrder, wordRecallWords]);
 
   const wordRecallCommandTerms = useMemo(() => getWordRecallCommandTerms(language), [language]);
   const companionCopy = useMemo(() => getMemoryCompanionCopy(language), [language]);
@@ -1372,9 +1407,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             completedAt: new Date().toISOString(),
             language,
             metadata: {
-              roundVersion: "word_recall_v2",
-              roundCount: 3,
-              wordRecallVariantIds: wordRecallRoundVariantIds,
+              themeId: wordRecallThemeId,
+              challengeKind: wordRecallChallengeKind,
+              wordCount: wordRecallWords.length,
+              correctCount: completionDetails?.correctWords?.length ?? 0,
             },
           });
         } finally {
@@ -1402,7 +1438,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     sequenceTotalMistakes,
     startedAt,
     userId,
-    wordRecallRoundVariantIds,
+    wordRecallChallengeKind,
+    wordRecallThemeId,
+    wordRecallWords.length,
   ]);
 
   useEffect(() => {
@@ -1453,6 +1491,50 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     }
   };
 
+  const openWordRecallTheme = (choice: WordRecallThemeChoice) => {
+    if (!plan || plan.gameType !== "word_recall") return;
+    const levelConfig = getGameLevel("word_recall", plan.level);
+    const recentIds = new Set(
+      gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+    );
+    const matching = levelConfig.variants.filter((candidate) => {
+      const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+      const themeId = payload.themeId as WordRecallThemeId;
+      return choice === "surprise" || themeId === choice;
+    });
+    const unused = matching.filter((candidate) => candidate.id !== plan.variantId && !recentIds.has(candidate.id));
+    const alternatives = matching.filter((candidate) => candidate.id !== plan.variantId);
+    const pool = unused.length ? unused : alternatives.length ? alternatives : matching;
+    const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+    navigate(buildGameRoute({ ...plan, variantId: nextVariant.id }), {
+      state: { sessionToken: Date.now(), wordRecallAutoStart: true, wordRecallThemeChoice: choice },
+    });
+  };
+
+  const startWordRecallRound = () => {
+    if (!plan || plan.gameType !== "word_recall") return;
+    const levelConfig = getGameLevel("word_recall", plan.level);
+    const recentIds = new Set(
+      gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+    );
+    const matching = levelConfig.variants.filter((candidate) => {
+      const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+      return wordRecallThemeChoice === "surprise" || payload.themeId === wordRecallThemeChoice;
+    });
+    const unused = matching.filter((candidate) => !recentIds.has(candidate.id));
+    const pool = unused.length > 0 ? unused : matching;
+    const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+
+    setPlan({ ...plan, variantId: nextVariant.id });
+    setStartedAt(Date.now());
+    setWordRecallSelectedWords([]);
+    setWordRecallNumberOrder([]);
+    setWordRecallNumberChoices([]);
+    setWordRecallMessage(null);
+    setWordRecallChoicesSeed((current) => current + 1);
+    setWordRecallPhase("memorize");
+  };
+
   const replayCurrentBoard = () => {
     if (!plan) return;
     carryCompletedVisualResult();
@@ -1477,6 +1559,36 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     stopWordRecallAudio();
     setActionLoading("nextLevel");
     try {
+      if (plan.gameType === "word_recall") {
+        const levelConfig = getGameLevel("word_recall", nextLevel);
+        const recentIds = new Set(
+          gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+        );
+        const matchingTheme = levelConfig.variants.filter((candidate) => {
+          const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+          return payload.themeId === wordRecallThemeId;
+        });
+        const overlapCount = (candidate: (typeof matchingTheme)[number]) => {
+          const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+          const candidateWords = (payload.words as string[] | undefined) ?? [];
+          return candidateWords.filter((word) => wordRecallWords.includes(word)).length;
+        };
+        const smallestOverlap = Math.min(...matchingTheme.map(overlapCount));
+        const freshest = matchingTheme.filter((candidate) => overlapCount(candidate) === smallestOverlap);
+        const unused = freshest.filter((candidate) => !recentIds.has(candidate.id));
+        const pool = unused.length > 0 ? unused : freshest;
+        const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+
+        navigate(buildGameRoute({ ...plan, level: nextLevel, variantId: nextVariant.id }), {
+          state: {
+            sessionToken: Date.now(),
+            wordRecallAutoStart: true,
+            wordRecallThemeChoice: wordRecallThemeId,
+          },
+        });
+        return;
+      }
+
       const nextRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, nextLevel);
       navigate(buildGameRoute(nextRecommendation), {
         state: { sessionToken: Date.now() },
@@ -1781,48 +1893,54 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     const canOpenNextLevel = nextPlayableLevel > plan.level && finishedAccuracy >= 80;
     const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
     const isWordRecallResult = plan.gameType === "word_recall";
-    const wordRecallResultTitle = t("wordRecall.resultTitle")
-      .replace("{{remembered}}", String(completionDetails?.rememberedCount ?? 0))
-      .replace("{{total}}", String(completionDetails?.totalWordCount ?? 0));
+    const wordRecallLevelGuidance = nextPlayableLevel <= plan.level
+      ? wordRecallUi.masteryComplete
+      : (canOpenNextLevel ? wordRecallUi.levelUnlocked : wordRecallUi.levelNeeded).replaceAll("{level}", String(nextPlayableLevel));
 
     return renderBrainRunnerScreen("result", "completion", "modal_actions", (
       <div className="min-h-[100dvh] bg-[#FFF9F1]">
         <BrainGameCompletionDialog
-          title={isWordRecallResult ? wordRecallResultTitle : t("memory.wellDone")}
-          summary={getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })}
-          metrics={isWordRecallResult
-            ? [{ label: t("memory.accuracy"), value: `${finishedAccuracy}%` }]
-            : [
-                { label: t("memory.score"), value: `${score}` },
-                { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
-                { label: t("memory.mistakes"), value: `${finishedMistakes}` },
-                { label: t("memory.duration"), value: `${durationSeconds}s` },
-              ]}
-          continueLabel={t("brainGames.resultActions.continue")}
-          nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+          title={t("memory.wellDone")}
+          summary={isWordRecallResult ? `${wordRecallTheme.emoji} ${wordRecallTheme.labels[language] ?? wordRecallTheme.labels.en} · ${getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })}` : getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })}
+          metrics={isWordRecallResult ? [
+            { label: t("wordRecall.correctWords"), value: `${completionDetails?.correctWords?.length ?? 0}/${wordRecallWords.length}` },
+            { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
+          ] : [
+            { label: t("memory.score"), value: `${score}` },
+            { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
+            { label: t("memory.mistakes"), value: `${finishedMistakes}` },
+            { label: t("memory.duration"), value: `${durationSeconds}s` },
+          ]}
+          continueLabel={isWordRecallResult ? wordRecallUi.anotherRound : t("brainGames.resultActions.continue")}
+          nextLevelLabel={canOpenNextLevel ? (isWordRecallResult ? wordRecallUi.anotherRound : nextLevelLabel) : undefined}
           nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
-          replayLabel={t("brainGames.resultActions.playAgain")}
-          anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+          replayLabel={!isWordRecallResult ? t("brainGames.resultActions.playAgain") : undefined}
+          anotherLabel={isWordRecallResult ? wordRecallUi.playAnotherGame : t("brainGames.resultActions.moreGames", "More games")}
           assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
           assessmentReturnHint={
             assessmentPractice
               ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
               : undefined
           }
-          onContinue={openRecommended}
+          onContinue={isWordRecallResult ? () => openWordRecallTheme(wordRecallThemeId) : openRecommended}
           onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-          onReplay={() => void openSameGame()}
+          onReplay={!isWordRecallResult ? () => void openSameGame() : undefined}
           onAnother={backToList}
           onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
           disabled={actionLoading !== null}
           details={completionDetails && (
             <div className="grid gap-2">
-                {!isWordRecallResult && completionDetails.correctWords && completionDetails.correctWords.length > 0 && (
-                  <div className="rounded-[16px] border border-[#CFE9D9] bg-[#F0FDF4] p-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
+                {isWordRecallResult && (
+                  <div className="rounded-[16px] border border-[#D8C7F3] bg-[#FAF7FF] px-4 py-3 text-center text-[15px] font-bold text-vyva-text-1">
+                    <p>{wordRecallLevelGuidance}</p>
+                  </div>
+                )}
+                {completionDetails.incorrectWords && completionDetails.incorrectWords.length > 0 && (
+                  <div className="rounded-[16px] border border-[#F3D0D0] bg-[#FFF5F5] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.incorrectWords", "Choices to review")}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {completionDetails.correctWords.map((word) => (
-                        <span key={`correct-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
+                      {completionDetails.incorrectWords.map((word) => (
+                        <span key={`incorrect-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
                           {word}
                         </span>
                       ))}
@@ -1975,52 +2093,29 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       if (current.some((entry) => wordsMatch(entry, word))) {
         return current.filter((entry) => !wordsMatch(entry, word));
       }
-      if (current.length >= wordRecallWords.length) {
-        setWordRecallMessage(t("wordRecall.selectionLimit").replace("{{count}}", String(wordRecallWords.length)));
-        return current;
-      }
+      if (current.length >= wordRecallWords.length) return current;
       return dedupeWords([...current, word]);
     });
   };
 
   const finishWordRecall = () => {
     stopWordRecallAudio();
-    const roundResult = scoreWordRecallChoices(wordRecallWords, wordRecallSelectedWords);
-    const results = [...wordRecallRoundResults, roundResult];
-
-    if (wordRecallRoundIndex < 2) {
-      setWordRecallRoundResults(results);
-      setWordRecallRoundIndex((current) => current + 1);
-      setWordRecallSelectedWords([]);
-      setWordRecallChoicesSeed((current) => current + 1);
-      setWordRecallMessage(null);
-      setWordRecallPhase("memorize");
-      return;
-    }
-
-    const correctWords = dedupeWords(results.flatMap((result) => result.correctWords));
-    const wrongWords = dedupeWords(results.flatMap((result) => result.wrongWords));
-    const missedWords = dedupeWords(results.flatMap((result) => result.missedWords));
-    const correctCount = results.reduce((total, result) => total + result.correctWords.length, 0);
-    const decisionCount = results.reduce(
-      (total, result) => total + result.correctWords.length + result.wrongWords.length + result.missedWords.length,
-      0,
+    const { rememberedWords, correctWords, wrongWords, missedWords, accuracy, score, mistakes: recallMistakes } = scoreWordRecallChoices(
+      wordRecallWords,
+      wordRecallSelectedWords,
+      wordRecallChallengeKind,
     );
-    const mistakes = results.reduce((total, result) => total + result.mistakes, 0);
-    const accuracy = Math.round((correctCount / Math.max(1, decisionCount)) * 100);
     const nextDurationSeconds = getDurationSeconds(startedAt);
 
     setCompletionDetails({
       correctWords,
       incorrectWords: wrongWords,
       missedWords,
-      rememberedCount: correctCount,
-      totalWordCount: results.reduce((total, result) => total + result.correctWords.length + result.missedWords.length, 0),
     });
     setCompletionMetrics({
       score: accuracy,
       accuracy,
-      mistakes,
+      mistakes: recallMistakes,
       durationSeconds: nextDurationSeconds,
     });
   };
@@ -2029,6 +2124,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     stopWordRecallAudio();
     setWordRecallMessage(null);
     if (plan.level >= 4 && wordRecallDistractionType) {
+      if (wordRecallDistractionType === "number_order") {
+        setWordRecallNumberOrder([]);
+        setWordRecallNumberChoices(createWordRecallNumberChallenge(plan.level));
+      }
       setWordRecallPhase("distraction");
       return;
     }
@@ -2051,37 +2150,84 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     setWordRecallMessage(t("wordRecall.tryAgain"));
   };
 
+  const onWordRecallNumberChoice = (value: number) => {
+    const orderedChoices = [...wordRecallNumberChoices].sort((a, b) => a - b);
+    const expected = orderedChoices[wordRecallNumberOrder.length];
+    if (value !== expected) {
+      setWordRecallNumberOrder([]);
+      setWordRecallMessage(t("wordRecall.tryAgain"));
+      return;
+    }
+    if (wordRecallNumberOrder.length + 1 === orderedChoices.length) {
+      completeWordRecallDistraction();
+      return;
+    }
+    setWordRecallMessage(null);
+    setWordRecallNumberOrder((current) => [...current, value]);
+  };
+
   if (plan.gameType === "word_recall") {
     return renderBrainRunnerScreen(`word_recall_${wordRecallPhase}`, "playing", `word_recall_${wordRecallPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
         <section className="py-4 sm:py-5" data-testid="word-recall-stage">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full bg-[#FFF3C4] px-4 py-2 text-[14px] font-bold text-[#92400E]">{currentLevelLabel}</span>
-            <span className="text-[14px] font-semibold text-vyva-text-2">
-              {t("wordRecall.roundProgress")
-                .replace("{{round}}", String(wordRecallRoundIndex + 1))
-                .replace("{{total}}", "3")}
-            </span>
+            {wordRecallPhase !== "setup" ? <span className="rounded-full bg-[#F5EEFF] px-3 py-2 text-[14px] font-bold text-vyva-purple">{wordRecallTheme.emoji} {wordRecallTheme.labels[language] ?? wordRecallTheme.labels.en}</span> : null}
           </div>
 
           <h2 className="mt-5 font-display text-[30px] font-normal leading-tight tracking-normal text-vyva-text-1">
-            {wordRecallPhase === "memorize"
+            {wordRecallPhase === "setup"
+              ? wordRecallUi.theme
+              : wordRecallPhase === "memorize"
               ? t("wordRecall.memorizeLabel").replace("{{count}}", String(wordRecallWords.length))
               : wordRecallPhase === "distraction"
                 ? t("wordRecall.distractionTitle")
                 : t("wordRecall.recallInstruction").replace("{{count}}", String(wordRecallWords.length))}
           </h2>
           <p className="mt-2 text-[16px] font-normal leading-relaxed text-vyva-text-2">
-            {wordRecallPhase === "memorize"
+            {wordRecallPhase === "setup"
+              ? wordRecallSetupUi.hint
+              : wordRecallPhase === "memorize"
               ? t("wordRecall.studyHint")
               : wordRecallPhase === "distraction"
                 ? t("wordRecall.distractionInstruction")
-                : wordRecallSelectedWords.length < wordRecallWords.length
-                  ? t("wordRecall.chooseRemaining").replace("{{count}}", String(wordRecallWords.length - wordRecallSelectedWords.length))
-                  : t("wordRecall.selectionReady")}
+                : t("wordRecall.selectRememberedWords")}
           </p>
 
-          {voiceGameContextPanel}
+          {wordRecallPhase !== "setup" ? voiceGameContextPanel : null}
+
+          {wordRecallPhase === "setup" && (
+            <div className="mt-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  aria-pressed={wordRecallThemeChoice === "surprise"}
+                  onClick={() => setWordRecallThemeChoice("surprise")}
+                  className={`min-h-[76px] rounded-[18px] border-2 px-3 py-3 text-[17px] font-bold shadow-sm ${wordRecallThemeChoice === "surprise" ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
+                >
+                  ✨ {wordRecallUi.surprise}
+                </button>
+                {WORD_RECALL_THEMES.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    aria-pressed={wordRecallThemeChoice === theme.id}
+                    onClick={() => setWordRecallThemeChoice(theme.id)}
+                    className={`min-h-[76px] rounded-[18px] border-2 px-3 py-3 text-[17px] font-bold shadow-sm ${wordRecallThemeChoice === theme.id ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
+                  >
+                    <span className="mr-1" aria-hidden="true">{theme.emoji}</span> {theme.labels[language] ?? theme.labels.en}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={startWordRecallRound}
+                className="mt-5 min-h-[58px] w-full rounded-[18px] bg-vyva-purple px-5 text-[19px] font-semibold text-white shadow-vyva-card sm:rounded-[22px] sm:text-[20px]"
+              >
+                {wordRecallSetupUi.start}
+              </button>
+            </div>
+          )}
 
           {wordRecallPhase === "memorize" && (
             <>
@@ -2091,11 +2237,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                   </div>
                 )}
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {wordRecallWords.map((word) => (
+                {wordRecallWords.map((word, index) => (
                   <div
                     key={word}
-                    className="flex min-h-[88px] items-center justify-center rounded-lg border border-vyva-border bg-white px-4 py-5 text-center sm:last:odd:col-span-2"
+                    className="flex min-h-[88px] items-center justify-center gap-3 rounded-lg border border-vyva-border bg-white px-4 py-5 text-center sm:last:odd:col-span-2"
                   >
+                    {wordRecallShowWordCues ? <span className="text-[28px]" aria-hidden="true">{wordRecallWordIcons[index] ?? wordRecallTheme.emoji}</span> : null}
                     <span className="break-words text-[24px] font-semibold leading-tight text-vyva-text-1">{word}</span>
                   </div>
                 ))}
@@ -2116,6 +2263,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                   ? t("wordRecall.distractionChooseBlue")
                   : wordRecallDistractionType === "breathe_continue"
                     ? t("wordRecall.distractionBreathe")
+                    : wordRecallDistractionType === "number_order"
+                      ? wordRecallUi.numberOrder
                     : t("wordRecall.distractionCountBackwards")}
               </p>
               {wordRecallDistractionType === "choose_blue" ? (
@@ -2132,6 +2281,24 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                       style={{ background: choice.color }}
                     />
                   ))}
+                </div>
+              ) : wordRecallDistractionType === "number_order" ? (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {wordRecallNumberChoices.map((value) => {
+                    const complete = wordRecallNumberOrder.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={complete}
+                        disabled={complete}
+                        onClick={() => onWordRecallNumberChoice(value)}
+                        className={`min-h-[72px] rounded-[18px] border-2 text-[26px] font-black shadow-vyva-card sm:min-h-[86px] ${complete ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-[#D8C7F3] bg-white text-vyva-text-1"}`}
+                      >
+                        {value}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <button
@@ -2152,29 +2319,31 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
           {wordRecallPhase === "recall" && (
             <>
-              {wordRecallMessage && (
-                <div role="status" className="mt-3 rounded-[16px] border border-[#E6DEE9] bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1">
-                  {wordRecallMessage}
+              {wordRecallChallengeKind !== "recognition" ? (
+                <div className="mt-4 rounded-[16px] bg-[#FFF9F1] px-4 py-3 text-[15px] font-medium text-vyva-text-2">
+                  {wordRecallChallengeKind === "order" ? wordRecallUi.order : wordRecallChallengeKind === "first" ? wordRecallUi.first : wordRecallUi.category}
                 </div>
-              )}
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              ) : null}
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
                 {wordRecallChoiceWords.map((word) => {
                   const selected = wordRecallSelectedWords.some((entry) => wordsMatch(entry, word));
+                  const selectedOrder = wordRecallSelectedWords.findIndex((entry) => wordsMatch(entry, word));
                   return (
                     <button
                       key={word}
-                      onClick={() => onWordRecallChipToggle(word)}
+                      type="button"
                       aria-pressed={selected}
-                      className="flex min-h-[58px] items-center justify-between rounded-[16px] border px-4 text-left text-[16px] font-semibold shadow-sm transition-all"
+                      onClick={() => onWordRecallChipToggle(word)}
+                      className="flex min-h-[64px] items-center justify-center gap-2 rounded-[18px] border-2 px-3 py-3 text-[17px] font-semibold shadow-sm transition-colors sm:min-h-[72px] sm:text-[18px]"
                       style={{
-                        background: selected ? "#F1E7FF" : "#FFFFFF",
+                        background: selected ? "#F5EEFF" : "#FFFFFF",
                         color: selected ? "#6B21A8" : "#2B2233",
-                        borderColor: selected ? "#7C3AED" : "#E6DEE9",
-                        boxShadow: selected ? "inset 0 0 0 1px #7C3AED" : undefined,
+                        borderColor: selected ? "#6B21A8" : "#D8C7F3",
                       }}
                     >
-                      <span>{word}</span>
-                      {selected ? <Check size={18} aria-hidden="true" /> : null}
+                      {wordRecallChallengeKind === "order" && selectedOrder >= 0 ? <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-vyva-purple text-[12px] font-black text-white">{selectedOrder + 1}</span> : wordRecallChallengeKind === "first" && selectedOrder === 0 ? <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-vyva-purple text-[12px] font-black text-white">1</span> : selected ? <Check size={20} aria-hidden="true" /> : null}
+                      {word}
                     </button>
                   );
                 })}
@@ -2185,7 +2354,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                 disabled={saving}
                 className="mt-4 min-h-[56px] w-full rounded-[18px] bg-vyva-purple px-5 text-[18px] font-semibold text-white shadow-vyva-card disabled:opacity-60 sm:rounded-[22px] sm:text-[20px]"
               >
-                {wordRecallRoundIndex < 2 ? t("wordRecall.nextRound") : t("wordRecall.seeResults")}
+                {t("wordRecall.continueButton")}
               </button>
             </>
           )}
