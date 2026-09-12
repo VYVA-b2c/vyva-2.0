@@ -73,6 +73,8 @@ describe("MemoryGamesPage", () => {
     expect(choices).not.toBeNull();
     expect(screen.getByTestId("button-memory-category-voice")).toBeInTheDocument();
     expect(screen.getByTestId("memory-recommended-card").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("memory-recommended-card")).toHaveAttribute("data-card-density", "dense");
+    expect(screen.getByTestId("memory-recommended-card").querySelector(".lucide-arrow-up-right")).not.toBeInTheDocument();
     expect(screen.queryByText("Recommended today")).not.toBeInTheDocument();
     expect(screen.queryByText("Recall people, places, words, numbers, and future cues.")).not.toBeInTheDocument();
     expect(screen.queryByText("Find matching pairs. Each round changes the set.")).not.toBeInTheDocument();
