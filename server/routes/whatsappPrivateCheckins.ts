@@ -139,7 +139,7 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
       status: "queued",
       body: "VYVA private check-in notice. Open the secure link; do not send medical information in WhatsApp.",
       metadata: {
-        content_sid: privateCheckinTemplateSid(input.language),
+        content_sid: privateCheckinTemplateSid(input.language, input.stepId),
         content_variables: { "1": token },
         private_checkin_id: checkin.id,
         workflow_id: input.workflowId,
