@@ -18,8 +18,12 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const navigate = useNavigate();
   const { t } = useLanguage();
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
-  const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname);
-  const isDevHomeMasterRoute = location.pathname === "/dev/home-master" || location.pathname.startsWith("/dev/home-master/");
+  const isDevBrainRoute = location.pathname.startsWith("/dev/brain");
+  const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname) || isDevBrainRoute;
+  const isDevHomeMasterRoute =
+    location.pathname === "/dev/home-master" ||
+    location.pathname.startsWith("/dev/home-master/") ||
+    isDevBrainRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const homeLabel = t("nav.home", "Home");
   const reportsLabel = t("nav.reports", "My Reports");

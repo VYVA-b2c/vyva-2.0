@@ -659,6 +659,18 @@ function DualTaskWalkRoute() {
   return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/brain-coach/focus")} />;
 }
 
+function DualTaskWalkResultPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <DualTaskWalk
+      userId="dual-task-preview"
+      onExit={() => navigate("/dev/home-master/brain")}
+      previewResult
+    />
+  );
+}
+
 function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1143,6 +1155,7 @@ const App = () => (
                     <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
                     <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
                     <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
+                    <Route path="/dev/dual-task-result" element={<DualTaskWalkResultPreviewRoute />} />
                     <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
                     <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
                     <Route path="/dev/admin-modules" element={<AdminModulesPage />} />

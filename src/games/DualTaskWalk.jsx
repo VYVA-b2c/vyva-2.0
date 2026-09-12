@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Brain,
   Check,
-  CircleHelp,
   Eye,
   LoaderCircle,
   Minus,
@@ -52,6 +51,17 @@ const FALLBACK_SEQUENCE = {
   round_duration_ms: 30000,
   difficulty_tier: 1,
   language: "es",
+};
+
+const RESULT_PREVIEW = {
+  serial7s_accuracy_pct: 67,
+  tap_accuracy_pct: 75,
+  combined_accuracy_pct: 71,
+  dual_task_score: 710,
+  serial7s_log: [],
+  tap_hits: 3,
+  tap_false_positives: 0,
+  tap_misses: 1,
 };
 
 const LOCAL_PRACTICE_SEQUENCES = [
@@ -126,6 +136,14 @@ function asArray(value) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+export function isGreatDualTaskResult(result) {
+  if (!result) return false;
+  const combinedAccuracy = Number.isFinite(result.combined_accuracy_pct)
+    ? result.combined_accuracy_pct
+    : (Number(result.serial7s_accuracy_pct || 0) + Number(result.tap_accuracy_pct || 0)) / 2;
+  return combinedAccuracy >= 80;
 }
 
 function shuffle(items) {
@@ -248,7 +266,7 @@ function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, dec
   );
 }
 
-export default function DualTaskWalk({ userId, onExit }) {
+export default function DualTaskWalk({ userId, onExit, previewResult = false }) {
   const { language, t } = useLanguage();
   const lang = normalizeGameLanguage(language);
   const text = useMemo(() => ({
@@ -306,9 +324,9 @@ export default function DualTaskWalk({ userId, onExit }) {
     tutorialTap: t("brainGames.dualTask.tutorialTap", "Tap repeats"),
   }), [t]);
 
-  const [screen, setScreen] = useState("loading");
-  const [sequence, setSequence] = useState(null);
-  const [userState, setUserState] = useState(null);
+  const [screen, setScreen] = useState(previewResult ? "result" : "loading");
+  const [sequence, setSequence] = useState(previewResult ? FALLBACK_SEQUENCE : null);
+  const [userState, setUserState] = useState(previewResult ? getDefaultUserState(userId) : null);
   const [tutorialSeen, setTutorialSeen] = useState(() => readTutorialSeen(userId));
   const [tutorialReturnScreen, setTutorialReturnScreen] = useState("intro");
 
@@ -324,7 +342,7 @@ export default function DualTaskWalk({ userId, onExit }) {
   const [symbolsComplete, setSymbolsComplete] = useState(false);
 
   const [roundProgress, setRoundProgress] = useState(1);
-  const [sessionResult, setSessionResult] = useState(null);
+  const [sessionResult, setSessionResult] = useState(previewResult ? RESULT_PREVIEW : null);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const symbolIntervalRef = useRef(null);
@@ -617,9 +635,14 @@ export default function DualTaskWalk({ userId, onExit }) {
     const result = computeScore(serial7sLogRef.current, tapLogRef.current, seq, abandoned);
     setSessionResult(result);
 
+    const preparationStartedAt = Date.now();
     await saveSession(result);
     if (!abandoned) {
       await updateUserState(result);
+      const remainingPreparationMs = Math.max(0, 2000 - (Date.now() - preparationStartedAt));
+      if (remainingPreparationMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingPreparationMs));
+      }
       setScreen("result");
     } else if (onExit) {
       onExit();
@@ -653,7 +676,7 @@ export default function DualTaskWalk({ userId, onExit }) {
       setSymbolsComplete(true);
       if (symbolIntervalRef.current) window.clearInterval(symbolIntervalRef.current);
       symbolIntervalRef.current = null;
-      checkRoundCompletion();
+      void finishRound(false);
       return;
     }
 
@@ -662,7 +685,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     tapWindowRef.current = false;
     setLastTapResult(null);
     setSymbolIndex(nextIndex);
-  }, [checkRoundCompletion, evaluateTapWindow]);
+  }, [evaluateTapWindow, finishRound]);
 
   const startRound = useCallback((overrideSequence = null) => {
     const seq = overrideSequence ?? sequenceRef.current ?? FALLBACK_SEQUENCE;
@@ -770,6 +793,7 @@ export default function DualTaskWalk({ userId, onExit }) {
   }, [markTutorialSeen, sequence, startRound]);
 
   useEffect(() => {
+    if (previewResult) return undefined;
     let active = true;
 
     async function prepare() {
@@ -783,11 +807,7 @@ export default function DualTaskWalk({ userId, onExit }) {
         setPickerValue(nextSequence.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        if (readTutorialSeen(userId)) {
-          startRound(nextSequence);
-        } else {
-          setScreen("tutorial");
-        }
+        setScreen("intro");
       } catch {
         if (!active) return;
         const fallbackState = getDefaultUserState(userId);
@@ -798,11 +818,7 @@ export default function DualTaskWalk({ userId, onExit }) {
         setPickerValue(localSequence.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        if (readTutorialSeen(userId)) {
-          startRound(FALLBACK_SEQUENCE);
-        } else {
-          setScreen("tutorial");
-        }
+        setScreen("intro");
       }
     }
 
@@ -810,7 +826,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     return () => {
       active = false;
     };
-  }, [loadSequence, loadUserState, startRound, userId]);
+  }, [loadSequence, loadUserState, previewResult, userId]);
 
   useEffect(() => clearRoundTimers, [clearRoundTimers]);
 
@@ -849,17 +865,6 @@ export default function DualTaskWalk({ userId, onExit }) {
             <div className="flex min-h-[56px] items-center rounded-full bg-[#FEF3C7] px-5 text-[21px] font-bold text-[#92400E]">
               {text.level} {currentSequence.difficulty_tier}
             </div>
-            {tutorialSeen ? (
-              <button
-                type="button"
-                onClick={openInstructions}
-                aria-label={text.instructions}
-                title={text.instructions}
-                className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
-              >
-                <CircleHelp size={28} aria-hidden="true" />
-              </button>
-            ) : null}
           </div>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center py-5">
@@ -1090,7 +1095,7 @@ export default function DualTaskWalk({ userId, onExit }) {
   }
 
   const result = sessionResult ?? computeScore(serial7sLog, tapLog, currentSequence, false);
-  const resultTitle = result.combined_accuracy_pct >= 80
+  const resultTitle = isGreatDualTaskResult(result)
     ? text.resultGreat
     : result.combined_accuracy_pct >= 40
       ? text.resultGood
@@ -1120,16 +1125,20 @@ export default function DualTaskWalk({ userId, onExit }) {
     >
       <div className="min-h-[100dvh]" style={shellStyle}>
         <BrainGameCompletionDialog
+          appearance="light"
           title={resultTitle}
           summary={progressionSummary}
           metrics={[
             { label: text.mathTask, value: `${Math.round(result.serial7s_accuracy_pct)}%` },
             { label: text.visualTask, value: `${Math.round(result.tap_accuracy_pct)}%` },
+            { label: text.totalScore, value: result.dual_task_score },
           ]}
           continueLabel={continueLabel}
           anotherLabel={text.playAnotherGame}
           onContinue={handleContinue}
           onAnother={handleExit}
+          onClose={handleExit}
+          closeLabel={t("common.close")}
         />
       </div>
     </BrainCoachActivityShell>

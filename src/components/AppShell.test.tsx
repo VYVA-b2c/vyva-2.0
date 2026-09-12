@@ -339,6 +339,22 @@ describe("app shell route layout", () => {
     expect(content).toHaveClass(dockless ? "pb-0" : "pb-[112px]");
   });
 
+  it("uses the full current prototype surface for development Brain Coach hubs", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/brain/focus"]}>
+        <AppShell>
+          <div>Focus hub</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell.className).toContain("max-w-none");
+    expect(shell.className).toContain(
+      "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]",
+    );
+  });
+
   it.each([
     "/menu",
     "/health",
