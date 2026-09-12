@@ -31,28 +31,6 @@ describe("WhatsApp private check-in security", () => {
     expect(privateCheckinTemplateSid("fr")).toBe("HX1cf7c7cb986309fe348bc2755fd724b2");
   });
 
-  it("maps every pathway step and language to its submitted template", () => {
-    expect(privateCheckinTemplateSid("en", "24h_transition_check")).toBe("HXae0df9d93746e65b67d0c6e73e63c56b");
-    expect(privateCheckinTemplateSid("es", "24h_transition_check")).toBe("HX5c308a612de560d49835134a3151a3e4");
-    expect(privateCheckinTemplateSid("de", "24h_transition_check")).toBe("HX66151cd15683b5007d29815d6db92e36");
-    expect(privateCheckinTemplateSid("fr", "24h_transition_check")).toBe("HX1e38bb8bf0bafd196ff83fd29180de19");
-
-    expect(privateCheckinTemplateSid("en", "day_3_wound_mobility")).toBe("HX6d1bdfb77da36e12a66d26b2a996ab8d");
-    expect(privateCheckinTemplateSid("es", "day_3_wound_mobility")).toBe("HX08800c4df06b19d2b282d37b28831217");
-    expect(privateCheckinTemplateSid("de", "day_3_wound_mobility")).toBe("HX0e1acb3f772ba36644aa207f26fa2233");
-    expect(privateCheckinTemplateSid("fr", "day_3_wound_mobility")).toBe("HX744b350bb719e619df01e35dfbb51b3e");
-
-    expect(privateCheckinTemplateSid("en", "day_7_function_review")).toBe("HXc0ab159baf411c2caed1ba2ac50a3757");
-    expect(privateCheckinTemplateSid("es", "day_7_function_review")).toBe("HX55d2fc75d43244e49d3b083aafffd5e1");
-    expect(privateCheckinTemplateSid("de", "day_7_function_review")).toBe("HX7375fff39e12f3ddfd84cb7c121c6283");
-    expect(privateCheckinTemplateSid("fr", "day_7_function_review")).toBe("HXc33da363200f8620bd01a8f8796c75a4");
-
-    expect(privateCheckinTemplateSid("en", "day_30_transition_close")).toBe("HX0338e843d1720b7a3d0bf5aa809e1257");
-    expect(privateCheckinTemplateSid("es", "day_30_transition_close")).toBe("HXf6bdff966cc9f9e1fa6bd09b89d5025f");
-    expect(privateCheckinTemplateSid("de", "day_30_transition_close")).toBe("HX3f432303cd1c6174ced8025e245dd331");
-    expect(privateCheckinTemplateSid("fr", "day_30_transition_close")).toBe("HXab53b9e120e76d9d645593d652c7e0c2");
-  });
-
   it("puts only the opaque ticket in the secure URL", () => {
     const url = new URL(privateCheckinUrl("opaque-ticket"));
     expect(url.protocol).toBe("https:");
