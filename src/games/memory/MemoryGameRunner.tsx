@@ -812,7 +812,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       stopTts();
       wordRecallNarrationKeyRef.current = "";
     };
-  }, [initialLevel, initialVariantId, language, location.key, stopTts, userId, validGameType, wordRecallNavigationState?.wordRecallAutoStart, wordRecallNavigationState?.wordRecallThemeChoice]);
+  }, [buildGameRoute, initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType, wordRecallNavigationState?.wordRecallAutoStart, wordRecallNavigationState?.wordRecallThemeChoice]);
 
   useEffect(() => {
     return () => {
@@ -1423,6 +1423,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     }
   }, [
     completionMetrics,
+    completionDetails?.correctWords?.length,
     definition?.cognitiveDomain,
     expectedSequence.length,
     finished,
