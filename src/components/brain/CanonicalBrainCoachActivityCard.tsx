@@ -20,6 +20,8 @@ type CanonicalBrainCoachActivityCardProps = Omit<ButtonHTMLAttributes<HTMLButton
   actionLabel?: ReactNode;
   variant?: "default" | "featured" | "compact";
   borderColor?: string;
+  dense?: boolean;
+  showArrow?: boolean;
 };
 
 export function CanonicalBrainCoachActivityCard({
@@ -37,6 +39,8 @@ export function CanonicalBrainCoachActivityCard({
   actionLabel,
   variant = "default",
   borderColor: _borderColor,
+  dense = false,
+  showArrow = true,
   className,
   disabled,
   type = "button",
@@ -52,7 +56,10 @@ export function CanonicalBrainCoachActivityCard({
       type={type}
       disabled={disabled}
       className={cn(
-        "vyva-tap group grid min-h-[96px] w-full min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left shadow-[0_14px_30px_rgba(36,28,48,0.07)] transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 disabled:opacity-60 lg:min-h-[148px] lg:grid-cols-[64px_minmax(0,1fr)_auto] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-y-3 lg:p-5",
+        "vyva-tap group grid min-h-[96px] w-full min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left shadow-[0_14px_30px_rgba(36,28,48,0.07)] transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 disabled:opacity-60",
+        dense
+          ? "lg:min-h-[104px]"
+          : "lg:min-h-[148px] lg:grid-cols-[64px_minmax(0,1fr)_auto] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-y-3 lg:p-5",
         isDark
           ? "border-white/[0.14] bg-white/[0.08] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
           : "border-[#EEE8F1] bg-white text-[#241C30]",
@@ -62,13 +69,15 @@ export function CanonicalBrainCoachActivityCard({
       style={style}
       data-scene-kind="activity_card"
       data-card-variant={variant}
+      data-card-density={dense ? "dense" : "standard"}
       data-vyva-card-layout="canonical-health-hub-action"
       data-container-contract={BRAIN_COACH_SHELL_CONTRACT.containerId}
       {...props}
     >
       <span
         className={cn(
-          "relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] lg:row-span-2 lg:h-16 lg:w-16 lg:self-start",
+          "relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03]",
+          !dense && "lg:row-span-2 lg:h-16 lg:w-16 lg:self-start",
           isDark ? "bg-[#493267] group-hover:bg-[#543874]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
         )}
         data-vyva-icon-tile={iconTileId}
@@ -84,7 +93,7 @@ export function CanonicalBrainCoachActivityCard({
         />
       </span>
 
-      <span className="min-w-0 self-center lg:col-span-3 lg:row-start-3 lg:self-start">
+      <span className={cn("min-w-0 self-center", !dense && "lg:col-span-3 lg:row-start-3 lg:self-start")}>
         <span className="block font-display text-[20px] font-semibold leading-tight tracking-normal lg:text-[22px]">
           {title}
         </span>
@@ -106,9 +115,11 @@ export function CanonicalBrainCoachActivityCard({
         </span>
       ) : null}
 
-      <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:col-start-3 lg:row-start-2 lg:block lg:self-end lg:justify-self-end" aria-hidden="true">
-        <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
-      </span>
+      {showArrow ? (
+        <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:col-start-3 lg:row-start-2 lg:block lg:self-end lg:justify-self-end" aria-hidden="true">
+          <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
+        </span>
+      ) : null}
     </button>
   );
 }

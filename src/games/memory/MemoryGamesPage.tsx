@@ -107,6 +107,8 @@ const MemoryGamesPage = () => {
         type="button"
         variant="featured"
         className="w-full"
+        dense
+        showArrow={false}
         onClick={() => recommendation && openPlan(recommendation)}
         disabled={!recommendation || loading}
         title={recommendation ? getGameTitle(recommendation.gameType, language) : t("common.loading")}
@@ -121,7 +123,7 @@ const MemoryGamesPage = () => {
 
       {showExerciseChoices ? (
         <section className="mt-5" data-scene-layout="activity_grid">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {availableMemoryActivities.map((activity) => {
               const plan = activity.memoryGameType ? manualPlans[activity.memoryGameType] : null;
               const copy = getBrainCoachActivityDisplay(activity, t);
@@ -131,6 +133,8 @@ const MemoryGamesPage = () => {
                   key={activity.id}
                   type="button"
                   variant="compact"
+                  dense
+                  showArrow={false}
                   onClick={() => {
                     if (activity.memoryGameType && plan) {
                       openPlan(plan);
