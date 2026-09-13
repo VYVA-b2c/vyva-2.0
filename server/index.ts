@@ -115,6 +115,7 @@ import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import advisorsRouter from "./routes/advisors.js";
+import { advisorLiveSearchToolHandler } from "./routes/advisorSearchTools.js";
 import benefitsRouter from "./routes/benefits.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import medicationRefillsRouter from "./routes/medicationRefills.js";
@@ -233,6 +234,7 @@ app.get("/api/config/features/dr-ai-voice", authMiddleware, requireUser, require
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
 app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.post("/api/elevenlabs/tools/search-advisor-sources", advisorLiveSearchToolHandler);
 app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
 app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/voice-triage/session/:conversation_id/end", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionEndHandler);
