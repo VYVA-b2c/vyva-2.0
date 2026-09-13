@@ -171,8 +171,8 @@ describe("AdvisorChat", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
     });
     expect(startVoiceMock).toHaveBeenCalledWith(
-      expect.stringContaining("Ask an Expert with Nora"),
-      undefined,
+      expect.stringContaining("Nutrition Expert"),
+      expect.stringContaining("nutrition specialist"),
       expect.objectContaining({
         agentSlug: "nora",
         dynamicVariables: expect.objectContaining({ app_entrypoint: "ask_an_expert_chat" }),
@@ -312,8 +312,8 @@ describe("AdvisorChat", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));
       expect(startVoiceMock).toHaveBeenCalledWith(
-        expect.stringContaining("Ask an Expert with Amara Coach"),
-        undefined,
+        expect.stringContaining("Wellness Coach"),
+        expect.stringContaining("movement coach"),
         expect.objectContaining({
           agentSlug: "amara",
           dynamicVariables: expect.objectContaining({ advisor_slug: "amara" }),

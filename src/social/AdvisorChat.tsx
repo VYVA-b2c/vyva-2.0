@@ -11,7 +11,7 @@ import type {
   AdvisorSessionResponse,
   AdvisorSessionSummary,
 } from "../../shared/advisors";
-import { isAdvisorSlug } from "../../shared/advisors";
+import { getAdvisorCopy, isAdvisorSlug } from "../../shared/advisors";
 import { AdvisorAvatar } from "./AdvisorIcons";
 import {
   MOVEMENT_EXERCISE_VISUALS,
@@ -240,16 +240,16 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     if (!apiSlug || !advisor || preview) return;
     void Promise.resolve(
       voice.startVoice(
-        `Ask an Expert with ${advisorDisplayName}. Help the user with ${advisor.role}.`,
-        undefined,
+        `${advisorPresentation?.title ?? advisorDisplayName}. ${advisorPresentation?.detail ?? advisor.role}.`,
+        getAdvisorCopy(apiSlug, language).systemPrompt,
         {
           agentSlug: apiSlug,
           autoStartListening: true,
           dynamicVariables: {
             app_entrypoint: "ask_an_expert_chat",
             advisor_slug: apiSlug,
-            advisor_name: advisor.name,
-            advisor_role: advisor.role,
+            advisor_name: advisorPresentation?.title ?? advisor.name,
+            advisor_role: advisorPresentation?.detail ?? advisor.role,
           },
         },
       ),

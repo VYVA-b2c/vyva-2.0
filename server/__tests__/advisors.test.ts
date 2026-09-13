@@ -100,18 +100,18 @@ describe("advisors API", () => {
     const res = await request(buildApp())
       .post("/api/advisors/diego/messages?lang=en")
       .set("x-user-id", userId)
-      .send({ prompt: "My phone is stuck", source: "text" })
+      .send({ prompt: "A caller asked for my bank code", source: "text" })
       .expect(200);
 
     expect(res.body.userMessage).toMatchObject({
       role: "user",
-      text: "My phone is stuck",
+      text: "A caller asked for my bank code",
     });
     expect(res.body.assistantMessage).toMatchObject({
       role: "assistant",
       source: "fallback",
     });
-    expect(res.body.assistantMessage.text).toMatch(/device/i);
+    expect(res.body.assistantMessage.text).toMatch(/suspicious|passwords|codes|bank details/i);
 
     const history = await request(buildApp())
       .get("/api/advisors/diego/session?lang=en")
