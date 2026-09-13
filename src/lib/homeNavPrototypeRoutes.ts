@@ -39,6 +39,8 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/brain/think",
   "/dev/brain/calm",
   "/social-rooms",
+  "/social-rooms/experts",
+  "/dev/home-master/community-team",
   "/benefits",
   "/dev/benefits",
   "/concierge",
