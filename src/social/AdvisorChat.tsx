@@ -193,6 +193,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const [isSending, setIsSending] = useState(false);
   const [introDismissed, setIntroDismissed] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, isError, refetch } = useQuery<AdvisorSessionResponse>({
     queryKey: apiSlug ? [`/api/advisors/${apiSlug}/session?lang=${encodeURIComponent(language)}`] : ["advisor-client-only"],
@@ -307,9 +308,20 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     }
 
     try {
+      let activeSession = session;
+      if (!activeSession) {
+        const sessionResponse = await apiFetch(`/api/advisors/${apiSlug}/sessions?lang=${encodeURIComponent(language)}`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        if (!sessionResponse.ok) throw new Error("start failed");
+        const sessionPayload = await sessionResponse.json() as { session: AdvisorSessionSummary };
+        activeSession = sessionPayload.session;
+        setSession(activeSession);
+      }
       const response = await apiFetch(`/api/advisors/${apiSlug}/messages?lang=${encodeURIComponent(language)}`, {
         method: "POST",
-        body: JSON.stringify({ prompt: text, sessionId: session?.id, source: "text" }),
+        body: JSON.stringify({ prompt: text, sessionId: activeSession.id, source: "text" }),
       });
       if (!response.ok) throw new Error("send failed");
       const payload = await response.json() as AdvisorMessageResponse;
@@ -348,7 +360,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   return (
     <>
       <SocialStyles />
-      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] ${showIntro ? "pb-8" : "pb-[104px]"}`} data-testid="advisor-chat-screen">
+      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] ${showIntro ? "pb-[120px]" : "pb-[200px]"}`} data-testid="advisor-chat-screen">
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
           <div className="flex items-center gap-3">
             <button
@@ -438,7 +450,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleStartSession("text")}
+                    onClick={() => composerInputRef.current?.focus()}
                     className="vyva-tap group min-h-[152px] rounded-[24px] border border-[#E8E2F0] bg-[#FBF7F0] px-5 py-5 text-left shadow-[0_10px_24px_rgba(63,45,35,0.06)] transition-transform hover:-translate-y-0.5 active:scale-[0.985]"
                     data-testid="button-advisor-start-chat"
                   >
@@ -514,10 +526,35 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {!showIntro ? (
+        {showIntro ? (
           <form
             onSubmit={handleSend}
-            className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-5xl border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
+            className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
+            data-testid="advisor-chat-choice-input"
+          >
+            <input
+              ref={composerInputRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={ui?.inputPlaceholder ?? "Write a message..."}
+              className="min-h-[58px] min-w-0 flex-1 rounded-full border border-[#E3D8EC] bg-white px-5 font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-vyva-text-2 focus:border-[#8B3FC5] focus:ring-2 focus:ring-[#E9D5FF]"
+              data-testid="input-advisor-message"
+              aria-label="Write a message"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim() || isSending}
+              className="vyva-tap flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.2)] disabled:opacity-40"
+              data-testid="button-advisor-send"
+              aria-label={ui?.send ?? "Send"}
+            >
+              {isSending ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <Send size={22} strokeWidth={2.5} aria-hidden="true" />}
+            </button>
+          </form>
+        ) : (
+          <form
+            onSubmit={handleSend}
+            className="fixed inset-x-0 bottom-[96px] z-20 mx-auto w-full max-w-5xl border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
             data-testid="advisor-chat-input"
           >
             {sendError ? (
@@ -543,6 +580,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                 )}
               </button>
               <input
+                ref={composerInputRef}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={ui?.inputPlaceholder ?? "Write a message..."}
@@ -561,7 +599,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               </button>
             </div>
           </form>
-        ) : null}
+        )}
       </main>
     </>
   );

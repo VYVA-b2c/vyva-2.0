@@ -179,22 +179,13 @@ describe("AdvisorChat", () => {
     );
   });
 
-  it("starts a text session without activating voice", async () => {
-    apiFetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        session: { id: "session-text-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: null },
-      }),
-    });
-
+  it("shows a message field immediately and focuses it from Text chat", () => {
     renderChat();
+    const input = screen.getByTestId("input-advisor-message");
+    expect(input).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-advisor-start-chat"));
-
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
-    });
+    expect(input).toHaveFocus();
     expect(startVoiceMock).not.toHaveBeenCalled();
-    expect(screen.getByTestId("advisor-chat-input")).toBeInTheDocument();
   });
 
   it("sends typed messages and shows user plus assistant bubbles", async () => {

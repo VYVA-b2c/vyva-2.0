@@ -136,6 +136,11 @@ describe("Home/Nav prototype screens", () => {
     },
   );
 
+  it("keeps expert chats inside the canonical topbar and dock frame", () => {
+    expect(isHomeNavPrototypeTopbarRoute("/social-rooms/experts/nora")).toBe(true);
+    expect(isHomeNavPrototypeDockRoute("/social-rooms/experts/nora")).toBe(true);
+  });
+
   it.each([
     "/brain-coach/activity/remember_later",
     "/memory-games/memory_match",
