@@ -158,11 +158,13 @@ describe("AdvisorChat", () => {
 
     renderChat();
 
-    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nora Nutrition");
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nutrition Expert");
+    expect(screen.getByRole("button", { name: /Voice chat/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Text chat/i })).toBeInTheDocument();
     expect(screen.queryByText("Hi, I am Nora. I can help with simple meal ideas.")).not.toBeInTheDocument();
     expect(screen.getByTestId("advisor-disclaimer")).toHaveTextContent("not medical advice");
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
@@ -175,6 +177,24 @@ describe("AdvisorChat", () => {
         dynamicVariables: expect.objectContaining({ app_entrypoint: "ask_an_expert_chat" }),
       }),
     );
+  });
+
+  it("starts a text session without activating voice", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        session: { id: "session-text-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: null },
+      }),
+    });
+
+    renderChat();
+    fireEvent.click(screen.getByTestId("button-advisor-start-chat"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
+    });
+    expect(startVoiceMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("advisor-chat-input")).toBeInTheDocument();
   });
 
   it("sends typed messages and shows user plus assistant bubbles", async () => {
@@ -262,7 +282,7 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    expect(screen.getByRole("heading", { name: "Amara Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
@@ -295,7 +315,7 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));

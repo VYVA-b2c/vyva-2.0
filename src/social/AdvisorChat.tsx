@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Info, Loader2, Mic, Send, Square } from "lucide-react";
+import { ArrowLeft, Info, Loader2, MessageCircle, Mic, Send, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -12,7 +12,7 @@ import type {
   AdvisorSessionSummary,
 } from "../../shared/advisors";
 import { isAdvisorSlug } from "../../shared/advisors";
-import { AdvisorAvatar, AdvisorIcon } from "./AdvisorIcons";
+import { AdvisorAvatar } from "./AdvisorIcons";
 import {
   MOVEMENT_EXERCISE_VISUALS,
   getMovementExerciseCards,
@@ -23,6 +23,7 @@ import {
   getMovementCoachCopy,
   isMovementCoachSlug,
 } from "./movementCoachAdvisor";
+import { getAdvisorPresentation } from "./advisorPresentation";
 import SocialStyles from "./SocialStyles";
 
 const MOVEMENT_COACH_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = [
@@ -39,6 +40,54 @@ type AdvisorVoiceControls = {
   isSpeaking: boolean;
   isConnecting: boolean;
   transcript: TranscriptEntry[];
+};
+
+type ConversationMode = "voice" | "text";
+
+const previewUi = {
+  backToCommunity: "Back to Community",
+  eyebrow: "MY EXPERTS",
+  title: "Choose an expert",
+  instruction: "Tap an expert to talk.",
+  loading: "Preparing your experts...",
+  empty: "Your experts are not available right now.",
+  neverTalked: "Never talked",
+  today: "Today",
+  yesterday: "Yesterday",
+  daysAgo: (days: number) => `${days} days ago`,
+  lastWeek: "Last week",
+  startTalking: "Start talking",
+  inputPlaceholder: "Write a message...",
+  send: "Send",
+  micIdle: "Talk by voice",
+  micListening: "Listening",
+  retry: "Try again",
+  sendError: "Could not send. Try again.",
+  disclaimerLabel: "Important note",
+};
+
+const previewAdvisorSession: AdvisorSessionResponse = {
+  language: "en",
+  ui: previewUi,
+  advisor: {
+    slug: "nora",
+    name: "Nora",
+    role: "Nutrition",
+    shortRole: "Meals",
+    intro: "Simple meal ideas, appetite, and hydration.",
+    starter: "What would you like help planning today?",
+    disclaimerText: "Your Nutrition Expert shares general wellbeing information, not medical advice.",
+    sortOrder: 10,
+    iconKey: "nutrition",
+    chipBg: "#E4F3E7",
+    iconColor: "#3F8752",
+    recencyLabel: "Never talked",
+    sessionCount: 0,
+    lastMessageAt: null,
+  },
+  introRequired: true,
+  session: null,
+  messages: [],
 };
 
 function AdvisorBubble({ message }: { message: AdvisorMessage }) {
@@ -128,9 +177,9 @@ function MovementCoachRoutineShortcuts({
   );
 }
 
-export default function AdvisorChat() {
+export default function AdvisorChat({ preview = false }: { preview?: boolean }) {
   const { agentSlug } = useParams<{ agentSlug: string }>();
-  const apiSlug = isAdvisorSlug(agentSlug) ? agentSlug : null;
+  const apiSlug = isAdvisorSlug(agentSlug) ? agentSlug : (preview ? "nora" : null);
   const isMovementCoach = isMovementCoachSlug(agentSlug);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -147,11 +196,11 @@ export default function AdvisorChat() {
 
   const { data, isLoading, isError, refetch } = useQuery<AdvisorSessionResponse>({
     queryKey: apiSlug ? [`/api/advisors/${apiSlug}/session?lang=${encodeURIComponent(language)}`] : ["advisor-client-only"],
-    enabled: Boolean(apiSlug),
+    enabled: Boolean(apiSlug) && !preview,
     staleTime: 15 * 1000,
   });
 
-  const advisorData = data;
+  const advisorData = preview ? previewAdvisorSession : data;
 
   useEffect(() => {
     if (!advisorData) return;
@@ -165,9 +214,10 @@ export default function AdvisorChat() {
 
   const advisor = advisorData?.advisor;
   const advisorDisplayName = advisor ? `${advisor.name} ${advisor.role}` : "";
+  const advisorPresentation = advisor ? getAdvisorPresentation(advisor.slug, language) : null;
   const ui = advisorData?.ui;
-  const isAdvisorLoading = isLoading;
-  const isAdvisorError = isError;
+  const isAdvisorLoading = !preview && isLoading;
+  const isAdvisorError = !preview && isError;
   const liveMessages = useMemo(() => {
     const voiceMessages = voice.status === "idle" ? [] : transcriptMessages(voice.transcript);
     return [...messages, ...voiceMessages];
@@ -181,7 +231,7 @@ export default function AdvisorChat() {
   }, [liveMessages.length, showIntro]);
 
   const startVoiceForAdvisor = () => {
-    if (!apiSlug || !advisor) return;
+    if (!apiSlug || !advisor || preview) return;
     void Promise.resolve(
       voice.startVoice(
         `Ask an Expert with ${advisorDisplayName}. Help the user with ${advisor.role}.`,
@@ -200,10 +250,20 @@ export default function AdvisorChat() {
     ).catch(() => {});
   };
 
-  const handleStartSession = async () => {
+  const handleStartSession = async (mode: ConversationMode) => {
     if (!advisor) return;
     setSendError(null);
     if (!apiSlug) return;
+    if (preview) {
+      setSession({
+        id: "preview-session",
+        status: "active",
+        startedAt: new Date().toISOString(),
+        lastMessageAt: null,
+      });
+      setIntroDismissed(true);
+      return;
+    }
     try {
       const response = await apiFetch(`/api/advisors/${apiSlug}/sessions?lang=${encodeURIComponent(language)}`, {
         method: "POST",
@@ -213,7 +273,7 @@ export default function AdvisorChat() {
       const payload = await response.json() as { session: AdvisorSessionSummary };
       setSession(payload.session);
       setIntroDismissed(true);
-      startVoiceForAdvisor();
+      if (mode === "voice") startVoiceForAdvisor();
       void refetch();
     } catch {
       setIntroDismissed(false);
@@ -227,7 +287,7 @@ export default function AdvisorChat() {
       return;
     }
     if (showIntro) {
-      void handleStartSession();
+      void handleStartSession("voice");
       return;
     }
     startVoiceForAdvisor();
@@ -288,7 +348,7 @@ export default function AdvisorChat() {
   return (
     <>
       <SocialStyles />
-      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col ${showIntro ? "pb-8" : "pb-[104px]"}`} data-testid="advisor-chat-screen">
+      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] ${showIntro ? "pb-8" : "pb-[104px]"}`} data-testid="advisor-chat-screen">
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
           <div className="flex items-center gap-3">
             <button
@@ -302,18 +362,20 @@ export default function AdvisorChat() {
             </button>
             {advisor ? (
               <>
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px]"
-                  style={{ background: advisor.chipBg, color: advisor.iconColor }}
-                >
-                  <AdvisorIcon iconKey={advisor.iconKey} size={23} />
-                </span>
+                <AdvisorAvatar
+                  iconKey={advisor.iconKey}
+                  chipBg={advisor.chipBg}
+                  iconColor={advisor.iconColor}
+                  portraitSrc={advisorPresentation?.portraitSrc}
+                  className="h-11 w-11 rounded-full"
+                  size={23}
+                />
                 <span className="min-w-0">
                   <span className="block truncate font-body text-[19px] font-black leading-tight text-vyva-text-1">
-                    {advisorDisplayName}
+                    {advisorPresentation?.title ?? advisorDisplayName}
                   </span>
                   <span className="block truncate font-body text-[13px] font-bold text-vyva-text-2">
-                    {advisor.shortRole}
+                    {advisorPresentation?.detail ?? advisor.shortRole}
                   </span>
                 </span>
               </>
@@ -344,55 +406,61 @@ export default function AdvisorChat() {
                     iconKey={advisor.iconKey}
                     chipBg={advisor.chipBg}
                     iconColor={advisor.iconColor}
-                    className="h-[86px] w-[86px] rounded-[30px]"
+                    portraitSrc={advisorPresentation?.portraitSrc}
+                    className="h-[86px] w-[86px] rounded-full ring-1 ring-[#E8DFF0]"
                     size={42}
                     strokeWidth={2.3}
                   />
                   <div className="min-w-0 pt-1">
                     <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                      {advisor.shortRole}
+                      Your expert
                     </p>
                     <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
-                      {advisorDisplayName}
+                      {advisorPresentation?.title ?? advisorDisplayName}
                     </h1>
                   </div>
                 </div>
-
+                <p className="mt-5 font-body text-[18px] font-bold leading-snug text-vyva-text-2">
+                  How would you like to talk today?
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleStartSession("voice")}
+                    className="vyva-tap group min-h-[152px] rounded-[24px] bg-[#6B21A8] px-5 py-5 text-left text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] transition-transform hover:-translate-y-0.5 active:scale-[0.985]"
+                    data-testid="button-advisor-start-voice"
+                  >
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
+                      <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
+                    </span>
+                    <span className="mt-4 block font-body text-[21px] font-black leading-tight">Voice chat</span>
+                    <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-white/80">Speak naturally with VYVA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleStartSession("text")}
+                    className="vyva-tap group min-h-[152px] rounded-[24px] border border-[#E8E2F0] bg-[#FBF7F0] px-5 py-5 text-left shadow-[0_10px_24px_rgba(63,45,35,0.06)] transition-transform hover:-translate-y-0.5 active:scale-[0.985]"
+                    data-testid="button-advisor-start-chat"
+                  >
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1EAFB] text-[#6B21A8] ring-1 ring-[#E7DDF3]">
+                      <MessageCircle size={25} strokeWidth={2.5} aria-hidden="true" />
+                    </span>
+                    <span className="mt-4 block font-body text-[21px] font-black leading-tight text-vyva-text-1">Text chat</span>
+                    <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-vyva-text-2">Write at your own pace</span>
+                  </button>
+                </div>
+                <div className="mt-4 rounded-[18px] border border-[#E8E2F0] bg-[#FFFCF8] px-4 py-3 text-left">
+                  <p className="font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                    {starterPrompt || advisor.starter}
+                  </p>
+                </div>
                 {isMovementCoach ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleStartSession}
-                      className="vyva-tap mt-5 flex min-h-[62px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[20px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)]"
-                      data-testid="button-advisor-start-talking"
-                    >
-                      <Mic size={22} strokeWidth={2.5} aria-hidden="true" />
-                      {ui?.startTalking ?? "Start talking"}
-                    </button>
-                    <MovementCoachRoutineShortcuts
-                      language={language}
-                      onOpenLibrary={() => navigate("/social-rooms/morning-movement")}
-                      onOpenRoutine={(exerciseId) => navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="mt-5 rounded-[22px] border border-[#E8E2F0] bg-[#FBF7F0] px-4 py-4 text-left">
-                      <p className="font-body text-[17px] font-black leading-snug text-vyva-text-1">
-                        {starterPrompt || advisor.starter}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleStartSession}
-                      className="vyva-tap mt-5 flex min-h-[66px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[20px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)]"
-                      data-testid="button-advisor-start-talking"
-                    >
-                      <Mic size={22} strokeWidth={2.5} aria-hidden="true" />
-                      {ui?.startTalking ?? "Start talking"}
-                    </button>
-                  </>
-                )}
+                  <MovementCoachRoutineShortcuts
+                    language={language}
+                    onOpenLibrary={() => navigate("/social-rooms/morning-movement")}
+                    onOpenRoutine={(exerciseId) => navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`)}
+                  />
+                ) : null}
                 {sendError ? (
                   <p className="mt-4 rounded-[18px] bg-[#FFF7ED] px-4 py-3 text-left font-body text-[14px] font-bold text-[#B45309]" role="alert">
                     {sendError}

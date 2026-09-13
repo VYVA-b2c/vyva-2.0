@@ -41,6 +41,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/social-rooms",
   "/social-rooms/experts",
   "/dev/home-master/community-team",
+  "/dev/home-master/community-team/chat",
   "/benefits",
   "/dev/benefits",
   "/concierge",
