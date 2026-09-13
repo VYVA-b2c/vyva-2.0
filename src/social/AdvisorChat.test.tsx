@@ -161,8 +161,9 @@ describe("AdvisorChat", () => {
     expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nutrition Expert");
     expect(screen.getByRole("button", { name: /Voice chat/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Text chat/i })).toBeInTheDocument();
-    expect(screen.queryByText("Hi, I am Nora. I can help with simple meal ideas.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("advisor-disclaimer")).toHaveTextContent("not medical advice");
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("I can help with meals, appetite and hydration.");
+    expect(screen.queryByText("How would you like to talk today?")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-disclaimer")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 

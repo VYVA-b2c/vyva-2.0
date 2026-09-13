@@ -44,6 +44,10 @@ type AdvisorVoiceControls = {
 
 type ConversationMode = "voice" | "text";
 
+function asHelpStatement(detail: string) {
+  return `I can help with ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+}
+
 const previewUi = {
   backToCommunity: "Back to Community",
   eyebrow: "MY EXPERTS",
@@ -216,6 +220,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const advisor = advisorData?.advisor;
   const advisorDisplayName = advisor ? `${advisor.name} ${advisor.role}` : "";
   const advisorPresentation = advisor ? getAdvisorPresentation(advisor.slug, language) : null;
+  const helpStatement = advisorPresentation ? asHelpStatement(advisorPresentation.detail) : advisor?.intro ?? "";
   const ui = advisorData?.ui;
   const isAdvisorLoading = !preview && isLoading;
   const isAdvisorError = !preview && isError;
@@ -432,10 +437,10 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     </h1>
                   </div>
                 </div>
-                <p className="mt-5 font-body text-[18px] font-bold leading-snug text-vyva-text-2">
-                  How would you like to talk today?
+                <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
+                  {helpStatement}
                 </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => void handleStartSession("voice")}
@@ -461,11 +466,6 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-vyva-text-2">Write at your own pace</span>
                   </button>
                 </div>
-                <div className="mt-4 rounded-[18px] border border-[#E8E2F0] bg-[#FFFCF8] px-4 py-3 text-left">
-                  <p className="font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-                    {starterPrompt || advisor.starter}
-                  </p>
-                </div>
                 {isMovementCoach ? (
                   <MovementCoachRoutineShortcuts
                     language={language}
@@ -479,19 +479,6 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   </p>
                 ) : null}
               </div>
-              {advisor.disclaimerText ? (
-                <aside
-                  role="note"
-                  aria-label={ui?.disclaimerLabel ?? "Important note"}
-                  className="border-t border-[#E8E2F0] bg-[#FFFCF8] px-5 py-4 font-body text-[14px] font-semibold leading-snug text-vyva-text-2"
-                  data-testid="advisor-disclaimer"
-                >
-                  <span className="flex items-start gap-2">
-                    <Info size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#6B21A8]" aria-hidden="true" />
-                    <span>{advisor.disclaimerText}</span>
-                  </span>
-                </aside>
-              ) : null}
             </section>
           ) : (
             <div className="grid gap-3">
