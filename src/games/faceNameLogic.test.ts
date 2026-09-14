@@ -10,19 +10,24 @@ import {
 describe("face-name match logic", () => {
   it("scales difficulty by tier", () => {
     expect(getFaceNameFaceCount(1)).toBe(4);
-    expect(getFaceNameFaceCount(5)).toBe(6);
-    expect(getFaceNameFaceCount(10)).toBe(8);
+    expect(getFaceNameFaceCount(5)).toBe(5);
+    expect(getFaceNameFaceCount(10)).toBe(6);
+    expect(getFaceNameFaceCount(16)).toBe(8);
     expect(getFaceNameStudySeconds(1)).toBe(45);
-    expect(getFaceNameStudySeconds(10)).toBe(25);
+    expect(getFaceNameStudySeconds(10)).toBe(30);
+    expect(getFaceNameStudySeconds(20)).toBe(22);
     expect(getFaceNameDistractorCount(2)).toBe(0);
     expect(getFaceNameDistractorCount(3)).toBe(1);
     expect(getFaceNameDistractorCount(8)).toBe(2);
+    expect(getFaceNameDistractorCount(16)).toBe(3);
   });
 
   it("uses name-to-face only for early tiers", () => {
     expect(getFaceNameRecallModes(1)).toEqual(["name_to_face"]);
-    expect(getFaceNameRecallModes(5)).toEqual(["name_to_face", "face_to_name"]);
-    expect(getFaceNameRecallModes(10)).toEqual(["name_to_face", "face_to_name", "face_to_name"]);
+    expect(getFaceNameRecallModes(5)).toEqual(["name_to_face"]);
+    expect(getFaceNameRecallModes(6)).toEqual(["name_to_face", "face_to_name"]);
+    expect(getFaceNameRecallModes(11)).toEqual(["name_to_face", "face_to_name", "face_to_name"]);
+    expect(getFaceNameRecallModes(16)).toEqual(["name_to_face", "face_to_name", "face_to_name", "name_to_face"]);
   });
 
   it("scores early tiers on the full 1000 point range", () => {

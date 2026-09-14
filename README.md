@@ -77,3 +77,7 @@ npm start
 ```
 
 In production, Express serves the built frontend from `dist/` and keeps `/api/*` routes available.
+
+## Operations
+
+- Concierge production channel pilots: `docs/runbooks/concierge-production-channel-pilot.md`

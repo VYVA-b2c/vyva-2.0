@@ -1,14 +1,4 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  ChefHat,
-  HeartHandshake,
-  Mic,
-  Music2,
-  Pencil,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -24,14 +14,6 @@ import type {
   SocialShareStoriesHomeResponse,
   SocialShareStoryPrompt,
 } from "./types";
-
-const PROMPT_ICONS: Record<SocialShareDropBoxNoteType, typeof Mic> = {
-  song: Music2,
-  memory: ShieldCheck,
-  recipe: ChefHat,
-  reading: BookOpen,
-  hello: HeartHandshake,
-};
 
 const PROMPT_TONES: Record<SocialShareDropBoxNoteType, { text: string; bg: string; border: string }> = {
   song: { text: "text-[#B45309]", bg: "bg-[#FFF8E7]", border: "border-[#F9C978]" },
@@ -77,7 +59,6 @@ function PromptChip({
   active: boolean;
   onSelect: (prompt: SocialShareStoryPrompt) => void;
 }) {
-  const Icon = PROMPT_ICONS[prompt.noteType];
   const tone = PROMPT_TONES[prompt.noteType];
   return (
     <button
@@ -85,11 +66,10 @@ function PromptChip({
       data-testid={`share-story-prompt-${prompt.id}`}
       onClick={() => onSelect(prompt)}
       aria-pressed={active}
-      className={`vyva-tap flex min-h-[54px] shrink-0 items-center gap-2 rounded-full border px-4 font-body text-[15px] font-black shadow-[0_8px_18px_rgba(60,38,20,0.04)] ${
+      className={`vyva-tap flex min-h-[48px] shrink-0 items-center rounded-full border px-4 font-body text-[15px] font-black shadow-[0_8px_18px_rgba(60,38,20,0.04)] ${
         active ? `${tone.border} ${tone.bg} ${tone.text} ring-4 ring-[#F0E8FF]` : "border-[#E8DDCF] bg-white text-[#5B4A68]"
       }`}
     >
-      <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
       {prompt.title}
     </button>
   );
@@ -125,6 +105,7 @@ export default function ShareStoriesScreen() {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureKey, setCaptureKey] = useState("initial");
   const [outcome, setOutcome] = useState<SocialShareDropBoxPublishResponse | null>(null);
+  const [recentExpanded, setRecentExpanded] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery<SocialShareStoriesHomeResponse>({
     queryKey: [`/api/social/share-stories/home?lang=${language}`],
@@ -177,7 +158,7 @@ export default function ShareStoriesScreen() {
   };
 
   return (
-    <div className="vyva-page mx-auto max-w-[760px] pb-[132px]">
+    <div className="vyva-page mx-auto max-w-[920px] pb-[132px]">
       <SocialStyles />
 
       <button
@@ -191,9 +172,6 @@ export default function ShareStoriesScreen() {
 
       <header className="mt-5 px-1">
         <h1 className="font-display text-[38px] leading-none text-[#24172F] sm:text-[50px]">Share a story</h1>
-        <p className="mt-2 max-w-[520px] font-body text-[17px] font-semibold leading-snug text-[#6E5A8A]">
-          Speak or type one short note.
-        </p>
       </header>
 
       {isLoading ? (
@@ -214,41 +192,36 @@ export default function ShareStoriesScreen() {
       ) : (
         <main className="mt-4 space-y-4">
           <section
-            className="rounded-[28px] border border-[#D8C8FB] bg-[#F8F4FF] p-4 shadow-[0_12px_28px_rgba(109,40,217,0.08)] sm:p-5"
+            className="rounded-[34px] border border-[#D8C8FB] bg-[radial-gradient(circle_at_82%_12%,rgba(109,40,217,0.12),transparent_34%),linear-gradient(145deg,#FFFFFF_0%,#FBF8FF_58%,#F3FFF9_100%)] p-5 shadow-[0_22px_52px_rgba(47,33,53,0.10)] sm:p-9"
             data-testid="share-stories-today"
           >
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-[#6D28D9]">Today</p>
-            <h2 className="mt-2 font-body text-[25px] font-black leading-tight text-[#24172F] sm:text-[28px]">
-              {selectedPrompt.promptText || selectedPrompt.title}
+            <h2 className="font-body text-[34px] font-black leading-[0.98] text-[#24172F] sm:max-w-[640px] sm:text-[64px]">
+              What would you like to share?
             </h2>
-            <p className="mt-2 font-body text-[15px] font-semibold leading-snug text-[#6E5A8A] sm:text-[16px]">
-              Your voice stays private.
-            </p>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,320px)_180px]">
               <button
                 type="button"
                 onClick={() => openCapture("voice")}
                 data-testid="button-share-stories-start-voice"
-                className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-full bg-[#6D28D9] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.18)] sm:min-h-[62px] sm:text-[18px]"
+                className="vyva-tap flex min-h-[66px] items-center justify-center rounded-full bg-[#6D28D9] px-5 font-body text-[20px] font-black text-white shadow-[0_16px_30px_rgba(109,40,217,0.22)] sm:min-h-[74px] sm:text-[22px]"
               >
-                <Mic size={22} strokeWidth={2.5} aria-hidden="true" />
                 Start voice note
               </button>
               <button
                 type="button"
                 onClick={() => openCapture("typed")}
                 data-testid="button-share-stories-type"
-                className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-full border border-[#D8C8FB] bg-white px-5 font-body text-[17px] font-black text-[#6D28D9] sm:min-h-[62px] sm:text-[18px]"
+                className="vyva-tap flex min-h-[60px] items-center justify-center rounded-full border border-[#D8C8FB] bg-white px-5 font-body text-[20px] font-black text-[#6D28D9] sm:min-h-[74px]"
               >
-                <Pencil size={21} strokeWidth={2.5} aria-hidden="true" />
-                Type instead
+                Type
               </button>
             </div>
-          </section>
+            <p className="mt-4 font-body text-[15px] font-black leading-snug text-[#6E5A8A]">
+              Your voice stays private.
+            </p>
 
-          <section data-testid="share-stories-prompts" aria-label="Choose a story theme">
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="mt-5 flex flex-wrap gap-2" data-testid="share-stories-prompts" aria-label="Choose a story theme">
               {prompts.map((prompt) => (
                 <PromptChip
                   key={prompt.id}
@@ -316,15 +289,31 @@ export default function ShareStoriesScreen() {
 
           {hasRecent ? (
             <section
-              className="rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-4"
+              className="rounded-[26px] border border-[#EDE2D1] bg-white p-4 shadow-[0_10px_22px_rgba(60,38,20,0.045)]"
               data-testid="share-stories-recent"
             >
-              <h2 className="font-body text-[22px] font-black text-[#24172F]">Recent stories</h2>
-              <div className="mt-3 grid gap-2">
-                {visibleRecent.map((note) => (
-                  <RecentStoryRow key={note.id} note={note} onOpen={openRecentStory} />
-                ))}
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-body text-[17px] font-black text-[#24172F]">
+                    {visibleRecent.length} recent {visibleRecent.length === 1 ? "story" : "stories"}
+                  </h2>
+                  <p className="mt-0.5 font-body text-[13px] font-black text-[#6E5A8A]">Ready when you are</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRecentExpanded((value) => !value)}
+                  className="vyva-tap min-h-[42px] rounded-full bg-[#F0E8FF] px-4 font-body text-[14px] font-black text-[#6D28D9]"
+                >
+                  {recentExpanded ? "Hide" : "View"}
+                </button>
               </div>
+              {recentExpanded ? (
+                <div className="mt-3 grid gap-2">
+                  {visibleRecent.map((note) => (
+                    <RecentStoryRow key={note.id} note={note} onOpen={openRecentStory} />
+                  ))}
+                </div>
+              ) : null}
             </section>
           ) : null}
         </main>

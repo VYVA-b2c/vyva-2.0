@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { ArrowLeft, House, LogOut, ShieldCheck } from "lucide-react";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -7,10 +7,16 @@ type AdminPageHeaderProps = {
   title: string;
   subtitle: ReactNode;
   children?: ReactNode;
+  showAdminHome?: boolean;
 };
 
-export default function AdminPageHeader({ title, subtitle, children }: AdminPageHeaderProps) {
+export default function AdminPageHeader({ title, subtitle, children, showAdminHome = true }: AdminPageHeaderProps) {
   const { logout } = useAuth();
+  const pathSegments = typeof window === "undefined" ? [] : window.location.pathname.split("/").filter(Boolean);
+  const isAdminSubpage = pathSegments[0] === "admin" && pathSegments.length > 2;
+  const navigationHref = isAdminSubpage ? `/${pathSegments.slice(0, -1).join("/")}` : "/admin";
+  const NavigationIcon = isAdminSubpage ? ArrowLeft : House;
+  const navigationLabel = isAdminSubpage ? "Back" : "Admin home";
 
   return (
     <header className="overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white shadow-sm">
@@ -32,6 +38,15 @@ export default function AdminPageHeader({ title, subtitle, children }: AdminPage
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-[#f0e7df] pt-3 xl:justify-end xl:border-t-0 xl:pt-0">
+            {showAdminHome ? (
+              <a
+                href={navigationHref}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] border border-[#eadfd5] bg-white px-3 text-sm font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2"
+              >
+                <NavigationIcon size={16} aria-hidden="true" />
+                {navigationLabel}
+              </a>
+            ) : null}
             {children}
             <button
               type="button"

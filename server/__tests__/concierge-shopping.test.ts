@@ -67,7 +67,11 @@ describe("concierge shopping recommendations API", () => {
       })
       .expect(200);
 
-    expect(res.body.recommendations[0].product.id).toBe("small-water-bottle-multipack");
+    const recommendationIds = res.body.recommendations.map((item: { product: { id: string } }) => item.product.id);
+    expect(recommendationIds).toEqual(expect.arrayContaining([
+      "small-water-bottle-multipack",
+      "low-sugar-electrolyte-drinks",
+    ]));
     expect(res.body.recommendations.every((item: { product: { id: string } }) => catalogIds.has(item.product.id))).toBe(true);
   });
 

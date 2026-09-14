@@ -68,12 +68,15 @@ function profileResponse(overrides = {}) {
   };
 }
 
-function renderAccountSettings() {
+function renderAccountSettings(initialPath = "/settings/account") {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings/account"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
         <Routes>
           <Route path="/settings/account" element={<AccountSettings />} />
+          <Route path="/dev/home-master/profile/account" element={<AccountSettings />} />
+          <Route path="/dev/home-master/profile" element={<span>Home Master Profile</span>} />
+          <Route path="/dev/home-master" element={<span>Home Master</span>} />
           <Route path="/settings" element={<span>Settings</span>} />
           <Route path="/login" element={<span>Login</span>} />
         </Routes>
@@ -166,6 +169,23 @@ describe("AccountSettings", () => {
     expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
     expect(container.querySelector("#phone")).toHaveAttribute("placeholder", "7700 900 123");
     expect(container.querySelector("#phone")).not.toHaveAttribute("placeholder", "+44 7700 900 123");
+  });
+
+  it("uses compact Home Master voice chrome on the dev profile account surface", async () => {
+    mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
+    queryClient.setQueryData(["/api/profile"], profileResponse());
+    renderAccountSettings("/dev/home-master/profile/account");
+
+    expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-companion-mode-chip")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your details")).not.toBeInTheDocument();
+    expect(screen.queryByText("Required basics")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-profile-account-voice")).toHaveAccessibleName(
+      "Return to VYVA voice mode"
+    );
+
+    fireEvent.click(screen.getByTestId("button-home-profile-account-voice"));
+    expect(screen.getByText("Home Master")).toBeInTheDocument();
   });
 
   it("shows the sign-in email without putting it into the editable profile email field", async () => {

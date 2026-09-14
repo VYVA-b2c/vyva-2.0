@@ -102,9 +102,16 @@ function parseLearningContext(value: unknown): PreventionLoopContext | undefined
         .filter((item) => item && typeof item === "object" && typeof item.actionId === "string" && typeof item.feedback === "string")
         .slice(0, 30)
       : undefined;
+    const dismissedFollowUpIds = Array.isArray(parsed.dismissedFollowUpIds)
+      ? parsed.dismissedFollowUpIds
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => item.trim())
+        .slice(0, 20)
+      : undefined;
     return {
       ...(clientHour != null ? { clientHour } : {}),
       ...(recentFeedback?.length ? { recentFeedback } : {}),
+      ...(dismissedFollowUpIds?.length ? { dismissedFollowUpIds } : {}),
     };
   } catch {
     return undefined;
@@ -222,6 +229,8 @@ router.get("/prevention", async (req: Request, res: Response) => {
     const takenToday = adherenceRows.filter((row) => row.status === "taken" && row.created_at >= todayStart).length;
     const missedOrLate30 = adherenceRows.filter((row) => ["missed", "skipped", "late"].includes(row.status)).length;
     const latestTriage = latestTriageRows[0] ?? null;
+    const dismissedFollowUpIds = new Set(loopContext?.dismissedFollowUpIds ?? []);
+    const activeLatestTriage = latestTriage?.id && dismissedFollowUpIds.has(latestTriage.id) ? null : latestTriage;
     const latestAnalysis = latestAnalysisRows[0] ?? null;
 
     const focus = buildPreventionFocus({
@@ -256,15 +265,15 @@ router.get("/prevention", async (req: Request, res: Response) => {
           analysedAt: latestAnalysis.analysed_at,
         }
         : null,
-      latestSymptomReport: latestTriage
+      latestSymptomReport: activeLatestTriage
         ? {
-          id: latestTriage.id,
-          chiefComplaint: latestTriage.chief_complaint,
-          urgency: latestTriage.urgency,
-          nextStepLabel: latestTriage.next_step_label,
-          nextStepLevel: latestTriage.next_step_level,
-          watchSigns: latestTriage.watch_signs,
-          createdAt: latestTriage.created_at,
+          id: activeLatestTriage.id,
+          chiefComplaint: activeLatestTriage.chief_complaint,
+          urgency: activeLatestTriage.urgency,
+          nextStepLabel: activeLatestTriage.next_step_label,
+          nextStepLevel: activeLatestTriage.next_step_level,
+          watchSigns: activeLatestTriage.watch_signs,
+          createdAt: activeLatestTriage.created_at,
         }
         : null,
       medicationSafetySignals: safetySignalRows.map((row) => ({

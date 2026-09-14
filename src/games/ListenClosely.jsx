@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Headphones, Info, Loader2, Play, Volume2, Waves } from "lucide-react";
+import { Check, Headphones, Info, Play, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 import {
   LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES,
@@ -110,29 +116,26 @@ function ListeningOrb({ active, hitFeedback }) {
 
 function ListenTutorialVisual() {
   return (
-    <div className="relative mx-auto h-[210px] w-full max-w-[540px] overflow-hidden rounded-[28px] border sm:h-[260px] sm:rounded-[34px]" style={{ borderColor: BRAND.border, background: BRAND.softPurple }}>
+    <div className="relative mx-auto h-[160px] w-full max-w-[540px] overflow-hidden rounded-[22px] border sm:h-[180px]" style={{ borderColor: BRAND.border, background: BRAND.softPurple }}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.95),rgba(255,255,255,0.35))]" />
       {[0, 1, 2].map((ring) => (
         <div
           key={ring}
           className="absolute left-1/2 top-1/2 rounded-full border-2"
           style={{
-            height: 90 + ring * 70,
-            width: 90 + ring * 70,
+            height: 72 + ring * 48,
+            width: 72 + ring * 48,
             transform: "translate(-50%, -50%)",
             borderColor: ring === 1 ? BRAND.gold : BRAND.purple,
             opacity: 0.14 + ring * 0.04,
           }}
         />
       ))}
-      <div className="absolute left-1/2 top-1/2 flex h-[104px] w-[104px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-vyva-hero sm:h-[124px] sm:w-[124px]" style={{ background: BRAND.purple }}>
-        <Headphones size={58} strokeWidth={2.2} aria-hidden="true" />
+      <div className="absolute left-1/2 top-1/2 flex h-[76px] w-[76px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-vyva-hero sm:h-[84px] sm:w-[84px]" style={{ background: BRAND.purple }}>
+        <Headphones size={40} strokeWidth={2.2} aria-hidden="true" />
       </div>
-      <div className="absolute left-[10%] top-[22%] flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white shadow-vyva-card sm:h-[70px] sm:w-[70px]" style={{ color: BRAND.teal }}>
-        <Volume2 size={30} aria-hidden="true" />
-      </div>
-      <div className="absolute bottom-[18%] right-[10%] flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white shadow-vyva-card sm:h-[70px] sm:w-[70px]" style={{ color: BRAND.gold }}>
-        <Check size={32} strokeWidth={3} aria-hidden="true" />
+      <div className="absolute bottom-[18%] right-[10%] flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-vyva-card" style={{ color: BRAND.gold }}>
+        <Check size={24} strokeWidth={3} aria-hidden="true" />
       </div>
     </div>
   );
@@ -160,7 +163,6 @@ export default function ListenClosely({ userId, onExit }) {
   const finalizingRef = useRef(false);
   const tapTimesRef = useRef([]);
   const consumedPreviewTargetsRef = useRef(new Set());
-  const screenRef = useLatestRef(screen);
   const soundscapeRef = useLatestRef(soundscape);
   const userStateRef = useLatestRef(userState);
 
@@ -292,7 +294,7 @@ export default function ListenClosely({ userId, onExit }) {
 
     try {
       const state = preferredState ?? await loadUserState();
-      const tier = Math.max(1, Math.min(10, Number(state.current_tier ?? 1)));
+      const tier = Math.max(1, Math.min(BRAIN_COACH_MAX_LEVEL, Number(state.current_tier ?? 1)));
       const selected = await loadSoundscape(tier);
       const hasSeenTutorial = readListenCloselyTutorialSeen(userId);
       setUserState(state);
@@ -511,14 +513,14 @@ export default function ListenClosely({ userId, onExit }) {
   }, [finishSession]);
 
   const handleExit = useCallback(() => {
-    if (screenRef.current === "playing") {
+    if (screen === "playing") {
       void finishSession(true).finally(() => onExit?.());
       return;
     }
+    onExit?.();
     stopTimers();
     closeAudio();
-    onExit?.();
-  }, [closeAudio, finishSession, onExit, screenRef, stopTimers]);
+  }, [closeAudio, finishSession, onExit, screen, stopTimers]);
 
   const resultState = sessionResult?.userState ?? userState ?? getDefaultListenCloselyUserState(userId ?? "");
   const resultIsGood = Number(sessionResult?.score ?? 0) >= 650;
@@ -536,12 +538,16 @@ export default function ListenClosely({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-center" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="w-full max-w-[520px] rounded-[8px] border bg-white p-8 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <Loader2 className="mx-auto animate-spin" size={54} color={BRAND.purple} />
-          <p className="mt-5 text-[26px] font-black">{t("games.listenClosely.preparing", "Preparing the sounds...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        showHeader={false}
+        label={t("games.listenClosely.preparing", "Preparing the sounds...")}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.loading.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+      />
     );
   }
 
@@ -549,62 +555,54 @@ export default function ListenClosely({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.intro.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="intro"
+        sceneLayout="instruction_panel"
+      >
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-          <div className="flex items-center justify-between gap-4">
-            <img src={vyvaLogo} alt="VYVA" className="h-[54px] w-auto" />
-            <button
-              type="button"
-              onClick={handleExit}
-              className="flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: BRAND.ink }}
-            >
-              <ArrowLeft size={24} />
-              {t("common.back", "Back")}
-            </button>
-          </div>
-
-          <section className="rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-6" style={{ borderColor: "#EEE8F1" }}>
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={openInstructions}
-                className="inline-flex min-h-[52px] items-center gap-2 rounded-full border bg-white px-4 text-[18px] font-extrabold"
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-4 text-[14px] font-extrabold"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
-                <Info size={22} aria-hidden="true" />
+                <Info size={18} aria-hidden="true" />
                 {t("games.listenClosely.instructions", "Instructions")}
               </button>
             </div>
-            <div className="mx-auto flex h-[96px] w-[96px] items-center justify-center rounded-[8px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <Headphones size={56} />
-            </div>
-            <h1 className="mt-5 font-display text-[46px] font-bold leading-[1.05]">{t("games.listenClosely.title", "Listen Closely")}</h1>
-            <p className="mt-3 text-[26px] font-semibold leading-[1.3]" style={{ color: BRAND.muted }}>
+            <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">
               {t("games.listenClosely.introShort", "Listen, then choose.")}
-            </p>
+            </h1>
 
-            <div className="mt-5 flex flex-wrap justify-center gap-3">
-              <span className="rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
                 {t("common.level", "Level")} {currentTier}
               </span>
-              <span className="rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
+              <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
                 {modeLabel}
               </span>
             </div>
 
-            <div className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
+            <div className="mt-4 rounded-[20px] border p-4" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
               {isCompareMode ? (
                 <>
-                  <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
+                  <p className="text-[13px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
                     {t("games.listenClosely.taskLabel", "Your task")}
                   </p>
-                  <p className="mt-2 font-display text-[38px] font-bold leading-tight" style={{ color: BRAND.teal }}>
+                  <p className="mt-1.5 font-display text-[24px] font-semibold leading-tight" style={{ color: BRAND.teal }}>
                     {t("games.listenClosely.whichMore", "Which sound happened more?")}
                   </p>
                   <div className="mx-auto mt-4 grid max-w-[560px] gap-3 sm:grid-cols-2">
                     {[targetLabel, secondTargetLabel].map((label) => (
-                      <div key={label} className="rounded-[8px] border-2 bg-white px-4 py-4 text-[28px] font-black leading-tight shadow-sm" style={{ borderColor: BRAND.border, color: BRAND.purple }}>
+                      <div key={label} className="rounded-[16px] border bg-white px-4 py-3 text-[18px] font-extrabold leading-tight shadow-sm" style={{ borderColor: BRAND.border, color: BRAND.purple }}>
                         {label}
                       </div>
                     ))}
@@ -612,13 +610,13 @@ export default function ListenClosely({ userId, onExit }) {
                 </>
               ) : (
                 <>
-                  <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
+                  <p className="text-[13px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
                     {t("games.listenClosely.listenFor", "Listen for")}
                   </p>
-                  <p className="mt-2 font-display text-[38px] font-bold leading-tight" style={{ color: BRAND.purple }}>
+                  <p className="mt-1.5 font-display text-[24px] font-semibold leading-tight" style={{ color: BRAND.purple }}>
                     {targetLabel}
                   </p>
-                  <p className="mx-auto mt-3 max-w-[560px] text-[24px] font-semibold leading-[1.25]" style={{ color: BRAND.ink }}>
+                  <p className="mx-auto mt-2 max-w-[560px] text-[16px] font-semibold leading-relaxed" style={{ color: BRAND.muted }}>
                     {introInstruction}
                   </p>
                 </>
@@ -632,15 +630,14 @@ export default function ListenClosely({ userId, onExit }) {
             )}
             {audioWarning && <p className="mt-4 text-[20px] font-semibold" style={{ color: "#92400E" }}>{audioWarning}</p>}
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
+            <div className="mt-5 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
               <button
                 type="button"
                 onClick={() => void playTargetSample()}
                 disabled={!canUseListenCloselyAudio()}
-                className="flex min-h-[72px] items-center justify-center gap-3 rounded-full border-2 bg-white px-6 text-[22px] font-extrabold disabled:opacity-60"
+                className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border bg-white px-6 text-[16px] font-extrabold disabled:opacity-60"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
-                <Volume2 size={28} />
                 {isCompareMode
                   ? t("games.listenClosely.sampleSounds", "Hear sounds")
                   : t("games.listenClosely.sampleTarget", "Hear target")}
@@ -648,113 +645,99 @@ export default function ListenClosely({ userId, onExit }) {
               <button
                 type="button"
                 onClick={() => void startSession()}
-                className="flex min-h-[72px] items-center justify-center gap-3 rounded-full px-6 text-[24px] font-extrabold text-white shadow-vyva-hero active:scale-[0.99]"
+                className="flex min-h-[52px] items-center justify-center gap-2 rounded-full px-6 text-[17px] font-extrabold text-white shadow-vyva-hero active:scale-[0.99]"
                 style={{ background: BRAND.purple }}
               >
-                <Play size={30} fill="currentColor" />
+                <Play size={20} fill="currentColor" />
                 {t("games.listenClosely.start", "Start")}
               </button>
             </div>
           </section>
         </div>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "tutorial") {
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.tutorial.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="tutorial"
+        sceneLayout="example_panel"
+      >
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-          <div className="flex items-center justify-between gap-4">
-            <img src={vyvaLogo} alt="VYVA" className="h-[54px] w-auto" />
-            <button
-              type="button"
-              onClick={handleExit}
-              className="flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: BRAND.ink }}
-            >
-              <ArrowLeft size={24} />
-              {t("common.back", "Back")}
-            </button>
-          </div>
-
-          <section className="rounded-[28px] border bg-white p-4 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-4 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-5" style={{ borderColor: "#EEE8F1" }}>
             <ListenTutorialVisual />
-            <h1 className="mt-5 font-display text-[34px] leading-tight sm:mt-6 sm:text-[42px]">
-              {t("games.listenClosely.title", "Listen Closely")}
-            </h1>
-            <p className="mt-2 text-[23px] font-black leading-tight sm:text-[27px]" style={{ color: BRAND.muted }}>
+            <h1 className="mt-3 font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] sm:text-[27px]">
               {t("games.listenClosely.tutorialSubtitle", "Hear the sound. Then respond.")}
-            </p>
+            </h1>
 
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { label: t("games.listenClosely.tutorialListen", "Listen"), Icon: Headphones },
                 { label: tutorialRespond, Icon: isCompareMode ? Check : Waves },
                 { label: t("games.listenClosely.tutorialResult", "See result"), Icon: Check },
               ].map(({ label, Icon }) => (
-                <div key={label} className="min-h-[96px] rounded-[22px] px-2 py-3 sm:min-h-[108px] sm:py-4" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-                  <Icon className="mx-auto" size={28} aria-hidden="true" />
-                  <span className="mt-2 block text-[15px] font-black leading-tight sm:mt-3 sm:text-[17px]">{label}</span>
+                <div key={label} className="min-h-[72px] rounded-[18px] px-2 py-2.5" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+                  <Icon className="mx-auto" size={22} aria-hidden="true" />
+                  <span className="mt-1.5 block text-[13px] font-black leading-tight sm:text-[14px]">{label}</span>
                 </div>
               ))}
             </div>
 
-            <p className="mx-auto mt-4 max-w-[560px] text-[19px] font-bold leading-snug sm:mt-5 sm:text-[21px]" style={{ color: BRAND.muted }}>
+            <p className="mx-auto mt-3 max-w-[560px] text-[13px] font-bold leading-snug sm:text-[14px]" style={{ color: BRAND.muted }}>
               {t("games.listenClosely.tutorialPace", "Take your time. One steady round is enough.")}
             </p>
 
             <button
               type="button"
               onClick={closeTutorial}
-              className="mt-4 min-h-[66px] w-full rounded-full px-6 text-[23px] font-black text-white shadow-vyva-card sm:mt-6 sm:min-h-[76px] sm:text-[25px]"
+              className="mt-4 min-h-[52px] w-full rounded-full px-6 text-[17px] font-extrabold text-white shadow-vyva-card"
               style={{ background: BRAND.purple }}
             >
-              {t("games.listenClosely.tutorialUnderstand", "I understand")}
-            </button>
-            <button
-              type="button"
-              onClick={closeTutorial}
-              className="mt-2 min-h-[48px] rounded-full px-5 text-[19px] font-extrabold underline underline-offset-4 sm:mt-3 sm:min-h-[58px] sm:text-[21px]"
-              style={{ color: BRAND.purple }}
-            >
-              {t("common.skip", "Skip")}
+              {t("common.continue", "Continue")}
             </button>
           </section>
         </div>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "playing") {
     return (
-      <main className="min-h-screen px-4 pb-6 pt-4" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.exit", "Exit")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.playing.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="playing"
+        sceneLayout="audio_focus"
+        contentClassName="sm:mt-4"
+      >
         <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
-          <header className="rounded-[8px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <header className="rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="font-display text-[34px] font-bold leading-[1.05]">{t("games.listenClosely.title", "Listen Closely")}</h1>
-                <p className="mt-1 text-[20px] font-bold" style={{ color: BRAND.muted }}>
+                <h1 className="font-display text-[28px] font-semibold leading-[1.1]" style={{ color: BRAND.muted }}>
                   {isCompareMode
                     ? t("games.listenClosely.justListen", "Just listen.")
                     : t("games.listenClosely.tapWhenHeard", "Tap when you hear it.")}
-                </p>
+                </h1>
               </div>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="min-h-[60px] rounded-full border-2 bg-white px-5 text-[22px] font-extrabold"
-                style={{ borderColor: BRAND.border, color: BRAND.ink }}
-              >
-                {t("common.exit", "Exit")}
-              </button>
             </div>
             <div className="mt-4">
               <ProgressBar value={progressPct} />
             </div>
           </header>
 
-          <section className="rounded-[8px] border bg-white p-5 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
               {isCompareMode ? t("games.listenClosely.playingLabelCompare", "Listen to both sounds") : t("games.listenClosely.targetSound", "Target sound")}
             </p>
@@ -792,15 +775,25 @@ export default function ListenClosely({ userId, onExit }) {
             }
           }
         `}</style>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "compare") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-5 py-8" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="w-full max-w-[740px] rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <div className="mx-auto flex h-[86px] w-[86px] items-center justify-center rounded-[8px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.exit", "Exit")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.compare.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="decision"
+        sceneLayout="choice_panel"
+        contentClassName="items-center justify-center"
+      >
+        <section className="w-full max-w-[740px] rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <div className="mx-auto flex h-[86px] w-[86px] items-center justify-center rounded-[26px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
             <Headphones size={50} />
           </div>
           <h1 className="mt-5 font-display text-[42px] font-bold leading-tight">
@@ -813,7 +806,7 @@ export default function ListenClosely({ userId, onExit }) {
                 type="button"
                 onClick={() => handleComparisonChoice(sound)}
                 disabled={saving}
-                className="min-h-[104px] rounded-[8px] border-2 bg-white px-5 text-[28px] font-black shadow-sm transition-transform active:scale-[0.99]"
+                className="min-h-[104px] rounded-[22px] border bg-white px-5 text-[28px] font-black shadow-sm transition-transform active:scale-[0.99]"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
                 {soundLabel(t, sound)}
@@ -821,7 +814,7 @@ export default function ListenClosely({ userId, onExit }) {
             ))}
           </div>
         </section>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
@@ -830,84 +823,65 @@ export default function ListenClosely({ userId, onExit }) {
   const progress = Math.max(0, Math.min(100, ((resultState.consecutive_wins ?? 0) / 3) * 100));
   const completedTier = Number(sessionResult?.difficulty_tier ?? resultState.current_tier ?? 1);
   const resultTier = Number(resultState.current_tier ?? completedTier);
+  const resultBand = getBrainCoachLevelBand(resultTier);
   const levelUnlocked = resultTier > completedTier;
-  const nextTier = Math.min(10, resultTier + 1);
+  const nextTier = Math.min(BRAIN_COACH_MAX_LEVEL, resultTier + 1);
   const winsRemaining = Math.max(0, 3 - Number(resultState.consecutive_wins ?? 0));
   const progressHint = levelUnlocked
-    ? t("games.listenClosely.levelReady", "Level {level} is ready.", { level: resultTier })
+    ? t("games.listenClosely.levelReady", "Level {level} is ready.", { level: `${resultTier} - ${resultBand.label}` })
     : resultIsGood
       ? t("games.listenClosely.levelProgressHint", "{n} more good rounds to unlock Level {level}.", { n: winsRemaining, level: nextTier })
-      : t("games.listenClosely.levelPracticeHint", "Try another round when you are ready.");
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const continueLabel = levelUnlocked
     ? t("games.listenClosely.startLevel", "Start Level {level}", { level: resultTier })
     : t("games.listenClosely.nextRound", "Next round");
 
   return (
-    <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+    <BrainCoachActivityShell
+      title={t("games.listenClosely.title", "Listen Closely")}
+      showHeader={false}
+      testId="listen-closely-flow-shell"
+      presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.result.touch"
+      sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
       <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
-        <section className="rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <div
-            className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[8px]"
-            style={{ background: resultIsGood ? "#FEF3C7" : BRAND.softPurple, color: resultIsGood ? "#92400E" : BRAND.purple }}
-          >
-            {resultIsGood ? <Check size={54} strokeWidth={3} /> : <Headphones size={54} />}
-          </div>
-          <h1 className="mt-5 font-display text-[42px] font-bold leading-[1.1]">
-            {resultIsGood
+        <BrainGameCompletionDialog
+          title={
+            resultIsGood
               ? t("games.listenClosely.resultGood", "Good listening.")
-              : t("games.listenClosely.resultTry", "Nice practice. Listening gets easier with time.")}
-          </h1>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 rounded-[8px] border p-4" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
-            {[
-              { label: t("games.listenClosely.accuracy", "Accuracy"), value: `${accuracy}%` },
-              { label: t("games.listenClosely.score", "Score"), value: score },
-              { label: t("games.listenClosely.heardCount", "Heard"), value: `${sessionResult?.hits ?? 0}/${sessionResult?.target_total ?? 0}` },
-              { label: t("games.listenClosely.streak", "Streak"), value: `${resultState.streak_days ?? 0}` },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[8px] bg-white px-3 py-4 shadow-sm">
-                <p className="text-[20px] font-bold leading-[1.2]" style={{ color: BRAND.muted }}>{item.label}</p>
-                <p className="mt-2 text-[32px] font-extrabold leading-[1.05]">{item.value}</p>
+              : t("games.listenClosely.resultTry", "Nice practice. Listening gets easier with time.")
+          }
+          summary={progressHint}
+          metrics={[
+            { label: t("games.listenClosely.accuracy", "Accuracy"), value: `${accuracy}%` },
+            { label: t("games.listenClosely.score", "Score"), value: score },
+            { label: t("games.listenClosely.heardCount", "Heard"), value: `${sessionResult?.hits ?? 0}/${sessionResult?.target_total ?? 0}` },
+            { label: t("games.listenClosely.streak", "Streak"), value: `${resultState.streak_days ?? 0}` },
+          ]}
+          details={
+            <div className="rounded-[20px] border border-[#EADFF8] bg-[#FFFCF7] px-4 py-4 text-left">
+              <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                <span>{t("games.listenClosely.progress", "Level progress")}</span>
+                <span className="text-vyva-purple">{resultState.consecutive_wins ?? 0}/3</span>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-6 text-left">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[22px] font-extrabold">{t("games.listenClosely.progress", "Level progress")}</p>
-              <p className="text-[22px] font-extrabold" style={{ color: BRAND.purple }}>{resultState.consecutive_wins ?? 0}/3</p>
+              <div className="mt-3">
+                <ProgressBar value={progress} />
+              </div>
+              <p className="mt-2 text-[14px] font-bold text-vyva-text-2">
+                {t("games.listenClosely.currentLevel", "Current level")}: {resultTier} - {resultBand.label}
+              </p>
             </div>
-            <div className="mt-3">
-              <ProgressBar value={progress} />
-            </div>
-            <p className="mt-3 text-[20px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-              {progressHint}
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => void loadGame(resultState)}
-              disabled={saving}
-              className="flex min-h-[72px] items-center justify-center gap-3 rounded-full border-2 bg-white px-6 text-[23px] font-extrabold disabled:opacity-60"
-              style={{ borderColor: BRAND.border, color: BRAND.purple }}
-            >
-              <Play size={26} fill="currentColor" />
-              {continueLabel}
-            </button>
-            <button
-              type="button"
-              onClick={handleExit}
-              disabled={saving}
-              className="min-h-[72px] rounded-full px-6 text-[24px] font-extrabold text-white shadow-vyva-hero disabled:opacity-60"
-              style={{ background: BRAND.purple }}
-            >
-              {t("games.listenClosely.finish", "Finish")}
-            </button>
-          </div>
-        </section>
+          }
+          continueLabel={continueLabel}
+          anotherLabel={t("games.listenClosely.finish", "Finish")}
+          onContinue={() => void loadGame(resultState)}
+          onAnother={handleExit}
+          disabled={saving}
+        />
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }

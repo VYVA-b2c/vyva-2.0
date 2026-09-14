@@ -27,6 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { executeShoppingPreparation, isShoppingCanvasEnabled, parseShoppingCanvasRolloutConfig, ShoppingVoiceCanvas, type ShoppingAddress, type ShoppingRetailer } from "@/components/voice-canvas";
+import { SHOPPING_CANVAS_COMMANDS, SHOPPING_CANVAS_COPY } from "./conciergeShoppingCanvasCopy";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
   getStaticShoppingSupportPackages,
   SHOPPING_CATEGORY_CHOICE_LABELS,
@@ -86,6 +89,9 @@ type Copy = {
   askTrustedPerson: string;
   careReview: string;
   careReviewBody: string;
+  prepareRequest: string;
+  prepareRequestBody: string;
+  prepareRequestSummary: string;
   safetyCheckTitle: string;
   safetyCheckBody: string;
   safetyCheckLabel: string;
@@ -116,6 +122,7 @@ type ShoppingRoutePrefill = {
 
 type ShoppingLocationState = {
   shoppingPrefill?: ShoppingRoutePrefill;
+  resumeCanvas?: "shopping" | boolean;
 } | null;
 
 const COPY: Record<"en" | "es", Copy> = {
@@ -166,6 +173,9 @@ const COPY: Record<"en" | "es", Copy> = {
     askTrustedPerson: "Ask someone you trust",
     careReview: "Ask trusted person",
     careReviewBody: "VYVA will prepare a review request before anyone is contacted.",
+    prepareRequest: "Prepare request",
+    prepareRequestBody: "VYVA turns this into a safe next step. You confirm before anything is sent.",
+    prepareRequestSummary: "VYVA prepares a shopping request. Nothing is ordered, paid, or sent without confirmation.",
     safetyCheckTitle: "Check a product or seller",
     safetyCheckBody: "Paste a product label, website, seller name, or price. VYVA flags scam signs, accessibility issues, and health cautions.",
     safetyCheckLabel: "Product, label, message, or website",
@@ -231,6 +241,9 @@ const COPY: Record<"en" | "es", Copy> = {
     askTrustedPerson: "Preguntar a alguien de confianza",
     careReview: "Preguntar a confianza",
     careReviewBody: "VYVA preparara una solicitud de revision antes de contactar a nadie.",
+    prepareRequest: "Preparar solicitud",
+    prepareRequestBody: "VYVA lo convierte en un siguiente paso seguro. Usted confirma antes de enviar nada.",
+    prepareRequestSummary: "VYVA prepara una solicitud de compra. No se pide, paga ni envia nada sin confirmacion.",
     safetyCheckTitle: "Comprobar producto o vendedor",
     safetyCheckBody: "Pegue una etiqueta, web, vendedor o precio. VYVA senala indicios de estafa, accesibilidad y cautelas de salud.",
     safetyCheckLabel: "Producto, etiqueta, mensaje o web",
@@ -801,6 +814,9 @@ const ConciergeShoppingScreen = () => {
   const [checkSeller, setCheckSeller] = useState("");
   const [safetyResult, setSafetyResult] = useState<ProductSafetyResult | null>(null);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [shoppingCanvasOpen, setShoppingCanvasOpen] = useState(false);
+  const [shoppingCanvasConfig, setShoppingCanvasConfig] = useState({ enabled: false, rolloutPercent: 0 });
+  const [shoppingProfile, setShoppingProfile] = useState<{ id?: string | number; address?: string; addressLine1?: string; city?: string; savedProviders?: Array<{ id?: string | number; name?: string; providerName?: string; category?: string }> } | null>(null);
   const [routePackageId, setRoutePackageId] = useState<ShoppingSupportPackageId | null>(null);
   const [sourceRecommendation, setSourceRecommendation] = useState("");
   const [supportPackages, setSupportPackages] = useState<ShoppingSupportPackageDefinition[]>(FALLBACK_SUPPORT_PACKAGE_OPTIONS);
@@ -813,6 +829,11 @@ const ConciergeShoppingScreen = () => {
     () => PERSONAL_NEED_OPTIONS.filter((option) => profileNeeds.includes(option.id)),
     [profileNeeds],
   );
+  const shoppingCanvasEnabled = isShoppingCanvasEnabled(shoppingCanvasConfig, String(shoppingProfile?.id ?? "anonymous"));
+  const shouldResumeShoppingCanvas = (location.state as ShoppingLocationState)?.resumeCanvas === true
+    || (location.state as ShoppingLocationState)?.resumeCanvas === "shopping";
+  const canvasRetailers = useMemo<ShoppingRetailer[]>(() => (shoppingProfile?.savedProviders ?? []).filter((item) => /supermarket|grocery|food|store|retail/i.test(item.category ?? "")).map((item, index) => ({ id: String(item.id ?? `retailer-${index}`), label: item.name ?? item.providerName ?? "", subtitle: locale === "es" ? "Tienda guardada" : "Saved retailer", description: item.isTrusted ? (locale === "es" ? "Guardado en tu perfil" : "Saved in your profile") : undefined, retailerType: item.category ?? (locale === "es" ? "Tienda" : "Retailer"), estimateLabel: locale === "es" ? "No verificado" : "Unverified", feeLabel: locale === "es" ? "No verificado" : "Unverified", savedLabel: locale === "es" ? "Tienda guardada" : "Saved retailer", reviewReminder: locale === "es" ? "Revisar antes de actuar" : "Review before action", recommended: index === 0 })).filter((item) => item.label), [shoppingProfile, locale]);
+  const canvasAddresses = useMemo<ShoppingAddress[]>(() => { const address = [shoppingProfile?.address ?? shoppingProfile?.addressLine1, shoppingProfile?.city].filter(Boolean).join(", "); return address ? [{ id: "home", label: locale === "es" ? "Casa" : "Home", address, savedLabel: locale === "es" ? "Dirección guardada" : "Saved address", deliveryNote: locale === "es" ? "Entrega preparada, no pedida" : "Delivery prepared, not ordered", reviewReminder: locale === "es" ? "Revisar antes de actuar" : "Review before action", recommended: true }] : []; }, [shoppingProfile, locale]);
 
   const savedRecommendations = useMemo(
     () => result?.recommendations.filter((item) => savedIds.includes(item.product.id)) ?? [],
@@ -825,6 +846,23 @@ const ConciergeShoppingScreen = () => {
       window.speechSynthesis.cancel();
     }
   }, []);
+
+  useEffect(() => { let active = true; apiFetch("/api/profile").then((response) => response.ok ? response.json() : null).catch(() => null).then((profile) => { if (active) setShoppingProfile(profile); }); return () => { active = false; }; }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => apiFetch("/api/config/features/shopping-delivery-voice-canvas")
+      .then((response) => response.ok ? response.json() : null)
+      .catch(() => null)
+      .then((config) => { if (active) setShoppingCanvasConfig(parseShoppingCanvasRolloutConfig(config)); });
+    refresh();
+    const interval = window.setInterval(refresh, 10_000);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("focus", refresh); };
+  }, []);
+  useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
+  useEffect(() => {
+    if (shoppingCanvasEnabled && shouldResumeShoppingCanvas) setShoppingCanvasOpen(true);
+  }, [shoppingCanvasEnabled, shouldResumeShoppingCanvas]);
 
   useEffect(() => {
     let active = true;
@@ -914,6 +952,7 @@ const ConciergeShoppingScreen = () => {
     if (mode.id === "check") {
       setCheckText((current) => current || needText);
       window.setTimeout(() => {
+        if (typeof document === "undefined") return;
         document.getElementById("shopping-product-check")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       }, 80);
       return;
@@ -977,6 +1016,7 @@ const ConciergeShoppingScreen = () => {
         if (transcript) {
           setNeedText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
           setVoiceStatus("captured");
+          if (shoppingCanvasEnabled) setShoppingCanvasOpen(true);
           setError(null);
         }
       };
@@ -1067,16 +1107,58 @@ const ConciergeShoppingScreen = () => {
     setResult(null);
   }
 
-  function requestShoppingReview(message: string) {
+  function requestShoppingReview(message: string, source: "shopping_helper" | "shopping_recommendation" = "shopping_helper") {
     navigate("/concierge", {
       state: {
         conciergePrefill: {
-          kind: "shopping_review",
+          kind: "task",
           message,
-          source: "shopping_helper",
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          requestedTool: "operator_review",
+          actionLabel: copy.prepareRequest,
+          summary: copy.prepareRequestSummary,
+          useCase: "shopping_request",
+          source,
         },
       },
     });
+  }
+
+  function requestComparisonReview() {
+    if (!result) return;
+    const selected = savedRecommendations.length > 0
+      ? savedRecommendations
+      : result.recommendations.slice(0, 2);
+    const selectedLines = selected.map((item) => (
+      `- ${item.product.name}: ${item.product.priceLabel}. ${item.reasons[0] ?? item.product.description}`
+    ));
+    const categoryText = categoryLabel(category, locale);
+    const priorityText = priorities
+      .map((priority) => PRIORITY_OPTIONS.find((option) => option.id === priority)?.[locale])
+      .filter(Boolean)
+      .join(", ");
+    const message = locale === "es"
+      ? [
+        "Ayudame a preparar una solicitud de compra segura.",
+        `Necesidad: ${needText.trim() || result.querySummary}`,
+        `Area: ${categoryText}`,
+        priorityText ? `Prioridades: ${priorityText}` : "",
+        selectedLines.length > 0 ? `Opciones:\n${selectedLines.join("\n")}` : "",
+        `Comparacion: ${result.comparison.summary}`,
+        constraintsText.trim() ? `Evitar o revisar: ${constraintsText.trim()}` : "",
+        "No inicies compra, pago ni contacto sin mi confirmacion.",
+      ].filter(Boolean).join("\n")
+      : [
+        "Help me prepare a safe shopping request.",
+        `Need: ${needText.trim() || result.querySummary}`,
+        `Area: ${categoryText}`,
+        priorityText ? `Priorities: ${priorityText}` : "",
+        selectedLines.length > 0 ? `Options:\n${selectedLines.join("\n")}` : "",
+        `Comparison: ${result.comparison.summary}`,
+        constraintsText.trim() ? `Avoid or check: ${constraintsText.trim()}` : "",
+        "Do not start checkout, payment, or contact anyone without my confirmation.",
+      ].filter(Boolean).join("\n");
+    requestShoppingReview(message);
   }
 
   function requestRecommendationReview(item: ShoppingRecommendation) {
@@ -1095,7 +1177,7 @@ const ConciergeShoppingScreen = () => {
         `Caution: ${item.cautionNotes[0] ?? item.tradeoffs[0] ?? "check seller, returns, and ease of use"}.`,
         "Do not start checkout or contact anyone without my confirmation.",
       ].join("\n");
-    requestShoppingReview(message);
+    requestShoppingReview(message, "shopping_recommendation");
   }
 
   function requestSafetyResultReview() {
@@ -1236,6 +1318,21 @@ const ConciergeShoppingScreen = () => {
         </p>
       </header>
 
+      {shoppingCanvasEnabled && (
+        <section className="mt-4 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_12px_28px_rgba(15,118,110,0.10)]" data-testid="shopping-delivery-canvas-entry">
+          {shoppingCanvasOpen ? (
+            <div className="flex min-w-0 justify-center" data-testid="shopping-delivery-canvas-frame">
+              <ShoppingVoiceCanvas copy={SHOPPING_CANVAS_COPY[locale]} voiceCommands={SHOPPING_CANVAS_COMMANDS[locale]} retailers={canvasRetailers} addresses={canvasAddresses} onCancel={() => setShoppingCanvasOpen(false)} onDone={() => setShoppingCanvasOpen(false)} onConfirm={(draft, context) => executeShoppingPreparation(apiFetch, draft, { signal: context.signal, language: language || locale, messages: { prepareFailed: locale === "es" ? "No pudimos preparar la solicitud." : "We couldn’t prepare the request." } })} />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div><h2 className="font-body text-[19px] font-extrabold text-vyva-text-1">{locale === "es" ? "Prepara una compra o entrega" : "Prepare shopping or delivery"}</h2><p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{locale === "es" ? "Confirma artículos, cantidades, precio y entrega antes de preparar cualquier solicitud." : "Confirm items, quantities, cost, and delivery before any request is prepared."}</p></div>
+              <button type="button" onClick={() => setShoppingCanvasOpen(true)} className="vyva-tap min-h-[52px] rounded-[16px] bg-[#0F766E] px-5 py-3 font-body text-[16px] font-extrabold text-white" data-testid="button-open-shopping-delivery-canvas">{locale === "es" ? "Empezar" : "Start"}</button>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="mt-4 rounded-[22px] border border-[#D8B4FE] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.12)]" data-testid="shopping-voice-guide">
         <div className="flex items-start gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
@@ -1306,7 +1403,7 @@ const ConciergeShoppingScreen = () => {
                   <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
                     {mode.label[locale]}
                   </span>
-                  <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                  <span className="sr-only">
                     {mode.body[locale]}
                   </span>
                 </span>
@@ -1467,7 +1564,7 @@ const ConciergeShoppingScreen = () => {
                   <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
                     {packageDefinition.label[locale]}
                   </span>
-                  <span className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                  <span className="sr-only">
                     {packageDefinition.description[locale]}
                   </span>
                   <span className={`mt-2 rounded-full px-2 py-1 font-body text-[11px] font-black ${
@@ -1726,6 +1823,20 @@ const ConciergeShoppingScreen = () => {
               <p className="mt-3 rounded-[12px] bg-white/80 px-3 py-2 font-body text-[13px] font-semibold leading-relaxed text-[#0F766E]">
                 {result.uncertaintyNote}
               </p>
+              <div className="mt-3 grid gap-2 rounded-[16px] bg-white p-3">
+                <p className="font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+                  {copy.prepareRequestBody}
+                </p>
+                <button
+                  type="button"
+                  onClick={requestComparisonReview}
+                  className="vyva-tap inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#0F766E] px-4 py-3 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(15,118,110,0.18)]"
+                  data-testid="button-shopping-prepare-request"
+                >
+                  <ClipboardCheck size={18} />
+                  {copy.prepareRequest}
+                </button>
+              </div>
             </section>
           </>
         )}

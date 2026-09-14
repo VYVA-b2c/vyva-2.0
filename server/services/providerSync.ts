@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import { profiles, userProviders, type UserProvider } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
+import { normalizeSavedProviderDefaults } from "../../shared/conciergeSavedProviders.js";
 
 export type AppointmentChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
@@ -19,14 +20,21 @@ export type ConsentProviderInput = {
   contact_name?: string;
   contact_role?: string;
   contact_phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: AppointmentChannel;
+  can_contact_after_confirmation?: boolean;
   usual_order?: string;
   special_requests?: string;
   online_order_url?: string;
   menu_url?: string;
   notes?: string;
+  is_trusted?: boolean;
+  is_default?: boolean;
 };
 
-type NormalizedProviderInput = {
+export type NormalizedProviderInput = {
   category: string;
   name: string;
   phone?: string | null;
@@ -41,6 +49,8 @@ type NormalizedProviderInput = {
   contact_role?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+  is_trusted: boolean;
+  is_default: boolean;
 };
 
 export type ProviderSyncResult = {
@@ -84,13 +94,14 @@ function categoryFromRole(role: string | null | undefined): string {
   if (/pharmacy|farmacia/.test(normalized)) return "pharmacy";
   if (/dentist|dental/.test(normalized)) return "dentist";
   if (/hospital/.test(normalized)) return "hospital";
-  if (/(doctor|clinic|medical|medico|salud|health|physio|physiotherapy)/.test(normalized)) return "clinic";
-  if (/(restaurant|meal|food|social)/.test(normalized)) return "restaurant";
+  if (/(doctor|clinic|medical|medico|salud|health|physio|physiotherapy|doctor clinic)/.test(normalized)) return "doctor_clinic";
+  if (/(taxi|transport|car service|car_service|ride|driver|chauffeur|medical transport)/.test(normalized)) return "transport";
+  if (/(restaurant|meal|food|social|cafe|takeaway|delivery)/.test(normalized)) return "food";
   if (/cafe/.test(normalized)) return "cafe";
   if (/(takeaway|delivery)/.test(normalized)) return "takeaway";
   if (/(supermarket|grocery)/.test(normalized)) return "supermarket";
-  if (/(hair|beauty|barber|nail|personal care|spa)/.test(normalized)) return "beauty_salon";
-  if (/(home|repair|plumber|electrician|locksmith|cleaner|maintenance)/.test(normalized)) return "home_repair";
+  if (/(hair|beauty|barber|nail|personal care|spa|personal_care)/.test(normalized)) return "personal_care";
+  if (/(home|repair|plumber|electrician|locksmith|cleaner|maintenance|home service|home_service)/.test(normalized)) return "home_service";
   return "other";
 }
 
@@ -101,12 +112,17 @@ function mergeNotes(provider: ConsentProviderInput): string | null {
   return parts.length > 0 ? parts.join("\n") : null;
 }
 
-function normalizeConsentProvider(provider: ConsentProviderInput): NormalizedProviderInput | null {
+export function normalizeConsentProvider(provider: ConsentProviderInput): NormalizedProviderInput | null {
   const name = cleanText(provider.name);
   if (!name) return null;
 
   const phone = cleanText(provider.phone) ?? cleanText(provider.contact_phone);
   const contactPhone = cleanText(provider.contact_phone);
+  const whatsapp = cleanText(provider.whatsapp) ?? (contactPhone && contactPhone !== phone ? contactPhone : null);
+  const bookingUrl = cleanText(provider.booking_url) ?? cleanText(provider.online_order_url);
+  const preferredChannel = provider.preferred_channel && ["booking_url", "phone", "whatsapp", "email", "manual"].includes(provider.preferred_channel)
+    ? provider.preferred_channel
+    : null;
 
   return {
     category: categoryFromRole(provider.role),
@@ -116,11 +132,14 @@ function normalizeConsentProvider(provider: ConsentProviderInput): NormalizedPro
     place_id: cleanText(provider.google_place_id),
     maps_url: cleanText(provider.google_maps_url),
     website_url: cleanText(provider.website_uri),
-    booking_url: cleanText(provider.online_order_url),
-    whatsapp: contactPhone && contactPhone !== phone ? contactPhone : null,
+    booking_url: bookingUrl,
+    email: cleanText(provider.email),
+    whatsapp,
     contact_name: cleanText(provider.contact_name),
     contact_role: cleanText(provider.contact_role),
     notes: mergeNotes(provider),
+    is_trusted: provider.is_trusted !== false,
+    is_default: provider.is_default === true,
     metadata: {
       source: "profile_settings",
       role: cleanText(provider.role),
@@ -128,6 +147,11 @@ function normalizeConsentProvider(provider: ConsentProviderInput): NormalizedPro
       lat: typeof provider.lat === "number" ? provider.lat : null,
       lng: typeof provider.lng === "number" ? provider.lng : null,
       menu_url: cleanText(provider.menu_url),
+      preferred_channel: preferredChannel,
+      preferred_booking_method: preferredChannel,
+      can_contact_after_confirmation: provider.can_contact_after_confirmation ?? false,
+      is_trusted: provider.is_trusted !== false,
+      is_default: provider.is_default === true,
     },
   };
 }
@@ -151,6 +175,8 @@ function normalizeGpProvider(profile: {
     maps_url: cleanText(profile.gp_maps_url),
     email: cleanText(profile.gp_email),
     notes: "Saved GP details",
+    is_trusted: true,
+    is_default: true,
     metadata: { source: "gp_settings", role: "GP" },
   };
 }
@@ -171,8 +197,13 @@ function providerPayload(input: NormalizedProviderInput, userId: string, languag
     contact_name: input.contact_name ?? null,
     contact_role: input.contact_role ?? null,
     notes: input.notes ?? null,
-    metadata: input.metadata ?? {},
-    is_primary: true,
+    metadata: {
+      ...(input.metadata ?? {}),
+      is_trusted: input.is_trusted,
+      is_default: input.is_default,
+    },
+    is_trusted: input.is_trusted,
+    is_primary: input.is_trusted && input.is_default,
     is_active: true,
     language,
     updated_at: new Date(),
@@ -188,6 +219,13 @@ function findExistingProvider(existing: UserProvider[], input: NormalizedProvide
 
   const nextKey = matchKey(input);
   return existing.find((provider) => matchKey(provider) === nextKey);
+}
+
+function metadataSource(provider: UserProvider): string | null {
+  const metadata = provider.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const source = (metadata as Record<string, unknown>).source;
+  return typeof source === "string" ? source : null;
 }
 
 export function channelsForProvider(provider: Partial<UserProvider>): AppointmentChannel[] {
@@ -217,6 +255,8 @@ export function providerSnapshot(provider: Partial<UserProvider>): Record<string
     contact_role: provider.contact_role,
     notes: provider.notes,
     metadata: provider.metadata ?? {},
+    is_trusted: provider.is_trusted,
+    is_primary: provider.is_primary,
   };
 }
 
@@ -231,6 +271,8 @@ export async function syncProvidersToUserProviders(
     .select()
     .from(userProviders)
     .where(eq(userProviders.user_id, userId));
+  const activeSyncedProviderIds = new Set<string>();
+  const normalizedProviders: NormalizedProviderInput[] = [];
 
   for (const rawProvider of providers) {
     const input = normalizeConsentProvider(rawProvider);
@@ -238,7 +280,25 @@ export async function syncProvidersToUserProviders(
       result.skipped += 1;
       continue;
     }
+    normalizedProviders.push(input);
+  }
 
+  const providersWithDefaults = normalizeSavedProviderDefaults(normalizedProviders);
+  const syncedCategories = [...new Set(providersWithDefaults.map((provider) => provider.category))];
+  if (syncedCategories.length > 0) {
+    await db
+      .update(userProviders)
+      .set({ is_primary: false, updated_at: new Date() })
+      .where(and(
+        eq(userProviders.user_id, userId),
+        inArray(userProviders.category, syncedCategories),
+      ));
+    for (const provider of existing) {
+      if (syncedCategories.includes(provider.category)) provider.is_primary = false;
+    }
+  }
+
+  for (const input of providersWithDefaults) {
     const existingProvider = findExistingProvider(existing, input);
     const payload = providerPayload(input, userId, normalizedLanguage);
 
@@ -249,6 +309,7 @@ export async function syncProvidersToUserProviders(
         .where(and(eq(userProviders.id, existingProvider.id), eq(userProviders.user_id, userId)))
         .returning();
       if (updated) {
+        activeSyncedProviderIds.add(updated.id);
         result.updated += 1;
         const index = existing.findIndex((provider) => provider.id === updated.id);
         if (index >= 0) existing[index] = updated;
@@ -261,8 +322,25 @@ export async function syncProvidersToUserProviders(
       .values({ ...payload, created_at: new Date() })
       .returning();
     if (inserted) {
+      activeSyncedProviderIds.add(inserted.id);
       existing.push(inserted);
       result.inserted += 1;
+    }
+  }
+
+  for (const provider of existing) {
+    if (
+      provider.id &&
+      provider.is_active &&
+      metadataSource(provider) === "profile_settings" &&
+      !activeSyncedProviderIds.has(provider.id)
+    ) {
+      const [updated] = await db
+        .update(userProviders)
+        .set({ is_active: false, updated_at: new Date() })
+        .where(and(eq(userProviders.id, provider.id), eq(userProviders.user_id, userId)))
+        .returning();
+      if (updated) result.updated += 1;
     }
   }
 

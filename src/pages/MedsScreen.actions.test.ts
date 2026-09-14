@@ -43,6 +43,34 @@ describe("Meds service actions", () => {
     expect(state.conciergePrefill.message).toContain("confirm before booking");
   });
 
+  it("localizes medication update appointment handoffs in every app language", () => {
+    const expectedConfirmationCopy = {
+      en: "confirm before booking",
+      es: "confirmacion antes de reservar",
+      fr: "confirmation avant toute reservation",
+      de: "Bestaetigung",
+      it: "conferma prima di prenotare",
+      pt: "confirmacao antes de marcar",
+    } as const;
+
+    for (const [language, confirmationCopy] of Object.entries(expectedConfirmationCopy)) {
+      const state = medicationReviewAppointmentState(
+        "Metformin",
+        "FDA | 2026-03-15 | https://dailymed.nlm.nih.gov/example",
+        language,
+        "medication_support",
+      );
+
+      expect(state.conciergePrefill).toMatchObject({
+        kind: "appointment",
+        source: "medication_support",
+      });
+      expect(state.conciergePrefill.message).toContain("Metformin");
+      expect(state.conciergePrefill.message).toContain("https://dailymed.nlm.nih.gov/example");
+      expect(state.conciergePrefill.message).toContain(confirmationCopy);
+    }
+  });
+
   it("prefills medication transport support", () => {
     const state = medicationReviewRideState(
       "Metformin",

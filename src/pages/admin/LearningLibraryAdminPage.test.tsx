@@ -315,6 +315,85 @@ describe("LearningLibraryAdminPage", () => {
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
   });
 
+  it("filters and generates missing lesson images", async () => {
+    const readyLesson = {
+      ...lessonPayload.lessons[0],
+      status: "published",
+      isActive: true,
+    };
+    const missingLesson = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-2",
+      externalId: "music-rhythm-002",
+      title: "How rhythm helps attention",
+      hook: "A steady beat can make attention easier to hold.",
+      status: "published",
+      isActive: true,
+      imageUrl: null,
+      imageAlt: null,
+      imagePrompt: null,
+    };
+    const generatedLesson = {
+      ...missingLesson,
+      imageUrl: "/api/learning/images/generated-image-2",
+      imageAlt: "A custom lesson image for rhythm and attention.",
+      imagePrompt: "A custom lesson image for rhythm and attention.",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+    let generated = false;
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url === "/api/admin/learning/lessons?status=all&category=all&language=all") {
+        return Promise.resolve(response({ lessons: [readyLesson, generated ? generatedLesson : missingLesson] }));
+      }
+      if (url === "/api/admin/learning/lessons?status=published&category=all&language=all&image=missing") {
+        return Promise.resolve(response({ lessons: generated ? [] : [missingLesson] }));
+      }
+      if (url.startsWith("/api/admin/learning/lessons?")) {
+        return Promise.resolve(response({ lessons: [readyLesson, generated ? generatedLesson : missingLesson] }));
+      }
+      if (url === "/api/admin/learning/lessons/generate-missing-images" && options?.method === "POST") {
+        generated = true;
+        return Promise.resolve(response({
+          summary: {
+            lessonsRequested: 1,
+            lessonsGenerated: 1,
+            lessonsFailed: 0,
+            missingPublishedBefore: 1,
+            missingPublishedAfter: 0,
+          },
+          lessons: [generatedLesson],
+          failures: [],
+        }));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("admin-learning-image-coverage")).toHaveTextContent("1 missing");
+
+    fireEvent.click(screen.getByTestId("button-admin-learning-show-missing-images"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=published&category=all&language=all&image=missing"));
+    expect(await screen.findByText("How rhythm helps attention")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-admin-learning-generate-missing-images"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/generate-missing-images",
+      {
+        method: "POST",
+        body: JSON.stringify({ limit: 5, status: "published" }),
+      },
+    ));
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Generated 1 image. 0 published lessons still need images.");
+  });
+
   it("paginates long lesson lists", async () => {
     const lessons = Array.from({ length: 26 }, (_, index) => makeLesson(`lesson-${index + 1}`, `Lesson ${index + 1}`));
 
@@ -361,10 +440,10 @@ describe("LearningLibraryAdminPage", () => {
       if (url === "/api/admin/learning/lessons?status=all&category=all&language=all") {
         return Promise.resolve(response({ lessons: [englishDraft, spanishPublished] }));
       }
-      if (url === "/api/admin/learning/lessons?status=published&category=music&language=es") {
+      if (url === "/api/admin/learning/lessons?status=published&category=music&language=es&image=all") {
         return Promise.resolve(response({ lessons: [spanishPublished] }));
       }
-      if (url === "/api/admin/learning/lessons?status=all&category=music&language=fr") {
+      if (url === "/api/admin/learning/lessons?status=all&category=music&language=fr&image=all") {
         return Promise.resolve(response({ lessons: [] }));
       }
       if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons: [englishDraft] }));
@@ -386,11 +465,11 @@ describe("LearningLibraryAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("admin-learning-coverage-cell-music-es"));
 
-    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=published&category=music&language=es"));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=published&category=music&language=es&image=all"));
 
     fireEvent.click(screen.getByTestId("admin-learning-coverage-cell-music-fr"));
 
-    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=all&category=music&language=fr"));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=all&category=music&language=fr&image=all"));
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Ready to create a FR lesson for Music.");
     await waitFor(() => expect(screen.getByTestId("select-admin-learning-editor-language")).toHaveValue("fr"));
     expect(screen.getByTestId("select-admin-learning-editor-category")).toHaveValue("music");

@@ -59,15 +59,40 @@ export function medicationReviewAppointmentState(
   language = "en",
   source: MedicationConciergeSource = "medication_support",
 ): MedicationConciergeState {
-  const isSpanish = language.toLowerCase().startsWith("es");
-  const safeSummary = medicationSummary.trim() || (isSpanish ? "mis medicamentos" : "my medications");
+  const code = language.toLowerCase().split("-")[0];
+  const copy: Record<string, { fallback: string; message: (summary: string, detail: string) => string }> = {
+    en: {
+      fallback: "my medications",
+      message: (summary, detail) => `Help me schedule a medication review appointment for: ${summary}. Context: ${detail}. Ask me to confirm before booking.`,
+    },
+    es: {
+      fallback: "mis medicamentos",
+      message: (summary, detail) => `Ayudame a programar una revision de medicacion para: ${summary}. Contexto: ${detail}. Pideme confirmacion antes de reservar.`,
+    },
+    fr: {
+      fallback: "mes medicaments",
+      message: (summary, detail) => `Aidez-moi a preparer un rendez-vous de suivi des medicaments pour: ${summary}. Contexte: ${detail}. Demandez ma confirmation avant toute reservation.`,
+    },
+    de: {
+      fallback: "meine Medikamente",
+      message: (summary, detail) => `Helfen Sie mir, einen Termin zur Medikamentenpruefung vorzubereiten fuer: ${summary}. Kontext: ${detail}. Bitten Sie vor einer Buchung um meine Bestaetigung.`,
+    },
+    it: {
+      fallback: "i miei medicinali",
+      message: (summary, detail) => `Aiutami a preparare un appuntamento per la revisione dei medicinali: ${summary}. Contesto: ${detail}. Chiedi la mia conferma prima di prenotare.`,
+    },
+    pt: {
+      fallback: "os meus medicamentos",
+      message: (summary, detail) => `Ajude-me a preparar uma consulta de revisao da medicacao para: ${summary}. Contexto: ${detail}. Peca a minha confirmacao antes de marcar.`,
+    },
+  };
+  const localized = copy[code] ?? copy.en;
+  const safeSummary = medicationSummary.trim() || localized.fallback;
   const safeContext = context.trim();
   return {
     conciergePrefill: {
       kind: "appointment",
-      message: isSpanish
-        ? `Ayudame a programar una revision de medicacion para: ${safeSummary}. Contexto: ${safeContext}. Pideme confirmacion antes de reservar.`
-        : `Help me schedule a medication review appointment for: ${safeSummary}. Context: ${safeContext}. Ask me to confirm before booking.`,
+      message: localized.message(safeSummary, safeContext),
       source,
     },
   };

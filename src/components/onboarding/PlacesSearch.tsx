@@ -30,6 +30,8 @@ export type PlaceCategory =
   | "convenience_store"
   | "shopping_mall"
   | "store"
+  | "transport"
+  | "home_service"
   | "beauty_salon"
   | "hair_care"
   | "spa"
@@ -70,6 +72,9 @@ export const CATEGORY_TYPES: Record<PlaceCategory, string[]> = {
   // Shopping
   shopping_mall:          ["shopping_mall", "department_store"],
   store:                  ["department_store", "clothing_store", "home_goods_store"],
+  // Trusted provider setup
+  transport:              ["taxi_stand", "car_rental"],
+  home_service:           ["plumber", "electrician", "locksmith", "roofing_contractor"],
   // Wellness & Beauty
   beauty_salon:           ["beauty_salon", "nail_salon"],
   hair_care:              ["hair_salon", "barber_shop"],

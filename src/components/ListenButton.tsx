@@ -1,5 +1,6 @@
 import { Square, Volume2 } from "lucide-react";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
+import { voicePlaybackLocale } from "@/lib/voicePlayback";
 
 type ListenButtonProps = {
   text: string;
@@ -19,16 +20,6 @@ function listenLabels(language?: string) {
   return { listen: "Escuchar", stop: "Parar" };
 }
 
-function ttsLanguage(language?: string) {
-  const base = (language ?? "es").split("-")[0].toLowerCase();
-  if (base === "en") return "en-US";
-  if (base === "de") return "de-DE";
-  if (base === "fr") return "fr-FR";
-  if (base === "it") return "it-IT";
-  if (base === "pt") return "pt-PT";
-  return "es-ES";
-}
-
 export function ListenButton({ text, language, label, stopLabel, className = "" }: ListenButtonProps) {
   const { speakText, stopTts, isTtsSpeaking } = useTtsReadout();
   const labels = listenLabels(language);
@@ -44,7 +35,7 @@ export function ListenButton({ text, language, label, stopLabel, className = "" 
           stopTts();
           return;
         }
-        speakText(cleanText, ttsLanguage(language));
+        speakText(cleanText, voicePlaybackLocale(language));
       }}
       className={`vyva-tap inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-vyva-border bg-white px-4 font-body text-[15px] font-bold text-vyva-purple shadow-sm ${className}`}
       aria-label={isTtsSpeaking ? stopLabel ?? labels.stop : label ?? labels.listen}

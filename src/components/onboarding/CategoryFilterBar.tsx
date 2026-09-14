@@ -14,7 +14,7 @@ export function CategoryFilterBar({
   return (
     <div
       data-testid="category-filter-bar"
-      className={`flex gap-3 overflow-x-auto pb-1 scrollbar-hide ${className}`}
+      className={`flex min-w-0 max-w-full gap-3 overflow-x-auto overscroll-x-contain px-1 pb-1 scrollbar-hide ${className}`}
     >
       {categories.map((cat) => (
         <button

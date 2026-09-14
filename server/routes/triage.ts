@@ -43,9 +43,15 @@ import {
   type TriageWizardMatrixStage,
 } from "../lib/triageWizardMatrix.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
+import {
+  localizeTriageAnswerLabel,
+  localizeTriageQuestion,
+} from "../../shared/triageDisplayLocalization.js";
 
 const router = Router();
 const transcribeAudioBody = raw({ type: ["audio/*", "application/octet-stream"], limit: "8mb" });
+const FINAL_MEDISEARCH_TIMEOUT_MS = 2_500;
+const FINAL_OPENAI_TIMEOUT_MS = 7_000;
 
 const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
   "audio/webm": "webm",
@@ -148,7 +154,7 @@ type TriageQuickReply = {
   value: string;
   icon: "heart" | "wind" | "thermometer" | "activity" | "alert" | "help";
   tone: "purple" | "red" | "blue" | "amber" | "green";
-  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
+  kind: "symptom" | "location" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
 };
 
 type TriageVitalsPromptAction = {
@@ -163,6 +169,10 @@ type TriageVitalsPrompt = {
   title: string;
   body: string;
   actions: TriageVitalsPromptAction[];
+  deviceAccess: {
+    status: "connected" | "not_connected";
+    actionIds: TriageVitalsPromptAction["id"][];
+  };
 } | null;
 
 type TriageGuidancePlanResponse = TriageGuidancePlan;
@@ -332,7 +342,38 @@ function isSpanishLocale(locale: string) {
   return locale.split("-")[0].toLowerCase() === "es";
 }
 
+function isFrenchLocale(locale: string) {
+  return locale.split("-")[0].toLowerCase() === "fr";
+}
+
+const FRENCH_SERVER_TEXT: Record<string, string> = {
+  "Choose symptom": "Choix du symptôme",
+  "Pain location": "Localisation de la douleur",
+  "Safety check": "Vérification de sécurité",
+  "When it started": "Début du symptôme",
+  "More details": "Plus de détails",
+  "What changed": "Évolution",
+  "Review answers": "Vérification des réponses",
+  "Summary": "Résumé",
+  "I am checking safety first because your support or check-in context may matter if this gets worse.": "Je vérifie d’abord la sécurité, car votre accompagnement ou vos suivis peuvent être importants si la situation s’aggrave.",
+  "I am checking urgent warning signs first because a similar symptom was recorded recently.": "Je vérifie d’abord les signes d’alerte urgents, car un symptôme similaire a été enregistré récemment.",
+  "I am asking this because medication timing or missed doses can sometimes change how symptoms feel.": "Je pose cette question, car l’horaire d’un médicament ou une dose oubliée peut modifier les symptômes.",
+  "I am asking this because your recent readings or health devices may help decide whether to monitor or get support.": "Je pose cette question, car vos mesures récentes ou appareils de santé peuvent aider à décider s’il faut surveiller ou demander de l’aide.",
+  "I am checking timing because VYVA has a recent report that may be related.": "Je vérifie le moment d’apparition, car VYVA dispose d’un rapport récent qui pourrait être lié.",
+  "I am asking about support so this can fit with the care or appointment already recorded.": "Je vérifie votre accompagnement afin de tenir compte des soins ou rendez-vous déjà enregistrés.",
+  "I am checking this because your health profile can make this symptom more important.": "Je vérifie ce point, car votre profil de santé peut rendre ce symptôme plus important.",
+  "If you can, one reading may help": "Si vous le pouvez, une mesure peut aider",
+  "Only do this if it is easy and safe. You can keep answering without it.": "Ne le faites que si c’est simple et sans danger. Vous pouvez continuer sans cette mesure.",
+  "Oxygen": "Oxygène",
+  "Pulse": "Pouls",
+  "Blood pressure": "Tension artérielle",
+  "Temperature": "Température",
+  "Blood sugar": "Glycémie",
+  "This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious.": "Cette évaluation est fournie à titre informatif et ne constitue pas un avis médical. Consultez toujours votre médecin ou appelez les urgences si la situation vous paraît grave.",
+};
+
 function text(locale: string, english: string, spanish: string) {
+  if (isFrenchLocale(locale)) return FRENCH_SERVER_TEXT[english] ?? english;
   return isSpanishLocale(locale) ? spanish : english;
 }
 
@@ -347,7 +388,15 @@ function reply(
   icon: TriageQuickReply["icon"],
   tone: TriageQuickReply["tone"],
 ): TriageQuickReply {
-  return { id, kind, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
+  const label = text(locale, labelEn, labelEs);
+  return {
+    id,
+    kind,
+    label: localizeTriageAnswerLabel(locale, label),
+    value: text(locale, valueEn, valueEs),
+    icon,
+    tone,
+  };
 }
 
 function normalizeClue(raw: string) {
@@ -534,11 +583,12 @@ function sanitizeWizard(wizard: TriageWizardContext | undefined): TriageWizardCo
 function wizardStageLabel(stage: WizardStage, locale: string) {
   const labels: Record<WizardStage, { en: string; es: string }> = {
     symptom: { en: "Choose symptom", es: "Elige sintoma" },
+    location: { en: "Pain location", es: "Zona del dolor" },
     red_flag: { en: "Safety check", es: "Chequeo de seguridad" },
     duration: { en: "When it started", es: "Cuando empezo" },
     severity: { en: "More details", es: "Mas detalles" },
     trend: { en: "What changed", es: "Que cambio" },
-    support: { en: "Next step", es: "Siguiente paso" },
+    support: { en: "Review answers", es: "Revisar respuestas" },
     complete: { en: "Summary", es: "Resumen" },
   };
   return text(locale, labels[stage].en, labels[stage].es);
@@ -550,12 +600,18 @@ function wizardQuestionText(
   locale: string,
 ): string {
   const symptomId = selectedSymptomId(wizard);
-  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) {
-    return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
+  if (stage === "support") {
+    return localizeTriageQuestion(locale, text(locale, "Does this look right?", "Esto parece correcto?"));
+  }
+  if (stage === "severity") {
+    return localizeTriageQuestion(locale, text(locale, "How strong is it?", "Que intensidad tiene?"));
+  }
+  if (!["symptom", "location", "red_flag", "duration", "severity", "trend"].includes(stage)) {
+    return localizeTriageQuestion(locale, text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer."));
   }
   const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
   const node = triageWizardNodeFor(stage as TriageWizardMatrixStage, symptomId, answerIds);
-  return text(locale, node.question.en, node.question.es);
+  return localizeTriageQuestion(locale, text(locale, node.question.en, node.question.es));
 }
 
 function uniqueReplies(replies: TriageQuickReply[]) {
@@ -816,6 +872,10 @@ function questionReasonFor(
       en: "I first need to understand what feels different so I can choose the safest next question.",
       es: "Primero necesito entender que se siente diferente para elegir la siguiente pregunta mas segura.",
     },
+    location: {
+      en: "Where the pain is helps VYVA ask only the warning signs that fit.",
+      es: "La zona del dolor ayuda a VYVA a preguntar solo las senales de alerta relevantes.",
+    },
     red_flag: {
       en: "I am checking urgent warning signs first, before asking about smaller details.",
       es: "Primero compruebo senales urgentes de alerta, antes de preguntar detalles menores.",
@@ -869,41 +929,91 @@ function vitalsAction(
   return { id, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
 }
 
+function connectedVitalActionIds(
+  devices: string | undefined,
+  actions: TriageVitalsPromptAction[],
+): TriageVitalsPromptAction["id"][] {
+  const text = (devices ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!text || /\b(no|without|none)\b.{0,24}\b(device|monitor|watch|sensor)/.test(text)) return [];
+  const patterns: Record<TriageVitalsPromptAction["id"], RegExp> = {
+    oxygen: /\b(oximeter|pulse ox|spo2|oxygen)/,
+    pulse: /\b(smart ?watch|fitbit|garmin|heart rate|pulse|oximeter)/,
+    blood_pressure: /\b(blood pressure|bp monitor|pressure cuff|sphygmomanometer)/,
+    temperature: /\b(thermometer|temperature sensor)/,
+    glucose: /\b(glucose|glucometer|cgm|dexcom|libre)/,
+  };
+  return actions.filter((action) => patterns[action.id].test(text)).map((action) => action.id);
+}
+
 function vitalsPromptFor(stage: WizardStage, wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageVitalsPrompt {
   if (stage === "symptom" || stage === "red_flag" || stage === "support" || stage === "complete") return null;
+  if (!selectedAnswers(wizard).some((answer) => answer.kind === "red_flag") || selectedSafetyAnswer(wizard)) return null;
+  if (wizard?.declinedScanTypes?.includes("vitals")) return null;
+  if (wizard?.vitalsScanCompleted || Object.values(wizard?.vitals ?? {}).some((value) => typeof value === "number")) return null;
   const symptomId = selectedSymptomId(wizard);
   const risks = profileRiskFlags(healthMemory);
-  const requested: TriageVitalsPromptAction[] = [];
-  const add = (action: TriageVitalsPromptAction) => {
-    if (!hasPromptVital(wizard, action.id) && !requested.some((item) => item.id === action.id)) {
-      requested.push(action);
-    }
+  const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
+  const locationId = selectedAnswers(wizard).find((answer) => answer.kind === "location")?.id;
+  const requested = new Map<TriageVitalsPromptAction["id"], { action: TriageVitalsPromptAction; score: number }>();
+  const add = (action: TriageVitalsPromptAction, score: number) => {
+    if (hasPromptVital(wizard, action.id)) return;
+    const current = requested.get(action.id);
+    if (!current || score > current.score) requested.set(action.id, { action, score });
   };
 
-  if (symptomId === "breathing" || symptomId === "chest") {
-    add(vitalsAction(locale, "oxygen", "Oxygen", "Oxigeno", "I can check my oxygen level if that would help.", "Puedo comprobar mi oxigeno si ayuda.", "wind", "blue"));
-    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
+  const oxygen = () => vitalsAction(locale, "oxygen", "Oxygen", "Oxigeno", "I can check my oxygen level if that would help.", "Puedo comprobar mi oxigeno si ayuda.", "wind", "blue");
+  const pulse = () => vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple");
+  const bloodPressure = () => vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue");
+  const temperature = () => vitalsAction(locale, "temperature", "Temperature", "Temperatura", "I can check my temperature if that would help.", "Puedo comprobar mi temperatura si ayuda.", "thermometer", "amber");
+  const glucose = () => vitalsAction(locale, "glucose", "Blood sugar", "Azucar", "I can check my blood sugar if that would help.", "Puedo comprobar mi azucar si ayuda.", "activity", "amber");
+
+  if (symptomId === "breathing") {
+    add(oxygen(), 110);
+    if (risks.afib || risks.heartDisease || risks.heartFailure) add(pulse(), 100);
   }
-  if (["dizzy", "tired", "fall"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
-    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  if (symptomId === "chest") {
+    add(pulse(), 100);
+    if (risks.hypertension) add(bloodPressure(), 95);
+    if (risks.copd || risks.heartFailure) add(oxygen(), 95);
   }
-  if (["fever", "urinary", "stomach", "skin", "confusion"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "temperature", "Temperature", "Temperatura", "I can check my temperature if that would help.", "Puedo comprobar mi temperatura si ayuda.", "thermometer", "amber"));
+  if (symptomId === "dizzy") {
+    if (risks.diabetes) add(glucose(), 115);
+    add(bloodPressure(), risks.hypertension || risks.diureticMedication ? 105 : 90);
+    if (risks.afib || risks.heartDisease || answerIds.has("fainted_with_chest")) add(pulse(), 100);
   }
-  if (risks.diabetes && ["dizzy", "tired", "stomach", "confusion", "other"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "glucose", "Blood sugar", "Azucar", "I can check my blood sugar if that would help.", "Puedo comprobar mi azucar si ayuda.", "activity", "amber"));
+  if (symptomId === "fever") add(temperature(), 115);
+  if (symptomId === "urinary" && answerIds.has("no_red_flag")) add(temperature(), 105);
+  if (symptomId === "stomach" && answerIds.has("no_red_flag")) add(temperature(), 95);
+  if (symptomId === "skin" && (answerIds.has("wound_spreading") || risks.immunosuppressed)) add(temperature(), 100);
+  if (symptomId === "confusion" && risks.diabetes) add(glucose(), 115);
+  if (symptomId === "tired") {
+    if (risks.diabetes) add(glucose(), 110);
+    if (risks.afib || risks.heartFailure) add(pulse(), 95);
   }
-  if (risks.hypertension && ["chest", "dizzy", "pain", "confusion", "other"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  if (symptomId === "pain" && locationId === "head_neck_pain" && risks.hypertension) {
+    add(bloodPressure(), 105);
   }
 
-  const actions = requested.slice(0, 2);
+  const ranked = [...requested.values()].sort((left, right) => right.score - left.score);
+  const actions = ranked
+    .filter((item, index) => index === 0 || item.score >= 95)
+    .slice(0, 2)
+    .map((item) => item.action);
   if (!actions.length) return null;
+  const connectedActionIds = connectedVitalActionIds(healthMemory?.devices, actions);
+  const requestedLabels = actions.map((action) => action.label).join(actions.length > 1 ? " and " : "");
   return {
-    title: text(locale, "If you can, one reading may help", "Si puedes, una medicion puede ayudar"),
-    body: text(locale, "Only do this if it is easy and safe. You can keep answering without it.", "Hazlo solo si es facil y seguro. Puedes seguir respondiendo sin eso."),
+    title: connectedActionIds.length
+      ? text(locale, `VYVA can check your ${requestedLabels}`, `VYVA puede comprobar ${requestedLabels}`)
+      : text(locale, `Can you share your ${requestedLabels}?`, `Puedes compartir ${requestedLabels}?`),
+    body: connectedActionIds.length
+      ? text(locale, "A relevant device is connected. With your permission, VYVA can read its latest available measurement directly.", "Hay un dispositivo relevante conectado. Con tu permiso, VYVA puede leer directamente su ultima medicion disponible.")
+      : text(locale, "If you can safely take this reading, tell VYVA the value to refine your assessment. You can also skip it.", "Si puedes tomar esta medicion de forma segura, indica el valor a VYVA para precisar la evaluacion. Tambien puedes omitirla."),
     actions,
+    deviceAccess: {
+      status: connectedActionIds.length ? "connected" : "not_connected",
+      actionIds: connectedActionIds,
+    },
   };
 }
 
@@ -940,7 +1050,46 @@ function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply):
 function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageQuickReply[] {
   const stage = nextAdaptiveStage(wizard, healthMemory);
   if (stage === "complete") return [];
-  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
+  if (stage === "support") {
+    return [
+      reply(
+        locale,
+        "edit_answers",
+        "support",
+        "Edit",
+        "Editar",
+        "I want to edit my answers.",
+        "Quiero editar mis respuestas.",
+        "activity",
+        "purple",
+      ),
+      reply(
+        locale,
+        "confirm_review",
+        "support",
+        "Yes, show my guidance",
+        "Si, muestra mi orientacion",
+        "These answers are correct. Show my guidance.",
+        "Estas respuestas son correctas. Muestra mi orientacion.",
+        "help",
+        "purple",
+      ),
+    ];
+  }
+  if (stage === "severity") {
+    return Array.from({ length: 11 }, (_, score) => reply(
+      locale,
+      `severity_${score}`,
+      "severity",
+      String(score),
+      String(score),
+      `The symptom feels ${score} out of 10.`,
+      `El sintoma se siente ${score} de 10.`,
+      "activity",
+      score >= 7 ? "red" : score >= 4 ? "amber" : "green",
+    ));
+  }
+  if (!["symptom", "location", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
 
   const symptomId = selectedSymptomId(wizard);
   if (stage === "red_flag" && !symptomId) return quickRepliesFor(undefined, locale, healthMemory);
@@ -959,13 +1108,18 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
 
 function emergencyPhrase(locale: string, emergencyContact: EmergencyContact) {
   if (!emergencyContact.telHref) {
+    if (isFrenchLocale(locale)) return "les services d’urgence locaux";
     return text(locale, "local emergency services", "emergencias locales");
   }
+  if (isFrenchLocale(locale)) return `les services d’urgence (${emergencyContact.label})`;
   return text(locale, `emergency services (${emergencyContact.label})`, `emergencias (${emergencyContact.label})`);
 }
 
 function safetyMessage(locale: string, warningLabel: string, emergencyContact: EmergencyContact) {
   const emergency = emergencyPhrase(locale, emergencyContact);
+  if (isFrenchLocale(locale)) {
+    return `${warningLabel} peut être un signe d’urgence. Si cela se produit maintenant, appelez ${emergency} immédiatement ou demandez de l’aide à une personne proche. Ne conduisez pas vous-même.`;
+  }
   return text(
     locale,
     `${warningLabel} can be an emergency warning sign. If this is happening now, call ${emergency} now or ask someone nearby to help you. Do not drive yourself.`,
@@ -975,6 +1129,9 @@ function safetyMessage(locale: string, warningLabel: string, emergencyContact: E
 
 function safetyRecommendation(locale: string, emergencyContact: EmergencyContact) {
   const emergency = emergencyPhrase(locale, emergencyContact);
+  if (isFrenchLocale(locale)) {
+    return `Appelez ${emergency} immédiatement si cela se produit maintenant. Demandez à une personne proche de rester avec vous et ne conduisez pas vous-même.`;
+  }
   return text(
     locale,
     `Call ${emergency} now if this is happening now. Ask someone nearby to stay with you and do not drive yourself.`,
@@ -983,7 +1140,13 @@ function safetyRecommendation(locale: string, emergencyContact: EmergencyContact
 }
 
 function safetyQuickReplies(locale: string, emergencyContact: EmergencyContact): TriageQuickReply[] {
-  const callLabelEn = emergencyContact.telHref ? `Call ${emergencyContact.label}` : "Call emergency";
+  const callLabelEn = isFrenchLocale(locale)
+    ? emergencyContact.telHref
+      ? `Appeler le ${emergencyContact.label}`
+      : "Appeler les urgences"
+    : emergencyContact.telHref
+      ? `Call ${emergencyContact.label}`
+      : "Call emergency";
   const callLabelEs = emergencyContact.telHref ? `Llamar ${emergencyContact.label}` : "Llamar emergencias";
   const callValueEn = emergencyContact.telHref ? `I will call ${emergencyContact.label} now.` : "I will call local emergency services now.";
   const callValueEs = emergencyContact.telHref ? `Llamare al ${emergencyContact.label} ahora.` : "Llamare a emergencias locales ahora.";
@@ -1061,21 +1224,21 @@ function buildSystemPrompt(
 The app has a deterministic senior triage protocol engine. That protocol is the safety authority. You may enrich wording from MEDISEARCH EVIDENCE CONTEXT, HEALTH MEMORY, and the conversation, but do not downgrade urgency, soften red flags, or override protocol-driven next steps.
 
 IMPORTANT: Respond entirely in ${language}.
-Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, scanNotes, and disclaimer.
+Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, scanNotes, interpretation, possiblePatterns, uncertainty, reassessmentWindow, changePlanTriggers, clinicalHandoff, and disclaimer.
 ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
-3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
+3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. For broad pain, ask its location first, then show only the warning signs relevant to that location. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
-5. After the safety check, follow the adaptive wizard stage supplied by the app. Ask the single next question that matches the quick reply choices. You may finish once the app stage is complete, even if fewer than 5 questions were needed.
+5. After the safety check, follow every wizard stage supplied by the app: severity, onset, change over time, and review. Ask the single next question that matches the quick reply choices.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
-7. After gathering sufficient information, gently wrap up. Some high-signal paths need fewer questions.
+7. Only wrap up after the user confirms the review stage. Emergency warning signs may still escalate immediately.
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"scanNotes":["<optional scan note, if any>"],"disclaimer":"${disclaimerExample}"}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"interpretation":"<what the answers mean without diagnosing>","possiblePatterns":[{"id":"<stable pattern id>","label":"<possible situation>","explanation":"<why it can fit>","supportingAnswers":["<answer that supports it>"],"clarifyingSigns":["<detail that would help distinguish it>"]}],"uncertainty":["<what cannot be determined>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"reassessmentWindow":"<when to reassess>","changePlanTriggers":["<specific trigger>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"scanNotes":["<optional scan note, if any>"],"clinicalHandoff":{"summary":"<outcome for clinician>","keyPoints":["<important answer>"],"questions":["<question for clinician>"]},"disclaimer":"${disclaimerExample}"}}
 TRIAGE_JSON_END
 
 Urgency definitions:
@@ -1093,6 +1256,10 @@ Outcome rules:
 - Include vitalsNotes when a vitals scan exists.
 - Include scanNotes when optional triage scans exist. Urine and stool photos can describe visible appearance only; they cannot diagnose UTI, bleeding, or bowel disease.
 - Optional scan findings may clarify or increase urgency, but must never reduce red flags or delay emergency guidance.
+- Explain what the answers mean, what remains uncertain, when to reassess, and exactly what would change the plan.
+- Possible patterns are possibilities, never diagnoses. The deterministic protocol replaces them with its clinician-reviewable catalogue before display; do not invent a definitive cause.
+- For an emergency outcome, do not discuss possible causes. Focus only on the warning sign and immediate action.
+- Make clinicalHandoff concise and useful for sharing: outcome, key answers, measured vitals, relevant profile factors, and questions a clinician may need to resolve.
 
 STYLE RULES:
 - Write like a calm health form, not a chat conversation
@@ -1348,6 +1515,7 @@ export async function runTriageStep(
           conversationId: medisearchConversationId,
           locale: normalizedLocale,
           wizard: effectiveWizard,
+          timeoutMs: FINAL_MEDISEARCH_TIMEOUT_MS,
         })
       : null;
 
@@ -1358,12 +1526,15 @@ export async function runTriageStep(
       ...validMessages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o",
-      messages: openaiMessages,
-      temperature: 0.65,
-      max_tokens: 600,
-    });
+    const completion = await client.chat.completions.create(
+      {
+        model: "gpt-4o",
+        messages: openaiMessages,
+        temperature: 0.65,
+        max_tokens: 600,
+      },
+      { timeout: FINAL_OPENAI_TIMEOUT_MS },
+    );
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
@@ -1406,7 +1577,25 @@ export async function runTriageStep(
     };
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
-    throw err;
+    const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
+    trackCompletedTriage(fallbackReport.telemetry);
+    return {
+      role: "assistant",
+      content: fallbackReport.content,
+      done: true,
+      summary: fallbackReport.summary,
+      quickReplies: [],
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
+      questionReason: null,
+      profileContextUsed: guidancePlan.profileContextUsed,
+      vitalsPrompt: null,
+      guidancePlan,
+      evidenceSources: [],
+      medicalFollowups: [],
+    };
   }
 }
 

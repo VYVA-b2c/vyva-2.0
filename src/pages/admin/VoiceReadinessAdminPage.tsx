@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
+import ElevenLabsConversationReviewPanel from "./ElevenLabsConversationReviewPanel";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { useVyvaVoice, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import {
@@ -543,6 +544,8 @@ export default function VoiceReadinessAdminPage() {
 
         <AdminMenu />
 
+        <ElevenLabsConversationReviewPanel />
+
         <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricTile
             icon={Mic}
@@ -665,7 +668,7 @@ export default function VoiceReadinessAdminPage() {
                       <span className="text-xs font-black">{queue.label}</span>
                       <span className="text-xl font-black leading-none">{qaQueueCounts[queue.id]}</span>
                     </span>
-                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                    <span className="sr-only">{queue.description}</span>
                   </button>
                 );
               })}

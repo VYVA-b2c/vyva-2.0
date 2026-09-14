@@ -1,171 +1,136 @@
-import { Activity, BookOpen, Brain, BrainCircuit, Gamepad2, Headphones, MessageCircle, Puzzle, Zap } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import MasterDashboardLayout, {
-  type MasterDashboardCard,
-  type MasterFastHelpAction,
-} from "@/components/MasterDashboardLayout";
+import { useBrainCoachNavigate as useNavigate } from "@/hooks/useBrainCoachNavigate";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
+import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
+import { CanonicalBrainCoachActivityCard } from "@/components/brain/CanonicalBrainCoachActivityCard";
 import {
-  cognitiveAssessmentFrequencyLabel,
-  type CognitiveAssessmentProgramStatusResponse,
-} from "../../shared/cognitiveAssessmentProgram";
+  BRAIN_COACH_ACTIVITY_FLOW_ID,
+  BRAIN_COACH_MAIN_SCENE_ID,
+  BRAIN_COACH_MAIN_SHELL_CONTRACT,
+  getBrainCoachPresentationAttributes,
+} from "@/components/brain/brainCoachPresentation";
+import { useScreenPresentation } from "@/design/screenPresentation";
+import { BRAIN_COACH_MODULES, getBrainCoachActivitiesForModule } from "@/games/brainCoachCatalog";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { cn } from "@/lib/utils";
+
+const MODULE_CHIPS = {
+  memory: { background: "#F1EAFF", color: "#7C3AED" },
+  reflexes: { background: "#EAFBF1", color: "#0F7A50" },
+  thinking: { background: "#FFF4CF", color: "#A16207" },
+  senses: { background: "#EAF9F7", color: "#0F766E" },
+} as const;
 
 export default function MindMemoryScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const programQuery = useQuery<CognitiveAssessmentProgramStatusResponse>({
-    queryKey: ["/api/cognitive-assessment/program"],
-    staleTime: 60_000,
+  const { isDark } = useHomeMasterTheme();
+  const { size: readableTextSize } = useReadableTextSize();
+  const mindPresentation = useScreenPresentation({
+    screenId: "mind",
+    presentationFamilyId: BRAIN_COACH_ACTIVITY_FLOW_ID,
+    uiInstruction: "brain-coach.activity-session.menu",
   });
-  const cognitiveProgram = programQuery.data;
-  const cognitiveAssessmentJoined = Boolean(cognitiveProgram?.joined);
-  const cognitiveAssessmentUnfinished = cognitiveProgram?.latestUnfinishedSession;
-  const cognitiveAssessmentReady = cognitiveProgram?.reminderStatus?.state === "due";
-  const cognitiveAssessmentDetail = cognitiveAssessmentUnfinished
-    ? `${cognitiveAssessmentUnfinished.tasksCompleted}/${cognitiveAssessmentUnfinished.totalTasks} saved`
-    : cognitiveAssessmentReady
-      ? t("mindMemory.fastHelp.cognitiveAssessmentReadyDetail", "Check ready now")
-      : cognitiveAssessmentJoined
-        ? cognitiveAssessmentFrequencyLabel(cognitiveProgram?.enrollment?.frequency ?? "monthly")
-        : t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking");
-  const cognitiveAssessmentBadge = cognitiveAssessmentUnfinished
-    ? t("mindMemory.fastHelp.cognitiveAssessmentContinue", "Continue")
-    : cognitiveAssessmentReady
-      ? t("mindMemory.fastHelp.cognitiveAssessmentReady", "Ready")
-      : cognitiveAssessmentJoined
-        ? t("mindMemory.fastHelp.cognitiveAssessmentActive", "Active")
-        : undefined;
-
-  const cards: MasterDashboardCard[] = [
-    {
-      id: "strengthen-memory",
-      icon: BrainCircuit,
-      title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
-      detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
-      onClick: () => navigate("/memory-games"),
-      testId: "card-mind-memory-strengthen-memory",
-    },
-    {
-      id: "train-reflexes",
-      icon: Zap,
-      title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
-      detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => navigate("/attention-boosters"),
-      testId: "card-mind-memory-train-reflexes",
-    },
-    {
-      id: "boost-focus",
-      icon: Puzzle,
-      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
-      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
-      tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: () => navigate("/executive-function"),
-      testId: "card-mind-memory-boost-focus",
-    },
-    {
-      id: "sharpen-senses",
-      icon: Headphones,
-      title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
-      detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
-      onClick: () => navigate("/senses"),
-      testId: "card-mind-memory-sharpen-senses",
-    },
-  ];
-
-  const fastHelpActions: MasterFastHelpAction[] = [
-    {
-      id: "relax-breathe",
-      icon: Activity,
-      label: t("mindMemory.fastHelp.relaxBreathe", "Relax Breathe"),
-      detail: t("mindMemory.fastHelp.relaxBreatheDetail", "Calm breathing"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => navigate("/activities/relax-breathe"),
-      testId: "button-mind-memory-fast-relax-breathe",
-    },
-    {
-      id: "learn-words",
-      icon: BookOpen,
-      label: t("mindMemory.fastHelp.learnWords", "Learn Words"),
-      detail: t("mindMemory.fastHelp.learnWordsDetail", "Gentle language"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => navigate("/learn"),
-      testId: "button-mind-memory-fast-learn-words",
-    },
-    {
-      id: "cognitive-assessment",
-      icon: Brain,
-      label: t("mindMemory.fastHelp.cognitiveAssessment", "Cognitive Assessment"),
-      detail: cognitiveAssessmentDetail,
-      tone: cognitiveAssessmentReady
-        ? { iconBg: "#FFF7ED", iconColor: "#C2410C", border: "#FED7AA" }
-        : { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => navigate("/mind-memory/cognitive-assessment"),
-      testId: "button-mind-memory-fast-cognitive-assessment",
-      badge: cognitiveAssessmentBadge,
-    },
-    {
-      id: "play-game",
-      icon: Gamepad2,
-      label: t("mindMemory.fastHelp.playGame", "Play Game"),
-      detail: t("mindMemory.fastHelp.playGameDetail", "Light challenge"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => navigate("/memory-games"),
-      testId: "button-mind-memory-fast-play-game",
-    },
-    {
-      id: "listen-closely",
-      icon: Headphones,
-      label: t("mindMemory.fastHelp.listenClosely", "Listen Closely"),
-      detail: t("mindMemory.fastHelp.listenCloselyDetail", "Sound practice"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => navigate("/senses/listen-closely"),
-      testId: "button-mind-memory-fast-listen-closely",
-    },
-    {
-      id: "calm-focus",
-      icon: Puzzle,
-      label: t("mindMemory.fastHelp.calmFocus", "Calm Focus"),
-      detail: t("mindMemory.fastHelp.calmFocusDetail", "Quiet attention"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => navigate("/attention-boosters"),
-      testId: "button-mind-memory-fast-calm-focus",
-    },
-  ];
 
   return (
-    <MasterDashboardLayout
-      testId="mind-memory-master-layout"
-      cardGridTestId="mind-memory-cards"
-      fastHelpTestId="mind-memory-fast-help"
-      fastHelpTitle={t("mindMemory.fastHelpTitle", "Fast help")}
-      hero={{
-        icon: MessageCircle,
-        eyebrow: t("mindMemory.heroEyebrow", "Mind & Memory"),
-        title: t("mindMemory.heroTitle", "Mind check ready"),
-        action: {
-          kind: "voice",
-          label: t("mindMemory.heroAction", "Talk to VYVA"),
-          supportingLabel: t("mindMemory.voiceSupport", "Speak anytime"),
-          contextHint: t("mindMemory.voiceContext", "Mind and memory support. Ask about memory, mood, confusion, focus, sleep, and safe next steps."),
-          voiceAgentSlug: "brain-coach",
-          voiceDynamicVariables: { app_entrypoint: "mind_memory_master_hero" },
-          autoStartListening: true,
-          testId: "button-mind-memory-hero-talk",
-        },
-        testId: "mind-memory-master-hero",
-        tone: {
-          iconBg: "#F5F3FF",
-          iconColor: "#6B21A8",
-          border: "#DDD6FE",
-          surface: "#FFFFFF",
-        },
-      }}
-      cards={cards}
-      fastHelpActions={fastHelpActions}
-    />
+    <main
+      data-testid="mind-memory-master-layout"
+      data-home-master-theme={isDark ? "dark" : "light"}
+      data-vyva-text-size={readableTextSize}
+      {...mindPresentation.dataAttributes}
+      {...getBrainCoachPresentationAttributes({
+        approvedFrame: "brain_coach.activity_session.main",
+        presentationId: "brain_coach.activity_session.main.touch",
+        sceneId: BRAIN_COACH_MAIN_SCENE_ID,
+        sceneKind: "main_menu",
+        sceneLayout: "module_grid",
+        shellContract: BRAIN_COACH_MAIN_SHELL_CONTRACT,
+      })}
+      className={cn(
+        "prototype-shell relative min-h-[calc(100svh-136px)] w-full overflow-x-hidden",
+        isDark
+          ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]"
+          : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
+      )}
+    >
+      <div className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4">
+        <header
+          className="grid grid-cols-[40px_1fr_40px] items-center gap-3"
+          data-testid="mind-memory-canonical-topbar"
+        >
+          <button
+            type="button"
+            aria-label={t("common.back", "Back")}
+            data-testid="button-mind-memory-back"
+            onClick={() => navigate("/menu")}
+            className={cn(
+              "vyva-tap grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full transition-colors duration-150",
+              isDark
+                ? "bg-white/[0.07] text-[#F7F0FF] ring-1 ring-inset ring-white/[0.18]"
+                : "bg-white text-[#6B5173] ring-1 ring-black/[0.05] shadow-[0_14px_32px_rgba(80,52,109,0.12)]",
+            )}
+          >
+            <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
+          </button>
+
+          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+            {t("home.master.cards.mindMemoryShortTitle", "Brain Power")}
+          </h1>
+
+          <div className="relative flex justify-end">
+            <CanonicalVoiceButton
+              label={t("mindMemory.heroAction", "Talk to VYVA")}
+              contextHint={t(
+                "mindMemory.voiceContext",
+                "Mind and memory support. Ask about memory, mood, confusion, focus, sleep, and safe next steps.",
+              )}
+              agentSlug="brain-coach"
+              dynamicVariables={{ app_entrypoint: "mind_memory_canonical_topbar" }}
+              testId="button-mind-memory-voice"
+            />
+          </div>
+        </header>
+
+        <section
+          className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5"
+          data-testid="mind-memory-cards"
+          data-card-layout="canonical-health-hub-grid"
+          aria-label={t("mindMemory.library.chooseSkill", "Choose a skill")}
+        >
+          {BRAIN_COACH_MODULES.map((module) => {
+            const activityCount = getBrainCoachActivitiesForModule(module.id).length;
+            const chip = MODULE_CHIPS[module.id];
+
+            return (
+              <CanonicalBrainCoachActivityCard
+                key={module.id}
+                type="button"
+                data-testid={module.testId}
+                onClick={() => navigate(module.route)}
+                title={t(module.titleKey, module.title)}
+                icon={module.icon}
+                iconAccent={module.iconAccent}
+                iconBg={module.tone.iconBg}
+                iconColor={module.tone.iconColor}
+                borderColor={module.tone.borderColor}
+                badge={(
+                  <span data-testid={`${module.testId}-status`}>
+                    {t("mindMemory.library.activityCount", "{{count}} activities", { count: activityCount }).replace(
+                      "{{count}}",
+                      String(activityCount),
+                    )}
+                  </span>
+                )}
+                badgeBg={chip.background}
+                badgeColor={chip.color}
+                aria-label={t(module.titleKey, module.title)}
+              />
+            );
+          })}
+        </section>
+      </div>
+    </main>
   );
 }

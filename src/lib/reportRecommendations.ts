@@ -9,11 +9,6 @@ function isDoctorContactRecommendation(line: string) {
   return /\b(contacta|contact|habla|talk|speak|llama|call|share|comparte|book|reserve|reserva)\b.*\b(doctor|m[eé]dico|medico|clinician|clinic|cl[ií]nica|clinica|urgent care|urgencias|medical advice|consejo medico)\b/i.test(line);
 }
 
-function isConditionalSameDayRecommendation(line: string) {
-  return /\b(same-day|same day|today|hoy|urgent|urgente|emergency|emergencias)\b/i.test(line)
-    && /\b(if|si|worse|empeora|unusual|raro|warning|alerta)\b/i.test(line);
-}
-
 export function compactReportRecommendations(lines: string[], options: { max?: number; level?: string } = {}) {
   const compacted: string[] = [];
   let keptDoctorContact = false;
@@ -23,10 +18,6 @@ export function compactReportRecommendations(lines: string[], options: { max?: n
     if (doctorContact) {
       if (keptDoctorContact) continue;
       keptDoctorContact = true;
-    }
-
-    if (options.level === "doctor_24_48" && keptDoctorContact && isConditionalSameDayRecommendation(line)) {
-      continue;
     }
 
     compacted.push(line);

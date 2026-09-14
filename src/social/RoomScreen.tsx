@@ -3986,10 +3986,27 @@ const RoomScreen = () => {
     }
   };
 
+  const loadingRoomName = room?.name || (language === "en" ? "this room" : language === "de" ? "diesen Raum" : "esta sala");
+  const loadingRoomHint = room
+    ? getTopicHint(canonicalRoomSlug, language, room.topic)
+    : language === "en"
+      ? "VYVA is preparing the room, members, and safe conversation tools."
+      : language === "de"
+        ? "VYVA bereitet Raum, Mitglieder und sichere Gespraechswerkzeuge vor."
+        : "VYVA esta preparando la sala, los miembros y las herramientas seguras.";
+  const loadingRoomLabel = language === "en"
+    ? `Opening ${loadingRoomName}`
+    : language === "de"
+      ? `Oeffne ${loadingRoomName}`
+      : `Abriendo ${loadingRoomName}`;
+
   if (isLoading) {
     return (
       <div className="px-6 py-8">
-        <div className="rounded-[30px] bg-[#FFFDFC] p-6 font-body text-[22px] text-[#7C6D8D]">Cargando...</div>
+        <div className="rounded-[30px] bg-[#FFFDFC] p-6 font-body text-[#7C6D8D]" role="status" aria-live="polite">
+          <p className="text-[22px] font-semibold text-[#45325B]">{loadingRoomLabel}</p>
+          <p className="mt-2 text-[18px] leading-[1.35]">{loadingRoomHint}</p>
+        </div>
       </div>
     );
   }
@@ -4289,7 +4306,7 @@ const RoomScreen = () => {
                   <span className="mt-1 block font-body text-[18px] font-black leading-tight text-[#123047] [overflow-wrap:anywhere]">
                     {recommendedMovementExercise.title}
                   </span>
-                  <span className="mt-0.5 block font-body text-[14px] font-bold leading-snug text-[#66717B] [overflow-wrap:anywhere]">
+                  <span className="sr-only">
                     {recommendedMovementExercise.benefit}. {movementExerciseCopy.recommendedBody}
                   </span>
                 </span>
@@ -4355,7 +4372,7 @@ const RoomScreen = () => {
                       <p className="font-body text-[17px] font-black leading-[1.12] text-[#123047] [overflow-wrap:anywhere]">
                         {card.title}
                       </p>
-                      <p className="mt-1 font-body text-[13px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                      <p className="sr-only">
                         {card.benefit}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -4606,7 +4623,7 @@ const RoomScreen = () => {
                             <p className="font-body text-[15px] font-black leading-[1.12] text-[#123047] [overflow-wrap:anywhere]">
                               {card.title}
                             </p>
-                            <p className="mt-1 font-body text-[12px] font-bold leading-[1.18] text-[#66717B] [overflow-wrap:anywhere]">
+                            <p className="sr-only">
                               {card.benefit}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -4668,7 +4685,7 @@ const RoomScreen = () => {
                       <PenLine size={18} strokeWidth={2.4} aria-hidden="true" />
                       {readingClubCopy.startShareLabel}
                     </span>
-                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{readingClubCopy.startShareBody}</span>
+                    <span className="sr-only">{readingClubCopy.startShareBody}</span>
                   </button>
                   <button
                     type="button"
@@ -4680,7 +4697,7 @@ const RoomScreen = () => {
                       <Users size={18} strokeWidth={2.4} aria-hidden="true" />
                       {readingClubCopy.startMeetLabel}
                     </span>
-                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#41655F]">{readingClubCopy.startMeetBody}</span>
+                    <span className="sr-only">{readingClubCopy.startMeetBody}</span>
                   </button>
                   <button
                     type="button"
@@ -4692,7 +4709,7 @@ const RoomScreen = () => {
                       <BookMarked size={18} strokeWidth={2.4} aria-hidden="true" />
                       {readingClubCopy.startRecommendLabel}
                     </span>
-                    <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{readingClubCopy.startRecommendBody}</span>
+                    <span className="sr-only">{readingClubCopy.startRecommendBody}</span>
                   </button>
                 </div>
               </div>
@@ -4763,7 +4780,7 @@ const RoomScreen = () => {
                               }`}
                             >
                               <span className="block font-body text-[17px] font-bold leading-[1.18] text-[#3F2447]">{intent.label}</span>
-                              <span className="mt-1 block font-body text-[14px] leading-[1.28] text-[#6E627D]">{intent.body}</span>
+                              <span className="sr-only">{intent.body}</span>
                             </button>
                           );
                         })}
@@ -5504,7 +5521,7 @@ const RoomScreen = () => {
                             }`}
                           >
                             <span className="block font-body text-[15px] font-bold leading-[1.2] text-[#45325B]">{option.label}</span>
-                            <span className="mt-1 block font-body text-[12px] leading-[1.28] text-[#6E627D]">{option.body}</span>
+                            <span className="sr-only">{option.body}</span>
                           </button>
                         );
                       })}
@@ -5525,7 +5542,7 @@ const RoomScreen = () => {
                             }`}
                           >
                             <span className="block font-body text-[15px] font-bold leading-[1.2] text-[#244D47]">{shelf.label}</span>
-                            <span className="mt-1 block font-body text-[12px] leading-[1.28] text-[#41655F]">{shelf.body}</span>
+                            <span className="sr-only">{shelf.body}</span>
                           </button>
                         );
                       })}
@@ -5676,7 +5693,7 @@ const RoomScreen = () => {
                               }`}
                             >
                               <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#244D47]">{circle.title}</span>
-                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#5F6C68]">{circle.body}</span>
+                              <span className="sr-only">{circle.body}</span>
                             </button>
                           );
                         })}
@@ -5700,7 +5717,7 @@ const RoomScreen = () => {
                                 }`}
                               >
                                 <span className="block font-body text-[15px] font-bold">{option.label}</span>
-                                <span className="mt-1 block font-body text-[12px] leading-[1.25]">{option.body}</span>
+                                <span className="sr-only">{option.body}</span>
                               </button>
                             );
                           })}
@@ -5723,7 +5740,7 @@ const RoomScreen = () => {
                                 }`}
                               >
                                 <span className="block font-body text-[15px] font-bold">{option.label}</span>
-                                <span className="mt-1 block font-body text-[12px] leading-[1.25]">{option.body}</span>
+                                <span className="sr-only">{option.body}</span>
                               </button>
                             );
                           })}
@@ -6201,7 +6218,7 @@ const RoomScreen = () => {
                               }`}
                             >
                               <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#244D47]">{shelf.label}</span>
-                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#5F6C68]">{shelf.body}</span>
+                              <span className="sr-only">{shelf.body}</span>
                             </button>
                           );
                         })}
@@ -6224,7 +6241,7 @@ const RoomScreen = () => {
                               }`}
                             >
                               <span className="block font-body text-[16px] font-bold leading-[1.2] text-[#3F2447]">{pace.label}</span>
-                              <span className="mt-1 block font-body text-[13px] leading-[1.28] text-[#6E627D]">{pace.body}</span>
+                              <span className="sr-only">{pace.body}</span>
                             </button>
                           );
                         })}

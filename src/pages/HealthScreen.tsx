@@ -18,8 +18,12 @@ import {
   Activity,
   Calendar,
   Car,
+  ChefHat,
   ClipboardList,
+  Flower2,
+  Gamepad2,
   HeartPulse,
+  Music,
   Trash2,
   Copy,
   History,
@@ -29,7 +33,6 @@ import {
   Star,
   Mic,
   Square,
-  RefreshCw,
   ChevronUp,
   AlertTriangle,
   CheckCircle2,
@@ -42,10 +45,26 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
+import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/ShowVyvaLiveCamera";
+import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
+import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
+import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useScreenPresentation } from "@/design/screenPresentation";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
+import {
+  prepareShowVyvaEvidenceFile,
+  reviewShowVyvaVisualEvidence,
+  type ShowVyvaPreparedEvidence,
+} from "@/lib/showVyvaEvidence";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
@@ -57,6 +76,17 @@ import {
   VITALS_SIGNAL_CATALOG,
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog";
+import {
+  SHOW_VYVA_USE_CASE_IDS,
+  type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
+  type ShowVyvaUseCaseId,
+} from "../../shared/showVyvaFlow";
+import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type WoundScan = {
   id: string;
@@ -88,6 +118,14 @@ type VisualScanResult = {
   uncertainty?: string[];
   recommendedNextStep?: string;
   isFallback?: boolean;
+};
+
+type ShowVyvaFileReviewInput = {
+  useCaseId: ShowVyvaUseCaseId;
+  source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
+  fileName?: string | null;
+  mimeType?: string | null;
+  question?: string;
 };
 
 type TriageReport = {
@@ -545,6 +583,22 @@ type VisualScanAction = {
   onClick?: () => void;
 };
 
+const VISUAL_SCAN_FOLLOW_UP_ICONS: Record<VisualScanActionKind, ShowVyvaFollowUpAction["icon"]> = {
+  call_gp: "phone",
+  email_gp: "reply",
+  doctor_help: "shield",
+  schedule_appointment: "quote",
+  book_ride: "map",
+};
+
+const VISUAL_SCAN_FOLLOW_UP_TONES: Record<VisualScanActionKind, ShowVyvaFollowUpAction["tone"]> = {
+  call_gp: "safe",
+  email_gp: "quiet",
+  doctor_help: "primary",
+  schedule_appointment: "warm",
+  book_ride: "quiet",
+};
+
 type SpecialistProviderServiceActionKind = "call_provider" | "book_appointment" | "book_ride" | "open_map";
 
 type SpecialistProviderServiceAction = {
@@ -625,37 +679,36 @@ export function visualScanDoctorContext(result: VisualScanResult) {
 export function VisualHealthScanCardContent({
   t,
   analyzing,
-  onScan,
+  onScanSource,
+  onPasteReview,
 }: {
   t: TFunction;
   analyzing: boolean;
-  onScan: () => void;
+  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId, question: string) => void;
+  onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <>
-      <div className="flex flex-col gap-4 px-[18px] py-[18px] sm:flex-row sm:items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
-            <Camera size={30} style={{ color: "#C9890A" }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">
-              {t("health.scanWound.title", "Visual Health Scan")}
-            </p>
-            <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">
-              {t("health.scanWound.subtitle", "Upload wounds, bruises, stool, urine, fluids, skin changes, or X-rays for an assistive review.")}
-            </p>
-          </div>
-        </div>
-        <button
-          data-testid="button-scan-wound"
-          onClick={onScan}
-          disabled={analyzing}
-          className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
-          style={{ background: "#FFFBEB", color: "#C9890A", border: "1px solid #FDE68A" }}
-        >
-          {analyzing ? t("health.scanWound.analyzing", "Analysing...") : t("health.scanWound.cta", "Take or upload image")}
-        </button>
+      <div className="px-[18px] py-[18px]">
+        <ShowVyvaChooser
+          title={t("showVyva.healthTitle", "Show VYVA")}
+          subtitle={t("showVyva.healthSubtitle", "Use a photo, file, text, or link. VYVA helps decide the safest next step.")}
+          defaultUseCaseId={SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto}
+          useCaseIds={[
+            SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+            SHOW_VYVA_USE_CASE_IDS.medicineOrOtc,
+            SHOW_VYVA_USE_CASE_IDS.documentHelp,
+          ]}
+          busy={analyzing}
+          onChooseFileSource={(source, useCase, question) => onScanSource(source, useCase.id, question)}
+          onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
+        />
+        <ShowVyvaReviewHistory
+          className="mt-[14px]"
+          onResume={(item) => navigate(item.resumeRoute)}
+        />
       </div>
       <div className="flex flex-wrap gap-2 px-[18px] pb-[16px]">
         {VISUAL_SCAN_CATEGORY_KEYS.map((item) => (
@@ -675,120 +728,65 @@ export function VisualScanResultPanel({
   result,
   t,
   onClose,
+  reviewInput,
   actions = [],
+  onFollowUpSelect,
 }: {
   result: VisualScanResult;
   t: TFunction;
   onClose: () => void;
+  reviewInput?: ShowVyvaFileReviewInput;
   actions?: VisualScanAction[];
+  onFollowUpSelect?: (action: ShowVyvaFollowUpAction, contract: ShowVyvaReviewContract) => void;
 }) {
-  const visibleObservations = visualScanList(result.visibleObservations);
-  const potentialConcerns = visualScanList(result.potentialConcerns);
-  const uncertainty = visualScanList(result.uncertainty);
-  const hasStructuredReview = visibleObservations.length || potentialConcerns.length || uncertainty.length || result.recommendedNextStep;
-  const tone =
-    result.severity === "Serious"
-      ? { bg: "#FEF2F2", border: "#FECACA", badgeBg: "#FEE2E2", badgeText: "#991B1B" }
-      : result.severity === "Moderate"
-        ? { bg: "#FFFBEB", border: "#FDE68A", badgeBg: "#FEF3C7", badgeText: "#92400E" }
-        : { bg: "#F0FDFA", border: "#6EE7B7", badgeBg: "#D1FAE5", badgeText: "#065F46" };
-  const sections = [
-    { key: "observations", title: t("health.scanWound.sections.observations", "What VYVA can see"), items: visibleObservations },
-    { key: "concerns", title: t("health.scanWound.sections.concerns", "What may need review"), items: potentialConcerns },
-    { key: "limits", title: t("health.scanWound.sections.limits", "Limits of this image"), items: uncertainty },
-  ].filter((section) => section.items.length);
+  const input = reviewInput ?? {
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    source: "camera" as const,
+  };
+  const reviewContract = showVyvaReviewContractFromHealthResult({
+    useCaseId: input.useCaseId,
+    source: input.source,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    followUpContext: input.useCaseId === SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto ? "health_visual" : undefined,
+  }, result);
+  const resultActions = reviewContract.followUpContext === "health_visual"
+    ? actions.map((action) => ({
+        id: action.kind,
+        label: action.label,
+        detail: t(`showVyva.followUp.action.${action.kind}.detail`, "Prepare before acting."),
+        icon: VISUAL_SCAN_FOLLOW_UP_ICONS[action.kind],
+        tone: VISUAL_SCAN_FOLLOW_UP_TONES[action.kind],
+        externalAction: action.kind === "call_gp" || action.kind === "email_gp" || action.kind === "schedule_appointment" || action.kind === "book_ride",
+        requiresConfirmation: true,
+      }) satisfies ShowVyvaFollowUpAction)
+    : reviewContract.followUpActions;
+  const isVisualHealthReview = reviewContract.followUpContext === "health_visual";
 
   return (
-    <div
-      className="mx-[18px] mb-[16px] rounded-[18px] p-[14px]"
-      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
-    >
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span
-          data-testid="text-wound-severity"
-          className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full"
-          style={{ background: tone.badgeBg, color: tone.badgeText }}
-        >
-          {t(`health.scanWound.severityLabel.${result.severity.toLowerCase()}`, result.severity)}
-        </span>
-        <span className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full bg-white text-vyva-text-2">
-          {visualScanImageTypeLabel(t, result.imageType)}
-        </span>
-        <p data-testid="text-wound-result-title" className="font-body text-[14px] font-extrabold text-vyva-text-1">
-          {result.resultTitle}
-        </p>
-      </div>
-
-      {hasStructuredReview ? (
-        <div className="grid gap-3">
-          {sections.map((section) => (
-            <section key={section.key} className="rounded-[14px] bg-white/72 p-3">
-              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
-                {section.title}
-              </p>
-              <ul className="mt-2 grid gap-1.5">
-                {section.items.map((item, index) => (
-                  <li key={`${section.key}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-          {result.recommendedNextStep ? (
-            <section className="rounded-[14px] bg-white/72 p-3">
-              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
-                {t("health.scanWound.sections.nextStep", "Suggested next step")}
-              </p>
-              <p className="mt-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
-                {result.recommendedNextStep}
-              </p>
-            </section>
-          ) : null}
-        </div>
-      ) : (
-        <p data-testid="text-wound-advice" className="font-body text-[13px] text-vyva-text-1 leading-snug mb-2">
-          {result.advice}
-        </p>
-      )}
-
-      {actions.length ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-3" data-testid="visual-scan-service-actions">
-          {actions.map((action) => {
-            const ActionIcon = action.Icon;
-            const content = (
-              <>
-                <ActionIcon size={17} />
-                <span>{action.label}</span>
-              </>
-            );
-            const className = "vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-white px-3 text-center font-body text-[13px] font-extrabold text-vyva-purple shadow-[0_8px_20px_rgba(63,45,35,0.07)]";
-            if (action.href) {
-              return (
-                <a
-                  key={action.kind}
-                  href={action.href}
-                  className={className}
-                  data-testid={`button-visual-scan-action-${action.kind}`}
-                >
-                  {content}
-                </a>
-              );
+    <div className="mx-[18px] mb-[16px]">
+      <ShowVyvaResultCard
+        contract={reviewContract}
+        testIdSuffix="health-current"
+        reviewedLabel={isVisualHealthReview ? visualScanImageTypeLabel(t, result.imageType) : undefined}
+        thinkingLabel={result.advice || result.resultTitle}
+        actionSubtitle={isVisualHealthReview ? t("showVyva.followUp.subtitle.health_visual", "Choose how to use this review. VYVA asks before sharing or booking.") : undefined}
+        actions={resultActions}
+        onActionSelect={(selected) => {
+            if (onFollowUpSelect) {
+              onFollowUpSelect(selected, reviewContract);
+              return;
             }
-            return (
-              <button
-                key={action.kind}
-                type="button"
-                onClick={action.onClick}
-                className={className}
-                data-testid={`button-visual-scan-action-${action.kind}`}
-              >
-                {content}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+            const action = actions.find((item) => item.kind === selected.id);
+            if (!action) return;
+            if (action.href) {
+              window.location.href = action.href;
+              return;
+            }
+            action.onClick?.();
+          }
+        }
+      />
 
       <p className="mt-3 rounded-[12px] bg-white/72 px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
         {t("health.scanWound.disclaimer", "Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")}
@@ -1061,7 +1059,7 @@ function HealthPlanChecklist({ items }: { items: HealthPlanChecklistItem[] }) {
                 <span className="block truncate font-body text-[12px] font-black leading-tight text-vyva-text-1">
                   {item.label}
                 </span>
-                <span className="mt-0.5 block truncate font-body text-[11px] font-bold leading-tight text-vyva-text-2">
+                <span className="sr-only">
                   {item.detail}
                 </span>
               </span>
@@ -1093,7 +1091,7 @@ function HealthToolButton({ tool }: { tool: HealthToolAction }) {
         <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1 sm:text-[16px]">
           {tool.label}
         </span>
-        <span className="mt-1 block line-clamp-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2 sm:truncate">
+        <span className="sr-only">
           {tool.detail}
         </span>
       </span>
@@ -1126,7 +1124,7 @@ function HealthSignalCard({ card }: { card: HealthSignalCardItem }) {
         <span className="mt-1.5 line-clamp-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
           {card.value}
         </span>
-        <span className="mt-1.5 line-clamp-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:text-[14px]">
+        <span className="sr-only">
           {card.detail}
         </span>
         <span className="mt-auto flex items-center justify-between gap-3 pt-2">
@@ -1175,7 +1173,7 @@ export function DailyCheckinCard({
     checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
     t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "My Health Plan") :
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "Longevity Plan") :
     checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
     checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
     t("health.dailyCheckin.actions.primary", "Check in");
@@ -1228,7 +1226,7 @@ export function DailyCheckinCard({
             onClick={onHistory}
             className="vyva-secondary-action min-h-[58px] text-[17px]"
           >
-            {t("health.dailyCheckin.history", "My Health Plan")}
+            {t("health.dailyCheckin.history", "Longevity Plan")}
           </button>
         ) : null}
       </div>
@@ -1559,7 +1557,7 @@ const ScanFullScreenModal = ({
       </div>
 
       <div className="flex-1 flex items-center justify-center px-[18px] min-h-0" onClick={(e) => e.stopPropagation()}>
-        {scan.image_data && (
+        {scan.image_data ? (
           <img
             data-testid="img-modal-scan-full"
             src={scan.image_data}
@@ -1567,6 +1565,16 @@ const ScanFullScreenModal = ({
             className="max-w-full max-h-full rounded-[16px] object-contain"
             style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}
           />
+        ) : (
+          <div
+            data-testid="scan-image-not-retained"
+            className="flex flex-col items-center gap-3 rounded-[18px] bg-white/10 px-8 py-7 text-center text-white"
+          >
+            <ShieldCheck size={32} aria-hidden="true" />
+            <p className="font-body text-[14px] font-semibold">
+              {t("showVyva.capture.imageNotRetained", "Image not retained")}
+            </p>
+          </div>
         )}
       </div>
 
@@ -1593,6 +1601,7 @@ const HealthScreen = () => {
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
+  const healthPresentation = useScreenPresentation({ screenId: "health" });
   const navigate = useNavigate();
   const { guardPath, canUseService } = useServiceGate();
   const location = useLocation();
@@ -1614,7 +1623,6 @@ const HealthScreen = () => {
   const [specialistCondition, setSpecialistCondition] = useState("");
   const [specialistLocation, setSpecialistLocation] = useState("");
   const [specialistLocationEdited, setSpecialistLocationEdited] = useState(false);
-  const [specialistExamplePage, setSpecialistExamplePage] = useState(0);
   const [specialistResult, setSpecialistResult] = useState<SpecialistRecommendation | null>(null);
   const [specialistVoiceListening, setSpecialistVoiceListening] = useState(false);
   const [historialOpen,    setHistorialOpen]    = useState(false);
@@ -1622,8 +1630,25 @@ const HealthScreen = () => {
   const [fullScreenScan,   setFullScreenScan]   = useState<WoundScan | null>(null);
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
   const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
+  const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
+  const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [visualCaptureDraft, setVisualCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
+  const [visualCapturePreparing, setVisualCapturePreparing] = useState(false);
+  const [visualLiveCameraOpen, setVisualLiveCameraOpen] = useState(false);
+  const [visualScanReviewInput, setVisualScanReviewInput] = useState<ShowVyvaFileReviewInput>({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    source: "camera",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { openVisualScan?: boolean } | null;
+    if (state?.openVisualScan) {
+      setVisualScanOpen(true);
+    }
+  }, [location.state]);
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
@@ -1648,13 +1673,6 @@ const HealthScreen = () => {
     staleTime: 10 * 60 * 1000,
     retry: false,
   });
-
-  const specialistExamples = useMemo(() => {
-    const allExamples = deriveSpecialistExamples(personalisationData?.conditions, specialistLanguage);
-    const pageSize = 4;
-    const start = (specialistExamplePage * pageSize) % allExamples.length;
-    return [...allExamples.slice(start), ...allExamples.slice(0, start)].slice(0, pageSize);
-  }, [personalisationData?.conditions, specialistLanguage, specialistExamplePage]);
 
   useEffect(() => {
     if (!specialistLocationEdited && profileLocation && !specialistLocation.trim()) {
@@ -1857,7 +1875,52 @@ const HealthScreen = () => {
     book_ride: Car,
     add_doctor_contact: UserSearch,
   };
+  const hasDoctorContact = Boolean(profileContacts?.gpPhone || profile?.gpPhone || profileContacts?.gpEmail || profile?.gpEmail);
+  const openDoctorProviderSetup = () => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        setupFocus: "doctor_clinic",
+        returnTo: "/health/doctor",
+        notice: t("health.seeDoctor.providerSetupNotice", "Add your usual doctor or clinic. VYVA will bring you back to Health afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
+  const findDoctorOptions = () => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: t(
+            "health.seeDoctor.findOptionsPrefill",
+            "Help me find doctor or clinic options nearby. Compare proximity, availability, reputation, accessibility, and coverage. Ask me to confirm before contacting anyone.",
+          ),
+          source: "health_missing_provider",
+        },
+      },
+    });
+  };
+  const askHelperForDoctorSetup = () => {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/health/doctor",
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
   const openSeeDoctorAction = (action: HealthDoctorQuickAction) => {
+    if (action.kind === "add_doctor_contact") {
+      openDoctorProviderSetup();
+      return;
+    }
     if (action.to) {
       navigate(action.to, action.state ? { state: action.state } : undefined);
     }
@@ -1947,6 +2010,43 @@ const HealthScreen = () => {
       })
     : [];
 
+  const handleVisualScanFollowUpSelect = (
+    action: ShowVyvaFollowUpAction,
+    contract: ShowVyvaReviewContract,
+  ) => {
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: APP_WORKFLOW_REFERENCES.visualScan,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: activeLanguage(appLanguage) === "es" ? "es" : "en",
+    });
+    const plan = buildShowVyvaActionExecutionPlan({
+      contract,
+      action,
+      language: appLanguage,
+      sourceRoute: "/health",
+      target: action.id === "call_gp" || action.id === "email_gp"
+        ? {
+            name: visualScanGpName || t("health.scanWound.actions.gpFallback", "GP"),
+            phone: profileContacts?.gpPhone ?? profile?.gpPhone,
+            email: visualScanGpEmail,
+            relationship: "gp",
+          }
+        : undefined,
+    });
+
+    void saveShowVyvaActionExecutionPlan(plan)
+      .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(contract, action, plan.targetRoute);
+        await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
+        navigate(plan.targetRoute);
+      })
+      .catch(() => {
+        toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+      });
+  };
+
   const deleteScanMutation = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/wound-scan/${id}`, { method: "DELETE" }).then((r) => {
@@ -1989,6 +2089,80 @@ const HealthScreen = () => {
     setSpecialistResult(null);
     specialistMutation.mutate({ condition: trimmedCondition, location: specialistLocation.trim() || profileLocation || "Tarifa, Cadiz" });
   };
+
+  const askExpertCards: Array<{
+    id: string;
+    label: string;
+    detail: string;
+    Icon: LucideIcon;
+    iconBg: string;
+    iconColor: string;
+    onClick: () => void;
+  }> = [
+    {
+      id: "elena-ruiz",
+      label: t("health.findSpecialist.experts.elena.label", "Elena Ruiz"),
+      detail: t("health.findSpecialist.experts.elena.detail", "Urban gardener"),
+      Icon: Flower2,
+      iconBg: "#ECFDF5",
+      iconColor: "#16A34A",
+      onClick: () => navigate("/social-rooms/garden-corner"),
+    },
+    {
+      id: "viktor-sanz",
+      label: t("health.findSpecialist.experts.viktor.label", "Viktor Sanz"),
+      detail: t("health.findSpecialist.experts.viktor.detail", "Games companion"),
+      Icon: Gamepad2,
+      iconBg: "#FFF7ED",
+      iconColor: "#F59E0B",
+      onClick: () => navigate("/social-rooms/games-room"),
+    },
+    {
+      id: "lola-martinez",
+      label: t("health.findSpecialist.experts.lola.label", "Lola Martínez"),
+      detail: t("health.findSpecialist.experts.lola.detail", "Mediterranean chef"),
+      Icon: ChefHat,
+      iconBg: "#FFF7ED",
+      iconColor: "#C2410C",
+      onClick: () => navigate("/social-rooms/kitchen-table"),
+    },
+    {
+      id: "amara-osei",
+      label: t("health.findSpecialist.experts.amara.label", "Amara Osei"),
+      detail: t("health.findSpecialist.experts.amara.detail", "Movement guide"),
+      Icon: Activity,
+      iconBg: "#EFF6FF",
+      iconColor: "#0284C7",
+      onClick: () => navigate("/social-rooms/morning-movement"),
+    },
+    {
+      id: "marco-reyes",
+      label: t("health.findSpecialist.experts.marco.label", "Marco Reyes"),
+      detail: t("health.findSpecialist.experts.marco.detail", "Calm guide"),
+      Icon: HeartPulse,
+      iconBg: "#EEF2FF",
+      iconColor: "#4F46E5",
+      onClick: () => navigate("/social-rooms/evening-wind-down"),
+    },
+    {
+      id: "diego-salinas",
+      label: t("health.findSpecialist.experts.diego.label", "Diego Salinas"),
+      detail: t("health.findSpecialist.experts.diego.detail", "Musicologist"),
+      Icon: Music,
+      iconBg: "#F5F3FF",
+      iconColor: "#7E22CE",
+      onClick: () => navigate("/social-rooms/music-room"),
+    },
+    {
+      id: "isabel-fuentes",
+      label: t("health.findSpecialist.experts.isabel.label", "Isabel Fuentes"),
+      detail: t("health.findSpecialist.experts.isabel.detail", "Literary host"),
+      Icon: BookOpen,
+      iconBg: "#FFF7ED",
+      iconColor: "#7C2D12",
+      onClick: () => navigate("/social-rooms/reading-room"),
+    },
+  ];
 
   const stopSpecialistVoice = () => {
     specialistRecognitionRef.current?.stop();
@@ -2131,33 +2305,57 @@ const HealthScreen = () => {
     }
   };
 
-  const compressImage = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const MAX = 1024;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-          else { width = Math.round((width * MAX) / height); height = MAX; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("canvas context unavailable"));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = reject;
-      img.src = objectUrl;
-    });
+  const prepareVisualCaptureFile = (file: File) => {
+    const reviewInput = {
+      ...visualScanReviewInput,
+      fileName: file.name,
+      mimeType: file.type,
+    };
+    setVisualScanReviewInput(reviewInput);
+    setVisualCapturePreparing(true);
+
+    prepareShowVyvaEvidenceFile(file)
+      .then((evidence) => setVisualCaptureDraft(evidence))
+      .catch((error) => {
+        console.error("[show-vyva-capture] error:", error);
+        toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
+      })
+      .finally(() => setVisualCapturePreparing(false));
+  };
 
   const handleWoundSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    prepareVisualCaptureFile(file);
+  };
+
+  const openVisualNativePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setVisualLiveCameraOpen(false);
+    setVisualScanCaptureSource(source);
+    setVisualScanReviewInput((current) => ({ ...current, source }));
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const retakeVisualCapture = () => {
+    setVisualCaptureDraft(null);
+    if (visualScanReviewInput.source === "camera" && supportsShowVyvaLiveCamera()) {
+      setVisualLiveCameraOpen(true);
+      return;
+    }
+    openVisualNativePicker(visualScanReviewInput.source);
+  };
+
+  const submitWoundEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
+    const reviewInput = {
+      ...visualScanReviewInput,
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+    };
+    setVisualScanReviewInput(reviewInput);
+    setVisualCaptureDraft(null);
+    setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setWoundResult(null);
     setWoundAnalyzing(true);
 
@@ -2172,26 +2370,65 @@ const HealthScreen = () => {
       advice: t("health.scanWound.errorAdvice"),
     };
 
-    compressImage(file)
-      .then(async (dataUrl) => {
-        const res = await apiFetch("/api/wound-scan", {
-          method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: appLanguage }),
+    try {
+      if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
+        const contract = await reviewShowVyvaVisualEvidence({
+          image: evidence.dataUrl,
+          language: appLanguage,
+          useCaseId: reviewInput.useCaseId,
+          source: reviewInput.source,
+          question: reviewInput.question,
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as VisualScanResult;
-        if (data.isFallback) {
-          setWoundResult(errorFallback);
-        } else {
-          setWoundResult(data);
-          queryClient.invalidateQueries({ queryKey: ["/api/wound-scan/history"] });
-        }
-      })
-      .catch((err) => {
-        console.error("[wound-scan] error:", err);
+        setShowVyvaEvidenceReview(contract);
+        return;
+      }
+      const res = await apiFetch("/api/wound-scan", {
+        method: "POST",
+        body: JSON.stringify({ image: evidence.dataUrl, language: appLanguage, question: reviewInput.question }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as VisualScanResult;
+      if (data.isFallback) {
         setWoundResult(errorFallback);
-      })
-      .finally(() => setWoundAnalyzing(false));
+      } else {
+        setWoundResult(data);
+        queryClient.invalidateQueries({ queryKey: ["/api/wound-scan/history"] });
+      }
+    } catch (err) {
+      console.error("[wound-scan] error:", err);
+      setWoundResult(errorFallback);
+    } finally {
+      setWoundAnalyzing(false);
+    }
+  };
+
+  const openVisualScanFilePicker = (
+    source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
+    useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    question = "",
+  ) => {
+    setVisualScanCaptureSource(source);
+    setVisualScanReviewInput({
+      useCaseId,
+      source,
+      fileName: null,
+      mimeType: null,
+      question,
+    });
+    if (source === "camera" && supportsShowVyvaLiveCamera()) {
+      setVisualLiveCameraOpen(true);
+      return;
+    }
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const openShowVyvaConciergeReview = (payload: ShowVyvaPastePayload) => {
+    setWoundResult(null);
+    setShowVyvaEvidenceReview(null);
+    setShowVyvaPasteReview(payload);
+    setVisualScanOpen(true);
   };
 
   const latestVitalsReadings = latestVitalsData?.recent_readings ?? [];
@@ -2706,7 +2943,7 @@ const HealthScreen = () => {
     {
       id: "plan",
       Icon: ClipboardList,
-      label: t("health.homeTools.plan.label", "Health Plan"),
+      label: t("health.homeTools.plan.label", "Longevity Plan"),
       detail: planToolDetail,
       iconBg: "#F5F3FF",
       iconColor: "#6B21A8",
@@ -2756,16 +2993,14 @@ const HealthScreen = () => {
       },
     },
   ];
-  const preventionCardDetail = preventionFocus?.headline ?? (latestTriage?.chief_complaint
-    ? t("health.master.cards.preventionLatest", "Follow-up: {{topic}}", { topic: latestTriage.chief_complaint })
-    : t("health.master.cards.preventionDetail", "Risks and next steps"));
-  const preventionCardAccent = preventionFocus?.focus ?? t("health.master.cards.preventionReady", "Plan");
+  const preventionCardDetail = t("health.master.cards.longevityDetail", "Prevention is the best cure");
+  const preventionCardAccent = preventionCardDetail;
 
   const healthMasterCards: MasterDashboardCard[] = [
     {
       id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.feelBetter", "Feel Better"),
+      title: t("health.master.cards.feelBetter", "Ask Dr. AI"),
       detail: t("health.homeTools.symptoms.detail", "Start check"),
       accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {
@@ -2781,22 +3016,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-feel-better",
     },
     {
-      id: "my-medication",
-      icon: Pill,
-      title: t("health.master.cards.myMedication", "My Medication"),
-      detail: medicineToolDetail,
-      accent: medicineCardAccent,
+      id: "stay-well",
+      icon: ShieldCheck,
+      title: t("health.master.cards.stayWell", "Longevity"),
+      detail: preventionCardDetail,
+      accent: preventionCardAccent,
       tone: {
-        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
-        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
-        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+        iconBg: "#ECFDF5",
+        iconColor: "#047857",
+        border: "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to open medicines");
-        guardPath("/meds");
+        sendDoctorUserMessage("I want to review my prevention focus");
+        navigate("/health/prevention-plan");
       },
-      testId: "button-health-tool-my-medication",
+      testId: "button-health-tool-stay-well",
     },
     {
       id: "my-vitals",
@@ -2817,22 +3052,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-my-vitals",
     },
     {
-      id: "stay-well",
-      icon: ShieldCheck,
-      title: t("health.master.cards.stayWell", "Stay Well"),
-      detail: preventionCardDetail,
-      accent: preventionCardAccent,
+      id: "my-medication",
+      icon: Pill,
+      title: t("health.master.cards.myMedication", "Medication"),
+      detail: medicineToolDetail,
+      accent: medicineCardAccent,
       tone: {
-        iconBg: "#ECFDF5",
-        iconColor: "#047857",
-        border: "#BBF7D0",
+        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
+        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review my prevention focus");
-        navigate("/health/prevention");
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
       },
-      testId: "button-health-tool-stay-well",
+      testId: "button-health-tool-my-medication",
     },
   ];
 
@@ -2977,13 +3212,15 @@ const HealthScreen = () => {
     <>
       <MasterDashboardLayout
         testId="health-master-layout"
+        presentationAttributes={healthPresentation.dataAttributes}
+        presentationClassName={healthPresentation.bottomNavClearanceClassName}
         cardGridTestId="health-master-cards"
         fastHelpTestId="health-fast-help"
         fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
         hero={{
           icon: Stethoscope,
-          eyebrow: t("health.master.heroEyebrow", "Health Plan"),
-          title: t("health.master.heroTitle", "Health Plan Ready"),
+          eyebrow: t("health.master.heroEyebrow", "Longevity"),
+          title: t("health.master.heroTitle", "Your plan is ready"),
           action: {
             kind: "voice",
             label: t("health.master.talkToVyva", "Talk to VYVA"),
@@ -3320,10 +3557,10 @@ const HealthScreen = () => {
                     <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 sm:text-[18px]">
                       {action.label}
                     </span>
-                    <span className="mt-1 block max-w-[28rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:hidden">
+                    <span className="sr-only">
                       {action.subMobile}
                     </span>
-                    <span className="mt-1 hidden max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2 sm:block">
+                    <span className="sr-only">
                       {action.sub}
                     </span>
                   </span>
@@ -3349,7 +3586,7 @@ const HealthScreen = () => {
           </>
         ) : null}
 
-        {(visualScanOpen || woundResult) && (
+        {(visualScanOpen || woundResult || showVyvaPasteReview) && (
           <div
             id="health-visual-scan-panel"
             className="mt-4 overflow-hidden rounded-[24px] border border-[#FDE68A] bg-white shadow-[0_10px_24px_rgba(201,137,10,0.08)]"
@@ -3357,15 +3594,50 @@ const HealthScreen = () => {
           >
             <VisualHealthScanCardContent
               t={t}
-              analyzing={woundAnalyzing}
-              onScan={() => fileInputRef.current?.click()}
+              analyzing={woundAnalyzing || visualCapturePreparing}
+              onScanSource={openVisualScanFilePicker}
+              onPasteReview={openShowVyvaConciergeReview}
             />
+
+            {showVyvaPasteReview && (
+              <div className="mx-[18px]">
+                <ShowVyvaPastedReviewResult
+                  payload={showVyvaPasteReview}
+                  testIdSuffix="health-pasted"
+                  onActionSelect={handleVisualScanFollowUpSelect}
+                  onClose={() => setShowVyvaPasteReview(null)}
+                />
+              </div>
+            )}
+
+            {showVyvaEvidenceReview && !woundAnalyzing && (
+              <div className="mx-[18px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="health-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-health-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleVisualScanFollowUpSelect}
+                />
+              </div>
+            )}
 
             {woundResult && (
               <VisualScanResultPanel
                 result={woundResult}
                 t={t}
+                reviewInput={visualScanReviewInput}
                 actions={visualScanActions}
+                onFollowUpSelect={handleVisualScanFollowUpSelect}
                 onClose={() => setWoundResult(null)}
               />
             )}
@@ -3452,34 +3724,38 @@ const HealthScreen = () => {
             </div>
 
             <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                  {t("health.findSpecialist.suggestions", "Suggestions for you")}
-                </p>
-                <button
-                  data-testid="button-refresh-specialist-examples"
-                  type="button"
-                  onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                  className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
-                  style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                >
-                  <RefreshCw size={14} strokeWidth={2.5} />
-                  {t("health.findSpecialist.more", "More")}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {specialistExamples.map((example) => (
-                  <button
-                    key={example}
-                    data-testid={`chip-specialist-example-${example}`}
-                    onClick={() => setSpecialistCondition(example)}
-                    className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
-                    style={{ background: "#EDE9FE", color: "#6D28D9" }}
-                  >
-                    {example}
-                  </button>
-                ))}
+              <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                {t("health.findSpecialist.experts.title", "Choose an expert")}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {askExpertCards.map((expert) => {
+                  const Icon = expert.Icon;
+                  return (
+                    <button
+                      key={expert.id}
+                      type="button"
+                      data-testid={`button-ask-expert-${expert.id}`}
+                      onClick={expert.onClick}
+                      className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
+                    >
+                      <span
+                        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                        style={{ background: expert.iconBg, color: expert.iconColor }}
+                      >
+                        <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                          {expert.label}
+                        </span>
+                        <span className="sr-only">
+                          {expert.detail}
+                        </span>
+                      </span>
+                      <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -3667,8 +3943,24 @@ const HealthScreen = () => {
                   <p className="mt-3 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0A7C4E]">
                     {t("health.seeDoctor.actions.title", "Doctor access")}
                   </p>
+                  {!hasDoctorContact ? (
+                    <ProviderSetupFallbackPanel
+                      testId="panel-health-doctor-setup-fallback"
+                      workflowReference={APP_WORKFLOW_REFERENCES.doctorNextStep}
+                      returnTo="/health/doctor"
+                      title={t("health.seeDoctor.providerFallbackTitle", "Need a doctor or clinic first?")}
+                      description={t("health.seeDoctor.providerFallbackDescription", "Save your usual contact, ask VYVA to find options, or let a trusted helper set it up.")}
+                      addLabel={t("health.seeDoctor.providerFallbackAdd", "Add my usual doctor")}
+                      findLabel={t("health.seeDoctor.providerFallbackFind", "Find nearby options")}
+                      helperLabel={t("health.seeDoctor.providerFallbackHelper", "Ask family/caregiver")}
+                      confirmation={t("health.seeDoctor.providerFallbackConfirm", "VYVA still asks before calling, booking, or sharing health details.")}
+                      onAddProvider={openDoctorProviderSetup}
+                      onFindOptions={findDoctorOptions}
+                      onAskHelper={askHelperForDoctorSetup}
+                    />
+                  ) : null}
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {seeDoctorActions.map((action) => {
+                    {seeDoctorActions.filter((action) => hasDoctorContact || action.kind !== "add_doctor_contact").map((action) => {
                       const Icon = seeDoctorActionIcons[action.kind];
                       const className = "vyva-tap flex min-h-[74px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 text-left transition active:scale-[0.98]";
                       const content = (
@@ -3720,15 +4012,49 @@ const HealthScreen = () => {
             >
               <VisualHealthScanCardContent
                 t={t}
-                analyzing={woundAnalyzing}
-                onScan={() => fileInputRef.current?.click()}
+                analyzing={woundAnalyzing || visualCapturePreparing}
+                onScanSource={openVisualScanFilePicker}
+                onPasteReview={openShowVyvaConciergeReview}
               />
+
+              {showVyvaPasteReview && (
+                <div className="mx-[18px]">
+                  <ShowVyvaPastedReviewResult
+                    payload={showVyvaPasteReview}
+                    testIdSuffix="health-pasted"
+                    onActionSelect={handleVisualScanFollowUpSelect}
+                    onClose={() => setShowVyvaPasteReview(null)}
+                  />
+                </div>
+              )}
+
+              {showVyvaEvidenceReview && !woundAnalyzing && (
+                <div className="mx-[18px]">
+                  <ShowVyvaResultCard
+                    contract={showVyvaEvidenceReview}
+                    testIdSuffix="health-visual-evidence-mobile"
+                    headerAction={(
+                      <button
+                        type="button"
+                        onClick={() => setShowVyvaEvidenceReview(null)}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                        aria-label={t("showVyva.closeReview", "Close review")}
+                      >
+                        <X size={18} aria-hidden="true" />
+                      </button>
+                    )}
+                    onActionSelect={handleVisualScanFollowUpSelect}
+                  />
+                </div>
+              )}
 
               {woundResult && (
                 <VisualScanResultPanel
                   result={woundResult}
                   t={t}
+                  reviewInput={visualScanReviewInput}
                   actions={visualScanActions}
+                  onFollowUpSelect={handleVisualScanFollowUpSelect}
                   onClose={() => setWoundResult(null)}
                 />
               )}
@@ -3921,33 +4247,38 @@ const HealthScreen = () => {
                   </div>
 
                   <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                        {t("health.findSpecialist.suggestions", "Suggestions for you")}
-                      </p>
-                      <button
-                        data-testid="button-refresh-specialist-examples"
-                        type="button"
-                        onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                        className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
-                        style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                      >
-                        <RefreshCw size={14} strokeWidth={2.5} />
-                        {t("health.findSpecialist.more", "More")}
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {specialistExamples.map((example) => (
-                        <button
-                          key={example}
-                          data-testid={`chip-specialist-example-${example}`}
-                          onClick={() => setSpecialistCondition(example)}
-                          className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
-                          style={{ background: "#EDE9FE", color: "#6D28D9" }}
-                        >
-                          {example}
-                        </button>
-                      ))}
+                    <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                      {t("health.findSpecialist.experts.title", "Choose an expert")}
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {askExpertCards.map((expert) => {
+                        const Icon = expert.Icon;
+                        return (
+                          <button
+                            key={expert.id}
+                            type="button"
+                            data-testid={`button-ask-expert-${expert.id}`}
+                            onClick={expert.onClick}
+                            className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
+                          >
+                            <span
+                              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                              style={{ background: expert.iconBg, color: expert.iconColor }}
+                            >
+                              <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                                {expert.label}
+                              </span>
+                              <span className="sr-only">
+                                {expert.detail}
+                              </span>
+                            </span>
+                            <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -4196,12 +4527,36 @@ const HealthScreen = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept={visualScanCaptureSource === "camera" ? "image/*" : "image/*,application/pdf,.pdf"}
+        capture={visualScanCaptureSource === "camera" ? "environment" : undefined}
         className="hidden"
         onChange={handleWoundSelect}
         data-testid="input-wound-photo"
       />
+
+      {visualLiveCameraOpen ? (
+        <ShowVyvaLiveCamera
+          useCaseId={visualScanReviewInput.useCaseId}
+          onCapture={(file) => {
+            setVisualLiveCameraOpen(false);
+            prepareVisualCaptureFile(file);
+          }}
+          onUseDeviceCamera={() => openVisualNativePicker("camera")}
+          onUpload={() => openVisualNativePicker("upload")}
+          onCancel={() => setVisualLiveCameraOpen(false)}
+        />
+      ) : null}
+
+      {visualCaptureDraft ? (
+        <ShowVyvaCaptureCoach
+          evidence={visualCaptureDraft}
+          useCaseId={visualScanReviewInput.useCaseId}
+          busy={woundAnalyzing}
+          onUse={submitWoundEvidence}
+          onRetake={retakeVisualCapture}
+          onClose={() => setVisualCaptureDraft(null)}
+        />
+      ) : null}
 
       {/* Full-screen visual scan image modal */}
       {fullScreenScan && (

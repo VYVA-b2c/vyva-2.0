@@ -1,16 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdherenceReportScreen from "./AdherenceReportScreen";
 
 const profileMock = vi.fn();
 const queryResultMock = vi.fn();
+const apiFetchMock = vi.fn();
+
+vi.mock("@/lib/queryClient",async(importOriginal)=>{const actual=await importOriginal<typeof import("@/lib/queryClient")>();return{...actual,apiFetch:(...args:unknown[])=>apiFetchMock(...args)}});
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => queryResultMock(),
+    useQuery: (options: unknown) => queryResultMock(options),
   };
 });
 
@@ -41,8 +45,8 @@ vi.mock("react-i18next", async (importOriginal) => {
     "meds.adherenceService.title": "Medication help in one tap",
     "meds.adherenceService.kicker": "Fast help",
     "meds.adherenceService.subtitle": "Refills, doctor contact, and appointment help are ready from this report.",
-    "meds.adherenceService.refill": "Prepare refill",
-    "meds.adherenceService.refillSub": "Find pharmacy or delivery options. You confirm before anything is ordered.",
+    "meds.adherenceService.refill": "Check refill need",
+    "meds.adherenceService.refillSub": "See estimated supply or update the quantity you have.",
     "meds.adherenceService.callGpSub": "Speak to your doctor with this report ready.",
     "meds.adherenceService.emailGpSub": "Open an email with the report context filled in.",
     "meds.adherenceService.doctorHelpSub": "Talk through missed doses, side effects, or medication worries.",
@@ -114,22 +118,29 @@ function LocationProbe() {
   );
 }
 
-function renderAdherenceReport() {
-  return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/meds/adherence-report"]}>
+function adherenceReportUi(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/meds/adherence-report"]) {
+  return (
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
       <Routes>
         <Route path="/meds/adherence-report" element={<AdherenceReportScreen />} />
+        <Route path="/meds/refills" element={<LocationProbe />} />
         <Route path="/concierge" element={<LocationProbe />} />
         <Route path="/concierge/shopping" element={<LocationProbe />} />
         <Route path="/health/doctor" element={<LocationProbe />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function renderAdherenceReport(initialEntries?: ComponentProps<typeof MemoryRouter>["initialEntries"]) {
+  return render(adherenceReportUi(initialEntries));
 }
 
 describe("Adherence report service actions", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     vi.clearAllMocks();
+    apiFetchMock.mockResolvedValue({ok:true,json:async()=>({pendingId:"PREP-1"})});
     profileMock.mockReturnValue({
       profile: {
         gpName: "Dr Garcia",
@@ -137,19 +148,38 @@ describe("Adherence report service actions", () => {
         gpEmail: "gp@example.com",
       },
     });
-    queryResultMock.mockReturnValue({
-      data: report,
+    queryResultMock.mockImplementation((options: { queryKey?: string[] }) => ({
+      data: options?.queryKey?.[0] === "/api/config/features/medication-refill-voice-canvas"
+        ? { enabled: false, rolloutPercent: 0 }
+        : report,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
       error: null,
-    });
+    }));
+  });
+
+  it("shows medication progress by default with weekly, monthly, quarterly, and custom filters", () => {
+    renderAdherenceReport();
+
+    const progressSection = screen.getByTestId("adherence-weekly-details");
+    expect(progressSection.tagName).toBe("SECTION");
+    expect(progressSection).toBeVisible();
+    expect(screen.getByTestId("button-adherence-period-weekly")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-adherence-period-monthly")).toBeInTheDocument();
+    expect(screen.getByTestId("button-adherence-period-quarterly")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-adherence-period-custom"));
+
+    expect(screen.getByTestId("input-adherence-custom-start")).toBeVisible();
+    expect(screen.getByTestId("input-adherence-custom-end")).toBeVisible();
   });
 
   it("renders direct refill, GP contact, doctor help, and appointment actions", () => {
     renderAdherenceReport();
 
-    expect(screen.getByTestId("panel-adherence-service-actions")).toHaveTextContent("Medication help in one tap");
+    expect(screen.getByTestId("panel-adherence-service-actions")).toHaveTextContent("More medication help");
+    expect(screen.getByTestId("panel-adherence-service-actions")).toHaveTextContent("Refills, doctor contact, and appointment help");
     expect(screen.getByTestId("button-adherence-service-refill")).toBeInTheDocument();
     expect(screen.getByTestId("button-adherence-service-call-gp")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("button-adherence-service-email-gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
@@ -157,14 +187,20 @@ describe("Adherence report service actions", () => {
     expect(screen.getByTestId("button-adherence-service-appointment")).toBeInTheDocument();
   });
 
-  it("prefills pharmacy delivery from the medication report", async () => {
+  it("routes refill help to the dedicated inventory tracker", async () => {
     renderAdherenceReport();
 
     fireEvent.click(screen.getByTestId("button-adherence-service-refill"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"pharmacy_basics\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Metformin, Atorvastatin");
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/meds/refills"));
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.anything());
+  });
+
+  it("redirects legacy refill-resume links to the tracker without opening an ordering Canvas", async () => {
+    renderAdherenceReport([{ pathname: "/meds/adherence-report", state: { resumeCanvas: "refill" } }]);
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/meds/refills"));
+    expect(screen.queryByTestId("panel-medication-refill-voice-canvas")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.anything());
   });
 
   it("prefills appointment and doctor voice help from the medication report", async () => {

@@ -74,6 +74,18 @@ describe("Brain Coach daily plan", () => {
     ]));
   });
 
+  it("aligns the server catalog with visible Brain Coach activities", () => {
+    const activityTypes = getBrainCoachActivityCatalog().map((activity) => activity.activityType);
+
+    expect(activityTypes).toEqual(expect.arrayContaining([
+      "association_memory",
+      "number_memory",
+      "listen_closely",
+    ]));
+    expect(activityTypes).not.toContain("spatial_navigator");
+    expect(activityTypes).not.toContain("routine_memory");
+  });
+
   it("creates a short balanced plan for a new user", () => {
     const plan = buildBrainCoachDailyPlan({
       sessions: [],
@@ -199,13 +211,13 @@ describe("Brain Coach daily plan", () => {
       preferences: {
         sessionLengthMins: 10,
         variety: "variety",
-        preferredDomains: ["spatial_navigation"],
+        preferredDomains: ["processing_speed"],
         weeklyTargetDays: 4,
       },
       now: NOW,
     });
 
-    expect(plan.activities[0].domain).toBe("spatial_navigation");
+    expect(plan.activities[0].domain).toBe("processing_speed");
     expect(plan.activities[0].rationale).toContain("caregiver-approved focus domains");
     expect(plan.rationale).toContain("Supports the caregiver-approved weekly goal of 4 Brain Coach days.");
   });

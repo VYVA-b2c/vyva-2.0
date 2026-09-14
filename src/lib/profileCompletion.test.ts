@@ -153,6 +153,16 @@ describe("deriveCompletedSections", () => {
     expect(result.has("care-team")).toBe(false);
   });
 
+  it("marks devices complete when devices have been saved", () => {
+    const result = deriveCompletedSections({ devices: [{ type: "phone_camera" }] }, null);
+    expect(result.has("devices")).toBe(true);
+  });
+
+  it("marks diet complete when preferences or notes have been saved", () => {
+    expect(deriveCompletedSections({ diet: { preferences: ["low_salt"] } }, null).has("diet")).toBe(true);
+    expect(deriveCompletedSections({ diet: { notes: "Prefers soft foods" } }, null).has("diet")).toBe(true);
+  });
+
   it("marks hobbies complete when hobbies has at least one entry", () => {
     const result = deriveCompletedSections({ hobbies: ["Gardening"] }, null);
     expect(result.has("hobbies")).toBe(true);
@@ -161,6 +171,11 @@ describe("deriveCompletedSections", () => {
   it("does not mark hobbies complete when hobbies is empty", () => {
     const result = deriveCompletedSections({ hobbies: [] }, null);
     expect(result.has("hobbies")).toBe(false);
+  });
+
+  it("marks cognitive complete when cognitive preferences have been saved", () => {
+    const result = deriveCompletedSections({ cognitive: { pace: "slower" } }, null);
+    expect(result.has("cognitive")).toBe(true);
   });
 
   it("marks emergency complete when emergency contact has a name and phone", () => {

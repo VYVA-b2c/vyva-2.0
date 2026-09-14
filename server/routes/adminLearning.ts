@@ -36,6 +36,12 @@ const generateImageBodySchema = z.object({
   imagePrompt: z.string().trim().max(1200).nullable().optional(),
   imageAlt: z.string().trim().max(300).nullable().optional(),
 }).optional();
+const bulkGenerateImagesBodySchema = z.object({
+  limit: z.number().int().min(1).max(20).optional().default(5),
+  status: z.enum(["published", "draft", "review", "all"]).optional().default("published"),
+  category: z.string().trim().min(1).max(80).optional(),
+  language: z.string().trim().min(2).max(12).optional(),
+}).optional();
 
 const categoryBodySchema = z.object({
   slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/),
@@ -449,6 +455,74 @@ function generatedImageErrorMessage(error: unknown) {
   return "Lesson image could not be generated.";
 }
 
+async function generateAndStoreLessonImage({
+  lesson,
+  client,
+  actorName,
+  requestedPrompt,
+  requestedAlt,
+}: {
+  lesson: LearningLessonRow;
+  client: OpenAI;
+  actorName: string;
+  requestedPrompt?: string | null;
+  requestedAlt?: string | null;
+}) {
+  const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";
+  const outputFormat = "jpeg";
+  const mimeType = "image/jpeg";
+  const prompt = generatedLessonImagePrompt(lesson, requestedPrompt);
+  const result = await client.images.generate({
+    model,
+    prompt,
+    size: process.env.OPENAI_IMAGE_SIZE?.trim() || "1536x1024",
+    quality: process.env.OPENAI_IMAGE_QUALITY?.trim() || "medium",
+    output_format: outputFormat,
+    output_compression: 82,
+  });
+  const imageBase64 = result.data?.[0]?.b64_json;
+  if (!imageBase64) {
+    throw new Error("OpenAI did not return image data. Try again.");
+  }
+
+  const [image] = await db
+    .insert(learningLessonImages)
+    .values({
+      lessonId: lesson.id,
+      mimeType,
+      imageBytes: Buffer.from(imageBase64, "base64"),
+      prompt,
+      model,
+      createdBy: actorName,
+    })
+    .returning();
+
+  const imageUrl = learningImageUrl(image.id);
+  const imageAlt = generatedLessonImageAlt(lesson, requestedAlt);
+  const [updated] = await db
+    .update(learningLessons)
+    .set({
+      imageUrl,
+      imageAlt,
+      imagePrompt: requestedPrompt?.trim() || lesson.imagePrompt || prompt,
+      updatedAt: new Date(),
+    })
+    .where(eq(learningLessons.id, lesson.id))
+    .returning();
+
+  const updatedLesson = updated ?? { ...lesson, imageUrl, imageAlt, imagePrompt: lesson.imagePrompt || prompt };
+
+  return {
+    lesson: updatedLesson,
+    image: {
+      id: image.id,
+      url: imageUrl,
+      mimeType,
+      model,
+    },
+  };
+}
+
 async function listCategoriesHandler(_req: Request, res: Response) {
   try {
     const rows = await db
@@ -513,6 +587,7 @@ async function listLessonsHandler(req: Request, res: Response) {
     const status = typeof req.query.status === "string" ? req.query.status : "all";
     const category = typeof req.query.category === "string" ? req.query.category : "all";
     const language = typeof req.query.language === "string" ? req.query.language : "all";
+    const image = typeof req.query.image === "string" ? req.query.image : "all";
     const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
 
     const rows = await selectLessonsForAdmin();
@@ -521,6 +596,8 @@ async function listLessonsHandler(req: Request, res: Response) {
       if (status !== "all" && lesson.status !== status) return false;
       if (category !== "all" && lesson.categorySlug !== category) return false;
       if (language !== "all" && lesson.language !== language) return false;
+      if (image === "missing" && lesson.imageUrl?.trim()) return false;
+      if (image === "with_image" && !lesson.imageUrl?.trim()) return false;
       if (search) {
         const haystack = [
           lesson.title,
@@ -618,61 +695,108 @@ async function generateLessonImageHandler(req: Request, res: Response) {
       .limit(1);
     if (!lesson) return res.status(404).json({ error: "Learning lesson was not found." });
 
-    const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";
-    const outputFormat = "jpeg";
-    const mimeType = "image/jpeg";
-    const prompt = generatedLessonImagePrompt(lesson, parsed.data?.imagePrompt);
     const client = new OpenAI({ apiKey });
-    const result = await client.images.generate({
-      model,
-      prompt,
-      size: process.env.OPENAI_IMAGE_SIZE?.trim() || "1536x1024",
-      quality: process.env.OPENAI_IMAGE_QUALITY?.trim() || "medium",
-      output_format: outputFormat,
-      output_compression: 82,
+    const generated = await generateAndStoreLessonImage({
+      lesson,
+      client,
+      actorName: actor(req),
+      requestedPrompt: parsed.data?.imagePrompt,
+      requestedAlt: parsed.data?.imageAlt,
     });
-    const imageBase64 = result.data?.[0]?.b64_json;
-    if (!imageBase64) {
-      return res.status(502).json({ error: "OpenAI did not return image data. Try again." });
-    }
-
-    const [image] = await db
-      .insert(learningLessonImages)
-      .values({
-        lessonId: lesson.id,
-        mimeType,
-        imageBytes: Buffer.from(imageBase64, "base64"),
-        prompt,
-        model,
-        createdBy: actor(req),
-      })
-      .returning();
-
-    const imageUrl = learningImageUrl(image.id);
-    const imageAlt = generatedLessonImageAlt(lesson, parsed.data?.imageAlt);
-    const [updated] = await db
-      .update(learningLessons)
-      .set({
-        imageUrl,
-        imageAlt,
-        imagePrompt: parsed.data?.imagePrompt?.trim() || lesson.imagePrompt || prompt,
-        updatedAt: new Date(),
-      })
-      .where(eq(learningLessons.id, lesson.id))
-      .returning();
 
     return res.json({
-      lesson: serializeLesson(updated ?? { ...lesson, imageUrl, imageAlt, imagePrompt: lesson.imagePrompt || prompt }),
-      image: {
-        id: image.id,
-        url: imageUrl,
-        mimeType,
-        model,
-      },
+      lesson: serializeLesson(generated.lesson),
+      image: generated.image,
     });
   } catch (error) {
     console.error("[admin] learning lesson image generation failed:", error);
     return res.status(500).json({ error: generatedImageErrorMessage(error) });
+  }
+}
+
+async function bulkGenerateMissingLessonImagesHandler(req: Request, res: Response) {
+  const parsed = bulkGenerateImagesBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid image generation request." });
+
+  const limit = parsed.data?.limit ?? 5;
+  const requestedStatus = parsed.data?.status ?? "published";
+  const requestedCategory = parsed.data?.category;
+  const requestedLanguage = parsed.data?.language ? normalizeLearningLanguage(parsed.data.language) : undefined;
+
+  try {
+    const rows = await selectLessonsForAdmin();
+    const missingPublishedBefore = rows.filter((lesson) =>
+      lesson.status === "published" &&
+      lesson.isActive &&
+      !lesson.imageUrl?.trim()
+    ).length;
+    const candidates = rows
+      .filter((lesson) => {
+        if (lesson.imageUrl?.trim()) return false;
+        if (requestedStatus !== "all" && lesson.status !== requestedStatus) return false;
+        if (requestedStatus === "published" && !lesson.isActive) return false;
+        if (requestedCategory && lesson.categorySlug !== requestedCategory) return false;
+        if (requestedLanguage && normalizeLearningLanguage(lesson.language) !== requestedLanguage) return false;
+        return true;
+      })
+      .slice(0, limit);
+
+    if (candidates.length === 0) {
+      return res.json({
+        summary: {
+          lessonsRequested: 0,
+          lessonsGenerated: 0,
+          lessonsFailed: 0,
+          missingPublishedBefore,
+          missingPublishedAfter: missingPublishedBefore,
+        },
+        lessons: [],
+        failures: [],
+      });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      return res.status(503).json({ error: "OpenAI image generation is not configured. Add OPENAI_API_KEY, then try again." });
+    }
+
+    const client = new OpenAI({ apiKey });
+    const actorName = actor(req);
+    const lessons: ReturnType<typeof serializeLesson>[] = [];
+    const failures: Array<{ lessonId: string; title: string; error: string }> = [];
+
+    for (const lesson of candidates) {
+      try {
+        const generated = await generateAndStoreLessonImage({
+          lesson,
+          client,
+          actorName,
+        });
+        lessons.push(serializeLesson(generated.lesson));
+      } catch (error) {
+        console.error("[admin] learning batch image generation failed for lesson:", lesson.id, error);
+        failures.push({
+          lessonId: lesson.id,
+          title: lesson.title,
+          error: generatedImageErrorMessage(error),
+        });
+      }
+    }
+
+    return res.json({
+      summary: {
+        lessonsRequested: candidates.length,
+        lessonsGenerated: lessons.length,
+        lessonsFailed: failures.length,
+        missingPublishedBefore,
+        missingPublishedAfter: Math.max(0, missingPublishedBefore - lessons.filter((lesson) => lesson.status === "published" && lesson.isActive).length),
+      },
+      lessons,
+      failures,
+    });
+  } catch (error) {
+    console.error("[admin] learning missing image generation failed:", error);
+    return res.status(500).json({ error: "Missing lesson images could not be generated." });
   }
 }
 
@@ -907,6 +1031,7 @@ router.post("/import", importContentPackHandler);
 router.get("/lessons", listLessonsHandler);
 router.post("/lessons", createLessonHandler);
 router.patch("/lessons/bulk-publish", bulkPublishDraftLessonsHandler);
+router.post("/lessons/generate-missing-images", bulkGenerateMissingLessonImagesHandler);
 router.patch("/lessons/:id", updateLessonHandler);
 router.post("/lessons/:id/generate-image", generateLessonImageHandler);
 router.patch("/lessons/:id/publish", publishLessonHandler);

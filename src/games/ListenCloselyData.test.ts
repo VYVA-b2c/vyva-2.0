@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import listenCloselySql from "../../migrations/0043_listen_closely.sql?raw";
+import { BRAIN_COACH_MAX_LEVEL } from "./shared/brainCoachProgression";
 import {
   LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES,
   computeListenCloselyResult,
@@ -21,9 +22,9 @@ describe("Listen Closely data and scoring", () => {
   });
 
   it("provides 20 local fallback soundscapes per tier", () => {
-    expect(LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES).toHaveLength(200);
+    expect(LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES).toHaveLength(BRAIN_COACH_MAX_LEVEL * 20);
 
-    for (let tier = 1; tier <= 10; tier += 1) {
+    for (let tier = 1; tier <= BRAIN_COACH_MAX_LEVEL; tier += 1) {
       const tierRows = LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES.filter((row) => row.difficulty_tier === tier);
       expect(tierRows).toHaveLength(20);
       expect(new Set(tierRows.map((row) => row.mode)).size).toBe(3);

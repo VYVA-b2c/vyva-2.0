@@ -3,6 +3,14 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import VoiceReadinessAdminPage from "./VoiceReadinessAdminPage";
 
+vi.mock("@/lib/elevenLabsConversationReviews", () => ({
+  ELEVENLABS_REVIEW_STATUSES: ["unreviewed", "reviewed", "needs_follow_up", "quality_issue"],
+  fetchElevenLabsConversations: vi.fn(async () => []),
+  fetchElevenLabsConversationDetails: vi.fn(),
+  fetchElevenLabsConversationAudio: vi.fn(),
+  saveElevenLabsConversationReview: vi.fn(),
+}));
+
 const voiceQaMock = vi.hoisted(() => {
   const baseTime = new Date("2026-07-03T10:00:00.000Z").getTime();
   return {

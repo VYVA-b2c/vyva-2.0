@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Eye, Plus, RefreshCw, Save, Search, SlidersHorizontal } from "lucide-react";
-import AdminMenu from "./AdminMenu";
+import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Plus, RefreshCw, Save, Search, SlidersHorizontal } from "lucide-react";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
@@ -10,6 +9,7 @@ import {
   mergeHeroMessages,
   selectHeroMessageFromCatalog,
   type HeroCopy,
+  type HeroApprovedActionId,
   type HeroLanguage,
   type HeroMessageDefinition,
   type HeroMessageEventType,
@@ -20,6 +20,11 @@ import {
   type HeroSurface,
   validateHeroMessageResult,
 } from "@/lib/heroMessages";
+import {
+  HOME_CONTEXT_DECISION_LABELS,
+  decideHomeContextMessage,
+  type HomeContextMessage,
+} from "@/lib/homeContextMessages";
 
 type AdminSource = "built_in" | "database";
 
@@ -59,7 +64,33 @@ type HeroMetricRow = {
 type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
 
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
-const SURFACES: HeroSurface[] = ["home", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const LANGUAGE_LABELS: Record<HeroLanguage, string> = {
+  es: "Spanish",
+  en: "English",
+  de: "German",
+  fr: "French",
+  it: "Italian",
+  pt: "Portuguese",
+};
+const EMPTY_NEW_MESSAGE_COPY: HeroCopy = {
+  sourceText: "VYVA",
+  headline: "",
+  headlineWithName: "",
+  subtitle: "",
+  ctaLabel: "",
+  contextHint: "",
+};
+const CONTROL_CLASS = "min-h-12 w-full rounded-lg border-2 border-[#d8c9bc] bg-white px-3 py-2.5 text-base font-semibold text-[#2f2135] shadow-sm outline-none transition placeholder:text-[#9b8c85] focus:border-purple-600 focus:ring-4 focus:ring-purple-100";
+const SURFACES: HeroSurface[] = ["home", "home_voice", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const HOME_ACTIONS: Array<{ id: HeroApprovedActionId; label: string }> = [
+  { id: "none", label: "No action" },
+  { id: "health", label: "Open My Health" },
+  { id: "medication", label: "Open Medication" },
+  { id: "mind", label: "Open My Mind" },
+  { id: "community", label: "Open My Community" },
+  { id: "concierge", label: "Open My Concierge" },
+  { id: "prevention", label: "Open Prevention" },
+];
 const REASONS: HeroReason[] = ["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"];
 const PERIODS: HeroPeriod[] = ["morning", "afternoon", "evening", "night"];
 const SAFETY_LEVELS: HeroSafetyLevel[] = ["normal", "medical", "urgent"];
@@ -71,20 +102,60 @@ const OVERVIEW_FILTERS: Array<{ id: OverviewFilter; label: string; description: 
   { id: "managed", label: "Managed", description: "Admin overrides" },
   { id: "fallback", label: "Fallback", description: "No usable managed copy" },
 ];
+const SURFACE_LABELS: Record<HeroSurface, string> = {
+  home: "Home",
+  home_voice: "Voice home",
+  health: "My Health",
+  doctor: "Doctor",
+  vitals: "Vital signs",
+  meds: "Medication",
+  concierge: "Concierge",
+  brain: "My Mind",
+  activity: "Activities",
+  companions: "Companions",
+  social: "Community",
+};
+const PILLAR_SURFACE_GROUPS: Array<{ label: string; surfaces: HeroSurface[] }> = [
+  { label: "General", surfaces: ["home", "home_voice"] },
+  { label: "Health", surfaces: ["health", "doctor", "vitals"] },
+  { label: "Medication", surfaces: ["meds"] },
+  { label: "Mind & activities", surfaces: ["brain", "activity"] },
+  { label: "Companionship", surfaces: ["companions", "social"] },
+  { label: "Support", surfaces: ["concierge"] },
+];
+const REASON_LABELS: Record<HeroReason, string> = {
+  safety: "When safety needs attention",
+  scheduled_event: "Before a scheduled event",
+  continuation: "To continue an unfinished task",
+  time_of_day: "At a specific time of day",
+  evergreen: "General message",
+};
+const PERIOD_LABELS: Record<HeroPeriod, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  night: "Night",
+};
+const SAFETY_LABELS: Record<HeroSafetyLevel, string> = {
+  normal: "Normal",
+  medical: "Medical attention",
+  urgent: "Urgent",
+};
+const EVENT_LABELS: Record<Exclude<(typeof EVENT_TYPES)[number], "">, string> = {
+  appointment: "Appointment",
+  medication: "Medication",
+  social: "Social activity",
+  concierge: "Concierge request",
+};
+const ACTIVITY_LABELS: Record<Exclude<(typeof ACTIVITY_TYPES)[number], "">, string> = {
+  health_check: "Health check",
+  meds: "Medication",
+  social: "Social activity",
+  concierge: "Concierge",
+};
 
 function words(value?: string) {
   return (value ?? "").trim().split(/\s+/).filter(Boolean).length;
-}
-
-function textToList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function listToText(values?: string[]) {
-  return (values ?? []).join(", ");
 }
 
 function formatDate(value?: string) {
@@ -124,7 +195,9 @@ function builtInToAdmin(message: HeroMessageDefinition): HeroMessageAdmin {
 }
 
 function rowToAdmin(row: HeroMessageRow): HeroMessageAdmin {
+  const builtIn = HERO_MESSAGES.find((message) => message.id === row.message_id);
   return {
+    ...builtIn,
     id: row.message_id,
     message_id: row.message_id,
     surface: row.surface,
@@ -148,6 +221,11 @@ function adminToDefinition(message: HeroMessageAdmin): HeroMessageDefinition {
     id: message.message_id,
     surface: message.surface,
     reason: message.reason,
+    messageType: message.messageType,
+    welcomeAudience: message.welcomeAudience,
+    welcomeMomentType: message.welcomeMomentType,
+    welcomeProfileAction: message.welcomeProfileAction,
+    actionRoute: message.actionRoute,
     priority: Number(message.priority),
     cooldownHours: Number(message.cooldownHours),
     periods: message.periods,
@@ -167,6 +245,50 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
       </span>
       {children}
     </label>
+  );
+}
+
+function MultiChoice<T extends string>({
+  label,
+  options,
+  selected,
+  labels,
+  onChange,
+}: {
+  label: string;
+  options: readonly T[];
+  selected?: T[];
+  labels: Record<T, string>;
+  onChange: (values: T[]) => void;
+}) {
+  const values = selected ?? [];
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-bold text-[#4d4351]">{label}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const active = values.includes(option);
+          return (
+            <label
+              key={option}
+              className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                active
+                  ? "border-purple-600 bg-purple-50 text-purple-800"
+                  : "border-[#d8c9bc] bg-white text-[#5f5058] hover:border-purple-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-purple-700"
+                checked={active}
+                onChange={() => onChange(active ? values.filter((value) => value !== option) : [...values, option])}
+              />
+              {labels[option]}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -220,7 +342,36 @@ function metricCount(metrics: HeroMetricRow[], surface: HeroSurface, messageId: 
     .reduce((sum, metric) => sum + Number(metric.count ?? 0), 0);
 }
 
-function HeroPreview({ copy, source }: { copy: HeroCopy; source: HeroMessageSource | AdminSource }) {
+function lifecycleMetricCount(
+  metrics: HeroMetricRow[],
+  surface: HeroSurface,
+  messageId: string,
+  language: HeroLanguage,
+  eventTypes: HeroMessageEventType[],
+) {
+  return eventTypes.reduce(
+    (sum, eventType) => sum + metricCount(metrics, surface, messageId, language, eventType),
+    0,
+  );
+}
+
+function HeroPreview({ copy, source, surface }: { copy: HeroCopy; source: HeroMessageSource | AdminSource; surface: HeroSurface }) {
+  if (surface === "home_voice") {
+    return (
+      <div className="overflow-hidden rounded-2xl bg-[#241441] p-6 text-center text-white shadow-sm" data-testid="hero-live-preview">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-200">Home voice</p>
+        <p className="mt-2 text-xs font-bold text-white/65">
+          {HOME_CONTEXT_DECISION_LABELS.admin_campaign}: shown after urgent, active-flow, and personal messages.
+        </p>
+        <div className="mx-auto mt-6 h-24 w-24 rounded-full border border-purple-300/30 bg-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.45)]" />
+        <h3 className="mt-6 text-3xl font-black leading-tight" data-testid="hero-preview-headline">{copy.headline || "Untitled message"}</h3>
+        <p className="mx-auto mt-3 max-w-sm text-base font-bold text-white/75">{copy.subtitle || "No supporting message"}</p>
+        {copy.actionId && copy.actionId !== "none" && (
+          <p className="mt-5 text-sm font-black text-emerald-200">{copy.ctaLabel || "Open"}</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#5b16a5] to-[#8f35d0] p-5 text-white shadow-sm" data-testid="hero-live-preview">
       <div className="flex items-center justify-between gap-3">
@@ -249,6 +400,14 @@ export default function HeroMessagesAdminPage() {
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
+  const [editorView, setEditorView] = useState<"catalog" | "editor">("catalog");
+  const [workspaceView, setWorkspaceView] = useState<"messages" | "routing" | "simulation">("messages");
+  const [showNewMessageSetup, setShowNewMessageSetup] = useState(false);
+  const [newMessageLanguages, setNewMessageLanguages] = useState<HeroLanguage[]>(["es"]);
+  const [newMessageBaseLanguage, setNewMessageBaseLanguage] = useState<HeroLanguage>("es");
+  const [newMessageCopy, setNewMessageCopy] = useState<HeroCopy>({ ...EMPTY_NEW_MESSAGE_COPY });
+  const [newMessageTranslating, setNewMessageTranslating] = useState(false);
+  const [newMessageError, setNewMessageError] = useState("");
   const [diagnosticSurface, setDiagnosticSurface] = useState<HeroSurface>("health");
   const [diagnosticLanguage, setDiagnosticLanguage] = useState<HeroLanguage>("es");
   const [diagnosticPeriod, setDiagnosticPeriod] = useState<HeroPeriod>(getHeroPeriod());
@@ -289,9 +448,13 @@ export default function HeroMessagesAdminPage() {
     return mergeHeroMessages(managed.map(adminToDefinition));
   }, [allMessages, drafts]);
 
+  const defaultSelectedMessage = useMemo(
+    () => filteredMessages.find((item) => item.source === "database" || Boolean(drafts[item.message_id])) ?? filteredMessages[0],
+    [drafts, filteredMessages],
+  );
   const selectedMessage = useMemo(
-    () => allMessages.find((item) => item.message_id === selectedMessageId) ?? filteredMessages[0],
-    [allMessages, filteredMessages, selectedMessageId],
+    () => allMessages.find((item) => item.message_id === selectedMessageId) ?? defaultSelectedMessage,
+    [allMessages, defaultSelectedMessage, selectedMessageId],
   );
 
   const selectedCopy = selectedMessage?.copy[language] ?? selectedMessage?.copy.es ?? { headline: "" };
@@ -304,17 +467,25 @@ export default function HeroMessagesAdminPage() {
     const activeWarnings = active ? copyWarnings(active, language) : [];
     if (result.source === "fallback") activeWarnings.push(result.fallbackReason === "invalid_selected_message" ? "Invalid managed copy caused fallback" : "No usable surface copy");
     if (result.headline.trim().toLowerCase() === "vyva") activeWarnings.push("Generic fallback headline");
-    const impressions = metricCount(metrics, surface, result.messageId, language, "impression");
-    const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click");
+    const shown = lifecycleMetricCount(metrics, surface, result.messageId, language, ["impression", "shown"]);
+    const opened = lifecycleMetricCount(metrics, surface, result.messageId, language, ["cta_click", "opened"]);
+    const deferred = metricCount(metrics, surface, result.messageId, language, "deferred");
+    const dismissed = lifecycleMetricCount(metrics, surface, result.messageId, language, ["dismiss", "dismissed"]);
+    const completed = metricCount(metrics, surface, result.messageId, language, "completed");
+    const voiceEngaged = metricCount(metrics, surface, result.messageId, language, "voice_engaged");
     return {
       surface,
       result,
       priority: active?.priority ?? 0,
       lastEdited: result.source === "managed" ? formatDate(active?.updated_at) : sourceLabel(result.source),
       warnings: activeWarnings,
-      impressions,
-      clicks,
-      ctr: impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%",
+      shown,
+      opened,
+      deferred,
+      dismissed,
+      completed,
+      voiceEngaged,
+      ctr: shown ? `${((opened / shown) * 100).toFixed(1)}%` : "0.0%",
     };
   }), [allMessages, language, metrics, selectionCatalog]);
   const overviewCounts = useMemo<Record<OverviewFilter, number>>(() => ({
@@ -337,6 +508,80 @@ export default function HeroMessagesAdminPage() {
     upcomingEventType: diagnosticEventType || null,
     recentActivity: diagnosticActivity || null,
   }, selectionCatalog), [diagnosticActivity, diagnosticEventType, diagnosticLanguage, diagnosticPeriod, diagnosticSafety, diagnosticSurface, selectionCatalog]);
+  const homeDecisionPreview = useMemo(() => {
+    const now = diagnosticDate(diagnosticPeriod).getTime();
+    const fallback: HomeContextMessage = {
+      id: "preview:fallback",
+      kind: "default",
+      title: "Calm greeting",
+      priority: 0,
+      category: "general",
+      source: "fallback",
+    };
+    const managed: HomeContextMessage = {
+      id: `admin:${diagnosticResult.messageId}`,
+      kind: "feature",
+      title: diagnosticResult.headline,
+      supportingText: diagnosticResult.subtitle,
+      actionLabel: diagnosticResult.ctaLabel,
+      actionRoute: diagnosticResult.ctaRoute,
+      priority: allMessages.find((item) => item.message_id === diagnosticResult.messageId)?.priority ?? 50,
+      nonUrgent: true,
+      source: diagnosticResult.source === "managed" ? "managed" : "built_in",
+    };
+    const contextual: HomeContextMessage[] = [];
+    if (diagnosticSafety === "urgent") {
+      contextual.push({
+        id: "preview:urgent",
+        kind: "urgent",
+        title: "Urgent support",
+        priority: 100,
+        category: "health",
+        intentTags: ["health"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticEventType === "medication" || diagnosticEventType === "appointment") {
+      contextual.push({
+        id: `preview:${diagnosticEventType}`,
+        kind: "reminder",
+        title: diagnosticEventType === "medication" ? "Medication reminder" : "Appointment reminder",
+        priority: 60,
+        category: diagnosticEventType,
+        dueAt: now + 20 * 60_000,
+        intentTags: [diagnosticEventType === "medication" ? "health" : "doctor"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticActivity) {
+      contextual.push({
+        id: `preview:flow:${diagnosticActivity}`,
+        kind: "flow",
+        title: `Continue ${diagnosticActivity.replaceAll("_", " ")}`,
+        priority: 70,
+        category: diagnosticActivity === "social"
+          ? "community"
+          : diagnosticActivity === "concierge"
+            ? "concierge"
+            : "health",
+        intentTags: [diagnosticActivity],
+        source: "built_in",
+      });
+    }
+    return decideHomeContextMessage(
+      [managed, ...contextual, fallback],
+      {},
+      now,
+      { activeIntent: diagnosticActivity || diagnosticEventType || null },
+    );
+  }, [
+    allMessages,
+    diagnosticActivity,
+    diagnosticEventType,
+    diagnosticPeriod,
+    diagnosticResult,
+    diagnosticSafety,
+  ]);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
@@ -387,9 +632,44 @@ export default function HeroMessagesAdminPage() {
     });
   }
 
-  function createManagedDraft() {
+  async function createManagedDraft() {
+    if (!newMessageCopy.headline.trim()) {
+      setNewMessageError("Write the headline before creating translations.");
+      return;
+    }
     const surface = surfaceFilter === "all" ? "home" : surfaceFilter;
     const id = `${surface}-managed-${Date.now()}`;
+    const selectedLanguages = newMessageLanguages.length > 0 ? newMessageLanguages : [language];
+    const primaryLanguage = selectedLanguages.includes(newMessageBaseLanguage)
+      ? newMessageBaseLanguage
+      : selectedLanguages[0];
+    const targets = selectedLanguages.filter((item) => item !== newMessageBaseLanguage);
+    setNewMessageTranslating(true);
+    setNewMessageError("");
+
+    let translations: Partial<Record<HeroLanguage, HeroCopy>> = {};
+    try {
+      if (targets.length) {
+        const result = await api("/hero-messages/translate", {
+          method: "POST",
+          body: JSON.stringify({
+            sourceLanguage: newMessageBaseLanguage,
+            targetLanguages: targets,
+            copy: newMessageCopy,
+          }),
+        });
+        translations = result.translations ?? {};
+      }
+    } catch (error) {
+      setNewMessageError(error instanceof Error ? error.message : "The message could not be translated.");
+      setNewMessageTranslating(false);
+      return;
+    }
+
+    const copy = {
+      [newMessageBaseLanguage]: { ...newMessageCopy },
+      ...translations,
+    } as Record<HeroLanguage, HeroCopy>;
     const draft: HeroMessageAdmin = {
       id,
       message_id: id,
@@ -401,15 +681,33 @@ export default function HeroMessagesAdminPage() {
       safetyLevels: [],
       eventTypes: [],
       activityTypes: [],
-      copy: {
-        [language]: { sourceText: "VYVA", headline: "New message", ctaLabel: "Talk" },
-      } as Record<HeroLanguage, HeroCopy>,
+      copy,
       is_enabled: true,
       admin_notes: "",
       source: "database",
     };
     setDrafts((existing) => ({ ...existing, [id]: draft }));
     setSelectedMessageId(id);
+    setLanguage(primaryLanguage);
+    setShowNewMessageSetup(false);
+    setEditorView("editor");
+    setNewMessageTranslating(false);
+  }
+
+  function openNewMessageSetup() {
+    setNewMessageLanguages([language]);
+    setNewMessageBaseLanguage(language);
+    setNewMessageCopy({ ...EMPTY_NEW_MESSAGE_COPY });
+    setNewMessageError("");
+    setShowNewMessageSetup(true);
+  }
+
+  function toggleNewMessageLanguage(item: HeroLanguage) {
+    setNewMessageLanguages((current) => (
+      current.includes(item)
+        ? current.filter((value) => value !== item)
+        : [...current, item]
+    ));
   }
 
   async function saveMessage(item: HeroMessageAdmin) {
@@ -451,10 +749,10 @@ export default function HeroMessagesAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedMessage || !filteredMessages.some((item) => item.message_id === selectedMessage.message_id)) {
+    if (selectedMessageId && !filteredMessages.some((item) => item.message_id === selectedMessageId)) {
       setSelectedMessageId(filteredMessages[0]?.message_id ?? "");
     }
-  }, [filteredMessages, selectedMessage]);
+  }, [filteredMessages, selectedMessageId]);
 
   useEffect(() => {
     refreshMetrics(metricsDays).catch((err) => setMessage(err.message));
@@ -466,7 +764,7 @@ export default function HeroMessagesAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Hero messages"
-          subtitle="Monitor live banner copy, aggregate performance, and managed overrides across every app surface."
+          subtitle="Choose where a message appears, edit its copy, and preview it before saving."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((err) => setMessage(err.message))}>
             <RefreshCw size={16} /> Refresh
@@ -474,20 +772,160 @@ export default function HeroMessagesAdminPage() {
           {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
-        <AdminMenu />
+        <nav className="mt-5 flex gap-2 rounded-lg border border-[#eadfd5] bg-white p-2 shadow-sm" aria-label="Hero message workspace">
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "messages" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("messages")}
+            data-testid="tab-hero-messages"
+          >
+            Messages
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "routing" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("routing")}
+            data-testid="tab-hero-routing"
+          >
+            Routing overview
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "simulation" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("simulation")}
+            data-testid="tab-hero-simulation"
+          >
+            Simulated winner
+          </button>
+        </nav>
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start">
+        {workspaceView === "messages" && <section className="mt-4" data-testid="panel-hero-messages">
+          {editorView === "catalog" && <aside className="rounded-lg border border-[#eadfd5] bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><SlidersHorizontal size={16} /> Message catalog</p>
-                <h2 className="mt-1 text-xl font-black">Find and edit</h2>
-                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} of {allMessages.length} messages</p>
+                <h2 className="text-xl font-black">Messages</h2>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} shown</p>
               </div>
-              <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-purple-200 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>
+              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-purple-300 px-3 py-2 text-sm font-black text-purple-700" onClick={openNewMessageSetup}>
                 <Plus size={16} /> New
               </button>
             </div>
+
+            {showNewMessageSetup && (
+              <section className="mt-4 rounded-lg border border-purple-200 bg-purple-50/60 p-4" aria-labelledby="new-hero-message-title">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 id="new-hero-message-title" className="text-lg font-black">Create a message</h3>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Write one version, then choose the draft translations you need.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-sm font-black text-[#695b62] hover:text-purple-700"
+                    onClick={() => setShowNewMessageSetup(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 rounded-lg border border-[#dfd2c8] bg-white p-4">
+                  <div className="grid gap-3 md:grid-cols-[180px_1fr]">
+                    <Field label="Base language">
+                      <select
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
+                        value={newMessageBaseLanguage}
+                        onChange={(event) => {
+                          const nextLanguage = event.target.value as HeroLanguage;
+                          setNewMessageBaseLanguage(nextLanguage);
+                          setNewMessageLanguages((current) => current.includes(nextLanguage) ? current : [nextLanguage, ...current]);
+                        }}
+                        aria-label="Base language"
+                      >
+                        {LANGUAGES.map((item) => <option key={item} value={item}>{LANGUAGE_LABELS[item]}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Headline">
+                      <input
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
+                        value={newMessageCopy.headline}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, headline: event.target.value }))}
+                        placeholder="What should the user see?"
+                        aria-label="New message headline"
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Supporting text (optional)">
+                      <input
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
+                        value={newMessageCopy.subtitle ?? ""}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, subtitle: event.target.value }))}
+                        placeholder="A short helpful explanation"
+                        aria-label="New message supporting text"
+                      />
+                    </Field>
+                    <Field label="Button label (optional)">
+                      <input
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
+                        value={newMessageCopy.ctaLabel ?? ""}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, ctaLabel: event.target.value }))}
+                        placeholder="For example: Talk"
+                        aria-label="New message button label"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <fieldset className="mt-4">
+                  <legend className="text-sm font-black text-[#4d4351]">Create draft translations</legend>
+                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">The base language is included automatically. Other versions are generated for review.</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {LANGUAGES.map((item) => {
+                      const checked = newMessageLanguages.includes(item);
+                      return (
+                        <label
+                          key={item}
+                          className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm font-black transition ${
+                            checked
+                              ? "border-purple-500 bg-white text-purple-800 shadow-sm"
+                              : "border-[#dfd2c8] bg-white/70 text-[#5f5058] hover:border-purple-300"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-purple-700"
+                            checked={checked}
+                            disabled={item === newMessageBaseLanguage || newMessageTranslating}
+                            onChange={() => toggleNewMessageLanguage(item)}
+                            aria-label={LANGUAGE_LABELS[item]}
+                          />
+                          <span>{LANGUAGE_LABELS[item]}</span>
+                          <span className="ml-auto text-xs uppercase text-[#8b7a73]">{item}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#7d6b65]">
+                      {newMessageLanguages.length === 1
+                        ? "Base language only"
+                        : `${newMessageLanguages.length - 1} translation drafts selected`}
+                    </p>
+                    {newMessageError ? <p className="mt-1 text-sm font-bold text-red-700" role="alert">{newMessageError}</p> : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    disabled={newMessageLanguages.length === 0 || !newMessageCopy.headline.trim() || newMessageTranslating}
+                    onClick={() => void createManagedDraft()}
+                  >
+                    <Plus size={17} /> {newMessageTranslating ? "Translating..." : newMessageLanguages.length > 1 ? "Create translations" : "Create message"}
+                  </button>
+                </div>
+              </section>
+            )}
 
             <div className="mt-4 grid gap-3">
               <label className="block">
@@ -495,29 +933,33 @@ export default function HeroMessagesAdminPage() {
                 <span className="relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
                   <input
-                    className="w-full rounded-xl border border-[#eadfd5] px-9 py-2.5"
+                    className={`${CONTROL_CLASS} pl-9`}
                     value={messageSearch}
                     onChange={(event) => setMessageSearch(event.target.value)}
-                    placeholder="Message, surface, reason, or copy"
+                    placeholder="Search messages"
                   />
                 </span>
               </label>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <Field label="Surface">
-                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
-                    <option value="all">All surfaces</option>
-                    {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                <Field label="Pillar / app area">
+                  <select className={CONTROL_CLASS} value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
+                    <option value="all">All pillars and app areas</option>
+                    {PILLAR_SURFACE_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.surfaces.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Language">
-                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                  <select className={CONTROL_CLASS} value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
                     {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
                   </select>
                 </Field>
               </div>
             </div>
 
-            <div className="mt-4 max-h-[calc(100vh-22rem)] min-h-[280px] space-y-2 overflow-auto pr-1">
+            <div className="mt-5 grid min-h-[280px] gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredMessages.length === 0 ? (
                 <p className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-bold text-[#7d6b65]">No messages match this filter.</p>
               ) : filteredMessages.map((item) => {
@@ -527,8 +969,12 @@ export default function HeroMessagesAdminPage() {
                   <button
                     key={item.message_id}
                     type="button"
-                    onClick={() => setSelectedMessageId(item.message_id)}
-                    className={`w-full rounded-xl border p-3 text-left transition ${
+                    data-testid={`hero-catalog-message-${item.message_id}`}
+                    onClick={() => {
+                      setSelectedMessageId(item.message_id);
+                      setEditorView("editor");
+                    }}
+                    className={`w-full rounded-lg border p-3 text-left transition ${
                       active
                         ? "border-purple-400 bg-purple-50 shadow-sm"
                         : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"
@@ -537,133 +983,161 @@ export default function HeroMessagesAdminPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-black">{item.copy[language]?.headline ?? item.copy.es?.headline ?? item.message_id}</p>
-                        <p className="mt-1 truncate text-xs font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{item.surface} / {item.reason}</p>
+                        <p className="mt-1 truncate text-sm font-semibold text-[#7d6b65]">{SURFACE_LABELS[item.surface]} · {REASON_LABELS[item.reason]}</p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${sourceClass(item.source)}`}>{sourceLabel(item.source)}</span>
                     </div>
-                    <p className="mt-2 truncate text-sm text-[#7d6b65]">{item.message_id} / priority {item.priority}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">{warningPills(warnings)}</div>
+                    {warnings.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{warningPills(warnings)}</div>}
                   </button>
                 );
               })}
             </div>
-          </aside>
+          </aside>}
 
-          <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+          {editorView === "editor" && <section className="rounded-lg border border-[#eadfd5] bg-white p-5 shadow-sm">
             {selectedMessage ? (
               <div className="grid gap-5">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0e7df] pb-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">{selectedMessage.surface}</p>
-                    <h2 className="mt-1 break-words text-2xl font-black">{selectedMessage.message_id}</h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${sourceClass(selectedMessage.source)}`}>{sourceLabel(selectedMessage.source)}</span>
-                      {warningPills(selectedWarnings)}
-                    </div>
+                    <button type="button" className="mb-3 inline-flex items-center gap-2 text-sm font-black text-purple-700 hover:underline" onClick={() => setEditorView("catalog")}>
+                      <ArrowLeft size={16} /> Back to messages
+                    </button>
+                    <p className="text-sm font-bold text-purple-700">{SURFACE_LABELS[selectedMessage.surface]}</p>
+                    <h2 className="mt-1 break-words text-2xl font-black">{selectedCopy.headline || "Untitled message"}</h2>
+                    {selectedWarnings.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f7f2eb] px-3 text-sm font-black text-[#4d4351]">
-                      <input type="checkbox" checked={selectedMessage.is_enabled} onChange={(event) => updateMessage(selectedMessage.message_id, { is_enabled: event.target.checked })} />
-                      Enabled
+                    <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-[#f7f2eb] px-3 text-sm font-black text-[#4d4351]">
+                      <input className="h-4 w-4 accent-purple-700" type="checkbox" checked={selectedMessage.is_enabled} onChange={(event) => updateMessage(selectedMessage.message_id, { is_enabled: event.target.checked })} />
+                      Active
                     </label>
                     <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                       disabled={!canSaveSelected}
                       onClick={() => saveMessage(selectedMessage).catch((err) => setMessage(err.message))}
                     >
-                      <Save size={18} /> Save hero message
+                      <Save size={18} /> Save message
                     </button>
                   </div>
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
                   <div className="lg:sticky lg:top-4 lg:self-start">
-                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
-                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                      <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
-                      <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
-                    </div>
+                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} surface={selectedMessage.surface} />
                   </div>
 
                   <div className="grid gap-4">
-                    <section className="rounded-xl border border-[#eadfd5] p-3">
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Routing rules</h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-4">
-                        <Field label="Surface">
-                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
-                            {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                    <section className="rounded-lg border border-[#eadfd5] p-4">
+                      <h3 className="text-lg font-black">Where this message appears</h3>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <Field label="Pillar / app area">
+                          <select className={CONTROL_CLASS} value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
+                            {PILLAR_SURFACE_GROUPS.map((group) => (
+                              <optgroup key={group.label} label={group.label}>
+                                {group.surfaces.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
+                              </optgroup>
+                            ))}
                           </select>
                         </Field>
-                        <Field label="Reason">
-                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
-                            {REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                        <Field label="When to show it">
+                          <select className={CONTROL_CLASS} value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
+                            {REASONS.map((reason) => <option key={reason} value={reason}>{REASON_LABELS[reason]}</option>)}
                           </select>
-                        </Field>
-                        <Field label="Priority">
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
-                        </Field>
-                        <Field label="Cooldown">
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
                         </Field>
                       </div>
 
-                      <div className="mt-3 grid gap-3 md:grid-cols-4">
-                        <Field label="Periods" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.periods)} onChange={(event) => updateMessage(selectedMessage.message_id, { periods: textToList(event.target.value) as HeroMessageAdmin["periods"] })} placeholder="morning, evening" />
-                        </Field>
-                        <Field label="Safety" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.safetyLevels)} onChange={(event) => updateMessage(selectedMessage.message_id, { safetyLevels: textToList(event.target.value) as HeroMessageAdmin["safetyLevels"] })} placeholder="urgent" />
-                        </Field>
-                        <Field label="Events" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.eventTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { eventTypes: textToList(event.target.value) as HeroMessageAdmin["eventTypes"] })} placeholder="appointment" />
-                        </Field>
-                        <Field label="Activity" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.activityTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { activityTypes: textToList(event.target.value) as HeroMessageAdmin["activityTypes"] })} placeholder="health_check" />
-                        </Field>
-                      </div>
+                      <details className="mt-4 rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 font-black text-purple-700">
+                          <SlidersHorizontal size={16} /> Advanced targeting
+                        </summary>
+                        <div className="mt-4 grid gap-5">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Display priority">
+                              <input className={CONTROL_CLASS} type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
+                            </Field>
+                            <Field label="Hours before showing again">
+                              <input className={CONTROL_CLASS} type="number" min="0" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
+                            </Field>
+                          </div>
+                          <MultiChoice label="Time of day" options={PERIODS} selected={selectedMessage.periods} labels={PERIOD_LABELS} onChange={(periods) => updateMessage(selectedMessage.message_id, { periods })} />
+                          <MultiChoice label="Safety state" options={SAFETY_LEVELS} selected={selectedMessage.safetyLevels} labels={SAFETY_LABELS} onChange={(safetyLevels) => updateMessage(selectedMessage.message_id, { safetyLevels })} />
+                          <MultiChoice label="Upcoming event" options={EVENT_TYPES.filter((value) => value !== "")} selected={(selectedMessage.eventTypes ?? []).filter(Boolean) as Exclude<(typeof EVENT_TYPES)[number], "">[]} labels={EVENT_LABELS} onChange={(eventTypes) => updateMessage(selectedMessage.message_id, { eventTypes })} />
+                          <MultiChoice label="Recent activity" options={ACTIVITY_TYPES.filter((value) => value !== "")} selected={(selectedMessage.activityTypes ?? []).filter(Boolean) as Exclude<(typeof ACTIVITY_TYPES)[number], "">[]} labels={ACTIVITY_LABELS} onChange={(activityTypes) => updateMessage(selectedMessage.message_id, { activityTypes })} />
+                        </div>
+                      </details>
                     </section>
 
-                    <section className="rounded-xl border border-[#eadfd5] p-3">
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Copy in {language.toUpperCase()}</h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <section className="rounded-lg border border-[#eadfd5] p-4">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black">Message copy</h3>
+                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">This is what the user will see.</p>
+                        </div>
+                        <Field label="Language">
+                          <select className={`${CONTROL_CLASS} min-w-28`} value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                            {LANGUAGES.map((item) => (
+                              <option key={item} value={item}>
+                                {LANGUAGE_LABELS[item]}{selectedMessage.copy[item] ? "" : " (add)"}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
                         <Field label={`Headline (${language.toUpperCase()})`}>
-                          <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
+                          <input aria-label={`Headline (${language.toUpperCase()})`} className={CONTROL_CLASS} value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
                           <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
                         </Field>
-                        <Field label="Headline with name" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
+                        <Field label="Personalised headline" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
                         </Field>
-                        <Field label="Source text" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} />
+                        <Field label="Short label" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} placeholder="Example: Health" />
                           <LimitNote label="Source" value={selectedCopy.sourceText} wordsLimit={HERO_LIMITS.sourceWords} charsLimit={HERO_LIMITS.sourceChars} />
                         </Field>
-                        <Field label="CTA label" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
+                        <Field label="Button label" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} placeholder="Example: Talk" />
                           <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
                         </Field>
-                        <Field label="Subtitle" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
+                        {selectedMessage.surface === "home_voice" && (
+                          <Field label="Button destination" optional>
+                            <select
+                              className={CONTROL_CLASS}
+                              value={selectedCopy.actionId ?? "none"}
+                              onChange={(event) => updateCopy(selectedMessage.message_id, { actionId: event.target.value as HeroApprovedActionId })}
+                              data-testid="select-home-hero-action"
+                            >
+                              {HOME_ACTIONS.map((action) => <option key={action.id} value={action.id}>{action.label}</option>)}
+                            </select>
+                          </Field>
+                        )}
+                        <Field label="Supporting text" optional>
+                          <textarea className={`${CONTROL_CLASS} min-h-24 resize-y`} value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
                           <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
-                        </Field>
-                        <Field label="Context hint" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
                         </Field>
                       </div>
                     </section>
 
-                    <Field label="Admin notes" optional>
-                      <textarea className="min-h-20 w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
-                    </Field>
+                    <details className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <summary className="cursor-pointer font-black text-purple-700">Internal notes</summary>
+                      <div className="mt-4 grid gap-4">
+                        <Field label="Context hint" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
+                        </Field>
+                        <Field label="Admin notes" optional>
+                          <textarea className={`${CONTROL_CLASS} min-h-24 resize-y`} value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
+                        </Field>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>
             ) : (
               <p className="rounded-xl bg-[#fffaf4] p-4 font-bold text-[#7d6b65]">No messages match this filter.</p>
             )}
-          </section>
-        </section>
+          </section>}
+        </section>}
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+        {workspaceView === "routing" && <section className="mt-5" data-testid="panel-hero-routing">
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -696,7 +1170,7 @@ export default function HeroMessagesAdminPage() {
                       <span className="text-sm font-black">{item.label}</span>
                       <span className="text-xl font-black leading-none">{overviewCounts[item.id]}</span>
                     </span>
-                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{item.description}</span>
+                    <span className="sr-only">{item.description}</span>
                   </button>
                 );
               })}
@@ -707,11 +1181,11 @@ export default function HeroMessagesAdminPage() {
             </p>
 
             <div className="mt-3 overflow-hidden rounded-xl border border-[#eadfd5]">
-              <div className="hidden grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
+              <div className="hidden grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
                 <span>Surface and active copy</span>
                 <span>Source</span>
-                <span>Views / clicks</span>
-                <span>CTR</span>
+                <span>Message lifecycle</span>
+                <span>Open rate</span>
                 <span>Status</span>
               </div>
               <div className="max-h-[460px] overflow-auto">
@@ -720,7 +1194,7 @@ export default function HeroMessagesAdminPage() {
                 ) : filteredOverview.map((item) => (
                   <article
                     key={item.surface}
-                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] lg:items-center"
+                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] lg:items-center"
                     data-testid={`card-hero-overview-${item.surface}`}
                   >
                     <div className="min-w-0">
@@ -731,22 +1205,31 @@ export default function HeroMessagesAdminPage() {
                     <div>
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
                     </div>
-                    <div className="text-sm">
-                      <p className="flex items-center gap-1 font-black">
-                        <span>{item.impressions}</span>
-                        <span className="text-[#8b7a73]">/</span>
-                        <span>{item.clicks}</span>
-                      </p>
-                      <p className="text-xs font-bold text-[#8b7a73]">views / clicks</p>
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-2 text-xs" data-testid={`hero-lifecycle-${item.surface}`}>
+                      {[
+                        ["Shown", item.shown],
+                        ["Opened", item.opened],
+                        ["Deferred", item.deferred],
+                        ["Dismissed", item.dismissed],
+                        ["Completed", item.completed],
+                        ["Voice", item.voiceEngaged],
+                      ].map(([label, count]) => (
+                        <div key={label}>
+                          <p className="font-black text-[#2f2135]">{count}</p>
+                          <p className="font-bold text-[#8b7a73]">{label}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-sm font-black">{item.ctr}</div>
+                    <div className="text-sm font-black">{item.ctr} open rate</div>
                     <div className="flex flex-wrap gap-1.5">{warningPills(item.warnings)}</div>
                   </article>
                 ))}
               </div>
             </div>
           </section>
+        </section>}
 
+        {workspaceView === "simulation" && <section className="mt-5" data-testid="panel-hero-simulation">
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -799,8 +1282,30 @@ export default function HeroMessagesAdminPage() {
                 <div><p className="text-[#8b7a73]">Fallback</p><p className="font-black">{diagnosticResult.fallbackReason ?? "No"}</p></div>
               </div>
             </div>
+            {homeDecisionPreview ? (
+              <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 p-4" data-testid="home-message-decision-preview">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">
+                  Why this user sees this message now
+                </p>
+                <p className="mt-2 text-lg font-black">{homeDecisionPreview.message.title}</p>
+                <p className="mt-1 text-sm font-bold text-[#6f5f78]">{homeDecisionPreview.explanation}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {homeDecisionPreview.factors.map((factor) => (
+                    <div key={`${factor.key}:${factor.label}`} className="rounded-lg bg-white p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-black">{factor.label}</span>
+                        <span className={factor.points >= 0 ? "font-black text-emerald-700" : "font-black text-amber-700"}>
+                          {factor.points > 0 ? "+" : ""}{factor.points}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[#7d6b65]">{factor.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
-        </section>
+        </section>}
       </section>
     </main>
   );

@@ -67,7 +67,35 @@ export async function verifyMagicLoginToken(token: string): Promise<string | nul
 const MEDICAL_PROFILE_AUDIENCE = "elevenlabs-medical-profile";
 const VOICE_RECOMMENDATION_FEEDBACK_AUDIENCE = "elevenlabs-voice-recommendation-feedback";
 const VOICE_TRIAGE_AUDIENCE = "elevenlabs-voice-triage";
+const ADVISOR_SEARCH_AUDIENCE = "elevenlabs-advisor-search";
 const CALLBACK_ONBOARDING_AUDIENCE = "elevenlabs-callback-onboarding";
+const MARKETING_META_CONNECT_AUDIENCE = "vyva-marketing-meta-connect";
+
+export async function signMarketingMetaConnectState(userId: string): Promise<string> {
+  return new SignJWT({
+    sub: userId,
+    token_type: "marketing_meta_connect",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setAudience(MARKETING_META_CONNECT_AUDIENCE)
+    .setExpirationTime("10m")
+    .sign(JWT_SECRET);
+}
+
+export async function verifyMarketingMetaConnectState(token: string): Promise<{ userId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      audience: MARKETING_META_CONNECT_AUDIENCE,
+    });
+    if (payload.token_type !== "marketing_meta_connect" || typeof payload.sub !== "string") {
+      return null;
+    }
+    return { userId: payload.sub };
+  } catch {
+    return null;
+  }
+}
 
 export async function signMedicalProfileToolToken(
   userId: string,
@@ -172,6 +200,41 @@ export async function verifyVoiceTriageToolToken(
       return null;
     }
     return { userId: payload.sub, conversationId: payload.conversation_id };
+  } catch {
+    return null;
+  }
+}
+
+export async function signAdvisorSearchToolToken(
+  userId: string,
+  conversationId: string,
+  advisorSlug: string,
+): Promise<string> {
+  return new SignJWT({
+    sub: userId,
+    conversation_id: conversationId,
+    advisor_slug: advisorSlug,
+    token_type: "advisor_search_tool",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setAudience(ADVISOR_SEARCH_AUDIENCE)
+    .setExpirationTime("2h")
+    .sign(JWT_SECRET);
+}
+
+export async function verifyAdvisorSearchToolToken(
+  token: string,
+): Promise<{ userId: string; conversationId: string; advisorSlug: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, { audience: ADVISOR_SEARCH_AUDIENCE });
+    if (
+      payload.token_type !== "advisor_search_tool" ||
+      typeof payload.sub !== "string" ||
+      typeof payload.conversation_id !== "string" ||
+      typeof payload.advisor_slug !== "string"
+    ) return null;
+    return { userId: payload.sub, conversationId: payload.conversation_id, advisorSlug: payload.advisor_slug };
   } catch {
     return null;
   }

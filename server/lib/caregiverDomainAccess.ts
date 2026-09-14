@@ -10,7 +10,7 @@ import { getActiveProfileContext } from "./profileAccess.js";
 export const CAREGIVER_DOMAIN_PERMISSION_KEYS = {
   safety: ["view_alerts"],
   health: ["view_vitals"],
-  meds: ["view_adherence", "receive_missed_dose_alerts"],
+  meds: ["view_adherence", "receive_missed_dose_alerts", "receive_refill_alerts", "manage_inventory"],
 } as const;
 
 export type CaregiverDomain = keyof typeof CAREGIVER_DOMAIN_PERMISSION_KEYS;
@@ -82,6 +82,7 @@ export function domainPermissionsFromCareTeamConsent(
 
   if (domain === "meds") {
     permissions.receive_missed_dose_alerts = Boolean(value?.can_receive_medication_alerts);
+    permissions.receive_refill_alerts = Boolean(value?.can_receive_medication_alerts);
   }
 
   return permissions;

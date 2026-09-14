@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Loader2, Users } from "lucide-react";
+import { Check } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import FaceAvatar from "./FaceAvatar";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import {
   clampFaceNameTier,
   computeFaceNameScore,
@@ -17,51 +23,57 @@ import {
 
 const PURPLE = "#6B21A8";
 const GOLD = "#F59E0B";
-const BACKGROUND = "#FAF9F6";
 const GREEN = "#16A34A";
 const TEAL_SOFT = "#D5F5F5";
 const BORDER = "#EDE5DB";
-const SCREEN_STYLE = {
-  background: `radial-gradient(circle at top, #FFFFFF 0%, ${BACKGROUND} 52%, #F4EFE7 100%)`,
-  minHeight: "100dvh",
-  paddingTop: "max(12px, env(safe-area-inset-top))",
-  paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-};
+const FACE_NAME_SCENE_ID = "brain_coach.activity_session.memory.face_name_match";
 
-function FaceNameScreen({ children }) {
+function FaceNameScreen({
+  children,
+  onExit,
+  title = "Face-Name Match",
+  backLabel = "Exit",
+  showHeader = true,
+  sceneKey = "playing",
+  sceneKind = "playing",
+  sceneLayout = "face_name_match",
+  state = "default",
+}) {
   return (
-    <div className="px-4 sm:px-6" style={SCREEN_STYLE}>
-      <div className="mx-auto flex h-[calc(100dvh-24px)] min-h-0 w-full max-w-[760px] flex-col">
-        {children}
+    <BrainCoachActivityShell
+      title={title}
+      backLabel={backLabel}
+      onBack={onExit}
+      showHeader={showHeader}
+      testId="face-name-match-flow-shell"
+      presentationId={`${FACE_NAME_SCENE_ID}.${sceneKey}.touch`}
+      sceneId={FACE_NAME_SCENE_ID}
+      sceneKind={sceneKind}
+      sceneLayout={sceneLayout}
+      state={state}
+    >
+      <div className="pb-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-[760px] flex-col">
+          {children}
+        </div>
       </div>
-    </div>
+    </BrainCoachActivityShell>
   );
 }
 
-function GameHeader({ title, meta, timer, pulse = false, exitLabel, onExit }) {
+function GameHeader({ title, meta, timer, pulse = false }) {
   return (
     <header className="rounded-[24px] border bg-white/90 px-4 py-3 shadow-vyva-card backdrop-blur" style={{ borderColor: BORDER }}>
-      <div className="flex min-h-[64px] items-center justify-between gap-3">
+      <div className="flex min-h-[56px] items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-extrabold uppercase tracking-[0.08em]" style={{ color: PURPLE }}>Face-Name Match</p>
-          <h1 className="mt-1 truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h1>
+          <h2 className="truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h2>
           {meta && <p className="mt-1 truncate text-[17px] font-semibold text-vyva-text-2">{meta}</p>}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {timer && (
-            <div className="rounded-full px-4 py-3 text-[21px] font-extrabold" style={{ background: pulse ? "#FEF3C7" : "#F3E8FF", color: pulse ? "#92400E" : PURPLE }}>
-              {timer}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={onExit}
-            className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-4 text-[20px] font-extrabold text-vyva-text-1 shadow-sm"
-          >
-            <ArrowLeft size={22} />
-            {exitLabel}
-          </button>
-        </div>
+        {timer && (
+          <div className="shrink-0 rounded-full px-4 py-3 text-[21px] font-extrabold" style={{ background: pulse ? "#FEF3C7" : "#F3E8FF", color: pulse ? "#92400E" : PURPLE }}>
+            {timer}
+          </div>
+        )}
       </div>
     </header>
   );
@@ -661,7 +673,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       consecutiveLosses = Number(previous.consecutive_losses ?? 0) + 1;
     }
 
-    if (consecutiveWins >= 3 && currentTierValue < 10) {
+    if (consecutiveWins >= 3 && currentTierValue < BRAIN_COACH_MAX_LEVEL) {
       currentTierValue += 1;
       sessionsAtTier = 0;
       consecutiveWins = 0;
@@ -780,10 +792,13 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <div className="flex min-h-[calc(100dvh-180px)] flex-col items-center justify-center gap-5 px-[22px] pb-6 text-center" style={{ color: PURPLE }}>
-        <Loader2 className="h-16 w-16 animate-spin" />
-        <p className="text-[26px] font-bold">{text.loading}</p>
-      </div>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.loading}
+        testId="face-name-match-flow-shell"
+        presentationId={`${FACE_NAME_SCENE_ID}.loading.touch`}
+        sceneId={FACE_NAME_SCENE_ID}
+      />
     );
   }
 
@@ -791,25 +806,11 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <FaceNameScreen>
-        <GameHeader
-          title={text.title}
-          meta={`${text.level} ${currentTier} | ${faceCount} ${text.people}`}
-          exitLabel={text.back}
-          onExit={handleExit}
-        />
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.back} sceneKey="intro" sceneKind="intro" sceneLayout="people_preview">
 
         <main className="flex min-h-0 flex-1 flex-col py-4">
           <section className="rounded-[28px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BORDER }}>
-            <div className="flex items-center gap-4">
-              <div className="flex h-[76px] w-[76px] flex-shrink-0 items-center justify-center rounded-[24px]" style={{ background: "#F3E8FF", color: PURPLE }}>
-                <Users size={38} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-display text-[37px] font-bold leading-[1.04] text-vyva-text-1">{text.title}</h1>
-                <p className="mt-2 text-[22px] font-medium leading-[1.25] text-vyva-text-2">{text.subtitle}</p>
-              </div>
-            </div>
+            <p className="text-center text-[22px] font-bold leading-[1.3] text-vyva-text-2">{text.subtitle}</p>
 
             {loadNote && (
               <div className="mt-4 rounded-[20px] px-4 py-3 text-[20px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
@@ -818,7 +819,7 @@ export default function FaceNameMatch({ userId, onExit }) {
             )}
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <span className="rounded-full px-5 py-3 text-[21px] font-extrabold text-white" style={{ background: GOLD }}>
+              <span className="rounded-full bg-[#FEF3C7] px-5 py-3 text-[21px] font-extrabold text-[#92400E]">
                 {text.level} {currentTier}
               </span>
               <span className="rounded-full px-5 py-3 text-[21px] font-extrabold" style={{ background: TEAL_SOFT, color: "#0F766E" }}>
@@ -835,20 +836,17 @@ export default function FaceNameMatch({ userId, onExit }) {
               ))}
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={beginStudy}
+              className="mt-5 min-h-[72px] w-full rounded-full px-8 text-[27px] font-extrabold text-white shadow-vyva-card"
+              style={{ background: PURPLE }}
+            >
+              {text.start}
+            </button>
           </section>
         </main>
-
-        <div className="mt-auto pb-1">
-          <button
-            type="button"
-            onClick={beginStudy}
-            className="min-h-[72px] w-full rounded-[22px] px-8 text-[27px] font-extrabold text-white shadow-vyva-card"
-            style={{ background: PURPLE }}
-          >
-            {text.start}
-          </button>
-          <p className="mt-3 text-center text-[19px] font-medium leading-[1.35] text-vyva-text-2">{text.introHint}</p>
-        </div>
       </FaceNameScreen>
     );
   }
@@ -859,14 +857,12 @@ export default function FaceNameMatch({ userId, onExit }) {
     const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
     return (
-      <FaceNameScreen>
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.back} sceneKey="study" sceneKind="study" sceneLayout="people_study_grid">
         <GameHeader
           title={text.studyTitle}
           meta={`${faceCount} ${text.people}`}
           timer={`${Math.ceil(studyCountdown)}s`}
           pulse={pulse}
-          exitLabel={text.back}
-          onExit={handleExit}
         />
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div
@@ -905,12 +901,10 @@ export default function FaceNameMatch({ userId, onExit }) {
     const options = isNameToFace ? faceOptions : nameOptions;
 
     return (
-      <FaceNameScreen>
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.exit} sceneKey="recall" sceneKind="playing" sceneLayout="face_name_recall">
         <GameHeader
           title={`${text.question} ${questionNumber} ${text.of} ${totalQuestions}`}
           meta={isNameToFace ? text.whichFace : text.faceQuestion}
-          exitLabel={text.exit}
-          onExit={handleExit}
         />
 
           <main className="relative flex min-h-0 flex-1 flex-col py-3">
@@ -995,114 +989,70 @@ export default function FaceNameMatch({ userId, onExit }) {
   const resultToneGreat = result.score >= 600;
   const hasFaceToName = result.f2nAttempts > 0;
   const nextTier = result.nextTier ?? clampFaceNameTier(currentTier + 1);
+  const resultTier = result.currentTier ?? currentTier;
+  const resultBand = getBrainCoachLevelBand(resultTier);
   const progressWidth = Math.min(100, Math.max(0, ((userState?.consecutive_wins ?? 0) / 3) * 100));
   const promoted = Boolean(result.currentTier && result.currentTier > currentTier);
   const continueLabel = promoted
     ? text.continueToLevel.replace("{level}", String(result.currentTier))
     : text.continueAction;
+  const resultSummary = promoted
+    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: currentTier })
+    : resultToneGreat
+      ? `${text.score}: ${result.score}`
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: currentTier });
 
   return (
-    <FaceNameScreen>
-      <GameHeader
+    <FaceNameScreen title={text.title} onExit={handleExit} showHeader={false} sceneKey="result" sceneKind="completion" sceneLayout="modal_actions" state="complete">
+      <BrainGameCompletionDialog
         title={resultToneGreat ? text.resultGreat : text.resultTry}
-        meta={`${text.score}: ${result.score}`}
-        exitLabel={text.exit}
-        onExit={handleExit}
+        summary={resultSummary}
+        metrics={[
+          { label: text.n2f, value: pct(result.n2fAccuracyPct) },
+          hasFaceToName ? { label: text.f2n, value: pct(result.f2nAccuracyPct) } : null,
+          { label: text.score, value: result.score },
+          { label: text.streak, value: `${result.streakDays ?? userState?.streak_days ?? 1} ${text.days}` },
+        ]}
+        continueLabel={continueLabel}
+        continueHint={text.nextRecommended}
+        replayLabel={text.playAgain}
+        anotherLabel={text.playAnotherGame}
+        onContinue={handleContinue}
+        onReplay={handleReplay}
+        onAnother={handleExit}
+        details={
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {personas.map((persona) => {
+                const mastered = outcomeMap.get(persona.id);
+                return (
+                  <div key={persona.id} className="rounded-[16px] border border-[#EADFF8] bg-[#FFF9F1] px-3 py-3 text-center">
+                    <div className="flex justify-center">
+                      <FaceAvatar config={persona.avatar_config} size={52} />
+                    </div>
+                    <p className="mt-2 text-[14px] font-black leading-tight text-vyva-text-1">{getPersonaName(persona, language)}</p>
+                    <p className="mt-1 text-[13px] font-bold" style={{ color: mastered ? GOLD : "#9CA3AF" }}>
+                      {mastered ? text.correct : text.answerShown}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+              <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                <span>{result.currentTier && result.currentTier > currentTier ? text.newLevel : `${text.progressNext} ${nextTier}`}</span>
+                <span>{Math.round(progressWidth)}%</span>
+              </div>
+              <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
+                {text.level} {resultTier} - {resultBand.label}
+              </p>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${progressWidth}%` }} />
+              </div>
+            </div>
+          </div>
+        }
       />
-        <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
-          <section className="rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BORDER }}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: "#ECFDF5", color: GREEN }}>
-                <Check size={32} />
-              </div>
-              <div>
-                <h1 className="font-display text-[30px] font-bold leading-tight text-vyva-text-1">{resultToneGreat ? text.resultGreat : text.resultTry}</h1>
-                <p className="mt-1 text-[19px] font-semibold text-vyva-text-2">{`${text.score}: ${result.score}`}</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-3 grid grid-cols-2 gap-3 rounded-[24px] border bg-white p-3 shadow-vyva-card md:grid-cols-4" style={{ borderColor: BORDER }}>
-            {personas.map((persona) => (
-              <div key={persona.id} className="text-center">
-                <div className="flex justify-center">
-                  <FaceAvatar config={persona.avatar_config} size={58} />
-                </div>
-                <p className="mt-1 inline-flex items-center justify-center gap-1 text-[18px] font-bold leading-tight text-vyva-text-1 [&>span:nth-child(2)]:hidden">
-                  {outcomeMap.get(persona.id) ? (
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                      <Check size={13} />
-                    </span>
-                  ) : (
-                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#9CA3AF]" />
-                  )}
-                  <span style={{ color: outcomeMap.get(persona.id) ? GOLD : "#9CA3AF" }}>{outcomeMap.get(persona.id) ? "✓" : "·"}</span>{" "}
-                  {getPersonaName(persona, language)}
-                </p>
-              </div>
-            ))}
-          </section>
-
-          <section className="mt-3 rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BORDER }}>
-            <div className={`grid gap-4 text-center ${hasFaceToName ? "grid-cols-2" : "grid-cols-1"}`}>
-              <div>
-                <p className="text-[19px] font-bold text-vyva-text-2">{text.n2f}</p>
-                <p className="mt-1 text-[34px] font-extrabold" style={{ color: PURPLE }}>{pct(result.n2fAccuracyPct)}</p>
-              </div>
-              {hasFaceToName && (
-                <div>
-                  <p className="text-[19px] font-bold text-vyva-text-2">{text.f2n}</p>
-                  <p className="mt-1 text-[34px] font-extrabold" style={{ color: GOLD }}>{pct(result.f2nAccuracyPct)}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
-              <div>
-                <p className="text-[19px] font-bold text-vyva-text-2">{text.score}</p>
-                <p className="mt-1 text-[33px] font-extrabold text-vyva-text-1">{result.score}</p>
-              </div>
-              <div>
-                <p className="text-[19px] font-bold text-vyva-text-2">{text.streak}</p>
-                <p className="mt-1 text-[33px] font-extrabold text-vyva-text-1">
-                  {result.streakDays ?? userState?.streak_days ?? 1} {text.days}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="mt-3 w-full rounded-[24px] border bg-white p-4 text-left shadow-sm transition-transform active:scale-[0.99]"
-            style={{ borderColor: BORDER }}
-          >
-            <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
-              <div className="h-full" style={{ width: `${progressWidth}%`, background: PURPLE }} />
-            </div>
-            <p className="mt-3 text-center text-[19px] font-bold text-vyva-text-2">
-              {result.currentTier && result.currentTier > currentTier ? text.newLevel : `${text.progressNext} ${nextTier}`}
-            </p>
-          </button>
-        </main>
-
-        <BrainGameCompletionDialog
-          title={resultToneGreat ? text.resultGreat : text.resultTry}
-          summary={`${text.score}: ${result.score}`}
-          metrics={[
-            { label: text.n2f, value: pct(result.n2fAccuracyPct) },
-            hasFaceToName ? { label: text.f2n, value: pct(result.f2nAccuracyPct) } : null,
-            { label: text.score, value: result.score },
-            { label: text.streak, value: `${result.streakDays ?? userState?.streak_days ?? 1} ${text.days}` },
-          ]}
-          continueLabel={continueLabel}
-          continueHint={text.nextRecommended}
-          replayLabel={text.playAgain}
-          anotherLabel={text.playAnotherGame}
-          onContinue={handleContinue}
-          onReplay={handleReplay}
-          onAnother={handleExit}
-        />
     </FaceNameScreen>
   );
 }

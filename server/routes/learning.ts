@@ -101,9 +101,18 @@ function serializeProgramItem(row: ProgramItemWithLesson) {
   };
 }
 
+function isCompletedProgramItem(item: Pick<LearningProgramItemRow, "status" | "completedAt">) {
+  return item.status === "completed" || Boolean(item.completedAt);
+}
+
+function isResolvedProgramItem(item: Pick<LearningProgramItemRow, "status" | "completedAt" | "skippedAt">) {
+  return isCompletedProgramItem(item) || item.status === "skipped" || Boolean(item.skippedAt);
+}
+
 function serializeProgram(row: LearningProgramRow, items: ProgramItemWithLesson[]) {
   const sorted = [...items].sort((a, b) => a.programDay - b.programDay);
-  const completedCount = sorted.filter((item) => item.status === "completed" || item.completedAt).length;
+  const completedCount = sorted.filter(isCompletedProgramItem).length;
+  const resolvedCount = sorted.filter(isResolvedProgramItem).length;
   const rhythm = inferLearningProgramRhythm(sorted.map((item) => item.scheduledDate));
   return {
     id: row.id,
@@ -122,8 +131,8 @@ function serializeProgram(row: LearningProgramRow, items: ProgramItemWithLesson[
     progress: {
       completedCount,
       totalCount: sorted.length,
-      allComplete: sorted.length > 0 && completedCount === sorted.length,
-      currentDay: Math.min(sorted.length, Math.max(1, completedCount + 1)),
+      allComplete: sorted.length > 0 && resolvedCount === sorted.length,
+      currentDay: Math.min(sorted.length, Math.max(1, resolvedCount + 1)),
     },
   };
 }
@@ -131,9 +140,10 @@ function serializeProgram(row: LearningProgramRow, items: ProgramItemWithLesson[
 function todayItem(items: ProgramItemWithLesson[], now = new Date()) {
   const today = isoDateKey(now);
   const sorted = [...items].sort((a, b) => a.programDay - b.programDay);
-  const dueOpen = sorted.find((item) => item.scheduledDate <= today && item.status !== "completed");
-  const exact = sorted.find((item) => item.scheduledDate === today);
-  return dueOpen ?? exact ?? sorted.at(-1) ?? null;
+  const open = sorted.filter((item) => !isResolvedProgramItem(item));
+  const dueOpen = open.find((item) => item.scheduledDate <= today);
+  const exact = open.find((item) => item.scheduledDate === today);
+  return dueOpen ?? exact ?? open[0] ?? null;
 }
 
 function scheduledFor(dateKey: string, time: string) {
@@ -242,15 +252,12 @@ async function learningTodayHandler(req: Request, res: Response) {
       });
     }
 
+    const nextItem = todayItem(visible.items);
     return res.json({
       onboardingRequired: false,
       categories: categories.map(serializeCategory),
       program: serializeProgram(visible.program, visible.items),
-      todayItem: visible.program.status === "completed"
-        ? null
-        : visible.items.length
-          ? serializeProgramItem(todayItem(visible.items) ?? visible.items[0])
-          : null,
+      todayItem: visible.program.status === "completed" || !nextItem ? null : serializeProgramItem(nextItem),
     });
   } catch (error) {
     console.error("[learning] today load failed:", error);
@@ -368,9 +375,10 @@ async function createLearningProgramHandler(req: Request, res: Response) {
     });
 
     const itemsWithLessons = await loadProgramItems(result.program.id);
+    const nextItem = todayItem(itemsWithLessons);
     return res.status(201).json({
       program: serializeProgram(result.program, itemsWithLessons),
-      todayItem: itemsWithLessons.length ? serializeProgramItem(todayItem(itemsWithLessons) ?? itemsWithLessons[0]) : null,
+      todayItem: nextItem ? serializeProgramItem(nextItem) : null,
     });
   } catch (error) {
     console.error("[learning] program create failed:", error);
@@ -438,15 +446,15 @@ async function learningEventHandler(req: Request, res: Response) {
         metadata: data.metadata,
       });
 
-      if (data.eventType === "completed") {
+      if (data.eventType === "completed" || data.eventType === "skipped") {
         const items = await tx
           .select()
           .from(learningProgramItems)
           .where(eq(learningProgramItems.programId, program.id));
-        const allComplete = items.length > 0 && items.every((candidate) => (
-          candidate.id === item.id || candidate.status === "completed" || Boolean(candidate.completedAt)
+        const allResolved = items.length > 0 && items.every((candidate) => (
+          candidate.id === item.id || isResolvedProgramItem(candidate)
         ));
-        if (allComplete) {
+        if (allResolved) {
           await tx
             .update(learningPrograms)
             .set({ status: "completed", completedAt: now, updatedAt: now })
@@ -464,9 +472,10 @@ async function learningEventHandler(req: Request, res: Response) {
       });
     }
 
+    const nextItem = todayItem(active.items);
     return res.json({
       program: serializeProgram(active.program, active.items),
-      todayItem: active.items.length ? serializeProgramItem(todayItem(active.items) ?? active.items[0]) : null,
+      todayItem: nextItem ? serializeProgramItem(nextItem) : null,
     });
   } catch (error) {
     console.error("[learning] event failed:", error);

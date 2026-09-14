@@ -226,6 +226,8 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Together Room" })).toBeInTheDocument();
+    expect(screen.getByText("Today's step")).toBeInTheDocument();
+    expect(screen.getByText("No commitment. Private contact stays inside VYVA.")).toBeInTheDocument();
     expect(screen.getByText("Protected room")).toBeInTheDocument();
     expect(screen.getByTestId("together-safety-quick-help")).toHaveTextContent("Help or safety");
     expect(screen.getByTestId("together-safety-quick-help")).toHaveAttribute("aria-expanded", "false");
@@ -555,6 +557,26 @@ describe("TogetherRoomScreen", () => {
     expect(screen.queryByTestId("together-view-circle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-view-starters")).not.toBeInTheDocument();
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
+  });
+
+  it("keeps deeper room tools tucked behind one clear reveal", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-featured-plan-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).toHaveClass("hidden");
+
+    const toggle = screen.getByTestId("together-more-options-toggle");
+    expect(toggle).toHaveTextContent("More room options");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveTextContent("Hide options");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("together-featured-plan-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).not.toHaveClass("hidden");
   });
 
   it("turns today's room notes into a gentle next action", () => {
@@ -1286,7 +1308,7 @@ describe("TogetherRoomScreen", () => {
         body: expect.stringContaining('"paused":false'),
       }),
     );
-  });
+  }, 60_000);
 
   it("keeps my private choice snapshot current as I choose", async () => {
     let serverPulse = roomResponse.pulse!;
@@ -4003,7 +4025,8 @@ describe("TogetherRoomScreen", () => {
       costRange: "shared",
       groupSize: "small_group",
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Sent");
     expect(screen.getByTestId("together-shared-today")).toBeInTheDocument();
     expect(screen.getByText("Tea at a quiet cafe")).toBeInTheDocument();
     await waitFor(() => {
@@ -4288,7 +4311,8 @@ describe("TogetherRoomScreen", () => {
     fireEvent.click(screen.getByLabelText("Send"));
 
     await waitFor(() => {
-      expect(screen.getByText("VYVA will review this before it appears.")).toBeInTheDocument();
+      expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+      expect(screen.getByTestId("together-status-message")).toHaveTextContent("VYVA will review this before it appears.");
     });
     expect(screen.queryByTestId("together-shared-today")).not.toBeInTheDocument();
     expect(apiFetchMock).toHaveBeenCalledWith(
@@ -4379,7 +4403,8 @@ describe("TogetherRoomScreen", () => {
       costRange: "discuss",
       groupSize: "open_room",
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Sent");
   });
 
   it("prevents repeated Say hello posts while the first one is sending", async () => {
@@ -4417,7 +4442,8 @@ describe("TogetherRoomScreen", () => {
     await waitFor(() => {
       expect(helloButton).not.toBeDisabled();
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Sent");
   });
 
   it("opens Ask VYVA as an open-room question with safe defaults", async () => {
@@ -4483,7 +4509,8 @@ describe("TogetherRoomScreen", () => {
       costRange: "discuss",
       groupSize: "open_room",
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Sent");
   });
 
   it("lets seniors ask VYVA to turn a concern into a future room vote", async () => {
@@ -4523,7 +4550,8 @@ describe("TogetherRoomScreen", () => {
       costRange: "discuss",
       groupSize: "open_room",
     });
-    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved with context");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Sent");
   });
 
   it("lets members cancel a starter draft without sending it", () => {

@@ -1,3 +1,5 @@
+import { BRAIN_COACH_MAX_LEVEL } from "./brainCoachProgression";
+
 export const LISTEN_CLOSELY_MODES = ["find_it", "oddball", "count_compare"];
 
 export const LISTEN_CLOSELY_SOUNDS = [
@@ -11,7 +13,7 @@ export const LISTEN_CLOSELY_SOUNDS = [
   "ring",
 ];
 
-const MAX_TIER = 10;
+const MAX_TIER = BRAIN_COACH_MAX_LEVEL;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -72,10 +74,11 @@ function makeDistractorEvents({ durationSeconds, count, variant, targetSound }) 
 }
 
 function getTierDurationSeconds(tier) {
-  if (tier <= 3) return 18;
-  if (tier <= 6) return 24;
-  if (tier <= 8) return 30;
-  return 36;
+  if (tier <= 4) return 18;
+  if (tier <= 8) return 24;
+  if (tier <= 12) return 30;
+  if (tier <= 16) return 34;
+  return 38;
 }
 
 function buildSoundscape(tier, variant) {
@@ -83,9 +86,9 @@ function buildSoundscape(tier, variant) {
   const durationSeconds = getTierDurationSeconds(tier);
   const targetSound = LISTEN_CLOSELY_SOUNDS[(tier + variant - 2) % LISTEN_CLOSELY_SOUNDS.length];
   const secondSound = LISTEN_CLOSELY_SOUNDS[(tier + variant + 2) % LISTEN_CLOSELY_SOUNDS.length];
-  const responseWindowMs = clamp(1900 - (tier * 90), 850, 1900);
-  const baseTargetCount = clamp(2 + Math.floor((tier + variant) / 4), 2, 7);
-  const firstCount = mode === "count_compare" ? clamp(2 + Math.floor(tier / 3) + (variant % 2), 2, 6) : baseTargetCount;
+  const responseWindowMs = clamp(1950 - (tier * 55), 760, 1900);
+  const baseTargetCount = clamp(2 + Math.floor((tier + variant) / 5), 2, 9);
+  const firstCount = mode === "count_compare" ? clamp(2 + Math.floor(tier / 4) + (variant % 2), 2, 8) : baseTargetCount;
   const secondCount = mode === "count_compare"
     ? clamp(firstCount + (variant % 2 === 0 ? 1 : -1), 1, 7)
     : 0;
@@ -102,7 +105,7 @@ function buildSoundscape(tier, variant) {
     ? []
     : makeDistractorEvents({
         durationSeconds,
-        count: clamp(2 + Math.floor(tier / 2), 2, 8),
+        count: clamp(2 + Math.floor(tier / 2), 2, 11),
         variant,
         targetSound,
       });
@@ -114,7 +117,7 @@ function buildSoundscape(tier, variant) {
     duration_seconds: durationSeconds,
     ambient_layer: {
       type: "soft_room",
-      intensity: tier <= 4 ? "low" : tier <= 7 ? "medium" : "busy",
+      intensity: tier <= 5 ? "low" : tier <= 10 ? "medium" : tier <= 15 ? "busy" : "layered",
     },
     target_sound_character: targetSound,
     target_event_times: targetEventTimes,

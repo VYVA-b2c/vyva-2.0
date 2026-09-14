@@ -1,5 +1,7 @@
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowRight, BarChart2, CheckCircle2, Home, PlusCircle } from "lucide-react";
+import { APP_WORKFLOW_REFERENCES } from "../../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
 
 const SECTION_LABELS: Record<string, { title: string; message: string }> = {
   gp: { title: "GP details saved", message: "VYVA now knows who to contact about your health." },
@@ -21,7 +23,12 @@ const SectionCompleteScreen = () => {
   const navigate = useNavigate();
   const { section = "" } = useParams<{ section: string }>();
   const [searchParams] = useSearchParams();
-  const info = SECTION_LABELS[section] ?? DEFAULT;
+  const setupReceipt = section === "providers"
+    ? buildWorkflowReceiptMoment({ workflowReference: APP_WORKFLOW_REFERENCES.trustedProviders })
+    : null;
+  const info = setupReceipt
+    ? { title: setupReceipt.title, message: setupReceipt.message }
+    : SECTION_LABELS[section] ?? DEFAULT;
   const returnTo = searchParams.get("returnTo");
 
   if (section === "medications") {

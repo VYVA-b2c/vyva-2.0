@@ -1,13 +1,17 @@
-import { Activity, AlertTriangle, ArrowLeft, Ban, CheckCircle2, ChevronRight, ClipboardList, Dumbbell, HeartPulse, Loader2, MessageCircle, Pill, ShieldCheck, ShoppingBasket, Sparkles, UserRoundCheck, Utensils, X } from "lucide-react";
+import { Activity, ArrowLeft, Ban, CheckCircle2, ChevronRight, ClipboardList, Dumbbell, Eye, HeartPulse, Loader2, MessageCircle, Mic, Pill, ShieldCheck, ShoppingBasket, Sparkles, Stethoscope, UserRoundCheck, Utensils, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { HomeMasterActionControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { apiFetch } from "@/lib/queryClient";
 import {
   appendPreventionLoopHistory as appendLoopHistory,
+  dismissPreventionFollowUp,
   encodePreventionLearningQuery as encodeLearningQuery,
   learningContextForPreventionRequest as learningContextForRequest,
   PREVENTION_LOOP_LAST_FEEDBACK_KEY as loopLastFeedbackKey,
@@ -46,6 +50,12 @@ type PreventionFocusResponse = {
   personalizationSummary?: string[];
   profileSignals?: string[];
   doctorNote?: string;
+  followUp?: {
+    reportId?: string | null;
+    reportedAt?: string | null;
+    subject: string;
+    topic: string;
+  };
   generatedAt: string;
 };
 
@@ -118,9 +128,10 @@ type PreventionGuidanceItem = {
 
 type PreventionDailyAction = {
   id: string;
-  step: "Eat" | "Move" | "Calm" | "Check" | "Protect" | "Home" | "Medicine" | "Review" | "Plan" | "Sleep";
+  step: "Eat" | "Move" | "Calm" | "Check" | "Protect" | "Home" | "Medicine" | "Review" | "Plan" | "Sleep" | "NEXT STEP" | "WATCH FOR" | "RIGHT NOW" | "IF NEEDED";
   title: string;
   detail: string;
+  chips?: string[];
   why: string;
   evidenceLabel: string;
   tone: "food" | "movement" | "check" | "support" | "medicine";
@@ -192,9 +203,9 @@ const toneByFocus: Record<PreventionFocus, Tone> = {
     surface: "#FFFFFF",
   },
   "Follow-up": {
-    icon: AlertTriangle,
+    icon: Stethoscope,
     iconBg: "#FFF7ED",
-    iconColor: "#C2410C",
+    iconColor: "#B45309",
     border: "#FED7AA",
     surface: "#FFFFFF",
   },
@@ -210,7 +221,7 @@ const toneByFocus: Record<PreventionFocus, Tone> = {
 const fallbackFocus: PreventionFocusResponse = {
   focus: "Plan",
   headline: "Prevention ready.",
-  why: ["No strong warning pattern stands out right now."],
+  why: ["No strong pattern stands out right now."],
   todayAction: "Do one quick check-in.",
   helpSigns: ["Sudden chest pain", "Trouble breathing", "New confusion"],
   primaryRoute: "/health/check-in",
@@ -221,7 +232,7 @@ const fallbackFocus: PreventionFocusResponse = {
       id: "plan-status",
       label: "Today",
       value: "No strong alert",
-      detail: "No warning pattern stands out from available data.",
+      detail: "No strong pattern stands out from available data.",
       tone: "steady",
     },
     {
@@ -272,7 +283,7 @@ const fallbackFocus: PreventionFocusResponse = {
       step: "Eat",
       title: "Steady meal",
       detail: "Open simple meal or grocery help.",
-      why: "Food, water, and routine are useful even without a strong warning signal.",
+      why: "Food, water, and routine are useful even without a strong signal.",
       evidenceLabel: "Daily basics",
       tone: "food",
       actionSheet: {
@@ -420,7 +431,7 @@ const fallbackFocus: PreventionFocusResponse = {
     timeOfDay: "morning",
     rankingReasons: ["Simple starter plan"],
   },
-  doctorNote: "No strong warning pattern stands out from the available data today.",
+  doctorNote: "No strong pattern stands out from the available data today.",
   generatedAt: new Date(0).toISOString(),
 };
 
@@ -536,6 +547,105 @@ function dailyActionToneStyle(tone: PreventionDailyAction["tone"]) {
     chipBg: "#F5F3FF",
     chipText: "#6B21A8",
   };
+}
+
+function followUpTagStyle(step: PreventionDailyAction["step"]) {
+  if (step === "WATCH FOR") {
+    return {
+      background: "#FEF2F2",
+      color: "#E74C43",
+    };
+  }
+  if (step === "NEXT STEP" || step === "RIGHT NOW") {
+    return {
+      background: "#FFFBEB",
+      color: "#F59E0B",
+    };
+  }
+  if (step === "IF NEEDED") {
+    return {
+      background: "#ECFDF5",
+      color: "#0F766E",
+    };
+  }
+  return {
+    background: "#F5F3FF",
+    color: "#6B21A8",
+  };
+}
+
+function dailyActionIconFor(item: PreventionDailyAction, isFollowUp: boolean): LucideIcon {
+  if (isFollowUp) {
+    if (item.id === "follow-up-context") return Sparkles;
+    if (item.id === "follow-up-watch-signs") return Eye;
+    if (item.id === "follow-up-summary") return ClipboardList;
+  }
+  return dailyActionIcons[item.tone] ?? ShieldCheck;
+}
+
+function isReadingChip(chip: string): boolean {
+  return /^(BP|Pulse|HR|SpO2|SpO₂|Oxygen|Temp|Glucose|Respiration)\b/i.test(chip);
+}
+
+function sentenceCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
+const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function shortDateLabel(date: Date): string {
+  return `${date.getDate()} ${shortMonths[date.getMonth()]}`;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+function followUpEyebrowFor(focus: PreventionFocusResponse): string {
+  const raw = focus.followUp?.reportedAt;
+  if (!raw) return "Follow-up";
+  const reportedAt = new Date(raw);
+  if (Number.isNaN(reportedAt.getTime())) return "Follow-up";
+  return sameLocalDay(reportedAt, new Date())
+    ? "Follow-up today"
+    : `Follow-up from ${shortDateLabel(reportedAt)}`;
+}
+
+function followUpHeadlineFor(focus: PreventionFocusResponse, subject: string): string {
+  const topic = focus.followUp?.topic?.trim();
+  if (topic) return `${sentenceCase(topic.toLowerCase())} follow-up`;
+
+  const patternChips = focus.dailyActions?.find((item) => item.id === "follow-up-context")?.chips ?? [];
+  const cleanChips = patternChips.map((chip) => chip.trim()).filter(Boolean);
+  if (cleanChips.length) {
+    const trackedSubject = cleanChips[0].toLowerCase();
+    return `${sentenceCase(trackedSubject)} follow-up`;
+  }
+
+  const shortSubject = subject.trim();
+  if (shortSubject && shortSubject !== "your latest symptoms") {
+    return `${sentenceCase(shortSubject.toLowerCase())} follow-up`;
+  }
+  return "Symptom follow-up";
+}
+
+function followUpDetailFor(item: PreventionDailyAction): string {
+  const chips = item.chips?.map((chip) => chip.trim()).filter(Boolean) ?? [];
+  if (item.id === "follow-up-context") {
+    const readingChip = chips.find(isReadingChip);
+    return readingChip ? `Symptoms + medicine + ${readingChip}` : "Symptoms + medicine";
+  }
+  if (item.id === "follow-up-watch-signs") {
+    return chips.length ? chips.slice(0, 3).join(", ") : item.detail;
+  }
+  if (item.id === "follow-up-summary") {
+    return "Timing + readings + medicine";
+  }
+  return item.detail;
 }
 
 function fallbackShoppingPrefill(item: PreventionGuidanceItem): PreventionShoppingPrefill {
@@ -676,7 +786,7 @@ function fallbackActionSheet(item: PreventionGuidanceItem, focus: PreventionFocu
         priority: "secondary",
       },
     ],
-    safetyNote: "Get urgent help for severe chest pain, trouble breathing, fainting, or sudden weakness.",
+    safetyNote: "Call emergency help for severe chest pain, trouble breathing, fainting, or sudden weakness.",
   };
 }
 
@@ -870,18 +980,35 @@ function loopSummaryFor(
   return `Why today: ${focus.why?.[0] ?? focus.todayAction}`;
 }
 
+function followUpSubjectFor(focus: PreventionFocusResponse): string {
+  const reportInsight = focus.insights?.find((item) => item.id === "follow-up-report");
+  const insightValue = reportInsight?.value?.trim();
+  if (insightValue && !/symptom check/i.test(insightValue)) return insightValue;
+  const why = focus.why?.find((item) => /latest symptom report:/i.test(item));
+  const subject = why?.replace(/latest symptom report:/i, "").replace(/[.。]\s*$/, "").trim();
+  return subject || "your latest symptoms";
+}
+
 export default function PreventionScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
+  const { markCompleted, markDismissed, markAbandoned } = useHomeFastHelpOutcome(location.state);
   const { guardPath } = useServiceGate();
   const [selectedAction, setSelectedAction] = useState<PreventionDailyAction | null>(null);
   const [actionFeedback, setActionFeedback] = useState<Record<string, PreventionFeedback>>({});
   const [actionBarriers, setActionBarriers] = useState<Record<string, PreventionBarrier>>({});
   const [lastLoopFeedback, setLastLoopFeedback] = useState<PreventionLoopLastFeedback | null>(null);
   const [lastLoopView, setLastLoopView] = useState<PreventionLoopLastView | null>(null);
-  const [requestLearning] = useState(() => learningContextForRequest());
+  const [requestLearning, setRequestLearning] = useState(() => learningContextForRequest());
   const { data, isLoading, isError } = useQuery<PreventionFocusResponse>({
-    queryKey: ["/api/health/prevention", requestLearning.clientHour, requestLearning.recentFeedback.length],
+    queryKey: [
+      "/api/health/prevention",
+      requestLearning.clientHour,
+      requestLearning.recentFeedback.length,
+      requestLearning.dismissedFollowUpIds.join("|"),
+    ],
     retry: false,
     staleTime: 60 * 1000,
     queryFn: async () => {
@@ -890,8 +1017,11 @@ export default function PreventionScreen() {
       return res.json();
     },
   });
-
   const focus = data?.focus ? data : fallbackFocus;
+  const isFollowUp = focus.focus === "Follow-up";
+  const followUpSubject = isFollowUp ? followUpSubjectFor(focus) : "";
+  const heroHeadline = isFollowUp ? followUpHeadlineFor(focus, followUpSubject) : focus.headline;
+  const followUpEyebrow = isFollowUp ? followUpEyebrowFor(focus) : "";
   const tone = toneByFocus[focus.focus] ?? toneByFocus.Plan;
   const FocusIcon = tone.icon;
   const primaryRoute = focus.primaryRoute || fallbackFocus.primaryRoute;
@@ -901,13 +1031,16 @@ export default function PreventionScreen() {
     const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
     return guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus));
   }, [focus.dailyActions, focus.focus, focus.guidance]);
-  const dailyActions = useMemo(() => adaptDailyActionsForLoop(
-    baseDailyActions,
-    actionFeedback,
-    lastLoopFeedback,
-    lastLoopView,
-    currentDateKey,
-  ), [actionFeedback, baseDailyActions, currentDateKey, lastLoopFeedback, lastLoopView]);
+  const dailyActions = useMemo(() => {
+    if (isFollowUp) return baseDailyActions;
+    return adaptDailyActionsForLoop(
+      baseDailyActions,
+      actionFeedback,
+      lastLoopFeedback,
+      lastLoopView,
+      currentDateKey,
+    );
+  }, [actionFeedback, baseDailyActions, currentDateKey, isFollowUp, lastLoopFeedback, lastLoopView]);
   const learning = focus.learning ?? fallbackFocus.learning;
   const secondaryLabel = (() => {
     if (primaryRoute.startsWith("/informes")) return t("health.prevention.routes.report", "Open report");
@@ -936,12 +1069,11 @@ export default function PreventionScreen() {
         mode: "voice" as const,
       },
     ];
-  const personalizationSummary = focus.personalizationSummary?.length
-    ? focus.personalizationSummary.slice(0, 3)
-    : focus.profileSignals?.filter((item) => !/\d/.test(item)).slice(0, 3) ?? [focus.focus];
   const weeklySummary = focus.weeklySummary ?? fallbackFocus.weeklySummary;
   const doctorNote = [focus.doctorNote || focus.why.concat(focus.todayAction).join(" "), weeklySummary?.doctorSummary].filter(Boolean).join(" ");
-  const talkContext = `${focus.focus}: ${learning?.askPrompt ?? focus.headline} ${doctorNote}`;
+  const talkContext = isFollowUp
+    ? `Follow-up: ${followUpSubject}. Help me understand what to ask, what to watch, and what support to arrange. ${doctorNote}`
+    : `${focus.focus}: ${learning?.askPrompt ?? focus.headline} ${doctorNote}`;
   const loopSummary = loopSummaryFor(focus, actionFeedback, lastLoopFeedback, lastLoopView, currentDateKey);
   const feedbackStorageKey = preventionFeedbackStorageKey(focus.focus, currentDateKey);
   const barrierStorageKey = preventionBarrierStorageKey(focus.focus, currentDateKey);
@@ -1006,6 +1138,13 @@ export default function PreventionScreen() {
     });
   };
 
+  const resolveFollowUp = () => {
+    const reportId = focus.followUp?.reportId?.trim();
+    if (!reportId) return;
+    dismissPreventionFollowUp(reportId);
+    setRequestLearning(learningContextForRequest());
+  };
+
   const markAction = (action: PreventionDailyAction, feedback: PreventionFeedback) => {
     if (feedback === "ask_vyva") {
       openTalk(`${focus.focus}: ${action.title}. ${action.why}. ${doctorNote}`);
@@ -1041,9 +1180,17 @@ export default function PreventionScreen() {
       setLastLoopFeedback(loopFeedback);
       return next;
     });
+    if (feedback === "done") {
+      markCompleted({ reason: "prevention_action_done", referenceId: action.id });
+    } else if (feedback === "too_hard") {
+      markDismissed({ reason: "prevention_action_too_hard", referenceId: action.id });
+    } else if (feedback === "remind") {
+      markAbandoned({ reason: "prevention_action_deferred", referenceId: action.id });
+    }
   };
 
   const markBarrier = (action: PreventionDailyAction, barrier: PreventionBarrier) => {
+    markDismissed({ reason: `prevention_barrier_${barrier}`, referenceId: action.id });
     setActionBarriers((current) => {
       const next = { ...current, [action.id]: barrier };
       writeStoredJson(barrierStorageKey, next);
@@ -1109,171 +1256,211 @@ export default function PreventionScreen() {
 
   const selectedSheet = selectedAction?.actionSheet ?? null;
 
+  const openFollowUpDailyAction = (item: PreventionDailyAction) => {
+    const primaryAction = item.actionSheet.primaryAction;
+    const route = primaryAction.route || "/health";
+    const subject = followUpSubject || item.detail;
+    const contextText = `${subject}. ${doctorNote}`.trim();
+
+    if (primaryAction.mode === "voice" || route === "/health/doctor") {
+      openTalk(`${focus.focus}: ${item.title}. ${primaryAction.detail}. ${contextText}`);
+      return;
+    }
+
+    if (route === "/concierge") {
+      navigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "appointment",
+            source: "symptom_report",
+            message: `Please help me arrange the right support for ${subject}.`,
+          },
+        },
+      });
+      return;
+    }
+
+    if (route === "/health/symptom-check") {
+      navigate("/health/symptom-check", {
+        state: {
+          initialClue: `Follow-up for ${subject}. Signs to watch: ${focus.helpSigns.join(", ")}.`,
+        },
+      });
+      return;
+    }
+
+    if (route === "/meds") {
+      guardPath("/meds");
+      return;
+    }
+
+    navigate(route, {
+      state: {
+        preventionFollowUp: {
+          subject,
+          title: item.title,
+          detail: item.detail,
+        },
+      },
+    });
+  };
+
+  const openDailyActionNow = (item: PreventionDailyAction) => {
+    if (isFollowUp) {
+      openFollowUpDailyAction(item);
+      return;
+    }
+    setSelectedAction(item);
+  };
+
+  const leavePrevention = () => {
+    markAbandoned({ reason: "left_prevention" });
+    navigate("/health");
+  };
+
   return (
     <div className="vyva-page pb-32 sm:pb-12" data-testid="prevention-page">
-      <button
-        type="button"
-        onClick={() => navigate("/health")}
-        className="vyva-tap mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#E6E0F4] bg-white px-4 font-body text-[14px] font-black text-vyva-text-2 shadow-[0_8px_18px_rgba(31,41,55,0.05)]"
-      >
-        <ArrowLeft size={17} aria-hidden="true" />
-        {t("health.prevention.back", "Health Plan")}
-      </button>
+      <HomeMasterTopbar className="mb-5" testId="prevention-topbar">
+        <HomeMasterActionControl
+          isDark={isDark}
+          icon={ArrowLeft}
+          onClick={leavePrevention}
+          testId="button-prevention-back"
+          ariaLabel={t("health.prevention.back", "Back to My Health")}
+        />
+        <h1 className={["font-display text-[24px] font-semibold leading-tight tracking-[-0.03em]", isDark ? "text-[#FFF8FF]" : "text-[#241C30]"].join(" ")}>
+          {t("health.prevention.title", "Longevity Plan")}
+        </h1>
+        <HomeMasterActionControl
+          isDark={isDark}
+          icon={Mic}
+          onClick={() => openTalk()}
+          testId="button-prevention-header-talk"
+          ariaLabel={t("health.prevention.talk", "Talk to VYVA")}
+        />
+      </HomeMasterTopbar>
 
       <section
-        className="mt-3 overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
+        className={isFollowUp
+          ? "overflow-hidden rounded-[24px] border bg-white p-3 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
+          : "overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"}
         style={{ borderColor: tone.border, background: tone.surface }}
         data-testid="prevention-hero"
       >
-        <div className="flex items-start gap-3">
+        <div className={isFollowUp ? "flex items-center gap-3" : "flex items-start gap-3"}>
           <span
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+            className={isFollowUp
+              ? "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px]"
+              : "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"}
             style={{ background: tone.iconBg, color: tone.iconColor }}
           >
-            {isLoading ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <FocusIcon size={23} strokeWidth={2.5} aria-hidden="true" />}
+            {isLoading ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <FocusIcon size={isFollowUp ? 20 : 23} strokeWidth={2.5} aria-hidden="true" />}
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-body text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: tone.iconColor }}>
-              {t("health.prevention.eyebrow", "Prevention")} {focus.focus}
+              {isFollowUp ? followUpEyebrow : `${t("health.prevention.eyebrow", "Prevention")} ${focus.focus}`}
             </p>
-            <h1 className="mt-1 font-body text-[30px] font-black leading-[1.05] text-vyva-text-1 sm:text-[36px]">
-              {focus.headline}
+            <h1 className={isFollowUp
+              ? "mt-1 font-body text-[21px] font-black leading-[1.08] text-vyva-text-1 sm:text-[26px]"
+              : "mt-1 font-body text-[30px] font-black leading-[1.05] text-vyva-text-1 sm:text-[36px]"}
+            >
+              {heroHeadline}
             </h1>
+            {isFollowUp && focus.followUp?.reportId ? (
+              <button
+                type="button"
+                onClick={resolveFollowUp}
+                data-testid="button-prevention-resolve-follow-up"
+                className="vyva-tap mt-2 inline-flex min-h-[34px] items-center justify-center rounded-full border border-[#FAD7AA] bg-white px-3 font-body text-[12px] font-black text-[#B45309]"
+              >
+                {t("health.prevention.followUpHandled", "Handled")}
+              </button>
+            ) : null}
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={openTalk}
-          data-testid="button-prevention-talk"
-          className="vyva-tap mt-4 flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.18)]"
-        >
-          <MessageCircle size={18} aria-hidden="true" />
-          {t("health.prevention.talk", "Talk to VYVA")}
-        </button>
-
-        {personalizationSummary.length ? (
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="prevention-personalization">
-            {personalizationSummary.map((signal) => (
-              <span
-                key={signal}
-                className="rounded-full px-2.5 py-1 font-body text-[12px] font-black"
-                style={{ background: tone.iconBg, color: tone.iconColor }}
-              >
-                {signal}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </section>
 
       <section
-        className="mt-4 rounded-[24px] border bg-white p-4 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"
+        className={isFollowUp
+          ? "mt-3 rounded-[22px] border bg-white p-3 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"
+          : "mt-4 rounded-[24px] border bg-white p-4 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"}
         style={{ borderColor: tone.border }}
         data-testid="prevention-guidance-panel"
       >
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            {t("health.prevention.guidanceTitle", "Today's 3 moves")}
+        <div className="flex items-center gap-3">
+          <h2 className={isFollowUp ? "font-body text-[19px] font-black leading-tight text-vyva-text-1" : "font-body text-[22px] font-black leading-tight text-vyva-text-1"}>
+            {isFollowUp ? t("health.prevention.followUpTitle", "VYVA can help") : t("health.prevention.guidanceTitle", "Today's 3 moves")}
           </h2>
-          <span
-            className="rounded-full px-3 py-1 font-body text-[12px] font-black"
-            style={{ background: tone.iconBg, color: tone.iconColor }}
-          >
-            {focus.confidence === "strong"
-              ? t("health.prevention.confidenceStrong", "Clear")
-              : focus.confidence === "moderate"
-                ? t("health.prevention.confidenceModerate", "Likely")
-              : t("health.prevention.confidenceLimited", "Limited")}
-          </span>
         </div>
 
-        <div
-          className="mt-3 rounded-[18px] border border-[#E6E0F4] bg-white px-3 py-2 font-body text-[13px] font-black leading-snug text-vyva-text-2"
-          data-testid="prevention-loop-summary"
-        >
-          {loopSummary}
-        </div>
-
-        {weeklySummary ? (
+        {!isFollowUp && (Object.keys(actionFeedback).length > 0 || lastLoopFeedback) ? (
           <div
-            className="mt-2 rounded-[18px] border border-[#E6E0F4] bg-[#FBFAFF] px-3 py-2"
-            data-testid="prevention-weekly-memory"
+            className="mt-3 rounded-[16px] bg-[#F7F4FC] px-3 py-2 font-body text-[13px] font-bold leading-snug text-vyva-text-2"
+            data-testid="prevention-loop-summary"
           >
-            <div className="flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 flex-shrink-0 text-vyva-purple" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
-                  VYVA learned
-                </p>
-                <p className="mt-0.5 font-body text-[13px] font-black leading-snug text-vyva-text-1">
-                  {weeklySummary.headline}
-                </p>
-                <p className="mt-0.5 line-clamp-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-                  {weeklySummary.detail}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => openTalk(`${focus.focus}: ${weeklySummary.doctorSummary} ${weeklySummary.caregiverSummary}`)}
-                data-testid="button-prevention-weekly-summary"
-                className="vyva-tap flex min-h-[36px] flex-shrink-0 items-center justify-center rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
-              >
-                Ask
-              </button>
-            </div>
+            {loopSummary}
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-2.5" data-testid="prevention-daily-actions">
+        <div className={isFollowUp ? "mt-3 grid gap-2" : "mt-4 grid gap-2.5"} data-testid="prevention-daily-actions">
           {dailyActions.map((item) => {
             const style = dailyActionToneStyle(item.tone);
-            const Icon = dailyActionIcons[item.tone] ?? ShieldCheck;
+            const Icon = dailyActionIconFor(item, isFollowUp);
+            const tagStyle = isFollowUp ? followUpTagStyle(item.step) : { background: style.chipBg, color: style.chipText };
             const feedback = actionFeedback[item.id];
             const selectedBarrier = actionBarriers[item.id];
+            const visibleDetail = isFollowUp ? followUpDetailFor(item) : item.detail;
             return (
               <article
                 key={item.id}
                 data-testid={`prevention-daily-${item.id}`}
-                className="rounded-[18px] border p-3"
+                className={isFollowUp ? "rounded-[16px] border bg-white px-2.5 py-2" : "rounded-[18px] border p-3"}
                 style={{ borderColor: style.border, background: style.bg }}
               >
                 <button
                   type="button"
-                  onClick={() => setSelectedAction(item)}
+                  onClick={() => openDailyActionNow(item)}
                   data-testid={`button-prevention-daily-${item.id}`}
-                  className="vyva-tap flex w-full gap-3 text-left"
+                  className={isFollowUp ? "vyva-tap flex w-full gap-2.5 text-left" : "vyva-tap flex w-full gap-3 text-left"}
                 >
                   <span
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px]"
+                    className={isFollowUp
+                      ? "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[12px]"
+                      : "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px]"}
                     style={{ background: style.iconBg, color: style.iconColor }}
                   >
-                    <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
+                    <Icon size={isFollowUp ? 17 : 19} strokeWidth={2.5} aria-hidden="true" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full px-2 py-0.5 font-body text-[11px] font-black uppercase tracking-[0.06em]" style={{ background: style.chipBg, color: style.chipText }}>
-                        {item.step}
-                      </span>
-                      <span className="rounded-full bg-white px-2 py-0.5 font-body text-[11px] font-black" style={{ color: style.iconColor }}>
-                        {item.evidenceLabel}
-                      </span>
+                      {!isFollowUp ? (
+                        <span className="rounded-full px-2 py-0.5 font-body text-[11px] font-black uppercase tracking-[0.06em]" style={tagStyle}>
+                          {item.step}
+                        </span>
+                      ) : null}
                       {feedback && feedback !== "ask_vyva" ? (
                         <span className="rounded-full bg-white px-2 py-0.5 font-body text-[11px] font-black text-vyva-text-2" data-testid={`prevention-feedback-${item.id}`}>
                           {feedbackDisplay[feedback as Exclude<PreventionFeedback, "ask_vyva">]}
                         </span>
                       ) : null}
                     </div>
-                    <h3 className="mt-1.5 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    <h3 className={isFollowUp
+                      ? "mt-0.5 font-body text-[16px] font-black leading-tight text-vyva-text-1"
+                      : "mt-1.5 font-body text-[17px] font-black leading-tight text-vyva-text-1"}
+                    >
                       {item.title}
                     </h3>
-                    <p className="mt-1 line-clamp-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                      {item.detail}
-                    </p>
+                    {isFollowUp ? (
+                      <p className="sr-only">
+                        {visibleDetail}
+                      </p>
+                    ) : null}
                   </div>
-                  <ChevronRight size={18} strokeWidth={2.6} className="mt-3 flex-shrink-0 text-vyva-text-3" aria-hidden="true" />
+                  <ChevronRight size={17} strokeWidth={2.6} className={isFollowUp ? "mt-4 flex-shrink-0 text-vyva-text-3" : "mt-3 flex-shrink-0 text-vyva-text-3"} aria-hidden="true" />
                 </button>
-                <div className="mt-2 grid grid-cols-2 gap-1.5 pl-[52px]" data-testid={`prevention-feedback-row-${item.id}`}>
+                {!isFollowUp ? (
+                  <div className="mt-3 flex flex-wrap justify-end gap-2 pl-[52px]" data-testid={`prevention-feedback-row-${item.id}`}>
                   {item.feedbackOptions.filter((option) => option.id === "done" || option.id === "too_hard").map((option) => {
                     const selected = feedback === option.id;
                     const Icon = option.id === "done"
@@ -1289,16 +1476,21 @@ export default function PreventionScreen() {
                         type="button"
                         onClick={() => markAction(item, option.id)}
                         data-testid={`button-prevention-feedback-${item.id}-${option.id}`}
-                        className="vyva-tap inline-flex min-h-[34px] items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[11px] font-black"
-                        style={{ color: selected && option.id === "done" ? "#047857" : selected ? "#6B21A8" : style.iconColor }}
+                        className="vyva-tap inline-flex min-h-[36px] min-w-[92px] items-center justify-center gap-1.5 rounded-[12px] border bg-white px-3.5 font-body text-[12px] font-black shadow-[0_2px_6px_rgba(31,41,55,0.04)]"
+                        style={{
+                          borderColor: selected ? style.iconColor : style.border,
+                          background: selected ? style.iconBg : "#FFFFFF",
+                          color: selected && option.id === "done" ? "#047857" : selected ? "#6B21A8" : style.iconColor,
+                        }}
                       >
                         <Icon size={14} aria-hidden="true" />
                         <span>{option.label}</span>
                       </button>
                     );
                   })}
-                </div>
-                {feedback === "too_hard" ? (
+                  </div>
+                ) : null}
+                {!isFollowUp && feedback === "too_hard" ? (
                   <div className="mt-2 grid grid-cols-3 gap-1.5 pl-[52px]" data-testid={`prevention-barrier-row-${item.id}`}>
                     {barrierOptions.map((option) => {
                       const selected = selectedBarrier === option.id;
@@ -1330,7 +1522,7 @@ export default function PreventionScreen() {
         ) : null}
       </section>
 
-      {learning ? (
+      {!isFollowUp && learning ? (
         <section
           className="mt-4 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"
           data-testid="prevention-learning"
@@ -1348,6 +1540,22 @@ export default function PreventionScreen() {
               </p>
             </div>
           </div>
+          {weeklySummary ? (
+            <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-[#FBFAFF] px-3 py-2" data-testid="prevention-weekly-memory">
+              <Sparkles size={16} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+              <p className="min-w-0 flex-1 truncate font-body text-[13px] font-bold text-vyva-text-2">
+                {weeklySummary.detail}
+              </p>
+              <button
+                type="button"
+                onClick={() => openTalk(`${focus.focus}: ${weeklySummary.doctorSummary} ${weeklySummary.caregiverSummary}`)}
+                data-testid="button-prevention-weekly-summary"
+                className="vyva-tap min-h-[34px] flex-shrink-0 rounded-full bg-white px-3 font-body text-[13px] font-black text-vyva-purple"
+              >
+                Ask
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => openTalk(`${focus.focus}: ${learning.askPrompt}`)}
@@ -1359,10 +1567,11 @@ export default function PreventionScreen() {
         </section>
       ) : null}
 
-      <section
+      {!isFollowUp ? (
+        <section
         className="mt-4 rounded-[24px] border border-[#E6E0F4] bg-white p-4 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"
         data-testid="prevention-actions"
-      >
+        >
         <h2 className="font-body text-[22px] font-black leading-tight text-vyva-text-1">
           {t("health.prevention.nextSteps", "Fast help")}
         </h2>
@@ -1399,9 +1608,7 @@ export default function PreventionScreen() {
                   >
                     {item.label}
                   </span>
-                  <span className={primary
-                    ? "mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-white/82"
-                    : "mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-2"}
+                  <span className="sr-only"
                   >
                     {item.detail}
                   </span>
@@ -1425,7 +1632,8 @@ export default function PreventionScreen() {
           </div>
         </div>
 
-      </section>
+        </section>
+      ) : null}
 
       {selectedAction && selectedSheet ? (
         <div
@@ -1485,7 +1693,7 @@ export default function PreventionScreen() {
                 <span className="block font-body text-[16px] font-black leading-tight">
                   {selectedSheet.primaryAction.label}
                 </span>
-                <span className="mt-0.5 block font-body text-[12px] font-bold leading-tight text-white/84">
+                <span className="sr-only">
                   {selectedSheet.primaryAction.detail}
                 </span>
               </span>
@@ -1580,7 +1788,7 @@ export default function PreventionScreen() {
                     <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
                       {item.label}
                     </span>
-                    <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-2">
+                    <span className="sr-only">
                       {item.detail}
                     </span>
                   </span>

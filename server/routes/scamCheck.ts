@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db.js";
 import { scamChecks } from "../../shared/schema.js";
+import { nonRetainedShowVyvaEvidence } from "../services/showVyvaEvidencePrivacy.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
@@ -51,7 +52,7 @@ function fallbackResult() {
 }
 
 export async function scamCheckHandler(req: Request, res: Response) {
-  const { image, language, fileType } = req.body as { image?: string; language?: string; fileType?: string };
+  const { image, language, fileType, question } = req.body as { image?: string; language?: string; fileType?: string; question?: string };
 
   if (!image || typeof image !== "string") {
     return res.status(400).json({ error: "image (base64 data URL) is required" });
@@ -92,7 +93,10 @@ export async function scamCheckHandler(req: Request, res: Response) {
             },
             {
               type: "text",
-              text: "Please analyse this document or image for scam indicators and provide a JSON assessment.",
+              text: [
+                "Please analyse this document or image for scam indicators and provide a JSON assessment.",
+                question?.trim() ? `The user asks: ${question.trim().slice(0, 240)}` : "",
+              ].filter(Boolean).join("\n"),
             },
           ],
         },
@@ -135,7 +139,7 @@ export async function scamCheckHandler(req: Request, res: Response) {
         result_title: resultTitle,
         explanation,
         steps,
-        image_data: image,
+        ...nonRetainedShowVyvaEvidence(),
       });
     } catch (dbErr) {
       console.error("[scam-check] Failed to persist result:", dbErr);

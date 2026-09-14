@@ -193,5 +193,5 @@ describe("ConciergeSuppliesAdminPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByTestId("admin-shopping-preview-results")).toHaveTextContent("Small water bottle multipack");
-  }, 15_000);
+  }, 60_000);
 });

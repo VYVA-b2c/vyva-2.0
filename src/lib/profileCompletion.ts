@@ -93,6 +93,22 @@ export function deriveCompletedSections(
     completed.add("care-team");
   }
 
+  const devices = profile?.devices;
+  if (Array.isArray(devices) && devices.length > 0) {
+    completed.add("devices");
+  }
+
+  const diet = profile?.diet as Record<string, unknown> | null | undefined;
+  if (
+    diet &&
+    (
+      (Array.isArray(diet.preferences) && diet.preferences.length > 0) ||
+      (typeof diet.notes === "string" && diet.notes.trim().length > 0)
+    )
+  ) {
+    completed.add("diet");
+  }
+
   const nestedHobbies = consent?.hobbies as Record<string, unknown> | unknown[] | null | undefined;
   const hobbies = Array.isArray(profile?.hobbies)
     ? profile.hobbies
@@ -101,6 +117,11 @@ export function deriveCompletedSections(
       : (nestedHobbies as Record<string, unknown> | null | undefined)?.hobbies;
   if (Array.isArray(hobbies) && hobbies.length > 0) {
     completed.add("hobbies");
+  }
+
+  const cognitive = profile?.cognitive as Record<string, unknown> | null | undefined;
+  if (cognitive && Object.keys(cognitive).length > 0) {
+    completed.add("cognitive");
   }
 
   const emergency = consent?.emergency as Record<string, unknown> | null | undefined;

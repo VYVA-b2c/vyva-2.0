@@ -2,11 +2,13 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { db, pool } from "../db.js";
-import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
+import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications, type TriageReportVitalsSnapshot } from "../../shared/schema.js";
 import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCatalog.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
+import { resolveTriageHandoffAuthorization } from "../../shared/triageHandoffConsent.js";
 import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
+import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -59,8 +61,15 @@ async function ensureReportsPersistenceTables() {
           watch_signs text[] not null default '{}',
           profile_considerations text[] not null default '{}',
           vitals_notes text[] not null default '{}',
+          vitals_snapshot jsonb,
           scan_results jsonb not null default '[]'::jsonb,
           scan_notes text[] not null default '{}',
+          interpretation text,
+          possible_patterns jsonb not null default '[]'::jsonb,
+          uncertainty text[] not null default '{}',
+          reassessment_window text,
+          change_plan_triggers text[] not null default '{}',
+          clinical_handoff jsonb,
           bpm integer,
           respiratory_rate integer,
           duration_seconds integer,
@@ -80,8 +89,15 @@ async function ensureReportsPersistenceTables() {
           add column if not exists watch_signs text[] not null default '{}',
           add column if not exists profile_considerations text[] not null default '{}',
           add column if not exists vitals_notes text[] not null default '{}',
+          add column if not exists vitals_snapshot jsonb,
           add column if not exists scan_results jsonb not null default '[]'::jsonb,
           add column if not exists scan_notes text[] not null default '{}',
+          add column if not exists interpretation text,
+          add column if not exists possible_patterns jsonb not null default '[]'::jsonb,
+          add column if not exists uncertainty text[] not null default '{}',
+          add column if not exists reassessment_window text,
+          add column if not exists change_plan_triggers text[] not null default '{}',
+          add column if not exists clinical_handoff jsonb,
           add column if not exists bpm integer,
           add column if not exists respiratory_rate integer,
           add column if not exists duration_seconds integer,
@@ -134,8 +150,15 @@ export async function saveTriageReport(params: {
   watch_signs?: string[];
   profile_considerations?: string[];
   vitals_notes?: string[];
+  vitals_snapshot?: TriageReportVitalsSnapshot | null;
   scan_results?: TriageScanResult[];
   scan_notes?: string[];
+  interpretation?: string | null;
+  possible_patterns?: Array<{ id: string; label: string; explanation: string; supportingAnswers: string[]; clarifyingSigns: string[] }>;
+  uncertainty?: string[];
+  reassessment_window?: string | null;
+  change_plan_triggers?: string[];
+  clinical_handoff?: { summary: string; keyPoints: string[]; questions: string[] } | null;
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
@@ -155,12 +178,30 @@ export async function saveTriageReport(params: {
     watch_signs: params.watch_signs ?? [],
     profile_considerations: params.profile_considerations ?? [],
     vitals_notes: params.vitals_notes ?? [],
+    vitals_snapshot: params.vitals_snapshot ?? null,
     scan_results: params.scan_results ?? [],
     scan_notes: params.scan_notes ?? [],
+    interpretation: params.interpretation ?? null,
+    possible_patterns: params.possible_patterns ?? [],
+    uncertainty: params.uncertainty ?? [],
+    reassessment_window: params.reassessment_window ?? null,
+    change_plan_triggers: params.change_plan_triggers ?? [],
+    clinical_handoff: params.clinical_handoff ?? null,
     bpm: params.bpm ?? null,
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
   }).returning();
+  if (params.urgency !== "monitor") {
+    void triggerPreventionPlanRefresh({
+      userId: params.userId,
+      triggerType: "symptom_logged",
+      triggerData: {
+        urgency: params.urgency,
+        symptom_description: params.chief_complaint,
+        triage_report_id: row.id,
+      },
+    }).catch((err) => console.error("[reports prevention refresh]", err));
+  }
   return row;
 }
 
@@ -177,7 +218,17 @@ export async function recordTriageReportHandoff(params: {
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
+  shareWithSavedContacts?: boolean;
+  requestStaffReview?: boolean;
 }): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean; staffReviewRequested: boolean }> {
+  const { shareWithSavedContacts, staffReviewRequested } = resolveTriageHandoffAuthorization(params);
+
+  // Saving a symptom report must remain private by default. Contact sharing and
+  // staff review are separate, confirmation-gated actions.
+  if (!shareWithSavedContacts && !staffReviewRequested) {
+    return { sentTo: [], caregiverEscalationTriggered: false, staffReviewRequested: false };
+  }
+
   const [profile] = await db
     .select({
       caregiver_name: profiles.caregiver_name,
@@ -190,11 +241,12 @@ export async function recordTriageReportHandoff(params: {
     .where(eq(profiles.id, params.userId))
     .limit(1);
 
-  const sentTo = [
-    profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
-    profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
-  ].filter(Boolean);
-  const staffReviewRequested = params.urgency === "urgent";
+  const sentTo = shareWithSavedContacts
+    ? [
+        profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
+        profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
+      ].filter(Boolean)
+    : [];
 
   if (sentTo.length > 0) {
     await db.insert(caregiverAlerts).values({
@@ -225,7 +277,7 @@ export async function recordTriageReportHandoff(params: {
 
   return {
     sentTo,
-    caregiverEscalationTriggered: Boolean(profile?.caregiver_name || profile?.caregiver_contact),
+    caregiverEscalationTriggered: shareWithSavedContacts && Boolean(profile?.caregiver_name || profile?.caregiver_contact),
     staffReviewRequested,
   };
 }
@@ -442,8 +494,34 @@ const triageSchema = z.object({
   watch_signs:       z.array(z.string()).default([]),
   profile_considerations: z.array(z.string()).default([]),
   vitals_notes:      z.array(z.string()).default([]),
+  vitals_snapshot: z.object({
+    capturedAt: z.string(),
+    readings: z.array(z.object({
+      key: z.enum(["bpm", "respiratoryRate", "oxygenSaturation", "temperatureC", "systolicBp", "diastolicBp", "glucoseMgdl", "painScore", "energyLevel"]),
+      value: z.number(),
+      unit: z.string(),
+      source: z.enum(VITALS_READING_SOURCES),
+      affectsTriage: z.boolean(),
+    })),
+  }).nullable().optional(),
   scan_results:      z.array(triageScanResultSchema).default([]),
   scan_notes:        z.array(z.string()).default([]),
+  interpretation:    z.string().nullable().optional(),
+  possible_patterns: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    explanation: z.string(),
+    supportingAnswers: z.array(z.string()).default([]),
+    clarifyingSigns: z.array(z.string()).default([]),
+  })).default([]),
+  uncertainty:       z.array(z.string()).default([]),
+  reassessment_window: z.string().nullable().optional(),
+  change_plan_triggers: z.array(z.string()).default([]),
+  clinical_handoff: z.object({
+    summary: z.string(),
+    keyPoints: z.array(z.string()).default([]),
+    questions: z.array(z.string()).default([]),
+  }).nullable().optional(),
   bpm:               z.number().int().nullable().optional(),
   respiratory_rate:  z.number().int().nullable().optional(),
   duration_seconds:  z.number().int().nonnegative().nullable().optional(),

@@ -8,6 +8,24 @@ export type VitalsDeviceKind =
   | "weight_scale"
   | "heart_monitor";
 
+export type VitalsDeviceSupportLevel = "pilot_candidate" | "tested" | "experimental";
+
+export type VitalsDeviceModelId =
+  | "and_ua_651ble"
+  | "nonin_3230"
+  | "and_ut_201ble_a";
+
+export type VitalsDeviceModel = {
+  id: VitalsDeviceModelId;
+  label: string;
+  manufacturer: string;
+  deviceKind: VitalsDeviceKind;
+  supportLevel: VitalsDeviceSupportLevel;
+  bleServices: number[];
+  bleCharacteristics: number[];
+  advertisedNamePrefixes: string[];
+};
+
 export type VitalsDeviceCatalogItem = {
   id: VitalsDeviceKind;
   label: string;
@@ -93,7 +111,7 @@ export const VITALS_DEVICE_CATALOG: VitalsDeviceCatalogItem[] = [
     label: "Heart-rate strap / BLE monitor",
     shortLabel: "Heart monitor",
     helper: "Reads pulse from straps and simple BLE heart monitors.",
-    signals: ["resting_hr_bpm", "hrv_ms"],
+    signals: ["resting_hr_bpm"],
     bleServices: [0x180d],
     bleCharacteristics: [0x2a37],
     fallbackSignals: ["resting_hr_bpm"],
@@ -103,8 +121,56 @@ export const VITALS_DEVICE_CATALOG: VitalsDeviceCatalogItem[] = [
   },
 ];
 
+/**
+ * Initial procurement candidates for the VYVA medical-device pilot.
+ *
+ * "pilot_candidate" is deliberately not the same as "tested". A model may
+ * only be promoted to tested after it has completed the physical bench-test
+ * matrix (pair, read, retry, cancel and reconnect) on the supported browsers.
+ */
+export const VITALS_PILOT_DEVICE_MODELS: VitalsDeviceModel[] = [
+  {
+    id: "and_ua_651ble",
+    label: "A&D UA-651BLE",
+    manufacturer: "A&D Medical",
+    deviceKind: "bp_cuff",
+    supportLevel: "pilot_candidate",
+    bleServices: [0x1810],
+    bleCharacteristics: [0x2a35],
+    advertisedNamePrefixes: ["A&D", "UA-651"],
+  },
+  {
+    id: "nonin_3230",
+    label: "Nonin 3230",
+    manufacturer: "Nonin",
+    deviceKind: "pulse_oximeter",
+    supportLevel: "pilot_candidate",
+    bleServices: [0x1822],
+    bleCharacteristics: [0x2a5e, 0x2a5f],
+    advertisedNamePrefixes: ["Nonin", "3230"],
+  },
+  {
+    id: "and_ut_201ble_a",
+    label: "A&D UT-201BLE-A",
+    manufacturer: "A&D Medical",
+    deviceKind: "thermometer",
+    supportLevel: "pilot_candidate",
+    bleServices: [0x1809],
+    bleCharacteristics: [0x2a1c],
+    advertisedNamePrefixes: ["A&D", "UT-201"],
+  },
+];
+
 export function vitalsDeviceById(id: VitalsDeviceKind): VitalsDeviceCatalogItem {
   const device = VITALS_DEVICE_CATALOG.find((item) => item.id === id);
   if (!device) throw new Error(`Unknown vitals device: ${id}`);
   return device;
+}
+
+export function vitalsDeviceModelById(id: string | null | undefined): VitalsDeviceModel | null {
+  return VITALS_PILOT_DEVICE_MODELS.find((model) => model.id === id) ?? null;
+}
+
+export function pilotModelsForDevice(deviceKind: VitalsDeviceKind): VitalsDeviceModel[] {
+  return VITALS_PILOT_DEVICE_MODELS.filter((model) => model.deviceKind === deviceKind);
 }

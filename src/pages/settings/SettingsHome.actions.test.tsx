@@ -101,4 +101,19 @@ describe("SettingsHome action rows", () => {
 
     expect(screen.getByTestId("health-devices-route")).toBeInTheDocument();
   });
+
+  it("opens Trusted Help setup from Settings", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/settings" element={<SettingsHome />} />
+          <Route path="/settings/trusted-help" element={<div data-testid="trusted-help-route">Trusted Help</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId("button-settings-trusted-help"));
+
+    expect(screen.getByTestId("trusted-help-route")).toBeInTheDocument();
+  });
 });

@@ -62,6 +62,10 @@ import {
   type ProfileReadColumn,
 } from "../lib/profileReadCompatibility.js";
 import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
+import {
+  savedProviderContactReadiness,
+  savedProviderIsTrusted,
+} from "../../shared/conciergeSavedProviders.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -134,6 +138,10 @@ function includesEmail(emails: string[], value: string | null | undefined): bool
 function profileEmailForAccount(accountEmails: string[], value: string | null | undefined): string | null {
   const email = trimToNull(value);
   return includesEmail(accountEmails, email) ? null : email;
+}
+
+function firstNameFromProfileName(value: string | null | undefined): string {
+  return trimToNull(value)?.split(/\s+/)[0] ?? "";
 }
 
 function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -239,6 +247,17 @@ const channelPreferencesPatchSchema = z.object({
   whatsapp_available_until: channelPreferenceTimeSchema.optional(),
   max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
+  concierge_task_notifications_enabled: z.boolean().optional(),
+  medication_refill_push_enabled: z.boolean().optional(),
+  preventive_web_push_enabled: z.boolean().optional(),
+});
+
+const coveragePatchSchema = z.object({
+  coverageType: z.enum(["public", "private", "mixed", "self_pay", "unknown"]).default("public"),
+  provider: z.string().max(160).optional().default(""),
+  memberId: z.string().max(160).optional().default(""),
+  plan: z.string().max(160).optional().default(""),
+  notes: z.string().max(500).optional().default(""),
 });
 
 type ChannelPreferencesRow = typeof userChannelPreferences.$inferSelect;
@@ -253,6 +272,9 @@ const channelPreferencesDefaults = {
   whatsapp_available_until: "22:00",
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
+  preventive_web_push_enabled: false,
 };
 
 function normalizeContactChannel(value: unknown, fallback: ContactChannel): ContactChannel {
@@ -308,6 +330,15 @@ function serializeChannelPreferences(row?: ChannelPreferencesRow | null, consent
       row && row.max_whatsapp_messages_per_day !== undefined
         ? row.max_whatsapp_messages_per_day
         : channelPreferencesDefaults.max_whatsapp_messages_per_day,
+    concierge_task_notifications_enabled:
+      row?.concierge_task_notifications_enabled
+      ?? channelPreferencesDefaults.concierge_task_notifications_enabled,
+    medication_refill_push_enabled:
+      row?.medication_refill_push_enabled
+      ?? channelPreferencesDefaults.medication_refill_push_enabled,
+    preventive_web_push_enabled:
+      row?.preventive_web_push_enabled
+      ?? channelPreferencesDefaults.preventive_web_push_enabled,
   };
 }
 
@@ -351,6 +382,23 @@ type ServiceGate = {
   recommended?: MissingSetupStep[];
 };
 
+type SavedProviderSummary = {
+  name: string;
+  role: string;
+  category: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  bookingUrl: string;
+  preferredChannel: string;
+  canContactAfterConfirmation: boolean;
+  address: string;
+  websiteUrl: string;
+  notes: string;
+  isTrusted: boolean;
+  isDefault: boolean;
+};
+
 function hasText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -359,6 +407,23 @@ function consentSection(consent: unknown, section: string): Record<string, unkno
   if (!consent || typeof consent !== "object") return {};
   const value = (consent as Record<string, unknown>)[section];
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function readCoverageSummary(consent: unknown) {
+  const coverage = {
+    ...consentSection(consent, "insurance"),
+    ...consentSection(consent, "coverage"),
+  };
+  const coverageType = trimToNull(coverage.coverage_type) ?? trimToNull(coverage.type) ?? "";
+  const provider = trimToNull(coverage.provider) ?? trimToNull(coverage.insurer) ?? trimToNull(coverage.company) ?? "";
+  const memberId = trimToNull(coverage.member_id) ?? trimToNull(coverage.policy_number) ?? "";
+  return {
+    coverageType,
+    provider,
+    memberId,
+    plan: trimToNull(coverage.plan) ?? "",
+    notes: trimToNull(coverage.notes) ?? "",
+  };
 }
 
 function setupStep(section: string, reason: string): MissingSetupStep {
@@ -401,6 +466,116 @@ function entitlementGate(enabled: boolean, feature: string, nextGate: ServiceGat
 function accountGate(enabled: boolean, nextGate: ServiceGate): ServiceGate {
   if (!enabled) return gate(false, [accountAccessStep()]);
   return nextGate;
+}
+
+function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
+  const providersSection = consentSection(consent, "providers");
+  const providers = Array.isArray(providersSection.providers)
+    ? providersSection.providers
+    : [];
+
+  return providers.flatMap((value) => {
+    const provider = objectRecord(value);
+    const name = trimToNull(provider.name);
+    const role = trimToNull(provider.role) ?? "";
+    const category = trimToNull(provider.category) ?? role;
+    const phone = trimToNull(provider.phone) ?? "";
+    const email = trimToNull(provider.email) ?? "";
+    const whatsapp = trimToNull(provider.whatsapp) ?? "";
+    const bookingUrl = trimToNull(provider.booking_url) ?? trimToNull(provider.online_order_url) ?? "";
+    const preferredChannel = trimToNull(provider.preferred_channel) ?? "";
+    const canContactAfterConfirmation = provider.can_contact_after_confirmation === true;
+    const address = trimToNull(provider.address) ?? "";
+    const websiteUrl = trimToNull(provider.website_uri) ?? "";
+    const notes = trimToNull(provider.notes) ?? "";
+    const isTrusted = provider.is_trusted !== false;
+    const isDefault = provider.is_default === true;
+    if (!name && !role && !category) return [];
+    return [{
+      name: name ?? category,
+      role,
+      category,
+      phone,
+      email,
+      whatsapp,
+      bookingUrl,
+      preferredChannel,
+      canContactAfterConfirmation,
+      address,
+      websiteUrl,
+      notes,
+      isTrusted,
+      isDefault,
+    }];
+  });
+}
+
+function providerMatches(provider: SavedProviderSummary, terms: string[]): boolean {
+  if (!savedProviderIsTrusted(provider) || !savedProviderContactReadiness(provider).conciergeUsable) return false;
+  const searchable = [provider.role, provider.category, provider.name]
+    .join(" ")
+    .toLowerCase();
+  return terms.some((term) => searchable.includes(term));
+}
+
+function hasCoverageInfo(consent: unknown): boolean {
+  const coverage = {
+    ...consentSection(consent, "insurance"),
+    ...consentSection(consent, "coverage"),
+  };
+  const coverageType = trimToNull(coverage.coverage_type) ?? trimToNull(coverage.type);
+  const hasMeaningfulType = Boolean(
+    coverageType && !["unknown", "not_sure", "not sure"].includes(coverageType.toLowerCase()),
+  );
+  return [
+    coverage.provider,
+    coverage.insurer,
+    coverage.company,
+    coverage.policy_number,
+    coverage.member_id,
+    coverage.plan,
+  ].some(hasText) || hasMeaningfulType;
+}
+
+function buildProfileServiceSignals(profile?: {
+  data_sharing_consent?: unknown;
+  email?: unknown;
+  phone_number?: unknown;
+  whatsapp_number?: unknown;
+  gp_name?: unknown;
+  gp_phone?: unknown;
+  gp_email?: unknown;
+} | null) {
+  const consent = profile?.data_sharing_consent;
+  const providers = savedProvidersFromConsent(consent);
+  const conditions = consentSection(consent, "conditions");
+  const hasSavedPharmacy = providers.some((provider) =>
+    providerMatches(provider, ["pharmacy", "drugstore", "chemist", "farmacia"]),
+  );
+  const hasSavedDoctor =
+    hasText(profile?.gp_name) ||
+    hasText(profile?.gp_phone) ||
+    hasText(profile?.gp_email) ||
+    providers.some((provider) =>
+      providerMatches(provider, ["doctor", "medical_clinic", "clinic", "hospital", "gp"]),
+    );
+  const hasSavedTransportProvider = providers.some((provider) =>
+    providerMatches(provider, ["taxi", "transport", "car_service", "ride", "driver"]),
+  );
+  const hasPreferredContactMethod =
+    hasText(profile?.phone_number) ||
+    hasText(profile?.whatsapp_number) ||
+    hasText(profile?.email);
+
+  return {
+    hasSavedPharmacy,
+    hasSavedDoctor,
+    hasSavedTransportProvider,
+    hasMobilityInfo: hasText(conditions.mobility_level),
+    hasCoverageInfo: hasCoverageInfo(consent),
+    hasPreferredContactMethod,
+    savedProviders: providers,
+  };
 }
 
 function hasUsableMedication(med: typeof userMedications.$inferSelect): boolean {
@@ -520,6 +695,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
     const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone) || hasText(profile?.gp_email);
+    const profileSignals = buildProfileServiceSignals(profile);
     const subscriptionSync = await syncProfileEntitlement({
       profile,
       profileId: profile?.id ?? userId,
@@ -552,6 +728,20 @@ router.get("/readiness", async (req: Request, res: Response) => {
       ...(!hasMedicationForServices ? [setupStep("medications", "Add medications so the doctor agent can consider them.")] : []),
       ...(!hasAllergies ? [setupStep("allergies", "Add allergies so recommendations stay safer.")] : []),
       ...(!hasGp ? [setupStep("gp", "Add GP details in case follow-up is needed.")] : []),
+    ];
+    const pharmacyMissing = [
+      setupStep("providers", "Add a saved pharmacy before VYVA helps with pharmacy items."),
+    ];
+    const appointmentMissing = [
+      ...(!hasBasics ? [setupStep("basics", "Add the user's basic details before VYVA handles appointment booking.")] : []),
+      ...(!hasContact ? [setupStep("basics", "Add a phone number, email, or WhatsApp before VYVA handles appointment booking.")] : []),
+    ];
+    const appointmentRecommended = [
+      ...(!hasHealthContext ? [setupStep("health", "Add health conditions so VYVA can prepare better appointment context.")] : []),
+      ...(!hasMedicationForServices ? [setupStep("medications", "Add medications so VYVA can mention them when relevant.")] : []),
+      ...(!hasAllergies ? [setupStep("allergies", "Add allergies so appointment notes stay safer.")] : []),
+      ...(!hasGp ? [setupStep("gp", "Add GP details if this should use a regular doctor.")] : []),
+      ...(!profileSignals.hasCoverageInfo ? [setupStep("insurance", "Add insurance or coverage details if appointments may depend on them.")] : []),
     ];
     const medicationGate = gate(hasMedicationForServices, medicationMissing);
     const voiceEnabled = true;
@@ -586,6 +776,13 @@ router.get("/readiness", async (req: Request, res: Response) => {
         hasHealthContext,
         hasAllergies,
         hasGp,
+        hasSavedPharmacy: profileSignals.hasSavedPharmacy,
+        hasSavedDoctor: profileSignals.hasSavedDoctor,
+        hasSavedTransportProvider: profileSignals.hasSavedTransportProvider,
+        hasMobilityInfo: profileSignals.hasMobilityInfo,
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+        hasPreferredContactMethod: profileSignals.hasPreferredContactMethod,
+        savedProviders: profileSignals.savedProviders,
       },
       services: {
         medications: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
@@ -596,6 +793,9 @@ router.get("/readiness", async (req: Request, res: Response) => {
         doctor: accountGate(accountEnabled, gate(hasBasics && hasContact, doctorMissing, doctorRecommended)),
         localServices: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
         specialistFinder: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
+        pharmacyOtc: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(profileSignals.hasSavedPharmacy, pharmacyMissing))),
+        transport: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(hasLocalAddress, addressMissing))),
+        medicalAppointments: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(hasBasics && hasContact, appointmentMissing, appointmentRecommended))),
         reports: accountGate(accountEnabled, gate(true, [])),
         concierge: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge")),
         socialRooms: accountGate(accountEnabled, gate(true, [])),
@@ -985,7 +1185,12 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
   }
 
-  const { support_mode, ...channelData } = parsed.data;
+  const {
+    support_mode,
+    preventive_web_push_enabled: _preventiveWebPushEnabled,
+    medication_refill_push_enabled: _medicationRefillPushEnabled,
+    ...channelData
+  } = parsed.data;
   const channelUpdates = Object.fromEntries(
     Object.entries(channelData).filter(([, value]) => value !== undefined),
   );
@@ -1061,6 +1266,70 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/coverage", async (req: Request, res: Response) => {
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const parsed = coveragePatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+  }
+
+  try {
+    const [profileRow] = await db
+      .select({ data_sharing_consent: profiles.data_sharing_consent })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    const currentConsent = objectRecord(profileRow?.data_sharing_consent);
+    const existingCoverage = objectRecord(currentConsent.coverage);
+    const now = new Date();
+    const provider = trimToNull(parsed.data.provider) ?? "";
+    const nextConsent = {
+      ...currentConsent,
+      coverage: {
+        ...existingCoverage,
+        coverage_type: parsed.data.coverageType,
+        provider,
+        insurer: provider,
+        member_id: trimToNull(parsed.data.memberId) ?? "",
+        plan: trimToNull(parsed.data.plan) ?? "",
+        notes: trimToNull(parsed.data.notes) ?? "",
+        source: "concierge_medical_booking",
+        updated_at: now.toISOString(),
+      },
+    };
+
+    await db
+      .insert(profiles)
+      .values({
+        id: userId,
+        data_sharing_consent: nextConsent,
+        updated_at: now,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          data_sharing_consent: nextConsent,
+          updated_at: now,
+        },
+      });
+
+    const profileSignals = buildProfileServiceSignals({ data_sharing_consent: nextConsent });
+    return res.json({
+      ok: true,
+      coverage: readCoverageSummary(nextConsent),
+      serviceReadiness: {
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+      },
+    });
+  } catch (error) {
+    console.error("[profile] failed to save coverage readiness", error);
+    return res.status(500).json({ error: "Unable to save coverage readiness" });
+  }
+});
+
 const profileSettingsSelection = {
   id: profiles.id,
   full_name: profiles.full_name,
@@ -1125,15 +1394,18 @@ router.get("/", async (req: Request, res: Response) => {
     const accountEmails = knownEmails(req.user?.email, accountRows[0]?.email, accountProfileRows[0]?.email);
     const accountEmail = accountEmails[0] ?? null;
     const nameParts = (p.full_name ?? "").trim().split(/\s+/);
-    const firstName = nameParts[0] ?? "";
+    const firstName = firstNameFromProfileName(p.preferred_name) || nameParts[0] || "";
     const lastName  = nameParts.slice(1).join(" ");
     const language = resolvedProfileLanguage(p);
+    const profileSignals = buildProfileServiceSignals(p);
+    const conditions = consentSection(p.data_sharing_consent, "conditions");
 
     return res.json({
       firstName,
       lastName,
       preferredName:    p.preferred_name ?? "",
       dateOfBirth:      p.date_of_birth ?? "",
+      livingSituation:  trimToNull(conditions.living_situation),
       gender:           readProfileGender(p.data_sharing_consent),
       email:            profileEmailForAccount(accountEmails, p.email) ?? "",
       accountEmail:     accountEmail ?? "",
@@ -1155,6 +1427,16 @@ router.get("/", async (req: Request, res: Response) => {
       gpPhone:          p.gp_phone ?? "",
       gpEmail:          p.gp_email ?? "",
       avatarUrl:        p.avatar_url ?? null,
+      savedProviders:   profileSignals.savedProviders,
+      coverage:         readCoverageSummary(p.data_sharing_consent),
+      serviceReadiness: {
+        hasSavedPharmacy: profileSignals.hasSavedPharmacy,
+        hasSavedDoctor: profileSignals.hasSavedDoctor,
+        hasSavedTransportProvider: profileSignals.hasSavedTransportProvider,
+        hasMobilityInfo: profileSignals.hasMobilityInfo,
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+        hasPreferredContactMethod: profileSignals.hasPreferredContactMethod,
+      },
     });
   } catch (err) {
     console.error("[profile GET]", err);

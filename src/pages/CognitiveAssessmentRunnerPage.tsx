@@ -952,7 +952,7 @@ function DigitSpanFields({
             </span>
           ))}
         </div>
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Number memory</p>
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Number Memory</p>
         <p className="mt-1 text-[18px] font-black leading-snug text-[#2f2135]">
           {isComplete
             ? "Digit span complete. You can continue."

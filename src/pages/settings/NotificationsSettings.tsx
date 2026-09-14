@@ -9,10 +9,13 @@ import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { friendlyError } from "@/lib/apiError";
 import { normalizeContactChannel, type ContactChannelId } from "@/lib/contactChannels";
+import { disablePreventiveWebPush, enablePreventiveWebPush } from "@/lib/preventiveWebPush";
+import { disableMedicationRefillPush, enableMedicationRefillPush } from "@/lib/medicationRefillPush";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type SupportMode = "ai_powered" | "human_supported";
@@ -27,6 +30,9 @@ type ChannelPreferences = {
   whatsapp_available_until: string;
   max_outbound_calls_per_day: number | null;
   max_whatsapp_messages_per_day: number | null;
+  concierge_task_notifications_enabled: boolean;
+  medication_refill_push_enabled: boolean;
+  preventive_web_push_enabled: boolean;
 };
 
 const DEFAULT_PREFERENCES: ChannelPreferences = {
@@ -39,6 +45,9 @@ const DEFAULT_PREFERENCES: ChannelPreferences = {
   whatsapp_available_until: "22:00",
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
+  preventive_web_push_enabled: false,
 };
 
 const SUPPORT_MODE_OPTIONS: Array<{
@@ -100,6 +109,15 @@ function normalizePreferences(data?: Partial<ChannelPreferences> | null): Channe
       data && "max_whatsapp_messages_per_day" in data
         ? data.max_whatsapp_messages_per_day ?? null
         : DEFAULT_PREFERENCES.max_whatsapp_messages_per_day,
+    concierge_task_notifications_enabled:
+      data?.concierge_task_notifications_enabled
+      ?? DEFAULT_PREFERENCES.concierge_task_notifications_enabled,
+    medication_refill_push_enabled:
+      data?.medication_refill_push_enabled
+      ?? DEFAULT_PREFERENCES.medication_refill_push_enabled,
+    preventive_web_push_enabled:
+      data?.preventive_web_push_enabled
+      ?? DEFAULT_PREFERENCES.preventive_web_push_enabled,
   };
 }
 
@@ -146,7 +164,7 @@ function SupportModePicker({
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-body text-[18px] font-black leading-tight text-vyva-text-1">{t(option.labelKey)}</p>
-              <p className="mt-1 font-body text-[14px] leading-snug text-vyva-text-2">{t(option.subKey)}</p>
+              <p className="sr-only">{t(option.subKey)}</p>
             </div>
             <div
               className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${
@@ -195,11 +213,69 @@ export default function NotificationsSettings() {
     onSuccess: (saved) => {
       setDraft(saved);
       queryClient.setQueryData(["/api/profile/channel-preferences"], saved);
-      toast({ title: t("settings.notifications.saved", "Preferences saved") });
+      toast({
+        title: t("settings.notifications.saved", "Preferences saved"),
+        description: t("settings.notifications.savedDesc", "Your notification preferences were updated."),
+      });
     },
     onError: (error) => {
       toast({
         title: t("settings.notifications.saveError", "Could not save preferences"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const preventiveWebPushMutation = useMutation({
+    mutationFn: async (enabled: boolean) => enabled ? enablePreventiveWebPush() : disablePreventiveWebPush(),
+    onSuccess: (status) => {
+      setDraft((current) => ({
+        ...current,
+        preventive_web_push_enabled: status.consentEnabled && status.subscribed,
+      }));
+      queryClient.setQueryData<Partial<ChannelPreferences> | null>(
+        ["/api/profile/channel-preferences"],
+        (current) => ({
+          ...normalizePreferences(current),
+          preventive_web_push_enabled: status.consentEnabled && status.subscribed,
+        }),
+      );
+      toast({
+        title: status.consentEnabled
+          ? t("settings.notifications.preventiveWebPushEnabled", "Daily check-in push enabled")
+          : t("settings.notifications.preventiveWebPushDisabled", "Daily check-in push disabled"),
+      });
+    },
+    onError: (error) => {
+      setDraft((current) => ({ ...current, preventive_web_push_enabled: false }));
+      toast({
+        title: t("settings.notifications.preventiveWebPushError", "Could not update daily check-in push"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const medicationRefillPushMutation = useMutation({
+    mutationFn: async (enabled: boolean) => enabled ? enableMedicationRefillPush() : disableMedicationRefillPush(),
+    onSuccess: (status) => {
+      const enabled = status.consentEnabled && status.subscribed;
+      setDraft((current) => ({ ...current, medication_refill_push_enabled: enabled }));
+      queryClient.setQueryData<Partial<ChannelPreferences> | null>(
+        ["/api/profile/channel-preferences"],
+        (current) => ({ ...normalizePreferences(current), medication_refill_push_enabled: enabled }),
+      );
+      toast({
+        title: enabled
+          ? t("settings.notifications.medicationRefillPushEnabled", "Medicine refill push enabled")
+          : t("settings.notifications.medicationRefillPushDisabled", "Medicine refill push disabled"),
+      });
+    },
+    onError: (error) => {
+      setDraft((current) => ({ ...current, medication_refill_push_enabled: false }));
+      toast({
+        title: t("settings.notifications.medicationRefillPushError", "Could not update refill push"),
         description: error instanceof Error ? error.message : undefined,
         variant: "destructive",
       });
@@ -222,7 +298,7 @@ export default function NotificationsSettings() {
     }));
   };
 
-  const isBusy = preferencesQuery.isLoading || saveMutation.isPending;
+  const isBusy = preferencesQuery.isLoading || saveMutation.isPending || preventiveWebPushMutation.isPending || medicationRefillPushMutation.isPending;
 
   return (
     <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/settings")}>
@@ -244,6 +320,81 @@ export default function NotificationsSettings() {
             {t("settings.notifications.loadError", "Could not load preferences")}
           </div>
         )}
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
+                {t("settings.notifications.medicationRefillPush", "Medicine refill push")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.medicationRefillPushHint",
+                  "Get one browser reminder per medicine when the estimated supply enters its refill window.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.medication_refill_push_enabled}
+              disabled={medicationRefillPushMutation.isPending}
+              onCheckedChange={(medication_refill_push_enabled) =>
+                medicationRefillPushMutation.mutate(medication_refill_push_enabled)
+              }
+              aria-label={t("settings.notifications.medicationRefillPush", "Medicine refill push")}
+              data-testid="switch-medication-refill-push"
+            />
+          </div>
+        </section>
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
+                {t("settings.notifications.conciergeUpdates", "Concierge task updates")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.conciergeUpdatesHint",
+                  "Show an alert when a provider replies or needs information.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.concierge_task_notifications_enabled}
+              disabled={preferencesQuery.isLoading}
+              onCheckedChange={(concierge_task_notifications_enabled) =>
+                setDraft((current) => ({ ...current, concierge_task_notifications_enabled }))
+              }
+              aria-label={t("settings.notifications.conciergeUpdates", "Concierge task updates")}
+              data-testid="switch-concierge-task-notifications"
+            />
+          </div>
+        </section>
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
+                {t("settings.notifications.preventiveWebPush", "Daily check-in push")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.preventiveWebPushHint",
+                  "Allow VYVA to send a browser notification that opens your daily wellbeing check-in.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.preventive_web_push_enabled}
+              disabled={preventiveWebPushMutation.isPending}
+              onCheckedChange={(preventive_web_push_enabled) =>
+                preventiveWebPushMutation.mutate(preventive_web_push_enabled)
+              }
+              aria-label={t("settings.notifications.preventiveWebPush", "Daily check-in push")}
+              data-testid="switch-preventive-web-push"
+            />
+          </div>
+        </section>
 
         <section className={settingsPanelClassName}>
           <p className={settingsKickerClassName}>

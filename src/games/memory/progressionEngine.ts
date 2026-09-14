@@ -1,8 +1,19 @@
 import { translate } from "@/i18n";
+import { BRAIN_COACH_MAX_LEVEL, clampBrainCoachLevel } from "../shared/brainCoachProgression";
 import type { LanguageCode } from "@/i18n/languages";
 import { getGameHistory, getRecentGameHistory } from "./gameStorage";
 import { getGameDefinition, getGameLevel, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
-import type { CognitiveDomain, GameResult, MemoryGameType, Recommendation } from "./types";
+import type {
+  CognitiveDomain,
+  GameResult,
+  MemoryGameType,
+  MemoryGameVariant,
+  Recommendation,
+  StoryDifficultyChoice,
+  StoryThemeChoice,
+  StoryThemeId,
+} from "./types";
+import { clampVisualMemoryLevel, VISUAL_MEMORY_MAX_LEVEL } from "./visualMemoryJourney";
 
 const DOMAIN_ROTATION: CognitiveDomain[] = [
   "visual_memory",
@@ -12,57 +23,221 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
 ];
 
 export const MEMORY_LEVEL_UP_ACCURACY = 80;
+export const VISUAL_MEMORY_ROUNDS_TO_ADVANCE = 1;
 
-function clampLevel(level: number) {
-  return Math.min(5, Math.max(1, level));
+export function applyStoryDifficultyChoice(adaptiveLevel: number, choice: StoryDifficultyChoice) {
+  const offset = choice === "gentle" ? -1 : choice === "stretch" ? 1 : 0;
+  return clampGameLevel(adaptiveLevel + offset, "story_recall");
 }
 
-export function getRepeatLevelForResult(currentLevel: number, accuracy: number) {
-  return clampLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
+function storyMetadata(result: GameResult) {
+  const metadata = result.metadata ?? {};
+  return {
+    storyId: typeof metadata.storyId === "string" ? metadata.storyId : null,
+    themeId: typeof metadata.themeId === "string" ? metadata.themeId as StoryThemeId : null,
+    adaptiveBaseline: Number(metadata.adaptiveBaseline),
+    scoringMode: typeof metadata.scoringMode === "string" ? metadata.scoringMode : "composite",
+  };
+}
+
+function storyVariantMetadata(variant: MemoryGameVariant) {
+  const payload = (variant.content.en ?? variant.content.es).payload;
+  return {
+    storyId: typeof payload.storyId === "string" ? payload.storyId : variant.id,
+    themeId: typeof payload.themeId === "string" ? payload.themeId as StoryThemeId : null,
+  };
+}
+
+export function pickStoryVariantForTheme(
+  history: GameResult[],
+  level: number,
+  themeChoice: StoryThemeChoice,
+  excludeStoryId?: string,
+) {
+  const variants = getGameLevel("story_recall", level).variants;
+  const eligible = themeChoice === "surprise"
+    ? variants
+    : variants.filter((variant) => storyVariantMetadata(variant).themeId === themeChoice);
+  const recentStoryIds = new Set(
+    sortNewestFirst(history)
+      .filter((result) => result.gameType === "story_recall")
+      .map((result) => storyMetadata(result).storyId ?? result.variantId),
+  );
+  const candidates = eligible.filter((variant) => storyVariantMetadata(variant).storyId !== excludeStoryId);
+  return candidates.find((variant) => !recentStoryIds.has(storyVariantMetadata(variant).storyId))
+    ?? candidates[0]
+    ?? eligible[0]
+    ?? variants[0];
+}
+
+export type VisualMemoryLevelProgress = {
+  completedRounds: number;
+  roundsRequired: number;
+  levelCompleted: boolean;
+  advanced: boolean;
+  nextLevel: number;
+};
+
+function getMaximumLevel(gameType?: MemoryGameType) {
+  if (!gameType) return BRAIN_COACH_MAX_LEVEL;
+  return getGameDefinition(gameType).levels.reduce((maximum, entry) => Math.max(maximum, entry.level), 1);
+}
+
+function clampGameLevel(level: number, gameType?: MemoryGameType) {
+  return Math.min(getMaximumLevel(gameType), Math.max(1, Math.round(level)));
+}
+
+export function getRepeatLevelForResult(currentLevel: number, accuracy: number, gameType?: MemoryGameType) {
+  return clampGameLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel, gameType);
+}
+
+function getConsecutiveVisualMemoryRounds(history: GameResult[], level: number) {
+  let rounds = 0;
+  const visualMemoryHistory = sortNewestFirst(history).filter((entry) => entry.gameType === "memory_match");
+
+  for (const entry of visualMemoryHistory) {
+    if (entry.level !== level) break;
+    rounds += 1;
+    if (rounds >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE) break;
+  }
+
+  return rounds;
+}
+
+export function getVisualMemoryLevelProgress(
+  history: GameResult[],
+  currentLevel: number,
+): VisualMemoryLevelProgress {
+  const level = clampVisualMemoryLevel(currentLevel);
+  const completedRounds = Math.min(
+    VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
+    getConsecutiveVisualMemoryRounds(history, level) + 1,
+  );
+  const levelCompleted = completedRounds >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE;
+  const advanced = levelCompleted && level < VISUAL_MEMORY_MAX_LEVEL;
+
+  return {
+    completedRounds,
+    roundsRequired: VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
+    levelCompleted,
+    advanced,
+    nextLevel: advanced ? clampVisualMemoryLevel(level + 1) : level,
+  };
 }
 
 function sortNewestFirst(results: GameResult[]) {
   return [...results].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
 }
 
+function getVariantThemeId(gameType: MemoryGameType, variantId?: string) {
+  if (!variantId) return null;
+  const variant = getGameDefinition(gameType).levels
+    .flatMap((level) => level.variants)
+    .find((entry) => entry.id === variantId);
+  const content = variant?.content.en ?? variant?.content.es;
+  return typeof content?.payload.themeId === "string" ? content.payload.themeId : null;
+}
+
 export function getRecommendedLevelForGame(history: GameResult[], gameType: MemoryGameType): number {
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
   if (gameHistory.length === 0) return 1;
+
+  if (gameType === "memory_match") {
+    const highestCompletedLevel = gameHistory.reduce(
+      (highest, entry) => Math.max(highest, entry.level),
+      1,
+    );
+    return clampVisualMemoryLevel(highestCompletedLevel + 1);
+  }
+
+  if (gameType === "story_recall") {
+    const latest = gameHistory[0];
+    const latestMetadata = storyMetadata(latest);
+    const adaptiveBaseline = Number.isFinite(latestMetadata.adaptiveBaseline)
+      ? clampGameLevel(latestMetadata.adaptiveBaseline, gameType)
+      : clampGameLevel(latest.level, gameType);
+    const eligible = gameHistory
+      .filter((entry) => storyMetadata(entry).scoringMode !== "quiz_fallback")
+      .slice(0, 3);
+    if (eligible.length === 0) return adaptiveBaseline;
+    const averageAccuracy = eligible.reduce((sum, entry) => sum + entry.accuracy, 0) / eligible.length;
+    if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampGameLevel(adaptiveBaseline + 1, gameType);
+    if (averageAccuracy < 50) return clampGameLevel(adaptiveBaseline - 1, gameType);
+    return adaptiveBaseline;
+  }
 
   const recent = gameHistory.slice(0, 3);
   const latestLevel = gameHistory[0].level;
   const averageAccuracy = recent.reduce((sum, entry) => sum + entry.accuracy, 0) / recent.length;
 
-  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampLevel(latestLevel + 1);
-  if (averageAccuracy < 50) return clampLevel(latestLevel - 1);
-  return clampLevel(latestLevel);
+  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampGameLevel(latestLevel + 1, gameType);
+  if (averageAccuracy < 50) return clampGameLevel(latestLevel - 1, gameType);
+  return clampGameLevel(latestLevel, gameType);
 }
 
-export function pickVariantForGame(history: GameResult[], gameType: MemoryGameType, level: number) {
+function pickRandomVariant<T>(variants: T[], random: () => number): T | undefined {
+  if (variants.length === 0) return undefined;
+  const index = Math.min(variants.length - 1, Math.floor(Math.max(0, random()) * variants.length));
+  return variants[index];
+}
+
+export function pickVariantForGame(history: GameResult[], gameType: MemoryGameType, level: number, random: () => number = Math.random) {
   const levelConfig = getGameLevel(gameType, level);
+  const sameGameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
+  const previousThemeId = getVariantThemeId(gameType, sameGameHistory[0]?.variantId);
   const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const recentVariantIds = new Set(
     history
       .filter((entry) => entry.gameType === gameType)
       .filter((entry) => new Date(entry.completedAt).getTime() >= recentCutoff)
-      .map((entry) => entry.variantId),
+      .flatMap((entry) => {
+        const roundVariants = Array.isArray(entry.metadata?.wordRecallVariantIds)
+          ? entry.metadata.wordRecallVariantIds.filter((value): value is string => typeof value === "string")
+          : [];
+        return [entry.variantId, ...roundVariants];
+      }),
   );
 
-  return levelConfig.variants.find((variant) => !recentVariantIds.has(variant.id)) ?? levelConfig.variants[0];
+  const freshThemeVariants = levelConfig.variants.filter((variant) => {
+    const content = variant.content.en ?? variant.content.es;
+    return content.payload.themeId !== previousThemeId;
+  });
+  const themeCandidates = freshThemeVariants.length > 0 ? freshThemeVariants : levelConfig.variants;
+  const unusedVariants = themeCandidates.filter((variant) => !recentVariantIds.has(variant.id));
+
+  return pickRandomVariant(unusedVariants.length > 0 ? unusedVariants : themeCandidates, random) ?? levelConfig.variants[0];
 }
 
-function pickNextVariantForSameGame(history: GameResult[], gameType: MemoryGameType, level: number, excludeVariantId?: string) {
+export function pickNextVariantForSameGame(
+  history: GameResult[],
+  gameType: MemoryGameType,
+  level: number,
+  excludeVariantId?: string,
+  random: () => number = Math.random,
+) {
   const levelConfig = getGameLevel(gameType, level);
   const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const sameGameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
   const recentVariantIds = new Set(
     sameGameHistory
       .filter((entry) => new Date(entry.completedAt).getTime() >= recentCutoff)
-      .map((entry) => entry.variantId),
+      .flatMap((entry) => {
+        const roundVariants = Array.isArray(entry.metadata?.wordRecallVariantIds)
+          ? entry.metadata.wordRecallVariantIds.filter((value): value is string => typeof value === "string")
+          : [];
+        return [entry.variantId, ...roundVariants];
+      }),
   );
 
+  const previousThemeId = getVariantThemeId(gameType, excludeVariantId ?? sameGameHistory[0]?.variantId);
   const availableVariants = levelConfig.variants.filter((variant) => variant.id !== excludeVariantId);
-  const unusedRecentVariant = availableVariants.find((variant) => !recentVariantIds.has(variant.id));
+  const freshThemeVariants = availableVariants.filter((variant) => {
+    const content = variant.content.en ?? variant.content.es;
+    return content.payload.themeId !== previousThemeId;
+  });
+  const candidates = freshThemeVariants.length > 0 ? freshThemeVariants : availableVariants;
+  const unusedRecentVariants = candidates.filter((variant) => !recentVariantIds.has(variant.id));
+  const unusedRecentVariant = pickRandomVariant(unusedRecentVariants, random);
   if (unusedRecentVariant) return unusedRecentVariant;
 
   const lastPlayedAt = new Map<string, number>();
@@ -72,13 +247,10 @@ function pickNextVariantForSameGame(history: GameResult[], gameType: MemoryGameT
     }
   });
 
-  return (
-    [...availableVariants].sort((a, b) => {
-      const timeA = lastPlayedAt.get(a.id) ?? 0;
-      const timeB = lastPlayedAt.get(b.id) ?? 0;
-      return timeA - timeB;
-    })[0] ?? levelConfig.variants[0]
-  );
+  const oldestPlayedAt = Math.min(...candidates.map((variant) => lastPlayedAt.get(variant.id) ?? 0));
+  const leastRecentlyPlayed = candidates.filter((variant) => (lastPlayedAt.get(variant.id) ?? 0) === oldestPlayedAt);
+
+  return pickRandomVariant(leastRecentlyPlayed, random) ?? levelConfig.variants[0];
 }
 
 function getNextDomain(lastDomain?: CognitiveDomain): CognitiveDomain {
@@ -120,11 +292,12 @@ export async function selectNextVariantForSameGame(
   gameType: MemoryGameType,
   language: LanguageCode,
   levelOverride?: number,
+  excludeVariantId?: string,
 ): Promise<Recommendation> {
   const history = await getGameHistory(userId);
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
   const level = levelOverride ?? getRecommendedLevelForGame(history, gameType);
-  const latestVariantId = gameHistory[0]?.variantId;
+  const latestVariantId = excludeVariantId ?? gameHistory[0]?.variantId;
   const variant = pickNextVariantForSameGame(history, gameType, level, latestVariantId);
 
   return {

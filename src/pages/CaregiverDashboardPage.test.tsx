@@ -311,9 +311,15 @@ const brainCoachPreviewPayload = {
 function mockApi(options: {
   brainCoachPermissions?: typeof fullBrainCoachPermissions;
   brainCoachSummary?: unknown;
+  refillsResponse?: unknown;
 } = {}) {
   const brainCoachPermissions = options.brainCoachPermissions ?? fullBrainCoachPermissions;
   const brainCoachSummary = options.brainCoachSummary ?? brainCoachPayload;
+  const refillsResponse = options.refillsResponse ?? {
+    permissions: { manage_inventory: false, receive_refill_alerts: false },
+    alerts: [],
+    medicines: [],
+  };
   let currentBrainCoachSettings = { ...brainCoachSettingsPayload };
   let currentDashboard = {
     ...dashboardPayload,
@@ -372,6 +378,9 @@ function mockApi(options: {
     if (path.includes("/api/caregiver/dashboard")) {
       return new Response(JSON.stringify(currentDashboard), { status: 200, headers: { "Content-Type": "application/json" } });
     }
+    if (path.includes("/api/meds/refills/")) {
+      return new Response(JSON.stringify(refillsResponse), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
 
     const payload = path.includes("/api/checkins/today")
       ? checkinPayload
@@ -407,6 +416,7 @@ function renderPage() {
           <Route path="/" element={<CaregiverDashboardPage />} />
           <Route path="/health/doctor" element={<LocationProbe />} />
           <Route path="/concierge" element={<LocationProbe />} />
+          <Route path="/onboarding/profile/emergency" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -419,6 +429,17 @@ afterEach(() => {
 });
 
 describe("CaregiverDashboardPage", () => {
+  it("keeps caregiver Welcome messaging paused", async () => {
+    mockApi();
+
+    renderPage();
+
+    await screen.findByText("Caregiver action center");
+
+    expect(screen.queryByTestId("caregiver-welcome-card")).not.toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.some(([input]) => String(input).includes("/api/welcome-module"))).toBe(false);
+  });
+
   it("shows the caregiver action center with the existing safety status and alert timeline", async () => {
     mockApi();
 
@@ -446,6 +467,16 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getByRole("link", { name: /call maria/i })).toHaveAttribute("href", "tel:+34600111222");
     expect(screen.getByTestId("caregiver-notes-card")).toHaveTextContent("Evening call went well");
     expect(screen.getByTestId("caregiver-notes-card")).toHaveTextContent("Karim");
+  });
+
+  it("keeps caregiver dashboard usable when refill permissions are absent", async () => {
+    mockApi({ refillsResponse: { alerts: [], medicines: [] } });
+
+    renderPage();
+
+    await screen.findByText("Caregiver action center");
+
+    expect(screen.queryByTestId("caregiver-refill-access")).not.toBeInTheDocument();
   });
 
   it("saves new caregiver notes to the caregiver dashboard API", async () => {

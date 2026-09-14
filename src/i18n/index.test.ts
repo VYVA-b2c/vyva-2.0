@@ -10,6 +10,7 @@ import {
   translate,
   LANGUAGE_STORAGE_KEY,
 } from "./index";
+import { HOME_FAST_HELP_REASON_FALLBACKS } from "../lib/contextualHomeFastHelp";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
 const SUPPORTED_TEST_LANGUAGES = ["en", "es", "fr", "de", "it", "pt"] as const;
@@ -144,7 +145,7 @@ describe("language persistence", () => {
 
   it("keeps the home-style Health page labels localized", () => {
     const expected = {
-      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "My Health Plan", "Fast help", "My Reports", "Visual Health Scan", "Find a Specialist"],
+      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "Longevity", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
       es: ["o explora un tema", "Mis sintomas", "Mi medicacion", "Mis signos vitales", "Mi plan de salud", "Ayuda rapida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
       fr: ["ou explorez un sujet", "Mes symptomes", "Mes medicaments", "Mes constantes", "Mon plan de sante", "Aide rapide", "Mes rapports", "Scan visuel de sante", "Trouver un specialiste"],
       de: ["oder ein Thema erkunden", "Meine Symptome", "Meine Medikamente", "Meine Vitalwerte", "Mein Gesundheitsplan", "Schnelle Hilfe", "Meine Berichte", "Visueller Gesundheitscheck", "Spezialisten finden"],
@@ -169,7 +170,7 @@ describe("language persistence", () => {
 
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
-      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent summaries", "Image review", "Right expert"],
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Longevity", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
       es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
       fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
       de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
@@ -250,12 +251,12 @@ describe("language persistence", () => {
 
   it("keeps medication service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Prepare refill", "Check interactions", "Doctor help"],
-      es: ["Preparar reposicion", "Revisar interacciones", "Ayuda medica"],
-      fr: ["Preparer le renouvellement", "Verifier interactions", "Aide medecin"],
-      de: ["Nachfullung vorbereiten", "Wechselwirkungen prufen", "Arzthilfe"],
-      it: ["Prepara rifornimento", "Controlla interazioni", "Aiuto medico"],
-      pt: ["Preparar reposicao", "Verificar interacoes", "Ajuda medica"],
+      en: ["Check refill need", "Check interactions", "Doctor help"],
+      es: ["Revisar necesidad de reposicion", "Revisar interacciones", "Ayuda medica"],
+      fr: ["Verifier le besoin de renouvellement", "Verifier interactions", "Aide medecin"],
+      de: ["Nachfuellbedarf pruefen", "Wechselwirkungen prufen", "Arzthilfe"],
+      it: ["Verifica la necessita di rifornimento", "Controlla interazioni", "Aiuto medico"],
+      pt: ["Verificar necessidade de reposicao", "Verificar interacoes", "Ajuda medica"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -267,14 +268,41 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps official medication update evidence and confirmation copy localized", () => {
+    const expectedTitles = {
+      en: "Medication updates",
+      es: "Actualizaciones de medicacion",
+      fr: "Actualites des medicaments",
+      de: "Medikamenten-Aktualisierungen",
+      it: "Aggiornamenti sui farmaci",
+      pt: "Atualizacoes de medicamentos",
+    } as const;
+
+    for (const [language, title] of Object.entries(expectedTitles)) {
+      const code = language as keyof typeof expectedTitles;
+      expect(translate(code, "meds.updates.title")).toBe(title);
+      expect(translate(code, "meds.updates.kind.recall")).not.toBe("meds.updates.kind.recall");
+      expect(translate(code, "meds.updates.kind.safety_warning")).not.toBe("meds.updates.kind.safety_warning");
+      expect(translate(code, "meds.updates.kind.availability_change")).not.toBe("meds.updates.kind.availability_change");
+      expect(translate(code, "meds.updates.kind.general_information")).not.toBe("meds.updates.kind.general_information");
+      expect(translate(code, "meds.updates.verification.not_verified")).not.toBe("meds.updates.verification.not_verified");
+      expect(translate(code, "meds.updates.verificationReason.formulation_unconfirmed")).not.toBe("meds.updates.verificationReason.formulation_unconfirmed");
+      expect(translate(code, "meds.updates.freshness.stale")).not.toBe("meds.updates.freshness.stale");
+      expect(translate(code, "meds.updates.openSource")).not.toBe("meds.updates.openSource");
+      expect(translate(code, "meds.updates.noMedicinesTitle")).not.toBe("meds.updates.noMedicinesTitle");
+      expect(translate(code, "meds.updates.confirmText")).not.toBe("meds.updates.confirmText");
+      expect(translate(code, "meds.updates.prepareAppointment")).not.toBe("meds.updates.prepareAppointment");
+    }
+  });
+
   it("keeps adherence report service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Medication help in one tap", "Prepare refill", "Medication appointment"],
-      es: ["Ayuda de medicacion en un toque", "Preparar reposicion", "Cita de medicacion"],
-      fr: ["Aide medicaments en un geste", "Preparer le renouvellement", "Rendez-vous medicaments"],
-      de: ["Medikamentenhilfe mit einem Tipp", "Nachfullung vorbereiten", "Medikamententermin"],
-      it: ["Aiuto farmaci in un tocco", "Prepara rifornimento", "Appuntamento farmaci"],
-      pt: ["Ajuda com medicacao num toque", "Preparar reposicao", "Consulta de medicacao"],
+      en: ["Medication help in one tap", "Check refill need", "Medication appointment"],
+      es: ["Ayuda de medicacion en un toque", "Revisar necesidad de reposicion", "Cita de medicacion"],
+      fr: ["Aide medicaments en un geste", "Verifier le besoin de renouvellement", "Rendez-vous medicaments"],
+      de: ["Medikamentenhilfe mit einem Tipp", "Nachfuellbedarf pruefen", "Medikamententermin"],
+      it: ["Aiuto farmaci in un tocco", "Verifica la necessita di rifornimento", "Appuntamento farmaci"],
+      pt: ["Ajuda com medicacao num toque", "Verificar necessidade de reposicao", "Consulta de medicacao"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -288,12 +316,12 @@ describe("language persistence", () => {
 
   it("keeps reports overview service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Review vitals", "Prepare refill", "Find transport"],
-      es: ["Acceso rapido a servicios", "Revisar constantes", "Preparar reposicion", "Buscar transporte"],
-      fr: ["Acces rapide aux services", "Voir constantes", "Renouvellement", "Trouver transport"],
-      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfullung", "Transport finden"],
-      it: ["Accesso rapido ai servizi", "Vedi parametri", "Rifornimento", "Trova trasporto"],
-      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Preparar reposicao", "Encontrar transporte"],
+      en: ["Fast service access", "Review vitals", "Check refill need", "Find transport"],
+      es: ["Acceso rapido a servicios", "Revisar constantes", "Revisar necesidad de reposicion", "Buscar transporte"],
+      fr: ["Acces rapide aux services", "Voir constantes", "Verifier le renouvellement", "Trouver transport"],
+      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfuellbedarf pruefen", "Transport finden"],
+      it: ["Accesso rapido ai servizi", "Vedi parametri", "Verifica rifornimento", "Trova trasporto"],
+      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Verificar necessidade de reposicao", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -386,7 +414,7 @@ describe("language persistence", () => {
 
   it("keeps specialist service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search specialists"],
+      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search local specialists"],
       es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
       fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
       de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],
@@ -424,6 +452,64 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "health.symptomCheck.report.shareWithDoctor"),
         translate(language as keyof typeof expected, "health.symptomCheck.report.noDoctorToShare"),
       ]).toEqual(labels);
+    }
+  });
+
+  it("localizes the completed voice-report recovery screen for every supported account language", () => {
+    const expected = {
+      en: ["Your check is complete", "Try loading again", "Open My Reports", "Done"],
+      es: ["Tu revisión ha terminado", "Intentar cargar de nuevo", "Abrir Mis informes", "Terminar"],
+      fr: ["Votre vérification est terminée", "Réessayer de charger", "Ouvrir Mes rapports", "Terminer"],
+      de: ["Ihre Prüfung ist abgeschlossen", "Erneut laden", "Meine Berichte öffnen", "Fertig"],
+      it: ["Il controllo è terminato", "Prova a caricare di nuovo", "Apri I miei rapporti", "Fine"],
+      pt: ["A sua verificação terminou", "Tentar carregar novamente", "Abrir Os meus relatórios", "Concluir"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.voiceReport.completeTitle"),
+        translate(language as keyof typeof expected, "health.symptomCheck.voiceReport.retry"),
+        translate(language as keyof typeof expected, "health.symptomCheck.voiceReport.openReports"),
+        translate(language as keyof typeof expected, "health.symptomCheck.voiceReport.done"),
+      ]).toEqual(labels);
+    }
+  });
+
+  it("keeps every French Ask Dr. AI surface shown in the canonical flow localized", () => {
+    const expected = {
+      "health.symptomCheck.intro.emergencyTitle": "N’attendez pas en cas d’urgence",
+      "health.symptomCheck.intro.emergencyCall": "Appeler les services d’urgence",
+      "health.symptomCheck.intro.emergencyContinue": "Continuer avec Dr AI",
+      "health.symptomCheck.presentation.severity.helper": "0 signifie aucune gêne. 10 correspond à l’intensité maximale imaginable.",
+      "health.symptomCheck.chat.continue": "Continuer",
+      "health.symptomCheck.chat.severityNone": "Aucune",
+      "health.symptomCheck.chat.severityWorst": "Intensité maximale imaginable",
+      "health.symptomCheck.chat.addQuickReading": "Ajouter une mesure rapide",
+      "health.symptomCheck.chat.optional": "Facultatif",
+      "health.symptomCheck.report.watchFor": "À surveiller",
+      "health.symptomCheck.report.resultDetails": "Détails du résultat",
+      "health.symptomCheck.report.resultDetailsSubCompact": "Raisons, contexte et partage",
+      "health.symptomCheck.report.returnToHealth": "Retour à Ma santé",
+      "health.symptomCheck.report.shareShort": "Partager",
+    } as const;
+
+    for (const [key, label] of Object.entries(expected)) {
+      expect(translate("fr", key)).toBe(label);
+    }
+  });
+
+  it("localizes the Ask Dr. AI flow title for every supported account language", () => {
+    const expected = {
+      en: "Ask Dr. AI",
+      es: "Pregunta al Dr. IA",
+      fr: "Demandez au Dr IA",
+      de: "Dr. KI fragen",
+      it: "Chiedi al Dr. IA",
+      pt: "Pergunte ao Dr. IA",
+    } as const;
+
+    for (const [language, label] of Object.entries(expected)) {
+      expect(translate(language as keyof typeof expected, "health.symptomCheck.title")).toBe(label);
     }
   });
 
@@ -543,6 +629,26 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps Show VYVA follow-up actions localized for supported account languages", () => {
+    const expected = {
+      en: ["Next safe step", "Next scam-safe step", "Check company", "Compare nearby"],
+      es: ["Siguiente paso seguro", "Siguiente paso contra estafas", "Revisar empresa", "Comparar cerca"],
+      fr: ["Prochaine etape sure", "Prochaine etape anti-arnaque", "Verifier entreprise", "Comparer proche"],
+      de: ["Nachster sicherer Schritt", "Nachster Betrugsschutz-Schritt", "Firma prufen", "Nahe vergleichen"],
+      it: ["Prossimo passo sicuro", "Prossimo passo anti-truffa", "Controlla azienda", "Confronta vicino"],
+      pt: ["Proximo passo seguro", "Proximo passo anti-burla", "Verificar empresa", "Comparar perto"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "showVyva.followUp.kicker"),
+        translate(language as keyof typeof expected, "showVyva.followUp.title.scam"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.check_company.label"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.compare_proximity.label"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps concierge card mobile labels compact across supported account languages", () => {
     const expected = {
       en: ["Help", "Ride", "Order", "Schedule"],
@@ -566,9 +672,37 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps contextual Home Fast Help reasons localized in every supported language", () => {
+    const reasonKeys = Object.keys(HOME_FAST_HELP_REASON_FALLBACKS);
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const reasonKey of reasonKeys) {
+        const key = `home.contextualFastHelp.reasons.${reasonKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
+    }
+  });
+
+  it("keeps Home Fast Help outcome copy localized in every supported language", () => {
+    const outcomeKeys = ["continue", "continueDetail", "blockedAlternative"];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const outcomeKey of outcomeKeys) {
+        const key = `home.contextualFastHelp.outcome.${outcomeKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
+    }
+  });
+
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
-      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "My Health Plan", "My Health Plan"],
+      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "Longevity", "Longevity"],
       es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Mi plan de salud", "Mi plan de salud"],
       fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Mon plan de sante", "Mon plan de sante"],
       de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Mein Gesundheitsplan", "Mein Gesundheitsplan"],
@@ -626,6 +760,43 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "settings.notifications.supportModeAi"),
         translate(language as keyof typeof expected, "settings.notifications.supportModeHuman"),
       ]).toEqual(labels);
+    }
+  });
+
+  it("keeps lesson read-aloud controls localized for every supported app language", () => {
+    const keys = [
+      "learn.readAloud.play",
+      "learn.readAloud.pause",
+      "learn.readAloud.resume",
+      "learn.readAloud.replay",
+      "learn.readAloud.stop",
+      "learn.readAloud.unavailableDetail",
+      "learn.readAloud.reflectionIntro",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
+    }
+  });
+
+  it("keeps the Concierge ride Canvas localized for every supported app language", () => {
+    const keys = [
+      "voiceCanvas.ride.destinationTitle",
+      "voiceCanvas.ride.pickupTitle",
+      "voiceCanvas.ride.timeTitle",
+      "voiceCanvas.ride.mobilityTitle",
+      "voiceCanvas.ride.providerTitle",
+      "voiceCanvas.ride.confirmTitle",
+      "voiceCanvas.ride.confirmContact",
+      "voiceCanvas.ride.completedTitle",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
     }
   });
 

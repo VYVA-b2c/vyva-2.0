@@ -2,10 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import AppShell, { SosSheet } from "./AppShell";
+import {
+  buildVoiceActionRouteState,
+  emergencyProfileContactFromState,
+  getAppShellLayout,
+  isBrainCoachAppRoute,
+  usesBrainCoachDocklessRoute,
+} from "./appShellUtils";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppAction,
 } from "@/lib/voiceNavigation";
@@ -32,6 +40,11 @@ const voiceActionState = vi.hoisted(() => ({
   activeAction: null as VoiceAppAction | null,
   completeActiveAction: vi.fn(),
   dismissActiveAction: vi.fn(),
+}));
+
+const voiceCanvasState = vi.hoisted(() => ({
+  activeScene: null as import("@/lib/voiceCanvasBridge").VoiceCanvasSceneEnvelope | null,
+  submitResponse: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -70,8 +83,22 @@ vi.mock("@/contexts/VoiceActionContext", () => ({
   }),
 }));
 
+vi.mock("@/contexts/VoiceCanvasContext", () => ({
+  useVoiceCanvasContext: () => ({
+    activeScene: voiceCanvasState.activeScene,
+    submitResponse: voiceCanvasState.submitResponse,
+  }),
+}));
+
 vi.mock("./StatusBar", () => ({
-  default: () => <div data-testid="status-bar" />,
+  default: ({ variant, wide, autoHideHomeControls }: { variant?: string; wide?: boolean; autoHideHomeControls?: boolean }) => (
+    <div
+      data-testid="status-bar"
+      data-variant={variant}
+      data-wide={wide ? "true" : "false"}
+      data-auto-hide-home-controls={autoHideHomeControls === undefined ? "unset" : String(autoHideHomeControls)}
+    />
+  ),
 }));
 
 vi.mock("./BottomNav", () => ({
@@ -87,8 +114,13 @@ vi.mock("./MotivationMilestoneProvider", () => ({
 }));
 
 vi.mock("./VoiceCallOverlay", () => ({
-  default: ({ onEnd, onMinimize }: { onEnd: () => void; onMinimize?: () => void }) => (
+  default: ({ onEnd, onMinimize, canvasViewModel }: {
+    onEnd: () => void;
+    onMinimize?: () => void;
+    canvasViewModel?: { title: string } | null;
+  }) => (
     <div data-testid="voice-call-overlay">
+      {canvasViewModel ? <div data-testid="voice-canvas-surface">{canvasViewModel.title}</div> : null}
       {onMinimize && (
         <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
           Minimize
@@ -168,21 +200,295 @@ describe("SOS service actions", () => {
 describe("app shell route layout", () => {
   it.each([
     ["/", "wide"],
+    ["/menu", "wide"],
     ["/settings/account", "wide"],
     ["/health/symptom-check", "wide"],
     ["/health/vitals", "vitals"],
+    ["/dev/home-master/vitals", "vitals"],
     ["/social-rooms/music-room", "wide"],
     ["/companions", "wide"],
+    ["/benefits", "wide"],
+    ["/dev/benefits", "wide"],
     ["/concierge/shopping", "wide"],
     ["/senses", "wide"],
+    ["/brain-coach/remember", "wide"],
     ["/chat", "fullscreen"],
     ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
     ["/attention-boosters/rhythm-tap", "fullscreen"],
+    ["/dual-task-walk", "fullscreen"],
     ["/profiles/select", "compact"],
     ["/onboarding/profile/health", "compact"],
   ] as const)("classifies %s as %s", (pathname, layout) => {
     expect(getAppShellLayout(pathname)).toBe(layout);
+  });
+
+  it.each([
+    "/mind-memory",
+    "/mind-memory/cognitive-assessment",
+    "/brain-coach/remember",
+    "/brain-coach/focus",
+    "/brain-coach/think",
+    "/brain-coach/calm",
+    "/brain-coach/activity/listen_closely",
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("treats %s as a Brain Coach route", (pathname) => {
+    expect(isBrainCoachAppRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/brain-coach/activity/listen_closely",
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("removes the global bottom dock on Brain Coach module route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/mind-memory/cognitive-assessment",
+    "/mind-memory",
+    "/brain-coach/remember",
+    "/brain-coach/focus",
+    "/brain-coach/think",
+    "/brain-coach/calm",
+  ])("keeps the global bottom dock available on canonical Brain Coach route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
+  });
+
+  it("shows the bottom dock on the canonical Brain Coach main menu", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
+        <AppShell>
+          <div>Brain menu</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("gives Benefits its own topbar and keeps its B2C surface light", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/benefits"]}>
+        <AppShell>
+          <div>Benefits content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("hides the bottom dock inside Brain Coach module hubs", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games"]}>
+        <AppShell>
+          <div>Memory module</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["/mind-memory", false],
+    ["/brain-coach/remember", false],
+    ["/brain-coach/activity/remember_later", true],
+    ["/memory-games", true],
+    ["/dev/home-master/brain", false],
+    ["/dev/brain/remember", false],
+    ["/dev/brain/focus", false],
+    ["/dev/brain/think", false],
+    ["/dev/brain/calm", false],
+    ["/dev/brain/activity/remember_later", false],
+    ["/dev/brain/memory-games/memory_match", false],
+    ["/dev/brain/attention-boosters/rhythm-tap", false],
+    ["/dev/remember-later", false],
+    ["/mind-memory/cognitive-assessment", false],
+  ] as const)("starts the owned Brain Coach surface flush with the viewport on %s", (path, dockless) => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+        <AppShell>
+          <div>Brain Coach page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const content = screen.getByTestId("app-shell-scroll");
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+    expect(content).toHaveClass("pt-0");
+    expect(content).not.toHaveClass("pt-6");
+    expect(content).toHaveClass(dockless ? "pb-0" : "pb-[112px]");
+  });
+
+  it("uses the full current prototype surface for development Brain Coach hubs", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/brain/focus"]}>
+        <AppShell>
+          <div>Focus hub</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell.className).toContain("max-w-none");
+    expect(shell.className).toContain(
+      "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]",
+    );
+  });
+
+  it.each([
+    "/menu",
+    "/health",
+    "/health/symptom-check",
+    "/health/vitals",
+    "/health/prevention",
+    "/dev/home-master/menu",
+    "/dev/home-master/health",
+    "/dev/home-master/brain",
+    "/dev/home-master/community",
+    "/dev/home-master/concierge",
+    "/dev/home-master/reports",
+    "/dev/home-master/check-in",
+    "/dev/home-master/health-plan",
+    "/dev/home-master/symptom-report",
+    "/dev/home-master/symptom-warning",
+    "/dev/home-master/ask-dr-ai",
+    "/dev/home-master/ask-dr-ai-checking",
+    "/dev/home-master/ask-dr-ai-next",
+    "/dev/home-master/vitals",
+    "/dev/home-master/medicines",
+    "/informes/report-1",
+  ])(
+    "lets %s own the prototype topbar instead of rendering the global status surface",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Menu page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+      const shell = screen.getByTestId("app-shell");
+      const content = screen.getByText("Menu page content").closest("main");
+      if (
+        path === "/menu" ||
+        path === "/health" ||
+        path === "/health/symptom-check" ||
+        path === "/health/vitals" ||
+        path === "/dev/home-master/vitals" ||
+        path === "/dev/home-master/symptom-report" ||
+        path === "/dev/home-master/symptom-warning" ||
+        path.startsWith("/dev/home-master/ask-dr-ai")
+      ) {
+        expect(content).toHaveClass("h-[100svh]", "min-h-0", "[scrollbar-gutter:stable_both-edges]");
+        expect(content).not.toHaveClass("min-h-screen");
+      }
+      if (path === "/health/vitals" || path === "/dev/home-master/vitals") {
+        expect(shell.className).toContain("max-w-[1180px]");
+        expect(shell.className).toContain(
+          path.startsWith("/dev/home-master")
+            ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
+            : "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]",
+        );
+      } else if (path === "/health/prevention" || path.startsWith("/informes/")) {
+        expect(shell.className).toContain("max-w-[920px]");
+        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");
+      } else if (path.startsWith("/dev/home-master")) {
+        expect(shell.className).toContain("max-w-none");
+        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]");
+      } else {
+        expect(shell.className).toContain("max-w-[430px]");
+        expect(shell.className).toContain("md:max-w-[720px]");
+        expect(shell.className).toContain("lg:max-w-[960px]");
+        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");
+      }
+    },
+  );
+
+  it.each([
+    "/settings/account",
+    "/health/check-in",
+    "/dev/home-master/check-in",
+    "/dev/home-master/medicines",
+  ])(
+    "hides the prototype dock on %s",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Focused page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(["/health/vitals", "/dev/home-master/vitals"])(
+    "uses the canonical single-header shell and shared dock on %s",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Vitals page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+      expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+      expect(screen.getByText("Vitals page content").closest("main")).toHaveClass(
+        "h-[100svh]",
+        "min-h-0",
+        "[scrollbar-gutter:stable_both-edges]",
+      );
+    },
+  );
+
+  it("keeps the shared prototype dock on the canonical longevity plan", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/home-master/health-plan"]}>
+        <AppShell>
+          <div>Longevity plan content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("keeps the shared prototype dock on the canonical symptom report", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/home-master/symptom-report"]}>
+        <AppShell>
+          <div>Symptom report content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 });
 
@@ -236,15 +542,17 @@ describe("app shell voice dock", () => {
     voiceActionState.activeAction = null;
     voiceActionState.completeActiveAction.mockClear();
     voiceActionState.dismissActiveAction.mockClear();
+    voiceCanvasState.activeScene = null;
+    voiceCanvasState.submitResponse.mockClear();
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
-    renderShell();
+    renderShell("/settings");
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Hello Karim");
-    expect(screen.getByTestId("button-dock-toggle-mic")).toHaveAttribute("title", "Mic on");
+    expect(screen.queryByTestId("button-dock-toggle-mic")).not.toBeInTheDocument();
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-open-voice-overlay"));
@@ -259,17 +567,65 @@ describe("app shell voice dock", () => {
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
   });
 
-  it("uses compact copy when VYVA is speaking from the dock", () => {
+  it("lets the Home orb own active voice sessions without rendering the shell dock", () => {
+    renderShell("/");
+
+    expect(screen.queryByTestId("voice-session-dock")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-open-voice-overlay")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-dock-toggle-mic")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("lets the dev Home master topbar own visual controls for regression", () => {
+    renderShell("/dev/home-master");
+
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+  });
+
+  it("keeps Concierge voice canvas work compact and non-blocking", async () => {
+    voiceCanvasState.activeScene = {
+      owner: "concierge_ride",
+      revision: 1,
+      viewModel: {
+        sceneId: "ride-destination",
+        kind: "place",
+        title: "Where are you going?",
+      },
+    };
+
+    renderShell("/concierge");
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell).toHaveAttribute("data-layout", "wide");
+    expect(shell.className).toContain("max-w-[920px]");
+    expect(shell.className).not.toContain("lg:max-w-[980px]");
+    expect(screen.getByText("Page content")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-canvas-surface")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(screen.getByText("Page content")).toBeVisible();
+    expect(screen.getByTestId("voice-session-dock")).toHaveAttribute("data-variant", "home-stop");
+
+    fireEvent.click(screen.getByTestId("button-dock-end-call"));
+
+    expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses compact active voice copy on prototype dock routes", () => {
     voiceState.isSpeaking = true;
     voiceState.voiceSessionPhase = "speaking";
     voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
 
-    renderShell();
+    renderShell("/mind-memory");
 
     const dock = screen.getByTestId("voice-session-dock");
-    expect(dock).toHaveTextContent("Speaking");
+    expect(dock).toHaveAttribute("data-variant", "home-stop");
+    expect(dock).toHaveClass("min-h-[44px]");
+    expect(dock.parentElement).toHaveClass("right-3", "sm:inset-x-0");
+    expect(dock).toHaveTextContent("Voice on");
+    expect(dock).not.toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");
-    expect(dock).toHaveTextContent("Try naming three things");
+    expect(dock).not.toHaveTextContent("Try naming three things");
+    expect(screen.getByTestId("button-dock-end-call")).toBeInTheDocument();
   });
 
   it("ignores punctuation-only voice transcript events", () => {
@@ -313,6 +669,82 @@ describe("app shell voice dock", () => {
         route: "/mind-memory",
       });
     } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("turns a broad Health transcript into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Mi salud",
+          transcriptEntry: { from: "user", text: "Mi salud", timestamp: 3 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("turns natural broad Health speech into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+
+    try {
+      renderShell("/dev/home-master");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Quiero ayuda con mi salud",
+          transcriptEntry: { from: "user", text: "Quiero ayuda con mi salud", timestamp: 4 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    }
+  });
+
+  it.each([
+    ["Mi salud", "health"],
+    ["My mind", "mind"],
+    ["Ma communaut\u00e9", "community"],
+    ["Mein Concierge", "concierge"],
+  ])("turns the broad %s transcript into the matching Home intent", (text, intent) => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text,
+          transcriptEntry: { from: "user", text, timestamp: 5 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe(intent);
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
       window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
     }
   });

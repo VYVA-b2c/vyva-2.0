@@ -29,6 +29,16 @@ export const TIER_SETTINGS = [
   { tier: 8, roundType: "time_based", duration: 85, items: 45, interval: 1800, tolerance: 6 },
   { tier: 9, roundType: "dual", duration: 95, items: 50, interval: 1750, tolerance: 8, responseWindow: 3 },
   { tier: 10, roundType: "dual", duration: 110, items: 55, interval: 1850, tolerance: 5, responseWindow: 2 },
+  { tier: 11, roundType: "dual", duration: 100, items: 52, interval: 1700, tolerance: 7, responseWindow: 3 },
+  { tier: 12, roundType: "dual", duration: 105, items: 54, interval: 1650, tolerance: 7, responseWindow: 3 },
+  { tier: 13, roundType: "dual", duration: 110, items: 56, interval: 1600, tolerance: 6, responseWindow: 2 },
+  { tier: 14, roundType: "dual", duration: 115, items: 58, interval: 1550, tolerance: 6, responseWindow: 2 },
+  { tier: 15, roundType: "dual", duration: 120, items: 60, interval: 1500, tolerance: 5, responseWindow: 2 },
+  { tier: 16, roundType: "dual", duration: 120, items: 62, interval: 1450, tolerance: 5, responseWindow: 2 },
+  { tier: 17, roundType: "dual", duration: 125, items: 64, interval: 1400, tolerance: 4, responseWindow: 2 },
+  { tier: 18, roundType: "dual", duration: 125, items: 66, interval: 1350, tolerance: 4, responseWindow: 2 },
+  { tier: 19, roundType: "dual", duration: 130, items: 68, interval: 1300, tolerance: 4, responseWindow: 1 },
+  { tier: 20, roundType: "dual", duration: 130, items: 70, interval: 1250, tolerance: 3, responseWindow: 1 },
 ];
 
 function deterministicUuid(input) {
@@ -261,7 +271,7 @@ function validateRound(row) {
 }
 
 export function validateRounds(rows) {
-  assert(rows.length === 200, `Expected 200 Remember Later rounds, got ${rows.length}.`);
+  assert(rows.length === 400, `Expected 400 Remember Later rounds, got ${rows.length}.`);
 
   TIER_SETTINGS.forEach((settings) => {
     const tierRows = rows.filter((row) => row.difficulty_tier === settings.tier);
@@ -304,7 +314,7 @@ export function generateSql(rows = buildRememberLaterRounds()) {
 create table if not exists public.remember_later_rounds (
   id uuid primary key default gen_random_uuid(),
   round_type text not null check (round_type in ('event_based', 'time_based', 'dual')),
-  difficulty_tier integer not null check (difficulty_tier between 1 and 10),
+  difficulty_tier integer not null check (difficulty_tier between 1 and 20),
   round_duration_seconds integer not null,
   ongoing_task_rule text not null check (
     ongoing_task_rule in (
@@ -331,7 +341,7 @@ create table if not exists public.remember_later_sessions (
   user_id uuid not null references auth.users(id) on delete cascade,
   played_at timestamptz not null default now(),
   round_id uuid references public.remember_later_rounds(id),
-  difficulty_tier integer not null check (difficulty_tier between 1 and 10),
+  difficulty_tier integer not null check (difficulty_tier between 1 and 20),
   round_type text not null check (round_type in ('event_based', 'time_based', 'dual')),
   ongoing_correct integer not null default 0,
   ongoing_total integer not null default 0,
@@ -351,7 +361,7 @@ create table if not exists public.remember_later_sessions (
 
 create table if not exists public.remember_later_user_state (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  current_tier integer not null default 1 check (current_tier between 1 and 10),
+  current_tier integer not null default 1 check (current_tier between 1 and 20),
   sessions_at_tier integer not null default 0,
   consecutive_wins integer not null default 0,
   consecutive_losses integer not null default 0,

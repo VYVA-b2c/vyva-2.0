@@ -10,6 +10,16 @@ import { displayFirstName } from "@/lib/displayIdentity";
 interface ProfileData {
   firstName: string;
   lastName: string;
+  preferredName?: string | null;
+  fullName?: string | null;
+  displayName?: string | null;
+  name?: string | null;
+  first_name?: string | null;
+  full_name?: string | null;
+  preferred_name?: string | null;
+  display_name?: string | null;
+  dateOfBirth?: string | null;
+  livingSituation?: string | null;
   email: string;
   phone: string;
   country: string;
@@ -27,6 +37,27 @@ interface ProfileData {
   gpPhone?: string;
   gpEmail?: string;
   gender?: string;
+  savedProviders?: Array<{
+    name?: string | null;
+    role?: string | null;
+    category?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+    websiteUrl?: string | null;
+    notes?: string | null;
+    isTrusted?: boolean;
+    isDefault?: boolean;
+  }>;
+  serviceReadiness?: {
+    hasSavedPharmacy?: boolean;
+    hasSavedDoctor?: boolean;
+    hasSavedTransportProvider?: boolean;
+    hasMobilityInfo?: boolean;
+    hasCoverageInfo?: boolean;
+    hasPreferredContactMethod?: boolean;
+  };
 }
 
 interface ProfileContextValue {
@@ -67,6 +98,25 @@ function normalizeProfileLanguage(language?: string | null): LanguageCode | null
   return languageAliases[normalized] ?? null;
 }
 
+function firstNameFromDisplayValue(value: string | null | undefined): string {
+  const name = displayFirstName(value);
+  return name.split(/\s+/)[0] ?? "";
+}
+
+function resolveProfileFirstName(profile: ProfileData | null | undefined): string {
+  return (
+    firstNameFromDisplayValue(profile?.preferredName) ||
+    firstNameFromDisplayValue(profile?.preferred_name) ||
+    firstNameFromDisplayValue(profile?.firstName) ||
+    firstNameFromDisplayValue(profile?.first_name) ||
+    firstNameFromDisplayValue(profile?.fullName) ||
+    firstNameFromDisplayValue(profile?.full_name) ||
+    firstNameFromDisplayValue(profile?.displayName) ||
+    firstNameFromDisplayValue(profile?.display_name) ||
+    firstNameFromDisplayValue(profile?.name)
+  );
+}
+
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   const { language, source, revision } = useLanguage();
@@ -79,7 +129,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     refetchOnWindowFocus: "always",
   });
 
-  const firstName = displayFirstName(profile?.firstName);
+  const firstName = resolveProfileFirstName(profile);
   const lastName = profile?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "";
   const initials =
@@ -130,4 +180,8 @@ export function useProfile(): ProfileContextValue {
   const ctx = useContext(ProfileContext);
   if (!ctx) throw new Error("useProfile must be used inside <ProfileProvider>");
   return ctx;
+}
+
+export function useOptionalProfile(): ProfileContextValue | null {
+  return useContext(ProfileContext);
 }

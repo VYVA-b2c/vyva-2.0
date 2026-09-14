@@ -7,7 +7,13 @@ import { eq } from "drizzle-orm";
 import medsAdherenceRouter from "../routes/medsAdherence.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { db } from "../db.js";
-import { medicationAdherence, userMedications } from "../../shared/schema.js";
+import {
+  interactionFlagDismissals,
+  medicationAdherence,
+  myMedicines,
+  myMedicinesChangeLog,
+  userMedications,
+} from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -21,6 +27,9 @@ const app = buildApp();
 const TEST_USER_ID = randomUUID();
 
 async function cleanupUser(userId: string) {
+  await db.delete(interactionFlagDismissals).where(eq(interactionFlagDismissals.user_id, userId));
+  await db.delete(myMedicinesChangeLog).where(eq(myMedicinesChangeLog.user_id, userId));
+  await db.delete(myMedicines).where(eq(myMedicines.user_id, userId));
   await db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId));
   await db.delete(userMedications).where(eq(userMedications.user_id, userId));
 }

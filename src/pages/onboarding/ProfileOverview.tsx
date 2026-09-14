@@ -4,24 +4,29 @@ import { useTranslation } from "react-i18next";
 import {
   User, Phone, Heart, Pill, AlertTriangle, Stethoscope,
   Building2, Users, ShieldAlert, Lock, CreditCard, Star,
-  CheckCircle2, UserCheck, Sparkles,
+  CheckCircle2, UserCheck, Mic, ArrowLeft, Smartphone, Utensils, Brain,
 } from "lucide-react";
+import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
 import { SectionCard } from "@/components/onboarding/SectionCard";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { deriveCompletedSections } from "@/lib/profileCompletion";
 
-const SECTIONS = [
-  { id: "basics",       icon: User,        iconBg: "#EDE9FE", iconColor: "#6B21A8", titleKey: "profile.overview.sections.basics.title",        descriptionKey: "profile.overview.sections.basics.description",        benefitKey: "profile.overview.sections.basics.benefit",        path: "/onboarding/profile/basics",       ready: true },
-  { id: "contact",      icon: Phone,       iconBg: "#F0FDFA", iconColor: "#0F766E", titleKey: "profile.overview.sections.contact.title",       descriptionKey: "profile.overview.sections.contact.description",       benefitKey: "profile.overview.sections.contact.benefit",       path: "/onboarding/profile/address",      ready: true },
-  { id: "health",       icon: Heart,       iconBg: "#FDF2F8", iconColor: "#B0355A", titleKey: "profile.overview.sections.health.title",        descriptionKey: "profile.overview.sections.health.description",        benefitKey: "profile.overview.sections.health.benefit",        path: "/onboarding/profile/health",       ready: true },
-  { id: "medications",  icon: Pill,        iconBg: "#ECFDF5", iconColor: "#0A7C4E", titleKey: "profile.overview.sections.medications.title",   descriptionKey: "profile.overview.sections.medications.description",   benefitKey: "profile.overview.sections.medications.benefit",   path: "/onboarding/profile/medications",  ready: true },
-  { id: "allergies",    icon: AlertTriangle,iconBg:"#FEF3C7", iconColor: "#C9890A", titleKey: "profile.overview.sections.allergies.title",     descriptionKey: "profile.overview.sections.allergies.description",     benefitKey: "profile.overview.sections.allergies.benefit",     path: "/onboarding/profile/allergies",    ready: true },
-  { id: "gp",           icon: Stethoscope, iconBg: "#EFF6FF", iconColor: "#1D4ED8", titleKey: "profile.overview.sections.gp.title",           descriptionKey: "profile.overview.sections.gp.description",           benefitKey: "profile.overview.sections.gp.benefit",           path: "/onboarding/profile/gp",           ready: true },
-  { id: "providers",    icon: Building2,   iconBg: "#F5F3FF", iconColor: "#6B21A8", titleKey: "profile.overview.sections.providers.title",     descriptionKey: "profile.overview.sections.providers.description",     benefitKey: "profile.overview.sections.providers.benefit",     path: "/onboarding/profile/providers",    ready: true },
-  { id: "care-team",    icon: Users,       iconBg: "#F0FDFA", iconColor: "#0F766E", titleKey: "profile.overview.sections.careTeam.title",      descriptionKey: "profile.overview.sections.careTeam.description",      benefitKey: "profile.overview.sections.careTeam.benefit",      path: "/onboarding/profile/care-team",    ready: true },
-  { id: "hobbies",      icon: Star,        iconBg: "#FFF7ED", iconColor: "#C2410C", titleKey: "profile.overview.sections.hobbies.title",       descriptionKey: "profile.overview.sections.hobbies.description",       benefitKey: "profile.overview.sections.hobbies.benefit",       path: "/onboarding/profile/hobbies",      ready: true },
-  { id: "emergency",    icon: ShieldAlert, iconBg: "#FEF2F2", iconColor: "#B91C1C", titleKey: "profile.overview.sections.emergency.title",     descriptionKey: "profile.overview.sections.emergency.description",     benefitKey: "profile.overview.sections.emergency.benefit",     path: "/onboarding/profile/emergency",    ready: true },
-  { id: "privacy",      icon: Lock,        iconBg: "#F5F3FF", iconColor: "#6B21A8", titleKey: "profile.overview.sections.privacy.title",       descriptionKey: "profile.overview.sections.privacy.description",       benefitKey: "profile.overview.sections.privacy.benefit",       path: "/settings/privacy",                ready: true },
-  { id: "subscription", icon: CreditCard,  iconBg: "#FEF3C7", iconColor: "#C9890A", titleKey: "profile.overview.sections.subscription.title",  descriptionKey: "profile.overview.sections.subscription.description",  benefitKey: "profile.overview.sections.subscription.benefit",  path: "/settings/subscription",           ready: true },
+export const PROFILE_OVERVIEW_SECTIONS = [
+  { id: "basics",       icon: User,        iconBg: "#EDE9FE", iconColor: "#6B21A8", titleKey: "profile.overview.sections.basics.title",        titleFallback: "Basic details",        descriptionKey: "profile.overview.sections.basics.description",        descriptionFallback: "Name, contact details, and preferences VYVA should remember.",        benefitKey: "profile.overview.sections.basics.benefit",        benefitFallback: "Personalised help",       path: "/onboarding/profile/basics",       ready: true, countsTowardProfile: true },
+  { id: "contact",      icon: Phone,       iconBg: "#F0FDFA", iconColor: "#0F766E", titleKey: "profile.overview.sections.contact.title",       titleFallback: "Home address",         descriptionKey: "profile.overview.sections.contact.description",       descriptionFallback: "Where VYVA should anchor local help and practical support.",        benefitKey: "profile.overview.sections.contact.benefit",       benefitFallback: "Local context",           path: "/onboarding/profile/address",      ready: true, countsTowardProfile: true },
+  { id: "health",       icon: Heart,       iconBg: "#FDF2F8", iconColor: "#B0355A", titleKey: "profile.overview.sections.health.title",        titleFallback: "Health profile",       descriptionKey: "profile.overview.sections.health.description",        descriptionFallback: "Known conditions and support context for safer conversations.",      benefitKey: "profile.overview.sections.health.benefit",        benefitFallback: "Safer support",           path: "/onboarding/profile/health",       ready: true, countsTowardProfile: true },
+  { id: "medications",  icon: Pill,        iconBg: "#ECFDF5", iconColor: "#0A7C4E", titleKey: "profile.overview.sections.medications.title",   titleFallback: "Medications",          descriptionKey: "profile.overview.sections.medications.description",   descriptionFallback: "Medicines and routines to help VYVA support reminders.",             benefitKey: "profile.overview.sections.medications.benefit",   benefitFallback: "Reminder ready",          path: "/onboarding/profile/medications",  ready: true, countsTowardProfile: true },
+  { id: "allergies",    icon: AlertTriangle,iconBg:"#FEF3C7", iconColor: "#C9890A", titleKey: "profile.overview.sections.allergies.title",     titleFallback: "Allergies",            descriptionKey: "profile.overview.sections.allergies.description",     descriptionFallback: "Allergies and sensitivities to keep visible before action.",         benefitKey: "profile.overview.sections.allergies.benefit",     benefitFallback: "Safety check",            path: "/onboarding/profile/allergies",    ready: true, countsTowardProfile: true },
+  { id: "gp",           icon: Stethoscope, iconBg: "#EFF6FF", iconColor: "#1D4ED8", titleKey: "profile.overview.sections.gp.title",           titleFallback: "GP details",           descriptionKey: "profile.overview.sections.gp.description",           descriptionFallback: "Your doctor or practice details for health conversations.",          benefitKey: "profile.overview.sections.gp.benefit",           benefitFallback: "Doctor ready",            path: "/onboarding/profile/gp",           ready: true, countsTowardProfile: true },
+  { id: "providers",    icon: Building2,   iconBg: "#F5F3FF", iconColor: "#6B21A8", titleKey: "profile.overview.sections.providers.title",     titleFallback: "Providers",            descriptionKey: "profile.overview.sections.providers.description",     descriptionFallback: "Trusted services VYVA can help prepare before you confirm.",         benefitKey: "profile.overview.sections.providers.benefit",     benefitFallback: "Trusted contacts",        path: "/onboarding/profile/providers",    ready: true, countsTowardProfile: true },
+  { id: "care-team",    icon: Users,       iconBg: "#F0FDFA", iconColor: "#0F766E", titleKey: "profile.overview.sections.careTeam.title",      titleFallback: "Care team",            descriptionKey: "profile.overview.sections.careTeam.description",      descriptionFallback: "Family, carers, and doctors you may want to keep connected.",        benefitKey: "profile.overview.sections.careTeam.benefit",      benefitFallback: "People support",          path: "/onboarding/profile/care-team",    ready: true, countsTowardProfile: true },
+  { id: "devices",      icon: Smartphone,  iconBg: "#E0F2FE", iconColor: "#0369A1", titleKey: "profile.overview.sections.devices.title",       titleFallback: "Devices & sensors",    descriptionKey: "profile.overview.sections.devices.description",       descriptionFallback: "Health devices and sensors VYVA can understand.",                    benefitKey: "profile.overview.sections.devices.benefit",       benefitFallback: "Signals ready",           path: "/onboarding/profile/devices",      ready: true, countsTowardProfile: true },
+  { id: "diet",         icon: Utensils,    iconBg: "#F0FDF4", iconColor: "#15803D", titleKey: "profile.overview.sections.diet.title",          titleFallback: "Dietary preferences",  descriptionKey: "profile.overview.sections.diet.description",          descriptionFallback: "Food preferences and notes for calmer daily support.",               benefitKey: "profile.overview.sections.diet.benefit",          benefitFallback: "Meal-aware help",         path: "/onboarding/profile/diet",         ready: true, countsTowardProfile: true },
+  { id: "hobbies",      icon: Star,        iconBg: "#FFF7ED", iconColor: "#C2410C", titleKey: "profile.overview.sections.hobbies.title",       titleFallback: "Hobbies",              descriptionKey: "profile.overview.sections.hobbies.description",       descriptionFallback: "Interests VYVA can use for warmer companionship.",                   benefitKey: "profile.overview.sections.hobbies.benefit",       benefitFallback: "Warmer chats",           path: "/onboarding/profile/hobbies",      ready: true, countsTowardProfile: true },
+  { id: "cognitive",    icon: Brain,       iconBg: "#F5F3FF", iconColor: "#7C3AED", titleKey: "profile.overview.sections.cognitive.title",     titleFallback: "Cognitive preferences",descriptionKey: "profile.overview.sections.cognitive.description",     descriptionFallback: "Pace, language, and memory-support preferences.",                    benefitKey: "profile.overview.sections.cognitive.benefit",     benefitFallback: "Right pace",             path: "/onboarding/profile/cognitive",    ready: true, countsTowardProfile: true },
+  { id: "emergency",    icon: ShieldAlert, iconBg: "#FEF2F2", iconColor: "#B91C1C", titleKey: "profile.overview.sections.emergency.title",     titleFallback: "Emergency contact",    descriptionKey: "profile.overview.sections.emergency.description",     descriptionFallback: "Who VYVA should keep visible for urgent support.",                   benefitKey: "profile.overview.sections.emergency.benefit",     benefitFallback: "Urgent ready",           path: "/onboarding/profile/emergency",    ready: true, countsTowardProfile: true },
+  { id: "privacy",      icon: Lock,        iconBg: "#F5F3FF", iconColor: "#6B21A8", titleKey: "profile.overview.sections.privacy.title",       titleFallback: "Privacy",              descriptionKey: "profile.overview.sections.privacy.description",       descriptionFallback: "Review permissions and data controls.",                              benefitKey: "profile.overview.sections.privacy.benefit",       benefitFallback: "Control sharing",        path: "/settings/privacy",                ready: true, countsTowardProfile: false },
+  { id: "subscription", icon: CreditCard,  iconBg: "#FEF3C7", iconColor: "#C9890A", titleKey: "profile.overview.sections.subscription.title",  titleFallback: "Subscription",         descriptionKey: "profile.overview.sections.subscription.description",  descriptionFallback: "Manage plan and billing settings.",                                  benefitKey: "profile.overview.sections.subscription.benefit",  benefitFallback: "Account settings",       path: "/settings/subscription",           ready: true, countsTowardProfile: false },
 ];
 
 interface MilestoneEntry {
@@ -101,15 +106,18 @@ function MilestoneStrip({ done, total }: { done: number; total: number }) {
   );
 }
 
-const ProfileOverview = () => {
+const ProfileOverview = ({ preview = false }: { preview?: boolean }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { mode, setMode } = useOnboardingCompanionGuidance({ mode: "voice" });
 
   const { data, isLoading } = useQuery<{
     profile: Record<string, unknown> | null;
     onboardingState: Record<string, unknown> | null;
   }>({
-    queryKey: ["/api/onboarding/state"],
+    queryKey: preview ? ["profile-overview-preview"] : ["/api/onboarding/state"],
+    enabled: !preview,
+    initialData: preview ? { profile: {}, onboardingState: {} } : undefined,
   });
 
   const completedSections = deriveCompletedSections(
@@ -117,8 +125,9 @@ const ProfileOverview = () => {
     data?.onboardingState ?? null
   );
 
-  const done = completedSections.size;
-  const total = SECTIONS.length;
+  const profileSections = PROFILE_OVERVIEW_SECTIONS.filter((section) => section.countsTowardProfile);
+  const done = profileSections.filter((section) => completedSections.has(section.id)).length;
+  const total = profileSections.length;
   const completionPercent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const proxyName = data?.profile?.proxy_initiator_id as string | null | undefined;
@@ -126,34 +135,33 @@ const ProfileOverview = () => {
 
   return (
     <div className="min-h-screen bg-vyva-cream">
-      <div className="mx-auto w-full max-w-[1120px] px-5 pb-6 pt-8">
+      <div className="mx-auto w-full max-w-[920px] px-5 pb-6 pt-8 sm:px-7">
         {/* Header */}
         <div className="pb-5">
-          <div className="rounded-[32px] border border-[#EFE4D5] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_55%,#F5ECFF_100%)] p-6 shadow-[0_18px_45px_rgba(53,28,87,0.07)]">
-            <div className="flex flex-col gap-5 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
-              <div className="max-w-2xl">
-                <p className="inline-flex rounded-full bg-[#FFF1B8] px-3 py-1 text-[12px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">Profile</p>
-                <h1 className="mt-3 font-display text-[38px] font-semibold leading-[1.02] text-vyva-text-1">{t("profile.overview.title")}</h1>
-                <p className="mt-2 text-[17px] leading-relaxed text-vyva-text-2">
-                  {t("profile.overview.subtitle")}
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-white bg-white/85 px-5 py-4 shadow-sm min-[760px]:min-w-[260px]">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.2)]">
-                    <Sparkles size={22} />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">Setup progress</p>
+          <div>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => navigate("/")} aria-label={t("common.back", "Back")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-vyva-border bg-white text-vyva-purple shadow-sm">
+                <ArrowLeft size={20} aria-hidden="true" />
+              </button>
+              <h1 className="min-w-0 flex-1 text-center font-display text-[24px] font-bold leading-tight text-vyva-text-1">{t("profile.overview.title")}</h1>
+              <button type="button" onClick={() => setMode(mode === "voice" ? "tactile" : "voice")}
+                aria-label={t("profile.overview.companionMode.voiceLabel", "Voice")}
+                title={t("profile.overview.companionMode.voiceLabel", "Voice")}
+                aria-pressed={mode === "voice"}
+                data-testid="button-profile-voice"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border border-vyva-purple shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vyva-purple ${mode === "voice" ? "bg-vyva-purple text-white" : "bg-white text-vyva-purple"}`}>
+                <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone={mode === "voice" ? "inverse" : "utility"} />
+              </button>
+            </div>
+              <div className="py-6">
                     <p
-                      className="text-[18px] font-black text-vyva-text-1"
+                      className="text-[14px] font-semibold text-vyva-text-2"
                       data-testid="text-profile-completion-count"
                     >
                       {isLoading ? t("profile.overview.loading") : t("profile.overview.completionCount", { done, total })}
                     </p>
-                  </div>
-                </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#F1E7DC]">
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-vyva-border" role="progressbar" aria-label={t("profile.overview.title")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
                   <div
                     data-testid="progress-profile-completion"
                     className="h-full rounded-full bg-vyva-purple transition-all"
@@ -161,7 +169,6 @@ const ProfileOverview = () => {
                   />
                 </div>
               </div>
-            </div>
           </div>
         </div>
 
@@ -210,20 +217,20 @@ const ProfileOverview = () => {
 
         {/* Section cards */}
         <div
-          className="grid gap-4 overflow-hidden rounded-[24px] border border-vyva-border bg-white shadow-vyva-card md:grid-cols-2 md:overflow-visible md:border-0 md:bg-transparent md:shadow-none xl:grid-cols-3"
+          className="grid gap-4 md:grid-cols-2"
           data-testid="list-profile-sections"
         >
-        {SECTIONS.map((s) => (
+        {PROFILE_OVERVIEW_SECTIONS.map((s) => (
           <SectionCard
             key={s.id}
             icon={s.icon}
             iconBg={s.iconBg}
             iconColor={s.iconColor}
-            title={t(s.titleKey)}
-            description={s.ready ? t(s.descriptionKey) : `${t(s.descriptionKey)} - ${t("profile.overview.comingSoon")}`}
+            title={t(s.titleKey, s.titleFallback)}
+            description={s.ready ? t(s.descriptionKey, s.descriptionFallback) : `${t(s.descriptionKey, s.descriptionFallback)} - ${t("profile.overview.comingSoon")}`}
             completed={completedSections.has(s.id)}
             locked={!s.ready}
-            benefit={t(s.benefitKey)}
+            benefit={t(s.benefitKey, s.benefitFallback)}
             onClick={() => navigate(s.path)}
           />
         ))}

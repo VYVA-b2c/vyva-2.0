@@ -219,10 +219,10 @@ describe("ShareStoriesScreen", () => {
     renderShareStories();
 
     expect(await screen.findByText("Share a story")).toBeInTheDocument();
-    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("What would you like to share today?");
+    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("What would you like to share?");
     expect(screen.getByTestId("share-stories-today")).toHaveTextContent("Your voice stays private.");
     expect(screen.getByTestId("button-share-stories-start-voice")).toBeInTheDocument();
-    expect(screen.getByTestId("button-share-stories-type")).toBeInTheDocument();
+    expect(screen.getByTestId("button-share-stories-type")).toHaveTextContent("Type");
 
     const promptRail = screen.getByTestId("share-stories-prompts");
     expect(within(promptRail).getByText("Memory")).toBeInTheDocument();
@@ -232,6 +232,11 @@ describe("ShareStoriesScreen", () => {
     expect(within(promptRail).getByText("Song")).toBeInTheDocument();
 
     const recent = screen.getByTestId("share-stories-recent");
+    expect(recent).toHaveTextContent("3 recent stories");
+    expect(recent).toHaveTextContent("Ready when you are");
+
+    fireEvent.click(within(recent).getByRole("button", { name: "View" }));
+
     expect(recent).toHaveTextContent("Ready");
     expect(recent).toHaveTextContent("Placed");
     expect(recent).toHaveTextContent("Review");

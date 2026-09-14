@@ -1,0 +1,133 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import NotificationsSettings from "./NotificationsSettings";
+import { apiFetch } from "@/lib/queryClient";
+import { enablePreventiveWebPush } from "@/lib/preventiveWebPush";
+import { enableMedicationRefillPush } from "@/lib/medicationRefillPush";
+
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+vi.mock("@/components/onboarding/PhoneFrame", () => ({
+  PhoneFrame: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/lib/queryClient", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/queryClient")>("@/lib/queryClient");
+  return { ...actual, apiFetch: vi.fn() };
+});
+
+vi.mock("@/lib/preventiveWebPush", () => ({
+  enablePreventiveWebPush: vi.fn(),
+  disablePreventiveWebPush: vi.fn(),
+}));
+
+vi.mock("@/lib/medicationRefillPush", () => ({
+  enableMedicationRefillPush: vi.fn(),
+  disableMedicationRefillPush: vi.fn(),
+}));
+
+const apiFetchMock = vi.mocked(apiFetch);
+const enablePreventiveWebPushMock = vi.mocked(enablePreventiveWebPush);
+const enableMedicationRefillPushMock = vi.mocked(enableMedicationRefillPush);
+
+const preferences = {
+  preferred_checkin_channel: "voice_outbound",
+  preferred_reminder_channel: "whatsapp_outbound",
+  support_mode: "ai_powered",
+  voice_available_from: "08:00",
+  voice_available_until: "21:00",
+  whatsapp_available_from: "07:00",
+  whatsapp_available_until: "22:00",
+  max_outbound_calls_per_day: 1,
+  max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
+  preventive_web_push_enabled: false,
+};
+
+function renderPage() {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        queryFn: async () => preferences,
+      },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <NotificationsSettings />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe("NotificationsSettings", () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+    enablePreventiveWebPushMock.mockReset();
+    enableMedicationRefillPushMock.mockReset();
+    enablePreventiveWebPushMock.mockResolvedValue({
+      consentEnabled: true,
+      consentRevision: 1,
+      subscribed: true,
+      config: {
+        supported: true,
+        enabled: true,
+        reason: "preventive_web_push_allowed_user",
+        publicKey: "B".repeat(87),
+      },
+    });
+    enableMedicationRefillPushMock.mockResolvedValue({
+      consentEnabled: true,
+      subscribed: true,
+      config: { supported: true, enabled: true, reason: "available", publicKey: "B".repeat(87) },
+    });
+    apiFetchMock.mockResolvedValue({ ok: true, json: async () => ({
+      ...preferences,
+      concierge_task_notifications_enabled: false,
+    }) } as Response);
+  });
+
+  it("lets a user turn Concierge task alerts off and saves the preference", async () => {
+    renderPage();
+    const toggle = await screen.findByTestId("switch-concierge-task-notifications");
+    await waitFor(() => expect(toggle).not.toBeDisabled());
+    expect(toggle).toHaveAttribute("data-state", "checked");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "settings.notifications.savePreferences" }));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const [, request] = apiFetchMock.mock.calls[0];
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      concierge_task_notifications_enabled: false,
+    });
+  });
+
+  it("enables preventive web push through the dedicated explicit-gesture helper", async () => {
+    renderPage();
+    const toggle = await screen.findByTestId("switch-preventive-web-push");
+    expect(toggle).toHaveAttribute("data-state", "unchecked");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(enablePreventiveWebPushMock).toHaveBeenCalledTimes(1));
+    expect(apiFetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("enables medication refill push only through its explicit opt-in helper", async () => {
+    renderPage();
+    const toggle = await screen.findByTestId("switch-medication-refill-push");
+    expect(toggle).toHaveAttribute("data-state", "unchecked");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(enableMedicationRefillPushMock).toHaveBeenCalledTimes(1));
+  });
+});

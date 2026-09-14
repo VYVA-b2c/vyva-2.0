@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronLeft, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, CircleHelp, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
+import MedicationUpdatesPanel from "@/components/MedicationUpdatesPanel";
+import VyvaSessionCta from "@/components/VyvaSessionCta";
 import {
   PurpleModal,
   ResponsiveGrid,
@@ -19,7 +22,7 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
   medicationListSummary,
-  medicationRefillShoppingState,
+  medicationReviewAppointmentState,
 } from "@/lib/medicationServiceActions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +31,25 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import MyMedicines from "@/features/medications/MyMedicines";
+import CheckInteractions from "@/features/medications/CheckInteractions";
+import MedicationRefillAlertCard, { type MedicationRefillAlertResponse } from "@/features/medications/MedicationRefillAlertCard";
+import {
+  CanonicalDetailFlowShell,
+  CanonicalFlowIcon,
+  CanonicalVoiceButton,
+  type CanonicalDetailFlowShellContract,
+} from "@/components/CanonicalDetailFlowShell";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+
+const medicationFlowShellContract = (headerTitle: string): CanonicalDetailFlowShellContract => ({
+  shellId: "home.production",
+  headerId: "detail.voice-touch",
+  headerTitle,
+  containerId: "flow.rounded-card",
+  bottomNavId: "home-sos-reports",
+  composer: "hidden",
+});
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -243,6 +265,13 @@ function preferredMedicationVoiceMimeType() {
 
 function stopMedicationVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+function explicitScheduleTimesFromVoice(value: string | undefined) {
+  if (!value) return null;
+  const times = Array.from(value.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g))
+    .map((match) => `${match[1].padStart(2, "0")}:${match[2]}`);
+  return times.length ? Array.from(new Set(times)).slice(0, 8) : null;
 }
 
 const SERIOUSNESS_OPTIONS = [
@@ -534,6 +563,7 @@ const MedsScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -579,6 +609,10 @@ const MedsScreen = () => {
     ? displayMeds.find((med) => normalizeVoiceFocus(med.displayName).includes(focusedMedicationKey))
     : null;
 
+  useEffect(() => {
+    if (voiceAction?.actionType === "meds.refill_request") navigate("/meds/refills");
+  }, [navigate, voiceAction?.actionType]);
+
   const medNames = (() => {
     const names = displayMeds.map((m) => m.displayName);
     try {
@@ -593,7 +627,6 @@ const MedsScreen = () => {
   );
 
   const [confirmedDoseCounts, setConfirmedDoseCounts] = useState<Map<string, number>>(new Map());
-  const [voiceAddedMeds, setVoiceAddedMeds] = useState<MedicationForForm[]>([]);
   const [medicationVoiceState, setMedicationVoiceState] = useState<MedicationVoiceCaptureState>("idle");
   const [medicationVoiceError, setMedicationVoiceError] = useState<string | null>(null);
   const medicationRecorderRef = useRef<MediaRecorder | null>(null);
@@ -602,6 +635,8 @@ const MedsScreen = () => {
   const medicationVoiceStopTimerRef = useRef<number | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [myMedicinesOpen, setMyMedicinesOpen] = useState(false);
+  const [interactionsOpen, setInteractionsOpen] = useState(false);
   const [caseSheetOpen, setCaseSheetOpen] = useState(false);
   const [reviewCase, setReviewCase] = useState<MedicationSafetyCase | null>(null);
   const [caseForm, setCaseForm] = useState<MedicationSafetyCaseForm>(() => emptySafetyCaseForm());
@@ -611,6 +646,13 @@ const MedsScreen = () => {
     queryKey: ["/api/meds/safety"],
     enabled: safetyOpen,
   });
+  const { data: refillAlertData } = useQuery<MedicationRefillAlertResponse>({
+    queryKey: ["/api/meds/refills/me"],
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    retry: false,
+  });
+  const activeRefillAlert = refillAlertData?.alerts?.[0] ?? null;
 
   // ─── Edit / Delete state ───────────────────────────────────────────────────
   const [editMed, setEditMed] = useState<DisplayMed | null>(null);
@@ -629,13 +671,22 @@ const MedsScreen = () => {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setEditMed(null);
-      toast({ title: t("meds.editSuccess", "Medication updated") });
+      toast({
+        title: t("meds.editSuccess", "Medication updated"),
+        description: t("meds.editSuccessDesc", "Your medication details were saved."),
+      });
     },
     onError: () => {
-      toast({ title: t("meds.editError", "Could not update medication"), variant: "destructive" });
+      toast({
+        title: t("meds.editError", "Could not update medication"),
+        description: t("meds.editErrorDesc", "Your medication details were not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -648,13 +699,22 @@ const MedsScreen = () => {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setDeleteMed(null);
-      toast({ title: t("meds.deleteSuccess", "Medication removed") });
+      toast({
+        title: t("meds.deleteSuccess", "Medication removed"),
+        description: t("meds.deleteSuccessDesc", "This medicine was removed from your list."),
+      });
     },
     onError: () => {
-      toast({ title: t("meds.deleteError", "Could not remove medication"), variant: "destructive" });
+      toast({
+        title: t("meds.deleteError", "Could not remove medication"),
+        description: t("meds.deleteErrorDesc", "This medicine was not removed from your list. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -765,26 +825,46 @@ const MedsScreen = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
-      toast({ title: t("meds.taken"), description: med.displayName });
+      toast({
+        title: t("meds.takenToastTitle", "Good job"),
+        description: t("meds.takenToastDescription", {
+          medicine: med.displayName,
+          defaultValue: "{{medicine}} was taken.",
+        }),
+      });
     },
     onError: (error) => {
       const err = error as Error & { status?: number };
       if (err.status === 409) {
         queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
-        toast({ title: t("meds.taken"), description: t("meds.allTaken") });
+        toast({
+          title: t("meds.takenToastTitle", "Good job"),
+          description: t("meds.allTakenToastDescription", "All of today's doses are already marked as taken."),
+        });
         return;
       }
-      toast({ title: "Could not confirm dose", variant: "destructive" });
+      toast({
+        title: t("meds.confirmDoseError", "Could not confirm dose"),
+        description: t("meds.confirmDoseErrorDesc", "The dose was not marked as taken. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantTitle, setAssistantTitle] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
+  const [medicationUpdatesOpen, setMedicationUpdatesOpen] = useState(false);
+  const [pendingVoiceMedicine, setPendingVoiceMedicine] = useState<MedicationForForm | null>(null);
+  const [doseDeferred, setDoseDeferred] = useState(false);
 
   useEffect(() => {
     setConfirmedDoseCounts(new Map());
   }, [todayData]);
+
+  useEffect(() => {
+    setDoseDeferred(false);
+  }, [todayData?.medications]);
 
   const effectiveTakenCount = (med: DisplayMed) =>
     Math.min(
@@ -906,7 +986,7 @@ const MedsScreen = () => {
       id: "refillHelp",
       icon: ShoppingCart,
       label: t("meds.assistant.refillHelp.label", "Refill Help"),
-      sub: t("meds.assistant.refillHelp.sub", "Order support"),
+      sub: t("meds.assistant.refillHelp.sub", "Supply tracking"),
       color: "#B45309",
       bg: "#FFF7ED",
       border: "#FED7AA",
@@ -958,15 +1038,42 @@ const MedsScreen = () => {
     },
   ];
 
-  const handleAddMedication = useCallback((med: MedicationForForm) => {
-    setVoiceAddedMeds(prev => [...prev, med]);
-    toast({
-      title: t("meds.toastAdded"),
-      description: med.name
-        ? t("meds.toastAddedDesc", { name: med.name })
-        : t("meds.toastAddedDefault"),
-    });
-  }, [t, toast]);
+  const saveVoiceMedicineMutation = useMutation({
+    mutationFn: async (med: MedicationForForm) => {
+      const response = await apiFetch("/api/meds/my-medicines", {
+        method: "POST",
+        body: JSON.stringify({
+          display_name: med.name?.trim() || t("meds.newMedication", "New Medication"),
+          common_name: med.name?.trim() || null,
+          dose_text: [med.dosage, med.frequency?.replace("_", " "), med.times].filter(Boolean).join(" "),
+          purpose_text: null,
+          item_type: "prescription",
+          drug_class_tag: "other_uncategorized",
+          prescriber_name: med.prescribed_by?.trim() || null,
+          schedule_times: explicitScheduleTimesFromVoice(med.times),
+          added_via: "voice",
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to save voice medicine");
+      return response.json();
+    },
+    onSuccess: (_data, med) => {
+      setPendingVoiceMedicine(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
+      toast({
+        title: t("meds.toastAdded"),
+        description: med.name
+          ? t("meds.toastAddedDesc", { name: med.name })
+          : t("meds.toastAddedDefault"),
+      });
+    },
+    onError: () => {
+      toast({ title: t("meds.voiceSaveError", "I could not save that medicine. Please try again."), variant: "destructive" });
+    },
+  });
 
   const clearMedicationVoiceStopTimer = useCallback(() => {
     if (medicationVoiceStopTimerRef.current !== null) {
@@ -1034,14 +1141,14 @@ const MedsScreen = () => {
         throw new Error(t("meds.voiceNoMedication", "I couldn't find a medication in that voice note. Please try again."));
       }
 
-      handleAddMedication(med);
+      setPendingVoiceMedicine(med);
       setMedicationVoiceError(null);
     } catch (err) {
       setMedicationVoiceError(err instanceof Error ? err.message : t("meds.voiceFailed", "I couldn't turn that voice note into medication details. Please try again."));
     } finally {
       setMedicationVoiceState("idle");
     }
-  }, [handleAddMedication, language, t]);
+  }, [language, t]);
 
   const stopMedicationVoiceCapture = useCallback(() => {
     const recorder = medicationRecorderRef.current;
@@ -1153,12 +1260,42 @@ const MedsScreen = () => {
   }
 
   function openRefillSupport() {
-    navigate("/concierge/shopping", {
-      state: medicationRefillShoppingState(medicationSummary, language),
+    navigate("/meds/refills");
+  }
+
+  function openPharmacySetup() {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        setupFocus: "pharmacy",
+        returnTo: "/meds",
+        notice: t("meds.dashboard.pharmacySetupNotice", "Add your usual pharmacy. VYVA will bring you back to medicines afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          setupFocus: "pharmacy",
+          setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
+        },
+      },
+    });
+  }
+
+  function askHelperForPharmacySetup() {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/meds",
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          setupFocus: "pharmacy",
+          setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
+        },
+      },
     });
   }
 
   function handleMedicationAssistantAction(action: (typeof ASSISTANT_ACTIONS)[number]) {
+    if (action.id === "interactions") {
+      setInteractionsOpen((open) => !open);
+      return;
+    }
     if (action.id === "refillHelp") {
       openRefillSupport();
       return;
@@ -1167,7 +1304,23 @@ const MedsScreen = () => {
       toggleMedicationVoiceCapture();
       return;
     }
+    if (action.id === "advances") {
+      setMedicationUpdatesOpen(true);
+      return;
+    }
     openAssistant(action.prompt, action.sheetTitle);
+  }
+
+  function prepareMedicationUpdateAppointment(context: string) {
+    setMedicationUpdatesOpen(false);
+    navigate("/concierge", {
+      state: medicationReviewAppointmentState(
+        medicationSummary,
+        context,
+        language,
+        "medication_support",
+      ),
+    });
   }
 
   function openSafetyCaseSheet(safetyCase: MedicationSafetyCase) {
@@ -1226,53 +1379,40 @@ const MedsScreen = () => {
 
   const medicationShortcutCards = [
     {
-      id: "reminders",
-      icon: Clock,
-      label: t("meds.primary.reminders", "My Reminders"),
-      sub: totalRemainingDoseCount > 0
-        ? t("meds.remainingBadge", { count: totalRemainingDoseCount, defaultValue: "{{count}} due" })
-        : t("meds.allTakenShort", "Done"),
-      color: "#6B21A8",
-      bg: "#F5F3FF",
-      border: "#DDD6FE",
-      onClick: () => setRemindersOpen((open) => !open),
-      testId: "button-meds-primary-reminders",
+      id: "my-medicines",
+      icon: Pill,
+      label: t("meds.primary.myMedicines", "My Medicines"),
+      sub: displayMeds.length > 0
+        ? t("meds.primary.myMedicinesCount", { count: displayMeds.length, defaultValue: "{{count}} saved" })
+        : t("meds.primary.myMedicinesSub", "Saved list"),
+      onClick: () => navigate("/meds/my-medicines"),
+      testId: "button-meds-primary-my-medicines",
+    },
+    {
+      id: "interactions",
+      icon: LinkIcon,
+      label: t("meds.primary.checkInteractions", "Drug combinations"),
+      sub: t("meds.primary.checkInteractionsSub", "Review medicines taken together"),
+      onClick: () => navigate("/meds/interactions"),
+      testId: "button-meds-primary-interactions",
     },
     {
       id: "refills",
       icon: ShoppingCart,
-      label: t("meds.primary.refills", "My Refills"),
-      sub: t("meds.primary.refillsMobileSub", "Pharmacy refills"),
-      color: "#B45309",
-      bg: "#FFF7ED",
-      border: "#FED7AA",
+      label: t("meds.primary.refills", "Refills"),
+      sub: t("meds.primary.refillsMobileSub", "Check remaining supply"),
       onClick: openRefillSupport,
       testId: "button-meds-primary-refills",
     },
     {
-      id: "safety",
-      icon: ShieldCheck,
-      label: t("meds.primary.safety", "Stay Safe"),
-      sub: safetyBadgeText,
-      color: safetySummaryTone.color,
-      bg: safetySummaryTone.bg,
-      border: safetySummaryTone.border,
-      onClick: () => setSafetyOpen((open) => !open),
-      testId: "button-meds-primary-safety",
-    },
-    {
-      id: "home-remedies",
-      icon: Leaf,
-      label: t("meds.primary.homeRemedies", "Home Remedies"),
-      sub: t("meds.primary.homeRemediesSub", "Ask what is safe"),
-      color: "#0F766E",
-      bg: "#F0FDFA",
-      border: "#99F6E4",
-      onClick: () => {
-        const action = ASSISTANT_ACTIONS.find((item) => item.id === "homeRemedies");
-        if (action) handleMedicationAssistantAction(action);
-      },
-      testId: "button-meds-primary-home-remedies",
+      id: "adherence",
+      icon: FileText,
+      label: t("meds.primary.adherence", "History & progress"),
+      sub: totalScheduledDoseCount > 0
+        ? t("meds.primary.adherenceToday", { value: progressPercentRounded, defaultValue: "{{value}}% today" })
+        : t("meds.primary.adherenceMobileSub", "Daily progress"),
+      onClick: () => navigate("/meds/adherence-report"),
+      testId: "button-meds-primary-adherence",
     },
   ];
 
@@ -1282,9 +1422,9 @@ const MedsScreen = () => {
     title: card.label,
     detail: card.sub,
     tone: {
-      iconBg: card.bg,
-      iconColor: card.color,
-      border: card.border,
+      iconBg: "#F3EAFF",
+      iconColor: "#7024C4",
+      border: "#DED3E2",
       surface: "#FFFFFF",
     },
     onClick: card.onClick,
@@ -1353,6 +1493,408 @@ const MedsScreen = () => {
             count: totalRemainingDoseCount,
             defaultValue: "{{count}} doses still need attention.",
           });
+
+  const medicationScreenMode = location.pathname.endsWith("/my-medicines")
+    ? "my-medicines"
+    : location.pathname.endsWith("/interactions")
+      ? "interactions"
+      : "home";
+
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [medicationScreenMode]);
+
+  const voiceMedicineReviewModal = pendingVoiceMedicine ? (
+    <PurpleModal
+      Icon={Pill}
+      kicker={t("meds.voiceReview.kicker", "Review before saving")}
+      title={t("meds.voiceReview.title", "Check the medicine details")}
+      subtitle={t("meds.voiceReview.subtitle", "VYVA has not saved anything yet. Correct any detail before you confirm.")}
+      titleId="medication-voice-review-title"
+      onClose={() => setPendingVoiceMedicine(null)}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="modal-medication-voice-review"
+      size="narrow"
+    >
+      <div className="grid gap-4 p-5">
+        <div className="grid gap-1.5">
+          <Label htmlFor="voice-review-name">{t("meds.voiceReview.name", "Medicine name")}</Label>
+          <Input
+            id="voice-review-name"
+            value={pendingVoiceMedicine.name}
+            onChange={(event) => setPendingVoiceMedicine((current) => current ? { ...current, name: event.target.value } : current)}
+            className="min-h-[56px] rounded-[18px] text-[18px] font-bold"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="voice-review-dose">{t("meds.voiceReview.dose", "Dose on the label")}</Label>
+            <Input
+              id="voice-review-dose"
+              value={pendingVoiceMedicine.dosage}
+              onChange={(event) => setPendingVoiceMedicine((current) => current ? { ...current, dosage: event.target.value } : current)}
+              placeholder="e.g. 500 mg"
+              className="min-h-[56px] rounded-[18px] text-[17px] font-bold"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="voice-review-times">{t("meds.voiceReview.times", "When you take it")}</Label>
+            <Input
+              id="voice-review-times"
+              value={pendingVoiceMedicine.times}
+              onChange={(event) => setPendingVoiceMedicine((current) => current ? { ...current, times: event.target.value } : current)}
+              placeholder="e.g. 08:00 and 20:00"
+              className="min-h-[56px] rounded-[18px] text-[17px] font-bold"
+            />
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="voice-review-routine">{t("meds.voiceReview.routine", "Routine from the label")}</Label>
+          <Input
+            id="voice-review-routine"
+            value={pendingVoiceMedicine.frequency}
+            onChange={(event) => setPendingVoiceMedicine((current) => current ? { ...current, frequency: event.target.value } : current)}
+            placeholder="e.g. twice daily"
+            className="min-h-[56px] rounded-[18px] text-[17px] font-bold"
+          />
+        </div>
+        <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <p className="font-body text-[14px] font-bold leading-snug">
+            {t("meds.voiceReview.safety", "Use the wording on the label. VYVA does not change doses or tell you to take an extra dose.")}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setPendingVoiceMedicine(null)}
+            className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+          >
+            {t("common.cancel", "Cancel")}
+          </button>
+          <button
+            type="button"
+            data-testid="button-confirm-voice-medicine"
+            disabled={!pendingVoiceMedicine.name.trim() || saveVoiceMedicineMutation.isPending}
+            onClick={() => saveVoiceMedicineMutation.mutate(pendingVoiceMedicine)}
+            className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+          >
+            {saveVoiceMedicineMutation.isPending ? t("common.saving", "Saving...") : t("meds.voiceReview.save", "Confirm and save")}
+          </button>
+        </div>
+      </div>
+    </PurpleModal>
+  ) : null;
+
+  const doseStatusBar = (
+    <section
+      className="fixed inset-x-4 bottom-[calc(92px+env(safe-area-inset-bottom))] z-30 rounded-[24px] bg-[#123F3A] p-4 text-white shadow-[0_18px_38px_rgba(18,63,58,0.24)] sm:static sm:mt-5 sm:rounded-[26px] sm:shadow-[0_14px_32px_rgba(18,63,58,0.16)]"
+      data-testid="section-meds-dashboard"
+      aria-label={dashboardPriorityTitle}
+    >
+      <div className="flex min-w-0 items-center gap-4">
+        <p className="font-body text-[58px] font-black leading-none [letter-spacing:0] sm:text-[72px]" data-testid="metric-meds-due">
+          {dashboardFocusNumber}
+        </p>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-body text-[22px] font-black leading-tight sm:text-[28px]" data-testid="text-meds-priority-title">
+            {dashboardPriorityTitle}
+          </h2>
+          <p className="mt-1 line-clamp-2 font-body text-[15px] font-bold leading-snug text-white/82 sm:text-[17px]" data-testid="text-meds-priority-sub">
+            {dashboardPrioritySub}
+          </p>
+        </div>
+        {nextMedication ? (
+          <button
+            data-testid="button-confirm-next-med"
+            type="button"
+            onClick={() => confirmMutation.mutate(nextMedication)}
+            disabled={confirmMutation.isPending}
+            className="vyva-tap hidden min-h-[56px] flex-shrink-0 items-center justify-center gap-2 rounded-full bg-white px-5 font-body text-[16px] font-black text-[#123F3A] disabled:opacity-60 min-[420px]:inline-flex"
+          >
+            <Check size={18} aria-hidden="true" />
+            {t("meds.dashboard.confirmNext", "Confirm taken")}
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+
+  const medicationHeaderVoiceAction = (
+    <CanonicalVoiceButton
+      label={t("meds.master.heroAction", "Talk to VYVA")}
+      contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
+      agentSlug="medication"
+      dynamicVariables={{ app_entrypoint: "medication_canonical_header" }}
+      testId="button-meds-hero-talk"
+    />
+  );
+
+  if (medicationScreenMode === "my-medicines") {
+    return (
+      <>
+      <CanonicalDetailFlowShell
+        shellContract={medicationFlowShellContract(t("meds.myMedicines.title", "My medicines"))}
+        onBack={() => navigate("/meds")}
+        headerAction={medicationHeaderVoiceAction}
+        shellTestId="meds-my-medicines-screen"
+        contentTestId="meds-my-medicines-content"
+        backTestId="button-meds-screen-back"
+      >
+        <MyMedicines
+          onStartVoice={toggleMedicationVoiceCapture}
+          onOpenReminders={() => navigate("/meds/adherence-report")}
+          onOpenRefills={openRefillSupport}
+          startAdd={Boolean((location.state as { startAdd?: boolean } | null)?.startAdd)}
+        />
+      </CanonicalDetailFlowShell>
+      {voiceMedicineReviewModal}
+      </>
+    );
+  }
+
+  if (medicationScreenMode === "interactions") {
+    return (
+      <>
+      <CanonicalDetailFlowShell
+        shellContract={medicationFlowShellContract(t("meds.checkInteractions.kicker", "Drug combinations"))}
+        onBack={() => navigate("/meds")}
+        headerAction={medicationHeaderVoiceAction}
+        shellTestId="meds-interactions-screen"
+        contentTestId="meds-interactions-content"
+        backTestId="button-meds-screen-back"
+      >
+        <CheckInteractions
+          onAskAboutCombination={() => openAssistant(
+            t("meds.checkInteractions.advicePrompt", {
+              medications: medicationSummary,
+              defaultValue: "Review these medicines and supplements together: {{medications}}. Explain possible combination concerns in plain language. Do not tell me to start, stop, skip, or change a dose. Tell me what to ask a pharmacist or doctor and when urgent help may be needed.",
+            }),
+            t("meds.checkInteractions.adviceTitle", "Drug combination advice"),
+          )}
+        />
+      </CanonicalDetailFlowShell>
+      <MedsAssistantSheet
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        title={assistantTitle}
+        subtitle={t("meds.checkInteractions.adviceSubtitle", "Plain-language guidance for medicines and supplements taken together.")}
+        initialPrompt={assistantPrompt}
+      />
+      {voiceMedicineReviewModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <CanonicalDetailFlowShell
+        shellContract={medicationFlowShellContract(t("meds.master.heroEyebrow", "Medication"))}
+        onBack={() => navigate("/health")}
+        headerAction={medicationHeaderVoiceAction}
+        shellTestId="meds-canonical-screen"
+        contentTestId="meds-canonical-content"
+      >
+      <div className="mx-auto flex w-full min-w-0 max-w-[760px] flex-1 flex-col gap-4 px-4 py-3 sm:px-5 lg:px-0" data-testid="meds-master-layout">
+        <span className="sr-only" data-testid="meds-master-hero">
+          {t("meds.master.todayTitle", "Your medicines today")}
+        </span>
+
+        <section
+          className="overflow-hidden rounded-[28px] border border-[#E6DCEB] bg-white shadow-[0_16px_40px_rgba(63,45,75,0.08)]"
+          data-testid="section-meds-dashboard"
+          data-accent-contract="semantic-status"
+          aria-live="polite"
+        >
+          <div className="px-[22px] pb-5 pt-6 sm:pb-6 sm:pt-7">
+            <div className="flex items-start gap-3 text-left">
+              <CanonicalFlowIcon
+                icon={totalRemainingDoseCount === 0 && displayMeds.length > 0 ? Check : Clock}
+                tone={totalRemainingDoseCount === 0 && displayMeds.length > 0 ? "green" : "amber"}
+                goldAccent={totalRemainingDoseCount === 0 && displayMeds.length > 0 ? "check" : "status"}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#854F0B]">
+                  {t("meds.master.focusNow", "What needs attention now")}
+                </p>
+                <h2 className="mt-1 font-body text-[28px] font-extrabold leading-[1.08] tracking-[-0.025em] text-[#241238] sm:text-[31px]" data-testid="text-meds-priority-title">
+                  {dashboardPriorityTitle}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-semibold leading-[1.42] text-[#746A72]" data-testid="text-meds-priority-sub">
+                  {dashboardPrioritySub}
+                </p>
+              </div>
+            </div>
+
+            {nextMedication ? (
+              <div className="mt-5 rounded-[18px] border border-[#F2DDAA] bg-[#FFFCF8] p-4 sm:p-5" data-testid="section-meds-next">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#854F0B]">
+                      {t("meds.dashboard.nextMedicine", "Next medicine")}
+                    </p>
+                    <h3 className="mt-1 font-body text-[28px] font-black leading-tight text-vyva-text-1">
+                      {nextMedication.displayName}
+                    </h3>
+                    <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                      {nextMedication.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")}
+                    </p>
+                    <p className="mt-2 inline-flex rounded-full bg-[#FFF8E7] px-3 py-1 font-body text-[14px] font-black text-[#854F0B]">
+                      {t("meds.dashboard.scheduledTime", { time: nextMedication.scheduledTimeForApi, defaultValue: "Scheduled for {{time}}" })}
+                    </p>
+                  </div>
+                  <span className="font-body text-[48px] font-black leading-none text-[#854F0B]" data-testid="metric-meds-due">
+                    {totalRemainingDoseCount}
+                  </span>
+                </div>
+
+                {doseDeferred ? (
+                  <div className="mt-4 rounded-[18px] border border-[#F2DDAA] bg-[#FFF8E7] px-4 py-3" data-testid="status-dose-deferred">
+                    <p className="font-body text-[14px] font-bold leading-snug text-[#6B4A17]">
+                      {t("meds.dashboard.notNowSaved", "This stays on your list for later. No dose was recorded or changed.")}
+                    </p>
+                  </div>
+                ) : null}
+
+                <button
+                  data-testid="button-confirm-next-med"
+                  type="button"
+                  onClick={() => confirmMutation.mutate(nextMedication)}
+                  disabled={confirmMutation.isPending}
+                  className="vyva-tap mt-4 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)] disabled:opacity-60"
+                >
+                  {confirmMutation.isPending ? <Loader2 size={18} strokeWidth={2.35} className="animate-spin" aria-hidden="true" /> : <Check size={18} strokeWidth={2.35} aria-hidden="true" />}
+                  {t("meds.dashboard.confirmNext", "Mark as taken")}
+                </button>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-testid="button-meds-dashboard-not-now"
+                    onClick={() => {
+                      setDoseDeferred(true);
+                      toast({
+                        title: t("meds.dashboard.notNowTitle", "Left for later"),
+                        description: t("meds.dashboard.notNowDescription", "Nothing was recorded or changed."),
+                      });
+                    }}
+                    className="vyva-tap min-h-[50px] rounded-[17px] border border-[#DED3E2] bg-white px-3 font-body text-[15px] font-black text-vyva-purple"
+                  >
+                    {t("meds.dashboard.notNow", "Not now")}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="button-meds-dashboard-help"
+                    onClick={() => openAssistant(
+                      t("meds.dashboard.helpPrompt", {
+                        medicine: nextMedication.displayName,
+                        defaultValue: "I need help with {{medicine}}. I may be unsure about the timing, a missed dose, or a side effect. Do not tell me to change the dose; help me decide what to ask a pharmacist or doctor.",
+                      }),
+                      t("meds.dashboard.helpTitle", "Medicine help"),
+                    )}
+                    className="vyva-tap min-h-[50px] rounded-[17px] border border-[#DED3E2] bg-white px-3 font-body text-[15px] font-black text-vyva-purple"
+                  >
+                    <CircleHelp className="mr-1 inline" size={17} aria-hidden="true" />
+                    {t("meds.dashboard.needHelp", "Ask any question")}
+                  </button>
+                </div>
+              </div>
+            ) : displayMeds.length > 0 ? (
+              <div className="mt-5 rounded-[22px] border border-[#BDEBD8] bg-[#F0FDFA] p-4" data-testid="status-meds-dashboard-done">
+                <p className="font-body text-[20px] font-black text-[#0F4C45]">
+                  {t("meds.dashboard.allDoneSub", "Your medicine routine is complete for today.")}
+                </p>
+              </div>
+            ) : !todayLoading ? (
+              <button
+                type="button"
+                data-testid="button-meds-dashboard-add-empty"
+                onClick={() => navigate("/meds/my-medicines", { state: { startAdd: true } })}
+                className="vyva-tap mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)]"
+              >
+                <Plus size={18} strokeWidth={2.35} aria-hidden="true" />
+                {t("meds.dashboard.addFirst", "Add your first medicine")}
+              </button>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 py-3 font-body text-[13px] font-black text-vyva-text-2">
+              <span data-testid="metric-meds-taken">{t("meds.dashboard.takenToday", "Recorded today")}: <strong className="text-vyva-text-1">{takenValue}</strong></span>
+              <span data-testid="metric-meds-adherence">{t("meds.dashboard.adherence", "Progress")}: <strong className="text-vyva-text-1">{adherenceValue}</strong></span>
+              <span data-testid="metric-meds-count">{t("meds.dashboard.medicines", "Medicines")}: <strong className="text-vyva-text-1">{displayMeds.length}</strong></span>
+            </div>
+          </div>
+        </section>
+
+        {activeRefillAlert ? (
+          <section aria-label="Refill alert">
+            <MedicationRefillAlertCard
+              alert={activeRefillAlert}
+              canManage={refillAlertData?.permissions.manage_inventory !== false}
+              onOpen={openRefillSupport}
+              onAsk={() => openAssistant(
+                `I have a refill alert for ${activeRefillAlert.title}. Explain what it means and help me decide what information to update. Do not order medicine or contact anyone.`,
+                t("meds.refillAlert.askTitle", "Ask about this refill"),
+              )}
+              testId="meds-refill-alert"
+            />
+          </section>
+        ) : null}
+
+        <section
+          className="mt-5 rounded-[28px] border border-[#E6DCEB] bg-white p-[22px] shadow-[0_16px_36px_rgba(63,45,35,0.10)]"
+          data-testid="section-meds-primary-actions"
+          data-canon-accent="ask-dr-ai-action-stack"
+        >
+          <h2 className="px-1 font-body text-[22px] font-black text-vyva-text-1">
+            {t("meds.master.manageTitle", "Manage your medicines")}
+          </h2>
+          <div className="mt-3 grid grid-cols-1 gap-2">
+            {medicationMasterCards.slice(0, 4).map((card) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={card.onClick}
+                  data-testid={card.testId}
+                  aria-label={card.detail ? `${card.title}. ${card.detail}` : card.title}
+                  className="vyva-tap flex min-h-[60px] items-center gap-3 rounded-[18px] border px-4 py-3 text-left shadow-[0_6px_16px_rgba(63,45,35,0.04)] transition hover:border-[#B99BCE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2"
+                  style={{ borderColor: card.tone.border, backgroundColor: card.tone.surface }}
+                >
+                  <CanonicalFlowIcon
+                    icon={Icon}
+                    tone="purple"
+                    goldAccent={
+                      card.id === "my-medicines"
+                        ? "pill"
+                        : card.id === "adherence"
+                          ? "document"
+                          : card.id === "refills"
+                            ? "cart"
+                            : "link"
+                    }
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">{card.title}</span>
+                  </span>
+                  <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-[#9A83AD]" aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+      </CanonicalDetailFlowShell>
+
+      <MedsAssistantSheet
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        title={assistantTitle}
+        initialPrompt={assistantPrompt}
+      />
+      {voiceMedicineReviewModal}
+    </>
+  );
+
   return (
     <div className="pb-28">
       <MasterDashboardLayout
@@ -1387,6 +1929,18 @@ const MedsScreen = () => {
       />
 
       <div className="px-[18px] sm:px-[22px]">
+      {myMedicinesOpen ? (
+        <MyMedicines
+          onStartVoice={toggleMedicationVoiceCapture}
+          onOpenReminders={() => setRemindersOpen(true)}
+          onOpenRefills={openRefillSupport}
+        />
+      ) : null}
+
+      {interactionsOpen ? (
+        <CheckInteractions />
+      ) : null}
+
       <section className="mt-4" data-testid="section-meds-dashboard">
         <article className="overflow-hidden rounded-[26px] border border-[#D9ECE4] bg-white shadow-[0_14px_32px_rgba(15,76,69,0.08)] sm:rounded-[30px]">
           <div className="p-4 sm:p-5">
@@ -1568,38 +2122,58 @@ const MedsScreen = () => {
                   </p>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
-                {pharmacyPhoneHref ? (
-                  <a
-                    data-testid="link-meds-pharmacy-phone"
-                    href={pharmacyPhoneHref}
-                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
-                  >
-                    <Phone size={17} aria-hidden="true" />
-                    {t("meds.dashboard.callPharmacy", "Call pharmacy")}
-                  </a>
-                ) : (
+              {pharmacyProvider ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
+                  {pharmacyPhoneHref ? (
+                    <a
+                      data-testid="link-meds-pharmacy-phone"
+                      href={pharmacyPhoneHref}
+                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    >
+                      <Phone size={17} aria-hidden="true" />
+                      {t("meds.dashboard.callPharmacy", "Call pharmacy")}
+                    </a>
+                  ) : (
+                    <button
+                      data-testid="button-meds-pharmacy-add"
+                      type="button"
+                      onClick={openPharmacySetup}
+                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    >
+                      <Plus size={17} aria-hidden="true" />
+                      {t("meds.dashboard.addPharmacy", "Add pharmacy")}
+                    </button>
+                  )}
                   <button
-                    data-testid="button-meds-pharmacy-add"
+                    data-testid="button-meds-pharmacy-order"
                     type="button"
-                    onClick={() => navigate("/onboarding/profile/providers")}
-                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    onClick={openRefillSupport}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
                   >
-                    <Plus size={17} aria-hidden="true" />
-                    {t("meds.dashboard.addPharmacy", "Add pharmacy")}
+                    <ShoppingCart size={17} aria-hidden="true" />
+                    {t("meds.dashboard.orderRefill", "Check refill need")}
                   </button>
-                )}
-                <button
-                  data-testid="button-meds-pharmacy-order"
-                  type="button"
-                  onClick={openRefillSupport}
-                  className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
-                >
-                  <ShoppingCart size={17} aria-hidden="true" />
-                  {t("meds.dashboard.orderRefill", "Order refill")}
-                </button>
-              </div>
+                </div>
+              ) : null}
             </div>
+            {!pharmacyProvider ? (
+              <div className="mt-3">
+                <ProviderSetupFallbackPanel
+                  testId="panel-meds-pharmacy-setup-fallback"
+                  workflowReference={CONCIERGE_FLOW_REFERENCES.otcPharmacy}
+                  returnTo="/meds"
+                  title={t("meds.dashboard.pharmacyFallbackTitle", "Need a pharmacy first?")}
+                  description={t("meds.dashboard.pharmacyFallbackDescription", "Save your usual pharmacy, find nearby OTC options, or ask someone you trust to help set it up.")}
+                  addLabel={t("meds.dashboard.pharmacyFallbackAdd", "Add my usual pharmacy")}
+                  findLabel={t("meds.dashboard.pharmacyFallbackFind", "Find nearby OTC options")}
+                  helperLabel={t("meds.dashboard.pharmacyFallbackHelper", "Ask family/caregiver")}
+                  confirmation={t("meds.dashboard.pharmacyFallbackConfirm", "VYVA still asks before calling, ordering, or sharing details.")}
+                  onAddProvider={openPharmacySetup}
+                  onFindOptions={openRefillSupport}
+                  onAskHelper={askHelperForPharmacySetup}
+                />
+              </div>
+            ) : null}
           </div>
         </article>
       </section>
@@ -1609,7 +2183,7 @@ const MedsScreen = () => {
         actionTypes={["meds.management", "meds.refill_request"]}
         title={voiceAction?.actionType === "meds.refill_request" ? t("meds.contextPanel.refillTitle", "Refill context ready") : t("meds.contextPanel.title", "Medication context ready")}
         description={voiceAction?.actionType === "meds.refill_request"
-          ? t("meds.contextPanel.refillDescription", "VYVA can check medication stock and prepare refill help, then ask you to confirm before anyone is contacted.")
+          ? t("meds.contextPanel.refillDescription", "VYVA can estimate remaining supply and help you update the quantity. It never orders or contacts anyone.")
           : t("meds.contextPanel.description", "VYVA can use today's schedule and your medication profile on this page.")}
         highlights={voiceActionHighlights}
         className="mt-4"
@@ -2004,23 +2578,6 @@ const MedsScreen = () => {
             })
           )}
 
-          {voiceAddedMeds.map((med, i) => (
-            <div key={`voice-${i}`} className="flex min-h-[78px] items-center gap-4 border-b border-vyva-border bg-purple-50 px-4 py-4 last:border-b-0">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: "#F3E8FF" }}>
-                <Mic size={20} style={{ color: "#6B21A8" }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{med.name || t("meds.newMedication")}</p>
-                <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-                  {[med.dosage, med.frequency?.replace("_", " ")].filter(Boolean).join(" - ")}
-                </p>
-              </div>
-              <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-purple">
-                {t("meds.added")}
-              </span>
-            </div>
-          ))}
-
           {displayMeds.length > 0 ? (
             <div className="flex flex-col gap-3 border-t border-vyva-border bg-[#FFFCF8] px-4 py-4">
               {!todayLoading && totalRemainingDoseCount === 0 ? (
@@ -2085,6 +2642,13 @@ const MedsScreen = () => {
         onOpenChange={setAssistantOpen}
         title={assistantTitle}
         initialPrompt={assistantPrompt}
+      />
+
+      <MedicationUpdatesPanel
+        open={medicationUpdatesOpen}
+        onOpenChange={setMedicationUpdatesOpen}
+        language={language}
+        onPrepareAppointment={prepareMedicationUpdateAppointment}
       />
 
       {caseSheetOpen ? (

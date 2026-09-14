@@ -12,6 +12,8 @@ import {
   medicationSafetyCaseEvents,
   medicationSafetyCases,
   medicationSafetySignals,
+  myMedicines,
+  myMedicinesChangeLog,
   userMedications,
 } from "../../shared/schema.js";
 import {
@@ -35,6 +37,8 @@ async function cleanupUser(userId: string) {
   await db.delete(medicationSafetyCaseEvents).where(eq(medicationSafetyCaseEvents.user_id, userId));
   await db.delete(medicationSafetySignals).where(eq(medicationSafetySignals.user_id, userId));
   await db.delete(medicationSafetyCases).where(eq(medicationSafetyCases.user_id, userId));
+  await db.delete(myMedicinesChangeLog).where(eq(myMedicinesChangeLog.user_id, userId));
+  await db.delete(myMedicines).where(eq(myMedicines.user_id, userId));
   await db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId));
   await db.delete(userMedications).where(eq(userMedications.user_id, userId));
 }

@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { woundScans } from "../../shared/schema.js";
+import { nonRetainedShowVyvaEvidence } from "../services/showVyvaEvidencePrivacy.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
@@ -103,7 +104,7 @@ function normalizeImageType(value: unknown): VisualScanImageType {
 }
 
 export async function woundScanHandler(req: Request, res: Response) {
-  const { image, language } = req.body as { image?: string; language?: string };
+  const { image, language, question } = req.body as { image?: string; language?: string; question?: string };
 
   if (!image || typeof image !== "string") {
     return res.status(400).json({ error: "image (base64 data URL) is required" });
@@ -144,7 +145,10 @@ export async function woundScanHandler(req: Request, res: Response) {
             },
             {
               type: "text",
-              text: "Please classify and review this medical-looking image as an assistive visual health scan. Return only the requested JSON.",
+              text: [
+                "Please classify and review this medical-looking image as an assistive visual health scan. Return only the requested JSON.",
+                question?.trim() ? `The user asks: ${question.trim().slice(0, 240)}` : "",
+              ].filter(Boolean).join("\n"),
             },
           ],
         },
@@ -189,7 +193,7 @@ export async function woundScanHandler(req: Request, res: Response) {
         severity,
         result_title: resultTitle,
         advice,
-        image_data: image,
+        ...nonRetainedShowVyvaEvidence(),
       });
     } catch (dbErr) {
       console.error("[wound-scan] Failed to persist scan result:", dbErr);

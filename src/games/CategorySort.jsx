@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, CircleHelp, Layers, Loader2, Palette, Ruler, Shapes, Square } from "lucide-react";
+import { Check, CircleHelp, Layers, Palette, Ruler, Shapes } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -28,7 +34,7 @@ const COLOR_HEX = {
 const COLOR_ORDER = ["red", "blue", "yellow", "green", "purple", "orange"];
 const SHAPE_ORDER = ["circle", "square", "triangle", "star", "diamond", "cross"];
 const SIZE_ORDER = ["small", "medium", "large"];
-const MAX_CATEGORY_SORT_TIER = 10;
+const MAX_CATEGORY_SORT_TIER = BRAIN_COACH_MAX_LEVEL;
 const LEVEL_UP_ACCURACY_PCT = 75;
 const LEVEL_DOWN_ACCURACY_PCT = 45;
 const LOCAL_STATE_PREFIX = "vyva_category_sort_user_state";
@@ -1002,6 +1008,7 @@ export default function CategorySort({
   const currentSequence = sequence ?? FALLBACK_SEQUENCE;
   const currentCard = cards[currentCardIndex];
   const currentRule = currentSequence.rules[currentRuleIndex] ?? currentSequence.rules[0];
+  const currentBand = getBrainCoachLevelBand(currentSequence.difficulty_tier ?? 1);
   const categories = getCategoriesForRule(currentRule, cards);
   const progress = cards.length ? ((currentCardIndex + 1) / cards.length) * 100 : 0;
   const RuleIcon = iconForRule(currentRule);
@@ -1009,8 +1016,14 @@ export default function CategorySort({
   const result = sessionResult ?? computeScore(sessionLog, false);
   const progressToPromotion = clamp((result.combined_accuracy_pct / LEVEL_UP_ACCURACY_PCT) * 100, 0, 100);
   const resultTier = Number(userState?.current_tier ?? currentSequence.difficulty_tier ?? 1);
+  const resultBand = getBrainCoachLevelBand(resultTier);
   const completedTier = Number(currentSequence.difficulty_tier ?? 1);
   const resultWasPromoted = resultTier > completedTier;
+  const resultSummary = resultWasPromoted
+    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: completedTier })
+    : result.combined_accuracy_pct >= LEVEL_UP_ACCURACY_PCT
+      ? `${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
@@ -1031,37 +1044,39 @@ export default function CategorySort({
 
   if (screen === "loading") {
     return (
-      <div className="flex h-[100dvh] items-center justify-center overflow-hidden px-8" style={shellStyle}>
-        <div className="text-center">
-          <Loader2 className="mx-auto h-20 w-20 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-8 text-[28px] font-semibold">{text.loading}</p>
-        </div>
-      </div>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.loading}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.loading.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+      />
     );
   }
 
   if (screen === "intro") {
     return (
-      <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle} data-testid="category-sort-intro">
-        <div className="mx-auto grid min-h-[100dvh] w-full max-w-[760px] grid-rows-[auto_1fr_auto] gap-3 py-3 sm:gap-5 sm:py-5">
-          <header className="flex shrink-0 items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleExit}
-              className="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-white px-4 text-[18px] font-bold text-vyva-text-1 shadow-vyva-card sm:min-h-[58px] sm:gap-3 sm:px-5 sm:text-[21px]"
-            >
-              <ArrowLeft size={22} />
-              {text.back}
-            </button>
-            <div className="flex min-h-[48px] shrink-0 items-center rounded-full px-4 text-[18px] font-bold text-white shadow-vyva-card sm:min-h-[58px] sm:px-5 sm:text-[21px]" style={{ background: BRAND.gold }}>
-              {text.level} {currentSequence.difficulty_tier}
+      <BrainCoachActivityShell
+        title={text.title}
+        backLabel={text.back}
+        onBack={handleExit}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.intro.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="intro"
+        sceneLayout="rule_preview"
+      >
+        <div className="pb-6" data-testid="category-sort-intro">
+        <div className="mx-auto grid w-full max-w-[760px] gap-5 rounded-[28px] border border-[#EEE8F1] bg-white p-5 shadow-vyva-card sm:p-6">
+          <header className="flex shrink-0 justify-center">
+            <div className="flex min-h-[48px] shrink-0 items-center rounded-full bg-[#FEF3C7] px-4 text-[18px] font-bold text-[#92400E] sm:min-h-[58px] sm:px-5 sm:text-[21px]">
+              {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
             </div>
           </header>
 
-          <main className="flex min-h-0 flex-col justify-start gap-4 pt-6 sm:gap-5 sm:pt-10">
+          <main className="flex min-h-0 flex-col justify-start gap-4 sm:gap-5">
             <div className="text-center">
-              <h1 className="mx-auto max-w-[12ch] font-display text-[32px] font-bold leading-[1.02] sm:text-[42px] md:text-[48px]">{text.title}</h1>
-              <p className="mx-auto mt-3 max-w-[34ch] text-[19px] leading-[1.3] sm:text-[23px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
+              <p className="mx-auto max-w-[34ch] text-[19px] font-bold leading-[1.3] sm:text-[23px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
               {loadNote && (
                 <p className="mx-auto mt-3 inline-flex max-w-full rounded-full bg-[#FFF7ED] px-4 py-2 text-center text-[17px] font-bold leading-[1.15] text-[#9A3412] sm:text-[20px]">
                   {loadNote}
@@ -1075,7 +1090,7 @@ export default function CategorySort({
                 return (
                   <div
                     key={`${rule.rule}-${index}`}
-                    className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border-2 bg-white px-3 py-2 shadow-vyva-card sm:min-h-[104px] sm:grid-cols-1 sm:items-start sm:p-4"
+                    className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[22px] border bg-white px-3 py-2 shadow-vyva-card sm:min-h-[104px] sm:grid-cols-1 sm:items-start sm:p-4"
                     style={{ borderColor: BRAND.border }}
                     data-testid="category-sort-rule-card"
                   >
@@ -1094,7 +1109,7 @@ export default function CategorySort({
             <button
               type="button"
               onClick={startRound}
-              className="min-h-[62px] rounded-[8px] px-5 text-[22px] font-bold text-white shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
+              className="min-h-[62px] rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
               style={{ background: BRAND.purple }}
             >
               {text.start}
@@ -1102,14 +1117,15 @@ export default function CategorySort({
             <button
               type="button"
               onClick={() => setScreen("tutorial")}
-              className="min-h-[58px] rounded-[8px] border-2 bg-white px-5 text-[21px] font-bold shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
+              className="min-h-[58px] rounded-full border bg-white px-5 text-[21px] font-bold shadow-vyva-card sm:min-h-[72px] sm:px-6 sm:text-[26px]"
               style={{ borderColor: BRAND.border, color: BRAND.purple }}
             >
               {text.example}
             </button>
           </footer>
         </div>
-      </div>
+        </div>
+      </BrainCoachActivityShell>
     );
   }
 
@@ -1122,7 +1138,17 @@ export default function CategorySort({
     const TutorialRuleIcon = iconForRule(tutorialRule);
 
     return (
-      <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={shellStyle}>
+      <BrainCoachActivityShell
+        title={text.title}
+        backLabel={text.back}
+        onBack={handleExit}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.tutorial.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="tutorial"
+        sceneLayout="rule_example"
+      >
+        <div className="relative pb-6">
         {tutorialOverlay && (
           <div className="absolute inset-0 z-30 flex items-center justify-center px-6 text-center" style={{ background: BRAND.gold }}>
             <div>
@@ -1135,27 +1161,19 @@ export default function CategorySort({
         )}
 
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[52px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
+          <header className="flex min-h-[52px] shrink-0 items-center gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
             <h1 className="min-w-0 text-[22px] font-bold leading-[1.1] sm:text-[26px]">{text.tutorialTitle}</h1>
-            <button
-              type="button"
-              onClick={startRound}
-              className="min-h-[48px] shrink-0 rounded-full px-4 text-[19px] font-bold sm:px-5 sm:text-[21px]"
-              style={{ background: BRAND.softPurple, color: BRAND.purple }}
-            >
-              {text.skip}
-            </button>
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center gap-2 py-2">
-            <div className="rounded-[8px] border-2 px-3 py-2 text-center shadow-vyva-card" style={{ borderColor: BRAND.border, background: BRAND.gold }}>
+            <div className="rounded-[22px] border px-3 py-2 text-center shadow-vyva-card" style={{ borderColor: BRAND.border, background: BRAND.gold }}>
               <p className="inline-flex items-center gap-3 text-[22px] font-black leading-[1.1] text-white sm:text-[24px]">
                 <TutorialRuleIcon size={30} />
                 {text.sortBy}: {ruleLabel(tutorialRule, gameLanguage)}
               </p>
             </div>
 
-            <div className="mx-auto flex h-[clamp(116px,22dvh,176px)] min-h-0 w-full max-w-[380px] items-center justify-center rounded-[8px] border-2 bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[clamp(116px,22dvh,176px)] min-h-0 w-full max-w-[380px] items-center justify-center rounded-[24px] border bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
               <CardFace card={tutorialCard} language={gameLanguage} showLabel={false} compact />
             </div>
 
@@ -1180,13 +1198,14 @@ export default function CategorySort({
           <button
             type="button"
             onClick={startRound}
-            className="min-h-[56px] w-full shrink-0 rounded-[8px] px-8 text-[23px] font-bold text-white shadow-vyva-card sm:text-[25px]"
+            className="min-h-[56px] w-full shrink-0 rounded-full px-8 text-[23px] font-bold text-white shadow-vyva-card sm:text-[25px]"
             style={{ background: BRAND.purple }}
           >
             {text.start}
           </button>
         </div>
-      </div>
+        </div>
+      </BrainCoachActivityShell>
     );
   }
 
@@ -1194,7 +1213,17 @@ export default function CategorySort({
     const showSemanticLabel = Number(currentSequence.difficulty_tier ?? 1) >= 6;
 
     return (
-      <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={shellStyle}>
+      <BrainCoachActivityShell
+        title={text.title}
+        backLabel={text.exit}
+        onBack={handleExit}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.playing.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="playing"
+        sceneLayout="sorting_board"
+      >
+        <div className="relative pb-6">
         {showRuleChange && ruleChangeRule && (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-6 text-center" style={{ background: BRAND.gold }}>
             <div>
@@ -1208,18 +1237,6 @@ export default function CategorySort({
 
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
           <header className="shrink-0">
-            <div className="flex min-h-[54px] items-center justify-between gap-3">
-              <h1 className="min-w-0 text-[22px] font-bold leading-[1.1] sm:text-[26px]">{text.title}</h1>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="inline-flex min-h-[48px] shrink-0 items-center gap-2 rounded-full px-4 text-[19px] font-bold sm:gap-3 sm:px-5 sm:text-[21px]"
-                style={{ background: "#FFF7ED", color: "#9A3412" }}
-              >
-                <Square size={22} />
-                {text.exit}
-              </button>
-            </div>
             <div className="h-2 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full transition-[width] duration-300" style={{ width: `${progress}%`, background: BRAND.purple }} />
             </div>
@@ -1229,7 +1246,7 @@ export default function CategorySort({
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col gap-2">
-            <section className="rounded-[8px] border-2 px-4 py-3 text-center shadow-vyva-card" style={{ borderColor: "#D97706", background: BRAND.gold }}>
+            <section className="rounded-[22px] border px-4 py-3 text-center shadow-vyva-card" style={{ borderColor: "#D97706", background: BRAND.gold }}>
               <p className="inline-flex items-center justify-center gap-3 text-[22px] font-black leading-[1.1] text-white sm:text-[24px]">
                 <RuleIcon size={30} />
                 {text.sortBy}: {ruleLabel(currentRule, gameLanguage)}
@@ -1237,7 +1254,7 @@ export default function CategorySort({
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
-              <div className="flex h-[clamp(116px,22dvh,178px)] min-h-0 w-full max-w-[400px] items-center justify-center rounded-[8px] border-2 bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+              <div className="flex h-[clamp(116px,22dvh,178px)] min-h-0 w-full max-w-[400px] items-center justify-center rounded-[24px] border bg-white p-3 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
                 <CardFace card={currentCard} language={gameLanguage} showLabel={showSemanticLabel} compact />
               </div>
 
@@ -1272,57 +1289,28 @@ export default function CategorySort({
             {text.streak}: {consecutiveCorrect}
           </footer>
         </div>
-      </div>
+        </div>
+      </BrainCoachActivityShell>
     );
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={shellStyle}>
-      <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="text-center text-[64px] leading-none sm:text-[82px]">{result.score >= 600 ? "🎉" : "😊"}</div>
-          <h1 className="mt-3 text-center font-display text-[38px] font-bold leading-[1.1] sm:mt-5 sm:text-[44px]">
-            {result.score >= 600 ? text.resultGreat : text.resultGood}
-          </h1>
-
-          <section className="mt-5 rounded-[8px] border-2 bg-white p-4 shadow-vyva-card sm:mt-7 sm:p-6" style={{ borderColor: BRAND.border }}>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <Metric label={text.accuracy} value={`${Math.round(result.accuracy_pct)}%`} />
-              <Metric
-                label={text.flexibility}
-                value={`${Math.round(result.flexibility_pct)}%`}
-                hint={text.flexibilityHint}
-              />
-              <Metric label={text.score} value={String(result.score)} accent />
-              <Metric label={text.streak} value={`${userState?.streak_days ?? 1} ${text.days}`} accent />
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-5 sm:p-5" style={{ borderColor: BRAND.border }}>
-            <p className="text-[24px] font-black leading-[1.15]">{text.ruleBreakdown}</p>
-            <div className="mt-3 grid gap-2">
-              {groupedResults.length ? groupedResults.map((group) => (
-                <div key={group.label} className="flex items-center justify-between gap-3 rounded-[8px] bg-[#FFF9F1] px-4 py-3">
-                  <span className="text-[22px] font-bold leading-[1.1]" style={{ color: BRAND.muted }}>{group.label}</span>
-                  <span className="text-[28px] font-black tracking-[0.08em]" style={{ color: BRAND.purple }}>{group.marks.join(" ")}</span>
-                </div>
-              )) : (
-                <p className="text-[22px] font-bold" style={{ color: BRAND.muted }}>-</p>
-              )}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-5 sm:p-5" style={{ borderColor: BRAND.border }}>
-            <p className="text-[24px] font-bold">{text.progressNext} {nextTier}</p>
-            <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#EDE6F4]">
-              <div className="h-full" style={{ width: `${progressToPromotion}%`, background: BRAND.purple }} />
-            </div>
-          </section>
-        </div>
-
+    <BrainCoachActivityShell
+      title={text.title}
+      backLabel={text.exit}
+      onBack={handleExit}
+      showHeader={false}
+      testId="category-sort-flow-shell"
+      presentationId="brain_coach.activity_session.improve_thinking.category_sort.result.touch"
+      sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
+      <div className="min-h-[100dvh]" style={shellStyle}>
         <BrainGameCompletionDialog
           title={result.score >= 600 ? text.resultGreat : text.resultGood}
-          summary={`${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`}
+          summary={resultSummary}
           metrics={[
             { label: text.accuracy, value: `${Math.round(result.accuracy_pct)}%` },
             { label: text.flexibility, value: `${Math.round(result.flexibility_pct)}%` },
@@ -1342,9 +1330,38 @@ export default function CategorySort({
           onReplay={handleReplay}
           onAnother={handleExit}
           onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+          details={
+            <div className="grid gap-3">
+              <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
+                <p className="text-[14px] font-black uppercase text-vyva-text-2">{text.ruleBreakdown}</p>
+                <div className="mt-2 grid gap-2">
+                  {groupedResults.length ? groupedResults.map((group) => (
+                    <div key={group.label} className="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2">
+                      <span className="text-[15px] font-bold text-vyva-text-2">{group.label}</span>
+                      <span className="text-[18px] font-black tracking-[0.08em] text-vyva-purple">{group.marks.join(" ")}</span>
+                    </div>
+                  )) : (
+                    <p className="text-[15px] font-bold text-vyva-text-2">-</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                  <span>{text.progressNext} {nextTier}</span>
+                  <span>{Math.round(progressToPromotion)}%</span>
+                </div>
+                <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
+                  {text.level} {resultTier} - {resultBand.label}
+                </p>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                  <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${progressToPromotion}%` }} />
+                </div>
+              </div>
+            </div>
+          }
         />
       </div>
-    </div>
+    </BrainCoachActivityShell>
   );
 }
 
@@ -1375,7 +1392,7 @@ function CategoryButton({ category, rule, onClick, disabled, compact = false }) 
       type="button"
       onClick={() => onClick(category.value)}
       disabled={disabled}
-      className={`flex w-full items-center rounded-[8px] border-2 bg-white text-left font-black leading-[1.08] shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-70 ${compact ? "gap-3 px-3 py-2 text-[20px] sm:px-4 sm:text-[22px]" : "min-h-[72px] gap-4 px-5 py-3 text-[24px]"}`}
+      className={`flex w-full items-center rounded-[20px] border bg-white text-left font-black leading-[1.08] shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-70 ${compact ? "gap-3 px-3 py-2 text-[20px] sm:px-4 sm:text-[22px]" : "min-h-[72px] gap-4 px-5 py-3 text-[24px]"}`}
       style={{
         borderColor: BRAND.border,
         color: BRAND.ink,
@@ -1390,7 +1407,7 @@ function CategoryButton({ category, rule, onClick, disabled, compact = false }) 
 
 function Metric({ label, value, hint, accent = false }) {
   return (
-    <div className="min-h-[116px] rounded-[8px] bg-[#FFF9F1] p-3">
+    <div className="min-h-[116px] rounded-[20px] bg-[#FFF9F1] p-3">
       <p className="flex items-center justify-center gap-2 text-[22px] font-bold leading-[1.1]" style={{ color: BRAND.muted }}>
         {label}
         {hint && <CircleHelp size={22} aria-label={hint} title={hint} />}

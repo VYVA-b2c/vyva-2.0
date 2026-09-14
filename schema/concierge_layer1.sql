@@ -1,15 +1,16 @@
-CREATE TABLE user_providers (
+CREATE TABLE IF NOT EXISTS user_providers (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
   category         text NOT NULL
                    CHECK (category IN (
-                     'taxi', 'pharmacy', 'gp', 'hospital', 'dentist',
+                     'pharmacy', 'doctor_clinic', 'transport',
+                     'home_service', 'personal_care', 'food', 'other',
+                     'taxi', 'gp', 'hospital', 'dentist',
                      'physio', 'clinic', 'restaurant', 'cafe', 'takeaway',
                      'supermarket', 'convenience', 'shopping',
                      'beauty_salon', 'hair_care', 'spa', 'gym',
-                     'home_repair', 'electrician', 'plumber', 'cleaner',
-                     'other'
+                     'home_repair', 'electrician', 'plumber', 'cleaner'
                    )),
 
   name             text NOT NULL,
@@ -30,7 +31,7 @@ CREATE TABLE user_providers (
 );
 
 
-CREATE TABLE concierge_pending (
+CREATE TABLE IF NOT EXISTS concierge_pending (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -43,6 +44,10 @@ CREATE TABLE concierge_pending (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
@@ -73,7 +78,7 @@ CREATE TABLE concierge_pending (
 );
 
 
-CREATE TABLE concierge_sessions (
+CREATE TABLE IF NOT EXISTS concierge_sessions (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -88,6 +93,10 @@ CREATE TABLE concierge_sessions (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
@@ -103,10 +112,15 @@ CREATE TABLE concierge_sessions (
 
   outcome          text NOT NULL DEFAULT 'pending'
                    CHECK (outcome IN (
+                     'pending',
+                     'completed',
                      'confirmed',
                      'no_answer',
+                     'unavailable',
                      'cant_fulfil',
+                     'needs_more_info',
                      'user_cancelled',
+                     'cancelled',
                      'error'
                    )),
 
@@ -122,7 +136,7 @@ CREATE TABLE concierge_sessions (
 );
 
 
-CREATE TABLE concierge_reminders (
+CREATE TABLE IF NOT EXISTS concierge_reminders (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id              text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -161,6 +175,11 @@ ALTER TABLE concierge_pending   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE concierge_sessions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE concierge_reminders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "user_own_providers" ON user_providers;
+DROP POLICY IF EXISTS "user_own_pending" ON concierge_pending;
+DROP POLICY IF EXISTS "user_own_sessions" ON concierge_sessions;
+DROP POLICY IF EXISTS "user_own_reminders" ON concierge_reminders;
+
 CREATE POLICY "user_own_providers"
   ON user_providers FOR ALL
   USING (auth.uid()::text = user_id);
@@ -178,25 +197,25 @@ CREATE POLICY "user_own_reminders"
   USING (auth.uid()::text = user_id);
 
 
-CREATE INDEX idx_up_user_category
+CREATE INDEX IF NOT EXISTS idx_up_user_category
   ON user_providers (user_id, category, is_primary)
   WHERE is_active = true;
 
-CREATE INDEX idx_up_user_usecount
+CREATE INDEX IF NOT EXISTS idx_up_user_usecount
   ON user_providers (user_id, use_count DESC)
   WHERE is_active = true;
 
-CREATE INDEX idx_cp_user_status
+CREATE INDEX IF NOT EXISTS idx_cp_user_status
   ON concierge_pending (user_id, status)
   WHERE status IN ('pending', 'calling');
 
-CREATE INDEX idx_cs_user_started
+CREATE INDEX IF NOT EXISTS idx_cs_user_started
   ON concierge_sessions (user_id, started_at DESC);
 
-CREATE INDEX idx_cs_user_usecase
+CREATE INDEX IF NOT EXISTS idx_cs_user_usecase
   ON concierge_sessions (user_id, use_case, started_at DESC);
 
-CREATE INDEX idx_cr_user_active
+CREATE INDEX IF NOT EXISTS idx_cr_user_active
   ON concierge_reminders (user_id, reminder_date ASC)
   WHERE is_active = true AND triggered = false;
 
@@ -212,7 +231,7 @@ CREATE INDEX idx_cr_user_active
 -- [x] concierge_sessions.location_type column exists (text, nullable)
 -- [x] concierge_pending.expires_at defaults to now() + interval '30 minutes'
 -- [x] concierge_pending.status CHECK covers all five values
--- [x] concierge_sessions.outcome defaults to 'pending'
+-- [x] concierge_sessions.outcome defaults to 'pending' and allows completed follow-up saves
 -- [x] user_providers allows insert with only user_id, category, name
 -- [x] concierge_reminders allows insert with only user_id, reminder_type, title, reminder_date
 -- [x] All six indexes created successfully

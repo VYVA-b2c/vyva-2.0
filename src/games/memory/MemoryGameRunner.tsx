@@ -1,33 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
-  BookOpen,
+  Check,
   CircleHelp,
-  Clock3,
   Grid2x2,
-  Hash,
-  Layers3,
-  Link2,
-  Loader2,
   Mic,
-  NotebookPen,
   RotateCcw,
   Route,
-  Type,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
-import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import { useBrainCoachNavigate as useNavigate } from "@/hooks/useBrainCoachNavigate";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
-import { useTtsReadout } from "@/hooks/useVyvaVoice";
+import { useOptionalVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
+import { BrainCoachActivityShell, BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import {
   cognitiveAssessmentPracticeStateFromRoute,
   completeCognitiveAssessmentPractice,
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
-import { saveGameResult } from "./gameStorage";
+import {
+  getBrainCoachActivityByMemoryGame,
+  getBrainCoachActivityPath,
+  getBrainCoachModule,
+} from "../brainCoachCatalog";
+import {
+  getBrainCoachProgressLabel,
+  getBrainCoachSupportiveProgressCopy,
+} from "../shared/brainCoachProgression";
+import { getGameHistory, saveGameResult } from "./gameStorage";
 import {
   getGameDefinition,
   getGameDescription,
@@ -37,18 +39,46 @@ import {
   memoryGameRegistry,
 } from "./memoryGameRegistry";
 import {
+  getRecommendedLevelForGame,
+  getVisualMemoryLevelProgress,
+  pickVariantForGame,
   selectGamePlan,
   selectNextMemoryGame,
   selectNextVariantForSameGame,
 } from "./progressionEngine";
-import type { MemoryGameType, Recommendation } from "./types";
+import type { GameResult, MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
 import StoryRecallGame from "./StoryRecallGame";
+import ConnectionsGame from "./ConnectionsGame";
+import NumberMemoryGame from "./NumberMemoryGame";
+import MemoryMatchVisual from "./MemoryMatchVisual";
+import {
+  getVisualMemoryProgressLabel,
+  VISUAL_MEMORY_MAX_LEVEL,
+  type VisualMemoryVisual,
+} from "./visualMemoryJourney";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
 const SEQUENCE_TUTORIAL_KEY = "sequenceMemory:tutorialSeen:v1";
+const VISUAL_MEMORY_TUTORIAL_KEY = "visualMemory:tutorialSeen:v1";
+
+function getMemoryRunnerBrainSceneId(gameType: MemoryGameType | null | undefined) {
+  if (gameType === "sequence_memory") {
+    return "brain_coach.activity_session.train_reflexes.rhythm_tap";
+  }
+
+  if (gameType === "routine_memory") {
+    return "brain_coach.activity_session.improve_thinking.routine_memory";
+  }
+
+  return `brain_coach.activity_session.memory.${gameType ?? "unknown"}`;
+}
+
+function getMemoryRunnerBrainTestId(gameType: MemoryGameType | null | undefined) {
+  return gameType === "sequence_memory" ? "rhythm-tap-flow-shell" : "memory-game-runner-flow-shell";
+}
 
 function sequenceTutorialStorageKey(userId: string) {
   return userId ? `${SEQUENCE_TUTORIAL_KEY}:${userId}` : SEQUENCE_TUTORIAL_KEY;
@@ -72,11 +102,33 @@ function writeSequenceTutorialSeen(userId: string) {
   }
 }
 
+function visualMemoryTutorialStorageKey(userId: string) {
+  return userId ? `${VISUAL_MEMORY_TUTORIAL_KEY}:${userId}` : VISUAL_MEMORY_TUTORIAL_KEY;
+}
+
+function readVisualMemoryTutorialSeen(userId: string) {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(visualMemoryTutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeVisualMemoryTutorialSeen(userId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(visualMemoryTutorialStorageKey(userId), "true");
+  } catch {
+    // Tutorial persistence should never block play.
+  }
+}
+
 type MemoryCard = {
   deckId: string;
   pairId: string;
   label: string;
-  emoji: string;
+  visual: VisualMemoryVisual;
 };
 
 type SequenceTile = {
@@ -93,12 +145,41 @@ type CompletionMetrics = {
 };
 
 type CompletionDetails = {
-  rememberedWords?: string[];
   correctWords?: string[];
+  incorrectWords?: string[];
   missedWords?: string[];
+  expectedAnswer?: string;
+  givenAnswer?: string;
+  cueLabel?: string;
 };
 
-type WordRecallDistractionType = "count_backwards" | "choose_blue" | "breathe_continue";
+type WordRecallDistractionType = "count_backwards" | "choose_blue" | "breathe_continue" | "number_order";
+type WordRecallThemeId = "home" | "garden" | "food" | "travel" | "community";
+type WordRecallThemeChoice = WordRecallThemeId | "surprise";
+type WordRecallChallengeKind = "recognition" | "category" | "first" | "order";
+const WORD_RECALL_THEMES: Array<{ id: WordRecallThemeId; emoji: string; labels: Record<string, string> }> = [
+  { id: "home", emoji: "🏡", labels: { en: "Home", es: "Hogar", fr: "Maison", de: "Zuhause", it: "Casa", pt: "Casa" } },
+  { id: "garden", emoji: "🌿", labels: { en: "Garden", es: "Jardín", fr: "Jardin", de: "Garten", it: "Giardino", pt: "Jardim" } },
+  { id: "food", emoji: "🍲", labels: { en: "Food", es: "Comida", fr: "Cuisine", de: "Essen", it: "Cibo", pt: "Comida" } },
+  { id: "travel", emoji: "🧳", labels: { en: "Travel", es: "Viajes", fr: "Voyage", de: "Reise", it: "Viaggio", pt: "Viagem" } },
+  { id: "community", emoji: "🤝", labels: { en: "Community", es: "Comunidad", fr: "Quartier", de: "Gemeinschaft", it: "Comunità", pt: "Comunidade" } },
+];
+const WORD_RECALL_UI: Record<string, Record<string, string>> = {
+  en: { theme: "Choose a theme", surprise: "Surprise me", sameTheme: "Same theme", newTheme: "New theme", anotherRound: "Another round", playAnotherGame: "Play another game", stamp: "Theme stamp", explored: "themes explored", order: "Choose the words in the order you saw them.", first: "Choose the word you saw first before any others.", category: "Look carefully: the choices are more similar now.", numberOrder: "Tap the numbers from smallest to largest.", strong: "You held onto the whole set.", almost: "A strong start—these remaining words are ready for another look.", gentle: "Every attempt gives your memory useful practice.", milestone: "A lovely collection of themes is taking shape.", levelUnlocked: "Level {level} is unlocked. Tap Level {level} to continue with the same theme.", levelNeeded: "Recall at least 80% of the words to unlock Level {level}. Choose Another round to try again.", masteryComplete: "You have reached the final level. Choose Another round to keep practising." },
+  es: { theme: "Elige un tema", surprise: "Sorpréndeme", sameTheme: "Mismo tema", newTheme: "Otro tema", anotherRound: "Otra ronda", playAnotherGame: "Jugar a otro juego", stamp: "Sello de tema", explored: "temas explorados", order: "Elige las palabras en el orden en que aparecieron.", first: "Elige primero la primera palabra que viste.", category: "Mira con atención: ahora las opciones son más parecidas.", numberOrder: "Toca los números de menor a mayor.", strong: "Has recordado todo el grupo.", almost: "Un buen comienzo; puedes volver a mirar las palabras restantes.", gentle: "Cada intento ofrece una práctica útil para la memoria.", milestone: "Tu colección de temas está creciendo muy bien.", levelUnlocked: "Has desbloqueado el nivel {level}. Toca Nivel {level} para continuar con el mismo tema.", levelNeeded: "Recuerda al menos el 80 % de las palabras para desbloquear el nivel {level}. Elige Otra ronda para intentarlo de nuevo.", masteryComplete: "Has llegado al último nivel. Elige Otra ronda para seguir practicando." },
+  fr: { theme: "Choisissez un thème", surprise: "Surprenez-moi", sameTheme: "Même thème", newTheme: "Autre thème", anotherRound: "Une autre partie", playAnotherGame: "Jouer à un autre jeu", stamp: "Tampon de thème", explored: "thèmes explorés", order: "Choisissez les mots dans l’ordre où vous les avez vus.", first: "Choisissez d’abord le premier mot que vous avez vu.", category: "Regardez bien : les choix se ressemblent davantage.", numberOrder: "Touchez les nombres du plus petit au plus grand.", strong: "Vous avez retenu toute la série.", almost: "Un bon début : les mots restants sont prêts pour un nouveau regard.", gentle: "Chaque essai offre un entraînement utile à votre mémoire.", milestone: "Votre collection de thèmes prend joliment forme.", levelUnlocked: "Le niveau {level} est débloqué. Touchez Niveau {level} pour continuer avec le même thème.", levelNeeded: "Retenez au moins 80 % des mots pour débloquer le niveau {level}. Choisissez Une autre partie pour réessayer.", masteryComplete: "Vous avez atteint le dernier niveau. Choisissez Une autre partie pour continuer à vous entraîner." },
+  de: { theme: "Thema wählen", surprise: "Überraschen Sie mich", sameTheme: "Gleiches Thema", newTheme: "Neues Thema", anotherRound: "Noch eine Runde", playAnotherGame: "Ein anderes Spiel spielen", stamp: "Themenstempel", explored: "Themen entdeckt", order: "Wählen Sie die Wörter in der gesehenen Reihenfolge.", first: "Wählen Sie zuerst das Wort, das Sie zuerst gesehen haben.", category: "Schauen Sie genau hin: Die Auswahl ist jetzt ähnlicher.", numberOrder: "Tippen Sie die Zahlen von klein nach groß an.", strong: "Sie haben sich an die ganze Gruppe erinnert.", almost: "Ein guter Anfang – die übrigen Wörter warten auf einen neuen Blick.", gentle: "Jeder Versuch ist eine wertvolle Gedächtnisübung.", milestone: "Ihre Themensammlung wächst wunderbar.", levelUnlocked: "Level {level} ist freigeschaltet. Tippen Sie auf Level {level}, um mit demselben Thema weiterzumachen.", levelNeeded: "Merken Sie sich mindestens 80 % der Wörter, um Level {level} freizuschalten. Wählen Sie Noch eine Runde, um es erneut zu versuchen.", masteryComplete: "Sie haben das letzte Level erreicht. Wählen Sie Noch eine Runde, um weiter zu üben." },
+  it: { theme: "Scegli un tema", surprise: "Sorprendimi", sameTheme: "Stesso tema", newTheme: "Nuovo tema", anotherRound: "Un altro giro", playAnotherGame: "Gioca a un altro gioco", stamp: "Timbro del tema", explored: "temi esplorati", order: "Scegli le parole nell’ordine in cui le hai viste.", first: "Scegli per prima la prima parola che hai visto.", category: "Guarda bene: ora le opzioni sono più simili.", numberOrder: "Tocca i numeri dal più piccolo al più grande.", strong: "Hai ricordato tutto il gruppo.", almost: "Un ottimo inizio: le parole restanti sono pronte per un altro sguardo.", gentle: "Ogni tentativo offre un esercizio utile alla memoria.", milestone: "La tua collezione di temi sta crescendo molto bene.", levelUnlocked: "Hai sbloccato il livello {level}. Tocca Livello {level} per continuare con lo stesso tema.", levelNeeded: "Ricorda almeno l’80% delle parole per sbloccare il livello {level}. Scegli Un altro giro per riprovare.", masteryComplete: "Hai raggiunto l’ultimo livello. Scegli Un altro giro per continuare ad allenarti." },
+  pt: { theme: "Escolha um tema", surprise: "Surpreenda-me", sameTheme: "Mesmo tema", newTheme: "Novo tema", anotherRound: "Outra ronda", playAnotherGame: "Jogar outro jogo", stamp: "Selo do tema", explored: "temas explorados", order: "Escolha as palavras pela ordem em que as viu.", first: "Escolha primeiro a primeira palavra que viu.", category: "Observe com atenção: as opções são agora mais semelhantes.", numberOrder: "Toque nos números do menor para o maior.", strong: "Recordou todo o grupo.", almost: "Um bom começo — as palavras restantes estão prontas para outra tentativa.", gentle: "Cada tentativa oferece uma prática útil para a memória.", milestone: "A sua coleção de temas está a crescer muito bem.", levelUnlocked: "O nível {level} está desbloqueado. Toque em Nível {level} para continuar com o mesmo tema.", levelNeeded: "Recorde pelo menos 80% das palavras para desbloquear o nível {level}. Escolha Outra ronda para tentar novamente.", masteryComplete: "Chegou ao último nível. Escolha Outra ronda para continuar a praticar." },
+};
+const WORD_RECALL_SETUP_UI: Record<string, { hint: string; start: string }> = {
+  en: { hint: "Pick a topic for this round.", start: "Start game" },
+  es: { hint: "Elige un tema para esta ronda.", start: "Empezar juego" },
+  fr: { hint: "Choisissez un sujet pour cette partie.", start: "Commencer" },
+  de: { hint: "Wählen Sie ein Thema für diese Runde.", start: "Spiel starten" },
+  it: { hint: "Scegli un argomento per questo giro.", start: "Inizia il gioco" },
+  pt: { hint: "Escolha um tema para esta ronda.", start: "Começar o jogo" },
+};
 type MemoryCompanionMessageKind =
   | "start"
   | "keepGoing"
@@ -163,6 +244,17 @@ function shuffleItems<T>(items: T[], seed = 1) {
   return copy;
 }
 
+export function createWordRecallNumberChallenge(level: number) {
+  const count = level >= 16 ? 6 : level >= 11 ? 5 : 4;
+  const pool = [2, 4, 7, 9, 12, 15, 18, 21, 24, 27, 31, 36];
+  const shuffled = [...pool];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, count);
+}
+
 function normalizeRecallWord(value: string) {
   return value
     .normalize("NFD")
@@ -190,13 +282,6 @@ function wordsMatch(candidate: string, target: string) {
   );
 }
 
-function splitRecallText(value: string) {
-  return value
-    .split(/[,;\n]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
 function dedupeWords(words: string[]) {
   const unique: string[] = [];
   words.forEach((word) => {
@@ -207,25 +292,42 @@ function dedupeWords(words: string[]) {
   return unique;
 }
 
-function getMemoryGameIcon(gameType: MemoryGameType) {
-  switch (gameType) {
-    case "memory_match":
-      return Grid2x2;
-    case "sequence_memory":
-      return Route;
-    case "word_recall":
-      return NotebookPen;
-    case "number_memory":
-      return Hash;
-    case "routine_memory":
-      return Clock3;
-    case "association_memory":
-      return Link2;
-    case "story_recall":
-      return BookOpen;
-    default:
-      return Layers3;
-  }
+export function scoreWordRecallChoices(targetWords: string[], selectedWords: string[], challengeKind: WordRecallChallengeKind = "recognition") {
+  const rememberedWords = dedupeWords(selectedWords);
+  const correctWords = targetWords.filter((targetWord) =>
+    rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
+  );
+  const wrongWords = rememberedWords.filter(
+    (candidate) => !targetWords.some((targetWord) => wordsMatch(candidate, targetWord)),
+  );
+  const missedWords = targetWords.filter(
+    (targetWord) => !rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
+  );
+  const decisionCount = correctWords.length + wrongWords.length + missedWords.length;
+  const recognitionAccuracy = correctWords.length / Math.max(1, decisionCount);
+  const selectedTargets = rememberedWords.filter((candidate) => targetWords.some((targetWord) => wordsMatch(candidate, targetWord)));
+  const orderedCorrect = selectedTargets.reduce((total, candidate, index) => total + (wordsMatch(candidate, targetWords[index] ?? "") ? 1 : 0), 0);
+  const orderAccuracy = orderedCorrect / Math.max(1, targetWords.length);
+  const firstAccuracy = selectedTargets.length > 0 && wordsMatch(selectedTargets[0], targetWords[0] ?? "") ? 1 : 0;
+  const weightedAccuracy = challengeKind === "order"
+    ? recognitionAccuracy * 0.7 + orderAccuracy * 0.3
+    : challengeKind === "first"
+      ? recognitionAccuracy * 0.8 + firstAccuracy * 0.2
+      : recognitionAccuracy;
+  const accuracy = Math.round(weightedAccuracy * 100);
+  const orderMistakes = challengeKind === "order" ? Math.max(0, correctWords.length - orderedCorrect) : challengeKind === "first" && firstAccuracy === 0 ? 1 : 0;
+
+  return { rememberedWords, correctWords, wrongWords, missedWords, accuracy, score: accuracy, mistakes: wrongWords.length + missedWords.length + orderMistakes };
+}
+
+function getPayloadString(payload: Record<string, unknown>, key: string, fallback = "") {
+  const value = payload[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function getPayloadNumber(payload: Record<string, unknown>, key: string, fallback: number) {
+  const value = Number(payload[key]);
+  return Number.isFinite(value) ? value : fallback;
 }
 
 function getSpeechLanguage(language: string) {
@@ -389,29 +491,32 @@ function pickCompanionLine(lines: string[], key: string) {
   return lines[hash % lines.length] ?? lines[0];
 }
 
-function MemoryAudioToggle({
-  isMuted,
-  onToggle,
-  copy,
+function TutorialMemoryCard({
+  faceUp = false,
+  emoji,
+  label,
 }: {
-  isMuted: boolean;
-  onToggle: () => void;
-  copy: MemoryCompanionCopy;
+  faceUp?: boolean;
+  emoji?: string;
+  label?: string;
 }) {
-  const Icon = isMuted ? VolumeX : Volume2;
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={!isMuted}
-      aria-label={isMuted ? copy.unmute : copy.mute}
-      title={isMuted ? copy.unmute : copy.mute}
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D8C7F3] bg-white text-vyva-text-1 shadow-vyva-card"
+    <span
+      className={`flex h-[66px] w-[58px] shrink-0 flex-col items-center justify-center rounded-[14px] border text-center shadow-sm ${
+        faceUp
+          ? "border-[#C4B5FD] bg-white text-vyva-text-1"
+          : "border-vyva-purple bg-gradient-to-br from-[#6B21A8] to-[#8B3FC8] text-white"
+      }`}
     >
-      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FAF7FF] text-vyva-purple">
-        <Icon size={19} />
-      </span>
-    </button>
+      {faceUp ? (
+        <>
+          <span className="text-[25px] leading-none">{emoji ?? "🍎"}</span>
+          <span className="mt-1 max-w-[52px] truncate text-[10px] font-black">{label ?? "apple"}</span>
+        </>
+      ) : (
+        <span className="text-[25px] font-black">?</span>
+      )}
+    </span>
   );
 }
 
@@ -420,7 +525,7 @@ type MemoryGameRunnerProps = {
   returnPath?: string;
 };
 
-const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: MemoryGameRunnerProps) => {
+const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { gameType } = useParams<{ gameType: MemoryGameType }>();
@@ -428,15 +533,83 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const { user } = useAuth();
   const { language, t } = useLanguage();
   const { speakSequence, stopTts, isTtsSpeaking } = useTtsReadout();
+  const voice = useOptionalVyvaVoice();
   const userId = user?.id ?? FALLBACK_USER_ID;
   const assessmentPractice = cognitiveAssessmentPracticeStateFromRoute(location.state);
 
   const routeGameType = forcedGameType ?? gameType;
   const validGameType = routeGameType && routeGameType in memoryGameRegistry ? (routeGameType as MemoryGameType) : null;
+  const catalogActivity = validGameType ? getBrainCoachActivityByMemoryGame(validGameType) : undefined;
+  const resolvedReturnPath = returnPath ?? getBrainCoachModule(catalogActivity?.moduleId ?? "memory").route;
+  const brainSceneId = getMemoryRunnerBrainSceneId(validGameType);
+  const brainTestId = getMemoryRunnerBrainTestId(validGameType);
+  const [numberMemoryVoiceContext, setNumberMemoryVoiceContext] = useState<Record<string, string | number | boolean>>({
+    activity: "number_memory",
+    level: 1,
+    round: 1,
+    mode: "forward",
+    phase: "ready",
+    language,
+    presentation_mode: "audio_visual",
+  });
+  const numberMemoryVoiceConnected = voice?.status === "connected";
+  const sendVoiceContextUpdate = voice?.sendContextUpdate;
+  const numberMemoryVoiceProtocolSentRef = useRef(false);
+
+  useEffect(() => {
+    if (!numberMemoryVoiceConnected) {
+      numberMemoryVoiceProtocolSentRef.current = false;
+      return;
+    }
+    if (numberMemoryVoiceContext.activity !== "number_memory") return;
+    if (!numberMemoryVoiceProtocolSentRef.current) {
+      numberMemoryVoiceProtocolSentRef.current = true;
+      sendVoiceContextUpdate?.(JSON.stringify({
+        event: "number_memory_voice_protocol",
+        contract: "number_memory_voice_v1",
+        instructions: "Match the active language. Ask if the user is ready. Drive the game only with the five number-memory client tools. During presentation, call get_next_number_memory_digit in order and speak only the single returned digit, with no commentary. Respect digit_not_ready before retrying. After the final digit call begin_number_memory_recall. Never repeat a sequence after recall starts, reveal correctness between rounds, or score an answer yourself. Convert an unambiguous spoken answer to ASCII digits and submit it only with submit_number_memory_answer. For ambiguous speech, ask once more without calling a scoring tool. Use number_memory_not_sure when the user says they are not sure. Tool errors are recoverable; follow the returned code.",
+      }));
+    }
+    sendVoiceContextUpdate?.(JSON.stringify({
+      event: "number_memory_state_changed",
+      ...numberMemoryVoiceContext,
+      language,
+      presentation_mode: "audio_visual",
+    }));
+  }, [language, numberMemoryVoiceConnected, numberMemoryVoiceContext, sendVoiceContextUpdate]);
+  const renderBrainRunnerScreen = (
+    screenKey: string,
+    sceneKind: string,
+    sceneLayout: string,
+    children: ReactNode,
+    state: "default" | "loading" | "complete" = "default",
+    voiceDynamicVariables?: Record<string, string | number | boolean>,
+  ) => (
+    <BrainCoachActivityShell
+      title={validGameType ? getGameTitle(validGameType, language) : "Brain Coach"}
+      backLabel={t("common.exit", "Exit")}
+      onBack={() => {
+        stopTts();
+        navigate(resolvedReturnPath);
+      }}
+      showHeader={state !== "complete"}
+      testId={brainTestId}
+      presentationId={`${brainSceneId}.${screenKey}.touch`}
+      sceneId={brainSceneId}
+      sceneKind={sceneKind}
+      sceneLayout={sceneLayout}
+      state={state}
+      voiceDynamicVariables={voiceDynamicVariables}
+    >
+      {children}
+    </BrainCoachActivityShell>
+  );
   const initialLevel = Number(searchParams.get("level") ?? "1");
   const initialVariantId = searchParams.get("variant") ?? "";
+  const wordRecallNavigationState = location.state as { wordRecallAutoStart?: boolean; wordRecallThemeChoice?: WordRecallThemeChoice } | null;
 
   const [plan, setPlan] = useState<Recommendation | null>(null);
+  const [gameHistory, setGameHistory] = useState<GameResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
@@ -457,24 +630,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const [sequenceCountdown, setSequenceCountdown] = useState(3);
   const [sequenceStatus, setSequenceStatus] = useState<"idle" | "wrong" | "wait">("idle");
   const [sequencePreviewStep, setSequencePreviewStep] = useState(0);
-  const [wordRecallPhase, setWordRecallPhase] = useState<"memorize" | "distraction" | "recall">("memorize");
+  const [wordRecallPhase, setWordRecallPhase] = useState<"setup" | "memorize" | "distraction" | "recall">("setup");
+  const [wordRecallThemeChoice, setWordRecallThemeChoice] = useState<WordRecallThemeChoice>("surprise");
   const [wordRecallSelectedWords, setWordRecallSelectedWords] = useState<string[]>([]);
-  const [wordRecallTypedWords, setWordRecallTypedWords] = useState<string[]>([]);
-  const [wordRecallInput, setWordRecallInput] = useState("");
   const [wordRecallChoicesSeed, setWordRecallChoicesSeed] = useState(0);
+  const [wordRecallNumberOrder, setWordRecallNumberOrder] = useState<number[]>([]);
+  const [wordRecallNumberChoices, setWordRecallNumberChoices] = useState<number[]>([]);
   const [wordRecallMessage, setWordRecallMessage] = useState<string | null>(null);
-  const [wordRecallVoiceMessage, setWordRecallVoiceMessage] = useState<string | null>(null);
-  const [isMemoryAudioMuted, setIsMemoryAudioMuted] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(MEMORY_AUDIO_STORAGE_KEY) === "true";
-  });
+  // Built-in narration is retired; explicit VYVA voice sessions are separate.
+  const isMemoryAudioMuted = true;
   const [sequenceTutorialSeen, setSequenceTutorialSeen] = useState(() => readSequenceTutorialSeen(userId));
   const [showSequenceTutorial, setShowSequenceTutorial] = useState(false);
+  const [showVisualMemoryTutorial, setShowVisualMemoryTutorial] = useState(false);
   const timeoutRef = useRef<number | null>(null);
   const sequenceStatusTimeoutRef = useRef<number | null>(null);
   const sequenceProgressRef = useRef(0);
   const lastSequenceTapRef = useRef<{ tileId: string; at: number } | null>(null);
-  const latestWordRecallWordsRef = useRef<string[]>([]);
   const wordRecallNarrationKeyRef = useRef<string>("");
   const wordRecallCommandCooldownRef = useRef(0);
   const isMemoryAudioMutedRef = useRef(isMemoryAudioMuted);
@@ -483,6 +654,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const companionLineKeyRef = useRef("");
   const wordRecallRepeatTimerRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
+  const completedVisualResultRef = useRef<GameResult | null>(null);
+  const visualUnlockedLevelRef = useRef(1);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -502,15 +675,18 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const backToList = () => {
     stopWordRecallAudio();
-    navigate(returnPath);
+    navigate(resolvedReturnPath);
   };
-  const buildGameRoute = (recommendation: Recommendation) => {
+  const buildGameRoute = useCallback((recommendation: Recommendation) => {
     const query = `level=${recommendation.level}&variant=${recommendation.variantId}`;
-    if (recommendation.gameType === "sequence_memory") {
-      return `/attention-boosters/rhythm-tap?${query}`;
+    if (location.pathname === "/dev/connections" && recommendation.gameType === "association_memory") {
+      return `/dev/connections?${query}`;
     }
-    return `/memory-games/${recommendation.gameType}?${query}`;
-  };
+    const activity = getBrainCoachActivityByMemoryGame(recommendation.gameType);
+    return activity
+      ? `${getBrainCoachActivityPath(activity.id)}?${query}`
+      : `/memory-games/${recommendation.gameType}?${query}`;
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!forcedGameType && gameType === "sequence_memory") {
@@ -528,19 +704,63 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       }
 
       setLoading(true);
-      const nextPlan =
-        initialVariantId && Number.isFinite(initialLevel)
-          ? {
-              gameType: validGameType,
-              level: Math.min(5, Math.max(1, initialLevel)),
-              variantId: initialVariantId,
-              reasonLabel: "",
-            }
-          : await selectGamePlan(userId, validGameType, language);
+      const directDefinition = getGameDefinition(validGameType);
+      const directMaxLevel = directDefinition.levels.reduce((highest, levelConfig) => Math.max(highest, levelConfig.level), 1);
+      const historyPromise = validGameType === "memory_match" || validGameType === "word_recall" ? getGameHistory(userId) : Promise.resolve([]);
+      const history = await historyPromise;
+      const requestedLevel = Math.min(directMaxLevel, Math.max(1, initialLevel));
+      let nextPlan: Recommendation;
+
+      if (initialVariantId && Number.isFinite(initialLevel)) {
+        if (validGameType === "memory_match") {
+          const persistedUnlockedLevel = getRecommendedLevelForGame(history, validGameType);
+          const unlockedLevel = Math.max(persistedUnlockedLevel, visualUnlockedLevelRef.current);
+          const requestedVariant = requestedLevel <= unlockedLevel
+            ? getGameLevel(validGameType, requestedLevel).variants.find(
+                (entry) => entry.id === initialVariantId && entry.level === requestedLevel,
+              )
+            : undefined;
+          const resolvedLevel = requestedVariant ? requestedLevel : unlockedLevel;
+          const resolvedVariant = requestedVariant ?? pickVariantForGame(history, validGameType, resolvedLevel);
+
+          visualUnlockedLevelRef.current = unlockedLevel;
+          nextPlan = {
+            gameType: validGameType,
+            level: resolvedLevel,
+            variantId: resolvedVariant.id,
+            reasonLabel: "",
+          };
+        } else {
+          nextPlan = {
+            gameType: validGameType,
+            level: requestedLevel,
+            variantId: initialVariantId,
+            reasonLabel: "",
+          };
+        }
+      } else {
+        nextPlan = await selectGamePlan(userId, validGameType, language);
+      }
 
       if (!active) return;
 
+      if (
+        validGameType === "memory_match"
+        && initialVariantId
+        && (nextPlan.level !== requestedLevel || nextPlan.variantId !== initialVariantId)
+      ) {
+        navigate(buildGameRoute(nextPlan), { replace: true });
+      }
+
       setPlan(nextPlan);
+      setGameHistory((current) => {
+        const merged = new Map<string, GameResult>();
+        [...current, ...history].forEach((entry) => {
+          merged.set(`${entry.gameType}:${entry.variantId}:${entry.completedAt}`, entry);
+        });
+        return [...merged.values()];
+      });
+      completedVisualResultRef.current = null;
       setMatchedIds([]);
       setRevealed([]);
       setMemoryAttempts(0);
@@ -560,14 +780,18 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       setSequenceRun(0);
       setSequenceCountdown(3);
       setSequenceStatus("idle");
-      setWordRecallPhase("memorize");
+      setWordRecallPhase(nextPlan.gameType === "word_recall" && !wordRecallNavigationState?.wordRecallAutoStart ? "setup" : "memorize");
+      setWordRecallThemeChoice(wordRecallNavigationState?.wordRecallThemeChoice ?? "surprise");
       setWordRecallSelectedWords([]);
-      setWordRecallTypedWords([]);
-      setWordRecallInput("");
       setWordRecallChoicesSeed((current) => current + 1);
+      setWordRecallNumberOrder([]);
+      setWordRecallNumberChoices([]);
       setWordRecallMessage(null);
-      setWordRecallVoiceMessage(null);
       setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
+      const hasSeenVisualMemoryTutorial = readVisualMemoryTutorialSeen(userId);
+      setShowVisualMemoryTutorial(
+        nextPlan.gameType === "memory_match" && nextPlan.level === 1 && !hasSeenVisualMemoryTutorial,
+      );
       setLoading(false);
     }
 
@@ -588,7 +812,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       stopTts();
       wordRecallNarrationKeyRef.current = "";
     };
-  }, [initialLevel, initialVariantId, language, location.key, stopTts, userId, validGameType]);
+  }, [buildGameRoute, initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType, wordRecallNavigationState?.wordRecallAutoStart, wordRecallNavigationState?.wordRecallThemeChoice]);
 
   useEffect(() => {
     return () => {
@@ -628,6 +852,13 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     return (localizedVariant.payload.distractionType as WordRecallDistractionType | null) ?? null;
   }, [localizedVariant, plan]);
 
+  const wordRecallThemeId = ((localizedVariant?.payload.themeId as WordRecallThemeId | undefined) ?? "home");
+  const wordRecallTheme = WORD_RECALL_THEMES.find((theme) => theme.id === wordRecallThemeId) ?? WORD_RECALL_THEMES[0];
+  const wordRecallUi = WORD_RECALL_UI[language] ?? WORD_RECALL_UI.en;
+  const wordRecallSetupUi = WORD_RECALL_SETUP_UI[language] ?? WORD_RECALL_SETUP_UI.en;
+  const wordRecallWordIcons = ((localizedVariant?.payload.wordIcons as string[] | undefined) ?? []);
+  const wordRecallShowWordCues = Boolean(localizedVariant?.payload.showWordCues);
+  const wordRecallChallengeKind = ((localizedVariant?.payload.challengeKind as WordRecallChallengeKind | undefined) ?? "recognition");
   const wordRecallChoiceWords = useMemo(() => {
     void wordRecallChoicesSeed;
     if (plan?.gameType !== "word_recall") return [];
@@ -636,6 +867,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const wordRecallCoachSegments = useMemo(() => {
     if (plan?.gameType !== "word_recall") return [];
+    if (wordRecallPhase === "setup") return [];
 
     if (wordRecallPhase === "memorize") {
       return [
@@ -653,6 +885,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           ? t("wordRecall.distractionChooseBlue")
           : wordRecallDistractionType === "breathe_continue"
             ? t("wordRecall.distractionBreathe")
+            : wordRecallDistractionType === "number_order"
+              ? wordRecallUi.numberOrder
             : t("wordRecall.distractionCountBackwards");
 
       return [
@@ -665,7 +899,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       { text: t("wordRecall.coachRecall"), delayMs: 450 },
       { text: t("wordRecall.selectRememberedWords"), delayMs: 350 },
     ];
-  }, [localizedVariant?.prompt, plan?.gameType, t, wordRecallDistractionType, wordRecallPhase, wordRecallWords]);
+  }, [localizedVariant?.prompt, plan?.gameType, t, wordRecallDistractionType, wordRecallPhase, wordRecallUi.numberOrder, wordRecallWords]);
 
   const wordRecallCommandTerms = useMemo(() => getWordRecallCommandTerms(language), [language]);
   const companionCopy = useMemo(() => getMemoryCompanionCopy(language), [language]);
@@ -696,25 +930,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     [companionCopy, finished, language, loading, plan, saving, speakSequence],
   );
 
-  const { isSupported: wordRecallVoiceSupported, isListening: wordRecallListening, startListening: startWordRecallListening } =
-    useSpeechRecognition({
-      language,
-      onTranscript: (transcript) => {
-        const transcriptParts = splitRecallText(transcript.replace(/\s+y\s+|\s+and\s+|\s+et\s+|\s+und\s+|\s+e\s+|\s+ou\s+/gi, ","));
-        const matchedWords = latestWordRecallWordsRef.current.filter((word) =>
-          transcriptParts.some((part) => wordsMatch(part, word)) || wordsMatch(transcript, word),
-        );
-
-        if (matchedWords.length === 0) {
-          setWordRecallVoiceMessage(t("wordRecall.tryAgain"));
-          return;
-        }
-
-        setWordRecallVoiceMessage(dedupeWords(matchedWords).join(", "));
-        setWordRecallSelectedWords((current) => dedupeWords([...current, ...matchedWords]));
-      },
-    });
-
   const {
     isSupported: wordRecallCommandSupported,
     isListening: wordRecallCommandListening,
@@ -730,7 +945,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       const saidReady = wordRecallCommandTerms.ready.some((term) => normalizedTranscript.includes(normalizeRecallWord(term)));
       const saidRepeat = wordRecallCommandTerms.repeat.some((term) => normalizedTranscript.includes(normalizeRecallWord(term)));
 
-      if (saidRepeat) {
+      if (saidRepeat && !isMemoryAudioMuted) {
         wordRecallCommandCooldownRef.current = now;
         wordRecallNarrationKeyRef.current = "";
         setWordRecallMessage(t("wordRecall.commandRepeatHeard"));
@@ -765,10 +980,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       }
     },
   });
-
-  useEffect(() => {
-    latestWordRecallWordsRef.current = wordRecallWords;
-  }, [wordRecallWords]);
 
   useEffect(() => {
     if (plan?.gameType !== "word_recall") return;
@@ -831,7 +1042,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     if (!plan || loading || saving || finished || isMemoryAudioMuted) return;
 
     const canSpeakDuringCurrentPhase =
-      plan.gameType === "memory_match" ||
       (plan.gameType === "sequence_memory" && sequencePhase === "input") ||
       (plan.gameType === "word_recall" && wordRecallPhase === "recall");
 
@@ -862,7 +1072,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   ]);
 
   useEffect(() => {
-    if (!finished || !completionMetrics || isMemoryAudioMuted) return;
+    if (!finished || !completionMetrics || isMemoryAudioMuted || plan?.gameType === "memory_match") return;
 
     const timer = window.setTimeout(() => {
       speakCompanion("complete", `${plan?.variantId ?? "memory"}-${completionMetrics.score}-${completionMetrics.accuracy}`);
@@ -875,9 +1085,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     completionMetrics,
     finished,
     isMemoryAudioMuted,
+    plan?.gameType,
     plan?.variantId,
     speakCompanion,
   ]);
+
+  useEffect(() => {
+    if (plan?.gameType === "memory_match") {
+      stopTts();
+    }
+  }, [plan?.gameType, stopTts]);
 
   useEffect(() => {
     const canListenForCommands =
@@ -914,15 +1131,39 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const memoryDeck = useMemo(() => {
     if (!plan || plan.gameType !== "memory_match" || !localizedVariant) return [];
-    const pairItems = (localizedVariant.payload.pairItems as { label: string; emoji: string }[]) ?? [];
+    const pairItems = (localizedVariant.payload.pairItems as Array<{
+      id?: string;
+      label: string;
+      emoji?: string;
+      visual?: VisualMemoryVisual;
+    }>) ?? [];
 
     return shuffleCards(
       pairItems.flatMap((item, index) => [
-        { deckId: `${variant?.id}-${index}-a`, pairId: `${variant?.id}-${index}`, label: item.label, emoji: item.emoji },
-        { deckId: `${variant?.id}-${index}-b`, pairId: `${variant?.id}-${index}`, label: item.label, emoji: item.emoji },
+        {
+          deckId: `${variant?.id}-${item.id ?? index}-a`,
+          pairId: `${variant?.id}-${item.id ?? index}`,
+          label: item.label,
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
+        },
+        {
+          deckId: `${variant?.id}-${item.id ?? index}-b`,
+          pairId: `${variant?.id}-${item.id ?? index}`,
+          label: item.label,
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
+        },
       ]),
     );
   }, [localizedVariant, plan, variant?.id]);
+  const visualMemoryShowLabels = localizedVariant?.payload.showLabels !== false;
+  const visualMemoryMismatchRevealMs = Math.max(
+    450,
+    Math.min(1_050, Number(localizedVariant?.payload.mismatchRevealMs ?? 850)),
+  );
+  const visualMemoryMatchRevealMs = Math.max(
+    250,
+    Math.min(500, Number(localizedVariant?.payload.matchRevealMs ?? 450)),
+  );
 
   const sequenceTiles = useMemo(() => {
     if (!plan || plan.gameType !== "sequence_memory" || !localizedVariant) return [];
@@ -940,6 +1181,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     if (!plan || plan.gameType !== "sequence_memory" || !localizedVariant) return [];
     return (localizedVariant.payload.sequence as string[]) ?? [];
   }, [localizedVariant, plan]);
+  const sequenceStepMs = useMemo(() => {
+    const rawStepMs = Number(localizedVariant?.payload.tempoMs ?? 900);
+    return Math.max(680, Math.min(1200, rawStepMs));
+  }, [localizedVariant]);
 
   const sequenceTileMap = useMemo(
     () => new Map(sequenceTiles.map((tile) => [tile.id, tile])),
@@ -987,6 +1232,17 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     setSequenceRun((current) => current + 1);
   }, [markSequenceTutorialSeen]);
 
+  const openVisualMemoryInstructions = useCallback(() => {
+    stopTts();
+    setShowVisualMemoryTutorial(true);
+  }, [stopTts]);
+
+  const closeVisualMemoryInstructions = useCallback(() => {
+    writeVisualMemoryTutorialSeen(userId);
+    setShowVisualMemoryTutorial(false);
+    setStartedAt(Date.now());
+  }, [userId]);
+
   useEffect(() => {
     if (!plan || plan.gameType !== "sequence_memory" || !sequenceTiles.length || !expectedSequence.length || finished || showSequenceTutorial) return;
 
@@ -1022,12 +1278,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           setSequenceCountdown(0);
           setSequencePreviewStep(index + 1);
           setActiveSequenceTile(tileId);
-        }, index * 900 + 3400),
+        }, index * sequenceStepMs + 3400),
       );
       timeouts.push(
         window.setTimeout(() => {
           if (!cancelled) setActiveSequenceTile(null);
-        }, index * 900 + 3980),
+        }, index * sequenceStepMs + 3400 + Math.min(580, sequenceStepMs - 120)),
       );
     });
 
@@ -1039,14 +1295,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         lastSequenceTapRef.current = null;
         setActiveSequenceTile(null);
         setStartedAt(Date.now());
-      }, previewSteps.length * 900 + 3600),
+      }, previewSteps.length * sequenceStepMs + 3600),
     );
 
     return () => {
       cancelled = true;
       timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
-  }, [expectedSequence, finished, plan, previewSequence, sequenceRun, sequenceTiles.length, showSequenceTutorial]);
+  }, [expectedSequence, finished, plan, previewSequence, sequenceRun, sequenceStepMs, sequenceTiles.length, showSequenceTutorial]);
 
   useEffect(() => {
     if (!plan || finished || saving) return;
@@ -1056,30 +1312,36 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       const durationSeconds = getDurationSeconds(startedAt);
       const accuracy = getMemoryMatchAccuracy(memoryDeck.length / 2, memoryAttempts);
       const score = getScore(plan.level, accuracy, mistakes, durationSeconds);
+      const completedResult: GameResult = {
+        userId,
+        gameType: plan.gameType,
+        cognitiveDomain: definition?.cognitiveDomain ?? "visual_memory",
+        variantId: plan.variantId,
+        level: plan.level,
+        score,
+        accuracy,
+        mistakes,
+        durationSeconds,
+        completedAt: new Date().toISOString(),
+        language,
+      };
+      completedVisualResultRef.current = completedResult;
+      visualUnlockedLevelRef.current = Math.max(
+        visualUnlockedLevelRef.current,
+        Math.min(plan.level + 1, VISUAL_MEMORY_MAX_LEVEL),
+      );
       setCompletionMetrics({ score, accuracy, mistakes, durationSeconds });
       setCompletionDetails(null);
+      setFinished(true);
 
       let active = true;
       async function completeGame() {
         setSaving(true);
         try {
-          await saveGameResult({
-            userId,
-            gameType: plan.gameType,
-            cognitiveDomain: definition?.cognitiveDomain ?? "visual_memory",
-            variantId: plan.variantId,
-            level: plan.level,
-            score,
-            accuracy,
-            mistakes,
-            durationSeconds,
-            completedAt: new Date().toISOString(),
-            language,
-          });
+          await saveGameResult(completedResult);
         } finally {
           if (active) {
             setSaving(false);
-            setFinished(true);
           }
         }
       }
@@ -1144,6 +1406,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             durationSeconds: completionMetrics.durationSeconds,
             completedAt: new Date().toISOString(),
             language,
+            metadata: {
+              themeId: wordRecallThemeId,
+              challengeKind: wordRecallChallengeKind,
+              wordCount: wordRecallWords.length,
+              correctCount: completionDetails?.correctWords?.length ?? 0,
+            },
           });
         } finally {
           if (isMountedRef.current) {
@@ -1155,6 +1423,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     }
   }, [
     completionMetrics,
+    completionDetails?.correctWords?.length,
     definition?.cognitiveDomain,
     expectedSequence.length,
     finished,
@@ -1170,12 +1439,27 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     sequenceTotalMistakes,
     startedAt,
     userId,
+    wordRecallChallengeKind,
+    wordRecallThemeId,
+    wordRecallWords.length,
   ]);
 
   useEffect(() => {
     if (!finished) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [finished]);
+
+  const carryCompletedVisualResult = () => {
+    const completedResult = completedVisualResultRef.current;
+    if (!completedResult) return;
+
+    setGameHistory((current) => {
+      const resultKey = `${completedResult.variantId}:${completedResult.completedAt}`;
+      const alreadyIncluded = current.some((entry) => `${entry.variantId}:${entry.completedAt}` === resultKey);
+      return alreadyIncluded ? current : [completedResult, ...current];
+    });
+    completedVisualResultRef.current = null;
+  };
 
   const openRecommended = async () => {
     if (!plan) return;
@@ -1193,18 +1477,72 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const openSameGame = async (levelOverride?: number) => {
     if (!plan) return;
+    carryCompletedVisualResult();
     stopWordRecallAudio();
     setActionLoading("repeat");
     try {
       const requestedLevel = typeof levelOverride === "number" ? levelOverride : undefined;
       const repeatLevel = requestedLevel ?? plan.level;
-      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, repeatLevel);
+      const sameGameRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, repeatLevel, plan.variantId);
       navigate(buildGameRoute(sameGameRecommendation), {
         state: { sessionToken: Date.now() },
       });
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const openWordRecallTheme = (choice: WordRecallThemeChoice) => {
+    if (!plan || plan.gameType !== "word_recall") return;
+    const levelConfig = getGameLevel("word_recall", plan.level);
+    const recentIds = new Set(
+      gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+    );
+    const matching = levelConfig.variants.filter((candidate) => {
+      const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+      const themeId = payload.themeId as WordRecallThemeId;
+      return choice === "surprise" || themeId === choice;
+    });
+    const unused = matching.filter((candidate) => candidate.id !== plan.variantId && !recentIds.has(candidate.id));
+    const alternatives = matching.filter((candidate) => candidate.id !== plan.variantId);
+    const pool = unused.length ? unused : alternatives.length ? alternatives : matching;
+    const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+    navigate(buildGameRoute({ ...plan, variantId: nextVariant.id }), {
+      state: { sessionToken: Date.now(), wordRecallAutoStart: true, wordRecallThemeChoice: choice },
+    });
+  };
+
+  const startWordRecallRound = () => {
+    if (!plan || plan.gameType !== "word_recall") return;
+    const levelConfig = getGameLevel("word_recall", plan.level);
+    const recentIds = new Set(
+      gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+    );
+    const matching = levelConfig.variants.filter((candidate) => {
+      const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+      return wordRecallThemeChoice === "surprise" || payload.themeId === wordRecallThemeChoice;
+    });
+    const unused = matching.filter((candidate) => !recentIds.has(candidate.id));
+    const pool = unused.length > 0 ? unused : matching;
+    const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+
+    setPlan({ ...plan, variantId: nextVariant.id });
+    setStartedAt(Date.now());
+    setWordRecallSelectedWords([]);
+    setWordRecallNumberOrder([]);
+    setWordRecallNumberChoices([]);
+    setWordRecallMessage(null);
+    setWordRecallChoicesSeed((current) => current + 1);
+    setWordRecallPhase("memorize");
+  };
+
+  const replayCurrentBoard = () => {
+    if (!plan) return;
+    carryCompletedVisualResult();
+    stopWordRecallAudio();
+    navigate(buildGameRoute(plan), {
+      state: { sessionToken: Date.now() },
+    });
   };
 
   const getNextPlayableLevel = () => {
@@ -1215,12 +1553,43 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const openNextLevel = async () => {
     if (!plan) return;
+    carryCompletedVisualResult();
     const nextLevel = getNextPlayableLevel();
     if (nextLevel <= plan.level) return;
 
     stopWordRecallAudio();
     setActionLoading("nextLevel");
     try {
+      if (plan.gameType === "word_recall") {
+        const levelConfig = getGameLevel("word_recall", nextLevel);
+        const recentIds = new Set(
+          gameHistory.filter((entry) => entry.gameType === "word_recall").slice(0, 10).map((entry) => entry.variantId),
+        );
+        const matchingTheme = levelConfig.variants.filter((candidate) => {
+          const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+          return payload.themeId === wordRecallThemeId;
+        });
+        const overlapCount = (candidate: (typeof matchingTheme)[number]) => {
+          const payload = (candidate.content[language] ?? candidate.content.en ?? candidate.content.es).payload;
+          const candidateWords = (payload.words as string[] | undefined) ?? [];
+          return candidateWords.filter((word) => wordRecallWords.includes(word)).length;
+        };
+        const smallestOverlap = Math.min(...matchingTheme.map(overlapCount));
+        const freshest = matchingTheme.filter((candidate) => overlapCount(candidate) === smallestOverlap);
+        const unused = freshest.filter((candidate) => !recentIds.has(candidate.id));
+        const pool = unused.length > 0 ? unused : freshest;
+        const nextVariant = pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? levelConfig.variants[0];
+
+        navigate(buildGameRoute({ ...plan, level: nextLevel, variantId: nextVariant.id }), {
+          state: {
+            sessionToken: Date.now(),
+            wordRecallAutoStart: true,
+            wordRecallThemeChoice: wordRecallThemeId,
+          },
+        });
+        return;
+      }
+
       const nextRecommendation = await selectNextVariantForSameGame(userId, plan.gameType, language, nextLevel);
       navigate(buildGameRoute(nextRecommendation), {
         state: { sessionToken: Date.now() },
@@ -1254,30 +1623,25 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   }, [completeAssessmentPractice, memoryComplete]);
 
   if (!validGameType) {
-    return (
+    return renderBrainRunnerScreen("not_found", "error", "message", (
       <div className="px-[22px] py-8">
-        <button
-          onClick={backToList}
-          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={18} />
-          {t("common.back")}
-        </button>
-        <div className="mt-5 rounded-[24px] border border-vyva-border bg-white p-6 shadow-vyva-card">
+        <div className="rounded-[24px] border border-vyva-border bg-white p-6 shadow-vyva-card">
           <h1 className="font-display text-[28px] text-vyva-text-1">{t("memory.exerciseNotFound")}</h1>
           <p className="mt-3 text-[16px] text-vyva-text-2">{t("memory.exerciseNotFoundBody")}</p>
         </div>
       </div>
-    );
+    ));
   }
 
   if (loading || !plan || !definition || !variant || !localizedVariant) {
     return (
-      <div className="px-[22px] py-10">
-        <div className="flex items-center justify-center rounded-[24px] bg-white py-12 shadow-vyva-card">
-          <Loader2 size={24} className="animate-spin text-vyva-purple" />
-        </div>
-      </div>
+      <BrainCoachLoadingState
+        title="Brain Coach"
+        label={t("memory.loading", "Loading memory game...")}
+        testId={brainTestId}
+        presentationId={`${brainSceneId}.loading.touch`}
+        sceneId={brainSceneId}
+      />
     );
   }
 
@@ -1288,8 +1652,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const summaryMistakes = plan.gameType === "sequence_memory" ? sequenceTotalMistakes : mistakes;
   const gameTitle = getGameTitle(plan.gameType, language);
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
-  const GameIcon = getMemoryGameIcon(plan.gameType);
-  const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
+  const currentLevelLabel = plan.gameType === "memory_match"
+    ? getVisualMemoryProgressLabel(plan.level, language)
+    : getBrainCoachProgressLabel(plan.level);
   const voiceGameContextPanel = (
     <VoiceActionFulfillmentPanel
       domain="brain_coach"
@@ -1305,49 +1670,153 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     />
   );
 
+  if (plan.gameType === "memory_match" && showVisualMemoryTutorial) {
+    const tutorialPairs = (localizedVariant.payload.pairItems as Array<{ emoji: string; label: string }>) ?? [];
+    const tutorialPair = tutorialPairs[0];
+
+    return renderBrainRunnerScreen("tutorial", "tutorial", "card_example", (
+      <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
+        <button
+          type="button"
+          onClick={backToList}
+          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
+        >
+          <ArrowLeft size={17} />
+          {t("common.back")}
+        </button>
+
+        <section className="mt-3 rounded-[24px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[28px] sm:p-5">
+          <div className="flex items-center justify-center gap-3">
+            <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple shadow-vyva-card">
+              <Grid2x2 size={27} />
+            </div>
+            <p className="inline-flex rounded-full bg-[#FEF3C7] px-4 py-2 text-[16px] font-black text-[#92400E]">
+              {getVisualMemoryProgressLabel(plan.level, language)}
+            </p>
+          </div>
+          <h2 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[36px]">
+            {t("memory.visualTutorialTitle", "Find the pairs")}
+          </h2>
+          <p className="mx-auto mt-1 max-w-[38ch] text-[17px] font-semibold leading-snug text-vyva-text-2 sm:text-[18px]">
+            {t("memory.visualTutorialLead", "Turn over two cards at a time.")}
+          </p>
+
+          <div className="mt-4 grid gap-2 text-left sm:grid-cols-3">
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-2" aria-hidden="true">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">1</span>
+                <TutorialMemoryCard />
+              </div>
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialFirst", "Turn over one card")}
+              </p>
+            </div>
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-1.5" aria-hidden="true">
+                <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">2</span>
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <TutorialMemoryCard />
+              </div>
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialSecond", "Then turn over a second card")}
+              </p>
+            </div>
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#ECFDF5] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-1.5" aria-hidden="true">
+                <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-[15px] font-black text-white">3</span>
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <span className="-ml-4 -mt-11 flex h-7 w-7 items-center justify-center rounded-full bg-[#0F766E] text-white shadow-sm">
+                  <Check size={17} strokeWidth={3} />
+                </span>
+              </div>
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialFinish", "Same picture? The pair stays open")}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
+            {t("memory.visualTutorialGoal", "Find all {count} pairs to finish. There is no timer.", { count: tutorialPairs.length })}
+          </div>
+
+          <button
+            type="button"
+            onClick={closeVisualMemoryInstructions}
+            className="mt-4 inline-flex min-h-[60px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 text-[21px] font-black text-white shadow-vyva-card"
+          >
+            {t("memory.startVisualLevel", "Start Level {level}", { level: plan.level })}
+          </button>
+        </section>
+      </div>
+    ));
+  }
+
   if (plan.gameType === "story_recall") {
-    return (
+    return renderBrainRunnerScreen("story_recall", "playing", "story_recall", (
       <StoryRecallGame
         plan={plan}
         localizedVariant={localizedVariant}
-        gameTitle={gameTitle}
         gamePrompt={gamePrompt}
-        accentColor={definition.accentColor}
-        iconBg={definition.iconBg}
         cognitiveDomain={definition.cognitiveDomain}
         userId={userId}
         language={language}
         t={t}
         onBack={backToList}
+        showBackButton={false}
         onOpenRecommended={openRecommended}
         onOpenNextLevel={openNextLevel}
         onOpenSameGame={openSameGame}
         actionLoading={actionLoading}
       />
-    );
+    ));
   }
 
-  if (plan.gameType !== "memory_match" && plan.gameType !== "sequence_memory" && plan.gameType !== "word_recall") {
-    return (
+  if (plan.gameType === "association_memory") {
+    return renderBrainRunnerScreen("connections", "playing", "connections", (
+      <ConnectionsGame
+        plan={plan}
+        localizedVariant={localizedVariant}
+        cognitiveDomain={definition.cognitiveDomain}
+        userId={userId}
+        language={language}
+        onBack={backToList}
+        onOpenSameGame={openSameGame}
+        actionLoading={actionLoading}
+      />
+    ));
+  }
+
+  if (plan.gameType === "number_memory") {
+    return renderBrainRunnerScreen("number_memory", "playing", "number_memory", (
+      <NumberMemoryGame
+        plan={plan}
+        localizedVariant={localizedVariant}
+        cognitiveDomain={definition.cognitiveDomain}
+        userId={userId}
+        language={language}
+        onBack={backToList}
+        onOpenSameGame={openSameGame}
+        actionLoading={actionLoading}
+        voiceConnected={numberMemoryVoiceConnected}
+        onVoiceContextChange={setNumberMemoryVoiceContext}
+      />
+    ), "default", numberMemoryVoiceContext);
+  }
+
+  if (
+    plan.gameType !== "memory_match"
+    && plan.gameType !== "sequence_memory"
+    && plan.gameType !== "word_recall"
+    && plan.gameType !== "number_memory"
+    && plan.gameType !== "association_memory"
+  ) {
+    return renderBrainRunnerScreen("stub", "stub", "message", (
       <div className="px-[22px] pb-6">
-        <button
-          onClick={backToList}
-          className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={18} />
-          {t("common.back")}
-        </button>
-        <div className="mt-4 rounded-[26px] bg-white p-6 shadow-vyva-card">
-          <div
-            className="inline-flex h-[64px] w-[64px] items-center justify-center rounded-[20px]"
-            style={gameIconStyle}
-          >
-            <GameIcon size={28} />
-          </div>
-          <h1 className="mt-4 font-display text-[30px] text-vyva-text-1">{gameTitle}</h1>
+        <div className="rounded-[26px] bg-white p-6 shadow-vyva-card">
+          <h2 className="font-display text-[26px] text-vyva-text-1">{t("common.comingSoon")}</h2>
           <p className="mt-2 text-[17px] leading-[1.6] text-vyva-text-2">{getGameDescription(plan.gameType, language)}</p>
           <div className="mt-5 rounded-[20px] border border-vyva-border bg-vyva-cream p-5">
-            <p className="text-[18px] font-semibold text-vyva-text-1">{t("common.comingSoon")}</p>
             <p className="mt-2 text-[15px] leading-[1.6] text-vyva-text-2">{t("memory.stubBody")}</p>
           </div>
           <button
@@ -1358,7 +1827,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           </button>
         </div>
       </div>
-    );
+    ));
   }
 
   if (plan.gameType === "sequence_memory" && showSequenceTutorial) {
@@ -1371,23 +1840,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           { id: "four", emoji: "4", color: "#2563EB" },
         ];
 
-    return (
+    return renderBrainRunnerScreen("tutorial", "tutorial", "sequence_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 rounded-[22px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[26px] sm:p-5">
-          <div className="mx-auto flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-[#FFF9F1] shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-            <div className="flex h-[48px] w-[48px] items-center justify-center rounded-[17px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-              <GameIcon size={26} />
-            </div>
-          </div>
-          <h1 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1 sm:text-[36px]">{t("memory.sequenceTutorialTitle", "How it works")}</h1>
+        <section className="rounded-[22px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[26px] sm:p-5">
+          <h1 className="font-display text-[30px] leading-tight text-vyva-text-1 sm:text-[36px]">{t("memory.sequenceTutorialTitle", "How it works")}</h1>
 
           <div className="mx-auto mt-4 grid max-w-[360px] grid-cols-2 gap-3">
             {previewTiles.map((tile, index) => (
@@ -1396,8 +1852,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 className="flex min-h-[88px] flex-col items-center justify-center rounded-[18px] text-white shadow-vyva-card sm:min-h-[104px] sm:rounded-[22px]"
                 style={{ background: tile.color }}
               >
-                <span className="text-[28px] leading-none sm:text-[34px]">{tile.emoji}</span>
-                <span className="mt-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-white/20 px-2 text-[14px] font-black">
+                <span className="flex h-11 min-w-11 items-center justify-center rounded-full border border-white/35 bg-white/15 px-3 text-[24px] font-black sm:h-12 sm:min-w-12 sm:text-[27px]">
                   {index + 1}
                 </span>
               </div>
@@ -1428,7 +1883,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           </button>
         </section>
       </div>
-    );
+    ));
   }
 
   if (finished && plan.gameType !== "memory_match") {
@@ -1436,57 +1891,69 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     const finishedAccuracy = completionMetrics?.accuracy ?? summaryAccuracy;
     const finishedMistakes = completionMetrics?.mistakes ?? summaryMistakes;
     const nextPlayableLevel = getNextPlayableLevel();
-    const canOpenNextLevel = nextPlayableLevel > plan.level;
+    const canOpenNextLevel = nextPlayableLevel > plan.level && finishedAccuracy >= 80;
     const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
+    const isWordRecallResult = plan.gameType === "word_recall";
+    const wordRecallLevelGuidance = nextPlayableLevel <= plan.level
+      ? wordRecallUi.masteryComplete
+      : (canOpenNextLevel ? wordRecallUi.levelUnlocked : wordRecallUi.levelNeeded).replaceAll("{level}", String(nextPlayableLevel));
 
-    return (
+    return renderBrainRunnerScreen("result", "completion", "modal_actions", (
       <div className="min-h-[100dvh] bg-[#FFF9F1]">
         <BrainGameCompletionDialog
           title={t("memory.wellDone")}
-          summary={t("memory.exerciseCompleted")}
-          metrics={[
+          summary={isWordRecallResult ? `${wordRecallTheme.emoji} ${wordRecallTheme.labels[language] ?? wordRecallTheme.labels.en} · ${getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })}` : getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })}
+          metrics={isWordRecallResult ? [
+            { label: t("wordRecall.correctWords"), value: `${completionDetails?.correctWords?.length ?? 0}/${wordRecallWords.length}` },
+            { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
+          ] : [
             { label: t("memory.score"), value: `${score}` },
             { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
             { label: t("memory.mistakes"), value: `${finishedMistakes}` },
             { label: t("memory.duration"), value: `${durationSeconds}s` },
           ]}
-          continueLabel={t("brainGames.resultActions.continue")}
-          nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+          continueLabel={isWordRecallResult ? wordRecallUi.anotherRound : t("brainGames.resultActions.continue")}
+          nextLevelLabel={canOpenNextLevel ? (isWordRecallResult ? wordRecallUi.anotherRound : nextLevelLabel) : undefined}
           nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
-          replayLabel={t("brainGames.resultActions.playAgain")}
-          anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+          replayLabel={!isWordRecallResult ? t("brainGames.resultActions.playAgain") : undefined}
+          anotherLabel={isWordRecallResult ? wordRecallUi.playAnotherGame : t("brainGames.resultActions.moreGames", "More games")}
           assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
           assessmentReturnHint={
             assessmentPractice
               ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
               : undefined
           }
-          onContinue={openRecommended}
+          onContinue={isWordRecallResult ? () => openWordRecallTheme(wordRecallThemeId) : openRecommended}
           onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-          onReplay={() => void openSameGame()}
+          onReplay={!isWordRecallResult ? () => void openSameGame() : undefined}
           onAnother={backToList}
           onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
           disabled={actionLoading !== null}
           details={completionDetails && (
             <div className="grid gap-2">
-                {completionDetails.rememberedWords && completionDetails.rememberedWords.length > 0 && (
-                  <div className="rounded-[16px] border border-vyva-border bg-[#F8FAFC] p-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
+                {isWordRecallResult && (
+                  <div className="rounded-[16px] border border-[#D8C7F3] bg-[#FAF7FF] px-4 py-3 text-center text-[15px] font-bold text-vyva-text-1">
+                    <p>{wordRecallLevelGuidance}</p>
+                  </div>
+                )}
+                {completionDetails.incorrectWords && completionDetails.incorrectWords.length > 0 && (
+                  <div className="rounded-[16px] border border-[#F3D0D0] bg-[#FFF5F5] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.incorrectWords", "Choices to review")}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {completionDetails.rememberedWords.map((word) => (
-                        <span key={`remembered-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
+                      {completionDetails.incorrectWords.map((word) => (
+                        <span key={`incorrect-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
                           {word}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                {completionDetails.correctWords && completionDetails.correctWords.length > 0 && (
-                  <div className="rounded-[16px] border border-[#CFE9D9] bg-[#F0FDF4] p-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
+                {completionDetails.incorrectWords && completionDetails.incorrectWords.length > 0 && (
+                  <div className="rounded-[16px] border border-[#F3D0D0] bg-[#FFF5F5] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.incorrectWords", "Choices to review")}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {completionDetails.correctWords.map((word) => (
-                        <span key={`correct-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
+                      {completionDetails.incorrectWords.map((word) => (
+                        <span key={`incorrect-${word}`} className="rounded-full bg-white px-2.5 py-1.5 text-[13px] font-medium text-vyva-text-1 shadow-sm">
                           {word}
                         </span>
                       ))}
@@ -1505,11 +1972,28 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                     </div>
                   </div>
                 )}
+                {(completionDetails.expectedAnswer || completionDetails.givenAnswer) && (
+                  <div className="rounded-[16px] border border-[#D8C7F3] bg-white p-3">
+                    {completionDetails.cueLabel ? (
+                      <p className="text-[13px] font-bold leading-snug text-vyva-text-2">{completionDetails.cueLabel}</p>
+                    ) : null}
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-[14px] bg-[#F8FAFC] px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("memory.yourAnswer", "Your answer")}</p>
+                        <p className="mt-1 text-[18px] font-black text-vyva-text-1">{completionDetails.givenAnswer}</p>
+                      </div>
+                      <div className="rounded-[14px] bg-[#F0FDF4] px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("memory.correctAnswer", "Correct answer")}</p>
+                        <p className="mt-1 text-[18px] font-black text-vyva-text-1">{completionDetails.expectedAnswer}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
           )}
         />
       </div>
-    );
+    ), "complete");
   }
 
   const onMemoryCardClick = (card: MemoryCard) => {
@@ -1536,16 +2020,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       timeoutRef.current = window.setTimeout(() => {
         setMatchedIds((current) => [...current, firstId, secondId]);
         setRevealed([]);
-        speakCompanion("match", `${firstCard.pairId}-${secondCard.deckId}`);
-      }, 450);
+      }, visualMemoryMatchRevealMs);
       return;
     }
 
     setMistakes((current) => current + 1);
-    speakCompanion("mismatch", `${firstCard.deckId}-${secondCard.deckId}-${memoryAttempts}`);
     timeoutRef.current = window.setTimeout(() => {
       setRevealed([]);
-    }, 850);
+    }, visualMemoryMismatchRevealMs);
   };
 
   const onSequenceTileClick = (tileId: string, tileIndex: number) => {
@@ -1608,48 +2090,33 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const onWordRecallChipToggle = (word: string) => {
     setWordRecallMessage(null);
-    setWordRecallVoiceMessage(null);
-    setWordRecallSelectedWords((current) =>
-      current.some((entry) => wordsMatch(entry, word))
-        ? current.filter((entry) => !wordsMatch(entry, word))
-        : dedupeWords([...current, word]),
-    );
-  };
-
-  const addTypedRecallWords = () => {
-    const newWords = splitRecallText(wordRecallInput);
-    if (newWords.length === 0) return;
-    setWordRecallTypedWords((current) => dedupeWords([...current, ...newWords]));
-    setWordRecallInput("");
-    setWordRecallMessage(null);
+    setWordRecallSelectedWords((current) => {
+      if (current.some((entry) => wordsMatch(entry, word))) {
+        return current.filter((entry) => !wordsMatch(entry, word));
+      }
+      if (current.length >= wordRecallWords.length) return current;
+      return dedupeWords([...current, word]);
+    });
   };
 
   const finishWordRecall = () => {
     stopWordRecallAudio();
-    const pendingWords = splitRecallText(wordRecallInput);
-    const rememberedWords = dedupeWords([...wordRecallSelectedWords, ...wordRecallTypedWords, ...pendingWords]);
-    const correctWords = wordRecallWords.filter((targetWord) =>
-      rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
+    const { rememberedWords, correctWords, wrongWords, missedWords, accuracy, score, mistakes: recallMistakes } = scoreWordRecallChoices(
+      wordRecallWords,
+      wordRecallSelectedWords,
+      wordRecallChallengeKind,
     );
-    const wrongWords = rememberedWords.filter(
-      (candidate) => !wordRecallWords.some((targetWord) => wordsMatch(candidate, targetWord)),
-    );
-    const missedWords = wordRecallWords.filter(
-      (targetWord) => !rememberedWords.some((candidate) => wordsMatch(candidate, targetWord)),
-    );
-    const accuracy = Math.round((correctWords.length / Math.max(1, wordRecallWords.length)) * 100);
-    const score = Math.round((correctWords.length / Math.max(1, wordRecallWords.length)) * 100);
     const nextDurationSeconds = getDurationSeconds(startedAt);
 
     setCompletionDetails({
-      rememberedWords,
       correctWords,
+      incorrectWords: wrongWords,
       missedWords,
     });
     setCompletionMetrics({
-      score,
+      score: accuracy,
       accuracy,
-      mistakes: wrongWords.length,
+      mistakes: recallMistakes,
       durationSeconds: nextDurationSeconds,
     });
   };
@@ -1658,6 +2125,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     stopWordRecallAudio();
     setWordRecallMessage(null);
     if (plan.level >= 4 && wordRecallDistractionType) {
+      if (wordRecallDistractionType === "number_order") {
+        setWordRecallNumberOrder([]);
+        setWordRecallNumberChoices(createWordRecallNumberChallenge(plan.level));
+      }
       setWordRecallPhase("distraction");
       return;
     }
@@ -1672,28 +2143,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     speakCompanion("recall", `${plan.variantId}-distraction`);
   };
 
-  const startWordRecallVoice = () => {
-    setWordRecallVoiceMessage(null);
-    if (!wordRecallVoiceSupported) {
-      setWordRecallVoiceMessage(t("wordRecall.voiceNotSupported"));
-      return;
-    }
-    const started = startWordRecallListening();
-    if (!started) {
-      setWordRecallVoiceMessage(t("wordRecall.voiceNotSupported"));
-    }
-  };
-
-  const toggleMemoryAudio = () => {
-    setIsMemoryAudioMuted((current) => {
-      const next = !current;
-      if (!next) {
-        wordRecallNarrationKeyRef.current = "";
-      }
-      return next;
-    });
-  };
-
   const onWordRecallBlueChoice = (choice: "blue" | "other") => {
     if (choice === "blue") {
       completeWordRecallDistraction();
@@ -1702,69 +2151,100 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     setWordRecallMessage(t("wordRecall.tryAgain"));
   };
 
+  const onWordRecallNumberChoice = (value: number) => {
+    const orderedChoices = [...wordRecallNumberChoices].sort((a, b) => a - b);
+    const expected = orderedChoices[wordRecallNumberOrder.length];
+    if (value !== expected) {
+      setWordRecallNumberOrder([]);
+      setWordRecallMessage(t("wordRecall.tryAgain"));
+      return;
+    }
+    if (wordRecallNumberOrder.length + 1 === orderedChoices.length) {
+      completeWordRecallDistraction();
+      return;
+    }
+    setWordRecallMessage(null);
+    setWordRecallNumberOrder((current) => [...current, value]);
+  };
+
   if (plan.gameType === "word_recall") {
-    const rememberedCount = dedupeWords([...wordRecallSelectedWords, ...wordRecallTypedWords]).length;
-
-    return (
+    return renderBrainRunnerScreen(`word_recall_${wordRecallPhase}`, "playing", `word_recall_${wordRecallPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
+        <section className="py-4 sm:py-5" data-testid="word-recall-stage">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-[#FFF3C4] px-4 py-2 text-[14px] font-bold text-[#92400E]">{currentLevelLabel}</span>
+            {wordRecallPhase !== "setup" ? <span className="rounded-full bg-[#F5EEFF] px-3 py-2 text-[14px] font-bold text-vyva-purple">{wordRecallTheme.emoji} {wordRecallTheme.labels[language] ?? wordRecallTheme.labels.en}</span> : null}
+          </div>
 
-        <section className="mt-3 overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
-          <div className="flex items-start justify-between gap-3 sm:gap-4">
-            <div className="min-w-0">
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
-                <NotebookPen size={14} />
-                <span>{t("wordRecall.memorizeLabel", "Remember words")}</span>
+          <h2 className="mt-5 font-display text-[30px] font-normal leading-tight tracking-normal text-vyva-text-1">
+            {wordRecallPhase === "setup"
+              ? wordRecallUi.theme
+              : wordRecallPhase === "memorize"
+              ? t("wordRecall.memorizeLabel").replace("{{count}}", String(wordRecallWords.length))
+              : wordRecallPhase === "distraction"
+                ? t("wordRecall.distractionTitle")
+                : t("wordRecall.recallInstruction").replace("{{count}}", String(wordRecallWords.length))}
+          </h2>
+          <p className="mt-2 text-[16px] font-normal leading-relaxed text-vyva-text-2">
+            {wordRecallPhase === "setup"
+              ? wordRecallSetupUi.hint
+              : wordRecallPhase === "memorize"
+              ? t("wordRecall.studyHint")
+              : wordRecallPhase === "distraction"
+                ? t("wordRecall.distractionInstruction")
+                : t("wordRecall.selectRememberedWords")}
+          </p>
+
+          {wordRecallPhase !== "setup" ? voiceGameContextPanel : null}
+
+          {wordRecallPhase === "setup" && (
+            <div className="mt-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  aria-pressed={wordRecallThemeChoice === "surprise"}
+                  onClick={() => setWordRecallThemeChoice("surprise")}
+                  className={`min-h-[76px] rounded-[18px] border-2 px-3 py-3 text-[17px] font-bold shadow-sm ${wordRecallThemeChoice === "surprise" ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
+                >
+                  ✨ {wordRecallUi.surprise}
+                </button>
+                {WORD_RECALL_THEMES.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    aria-pressed={wordRecallThemeChoice === theme.id}
+                    onClick={() => setWordRecallThemeChoice(theme.id)}
+                    className={`min-h-[76px] rounded-[18px] border-2 px-3 py-3 text-[17px] font-bold shadow-sm ${wordRecallThemeChoice === theme.id ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
+                  >
+                    <span className="mr-1" aria-hidden="true">{theme.emoji}</span> {theme.labels[language] ?? theme.labels.en}
+                  </button>
+                ))}
               </div>
-              <h1 className="mt-3 font-display text-[28px] leading-[1.02] text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[28ch] text-[14px] leading-[1.45] text-vyva-text-2 sm:text-[15px]">{gamePrompt}</p>
+              <button
+                type="button"
+                onClick={startWordRecallRound}
+                className="mt-5 min-h-[58px] w-full rounded-[18px] bg-vyva-purple px-5 text-[19px] font-semibold text-white shadow-vyva-card sm:rounded-[22px] sm:text-[20px]"
+              >
+                {wordRecallSetupUi.start}
+              </button>
             </div>
-            <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[20px] bg-white shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-              <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[16px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-                <GameIcon size={24} />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("common.level")} ${plan.level}`}</span>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("wordRecall.correctWords")} ${rememberedCount}/${wordRecallWords.length}`}</span>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("memory.duration")} ${durationSeconds}s`}</span>
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
-          </div>
-
-          {voiceGameContextPanel}
+          )}
 
           {wordRecallPhase === "memorize" && (
             <>
-              <div className="relative z-10 mt-3 rounded-[18px] border border-[#EADFF8] bg-white p-4">
-                <p className="text-[16px] font-semibold leading-snug text-vyva-text-1">{t("wordRecall.voiceCommandsHint")}</p>
                 {wordRecallMessage && (
-                  <div className="mt-3 rounded-[16px] border border-[#D8C7F3] bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1">
+                  <div role="status" className="mt-3 text-[15px] font-medium text-vyva-text-1">
                     {wordRecallMessage}
                   </div>
                 )}
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {wordRecallWords.map((word, index) => (
                   <div
                     key={word}
-                    className="rounded-[18px] border border-white/70 px-4 py-4 text-center shadow-vyva-card sm:rounded-[22px] sm:py-6"
-                    style={{
-                      background: index % 2 === 0 ? "#FFFFFF" : "#FAF7FF",
-                    }}
+                    className="flex min-h-[88px] items-center justify-center gap-3 rounded-lg border border-vyva-border bg-white px-4 py-5 text-center sm:last:odd:col-span-2"
                   >
-                    <span className="text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[28px]">{word}</span>
+                    {wordRecallShowWordCues ? <span className="text-[28px]" aria-hidden="true">{wordRecallWordIcons[index] ?? wordRecallTheme.emoji}</span> : null}
+                    <span className="break-words text-[24px] font-semibold leading-tight text-vyva-text-1">{word}</span>
                   </div>
                 ))}
               </div>
@@ -1772,23 +2252,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 onClick={continueWordRecall}
                 className="mt-4 min-h-[56px] w-full rounded-[18px] bg-vyva-purple px-5 text-[18px] font-semibold text-white shadow-vyva-card sm:rounded-[22px] sm:text-[20px]"
               >
-                {t("wordRecall.readyButton")}
+                {t("wordRecall.hideWords", "Hide words")}
               </button>
             </>
           )}
 
           {wordRecallPhase === "distraction" && (
-            <div className="mt-4 rounded-[20px] border border-vyva-border bg-[#FFF7ED] p-4 sm:p-5">
-              <p className="text-[17px] font-semibold text-vyva-text-1">{t("wordRecall.distractionTitle")}</p>
+            <div className="mt-5">
               <p className="mt-2 text-[15px] leading-[1.5] text-vyva-text-2">
                 {wordRecallDistractionType === "choose_blue"
                   ? t("wordRecall.distractionChooseBlue")
                   : wordRecallDistractionType === "breathe_continue"
                     ? t("wordRecall.distractionBreathe")
+                    : wordRecallDistractionType === "number_order"
+                      ? wordRecallUi.numberOrder
                     : t("wordRecall.distractionCountBackwards")}
               </p>
-              <p className="mt-3 text-[14px] font-medium text-vyva-text-2">{t("wordRecall.voiceCommandsHint")}</p>
-
               {wordRecallDistractionType === "choose_blue" ? (
                 <div className="mt-4 grid grid-cols-3 gap-3">
                   {[
@@ -1803,6 +2282,24 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                       style={{ background: choice.color }}
                     />
                   ))}
+                </div>
+              ) : wordRecallDistractionType === "number_order" ? (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {wordRecallNumberChoices.map((value) => {
+                    const complete = wordRecallNumberOrder.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={complete}
+                        disabled={complete}
+                        onClick={() => onWordRecallNumberChoice(value)}
+                        className={`min-h-[72px] rounded-[18px] border-2 text-[26px] font-black shadow-vyva-card sm:min-h-[86px] ${complete ? "border-vyva-purple bg-[#F5EEFF] text-vyva-purple" : "border-[#D8C7F3] bg-white text-vyva-text-1"}`}
+                      >
+                        {value}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <button
@@ -1823,92 +2320,35 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
           {wordRecallPhase === "recall" && (
             <>
-              <div className="mt-4 rounded-[18px] border border-vyva-border bg-vyva-purple-light p-4 sm:p-5">
-                <p className="text-[17px] font-semibold text-vyva-text-1">{t("wordRecall.recallInstruction")}</p>
-                <p className="mt-2 text-[15px] leading-[1.5] text-vyva-text-2">{t("wordRecall.selectRememberedWords")}</p>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-3">
-                <button
-                  onClick={startWordRecallVoice}
-                  disabled={wordRecallListening}
-                  className="flex w-full items-center justify-between rounded-[20px] bg-vyva-purple px-4 py-4 text-left text-white shadow-vyva-card sm:px-5 sm:py-5"
-                >
-                  <div>
-                    <p className="text-[18px] font-semibold sm:text-[20px]">{t("wordRecall.speakWords")}</p>
-                    <p className="mt-1 text-[15px] text-white/85">
-                      {wordRecallListening ? t("wordRecall.listening") : t("wordRecall.selectRememberedWords")}
-                    </p>
-                  </div>
-                  <Mic size={24} />
-                </button>
-
-                {!wordRecallVoiceSupported && (
-                  <div className="rounded-[16px] border border-vyva-border bg-white px-4 py-3 text-[15px] text-vyva-text-2">
-                    {t("wordRecall.voiceNotSupported")}
-                  </div>
-                )}
-
-                {wordRecallVoiceMessage && (
-                  <div className="rounded-[16px] border border-[#D8C7F3] bg-[#FAF7FF] px-4 py-3 text-[15px] font-medium text-vyva-text-1">
-                    {wordRecallVoiceMessage}
-                  </div>
-                )}
-
-                <div className="rounded-[18px] border border-vyva-border bg-white p-4 shadow-vyva-card sm:rounded-[20px]">
-                  <div className="flex items-center gap-2 text-vyva-text-1">
-                    <Type size={18} />
-                    <span className="text-[16px] font-semibold">{t("wordRecall.remembered")}</span>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <input
-                      value={wordRecallInput}
-                      onChange={(event) => setWordRecallInput(event.target.value)}
-                      placeholder={t("wordRecall.typeWordsPlaceholder")}
-                      className="min-h-[56px] flex-1 rounded-[16px] border border-vyva-border px-4 text-[17px] text-vyva-text-1 outline-none"
-                    />
-                    <button
-                      onClick={addTypedRecallWords}
-                      className="min-h-[52px] rounded-[16px] border border-[#D8C7F3] bg-[#FAF7FF] px-5 text-[16px] font-semibold text-vyva-purple"
-                    >
-                      {t("wordRecall.addWord")}
-                    </button>
-                  </div>
+              {wordRecallChallengeKind !== "recognition" ? (
+                <div className="mt-4 rounded-[16px] bg-[#FFF9F1] px-4 py-3 text-[15px] font-medium text-vyva-text-2">
+                  {wordRecallChallengeKind === "order" ? wordRecallUi.order : wordRecallChallengeKind === "first" ? wordRecallUi.first : wordRecallUi.category}
                 </div>
-              </div>
+              ) : null}
 
-              <div className="mt-4 flex flex-wrap gap-2.5">
+              <div className="mt-5 grid grid-cols-2 gap-3">
                 {wordRecallChoiceWords.map((word) => {
                   const selected = wordRecallSelectedWords.some((entry) => wordsMatch(entry, word));
+                  const selectedOrder = wordRecallSelectedWords.findIndex((entry) => wordsMatch(entry, word));
                   return (
                     <button
                       key={word}
+                      type="button"
+                      aria-pressed={selected}
                       onClick={() => onWordRecallChipToggle(word)}
-                      className="rounded-full border px-4 py-2.5 text-[16px] font-medium shadow-sm transition-all"
+                      className="flex min-h-[64px] items-center justify-center gap-2 rounded-[18px] border-2 px-3 py-3 text-[17px] font-semibold shadow-sm transition-colors sm:min-h-[72px] sm:text-[18px]"
                       style={{
-                        background: selected ? "#6B21A8" : "#FFFFFF",
-                        color: selected ? "#FFFFFF" : "#2B2233",
+                        background: selected ? "#F5EEFF" : "#FFFFFF",
+                        color: selected ? "#6B21A8" : "#2B2233",
                         borderColor: selected ? "#6B21A8" : "#D8C7F3",
                       }}
                     >
+                      {wordRecallChallengeKind === "order" && selectedOrder >= 0 ? <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-vyva-purple text-[12px] font-black text-white">{selectedOrder + 1}</span> : wordRecallChallengeKind === "first" && selectedOrder === 0 ? <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-vyva-purple text-[12px] font-black text-white">1</span> : selected ? <Check size={20} aria-hidden="true" /> : null}
                       {word}
                     </button>
                   );
                 })}
               </div>
-
-              {(wordRecallSelectedWords.length > 0 || wordRecallTypedWords.length > 0) && (
-                <div className="mt-5 rounded-[20px] border border-vyva-border bg-[#F8FAFC] p-4">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {dedupeWords([...wordRecallSelectedWords, ...wordRecallTypedWords]).map((word) => (
-                      <span key={`selected-${word}`} className="rounded-full bg-white px-3 py-2 text-[15px] font-medium text-vyva-text-1 shadow-sm">
-                        {word}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <button
                 onClick={finishWordRecall}
@@ -1921,7 +2361,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           )}
         </section>
       </div>
-    );
+    ));
   }
 
   if (plan.gameType === "sequence_memory") {
@@ -1946,25 +2386,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             : t("memory.sequenceTapHintShort", "Tap the order. No time pressure.");
     const currentStepIndex = Math.min(sequenceProgress + 1, expectedSequence.length);
 
-    return (
+    return renderBrainRunnerScreen(`sequence_${sequencePhase}`, "playing", "sequence_grid", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
+        <section className="overflow-hidden rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
                 <Route size={14} />
                 {t("memory.sequenceWatchShort", "Watch order")}
               </div>
-              <h1 className="mt-3 font-display text-[28px] leading-[1.02] text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[28ch] text-[14px] leading-[1.45] text-vyva-text-2 sm:text-[15px]">{gamePrompt}</p>
+              <h2 className="mt-3 max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">{gamePrompt}</h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {sequenceTutorialSeen ? (
@@ -1978,11 +2409,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                   <CircleHelp size={23} aria-hidden="true" />
                 </button>
               ) : null}
-              <div className="flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-white shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-                <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[16px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-                  <GameIcon size={24} />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1994,7 +2420,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           </div>
 
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
           </div>
 
           {voiceGameContextPanel}
@@ -2090,15 +2515,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                       }}
                     >
                       <div className="flex h-full flex-col items-center justify-center">
-                        <span className="mb-2 inline-flex h-[26px] min-w-[26px] items-center justify-center rounded-full bg-white/18 px-2 text-[12px] font-semibold text-white sm:mb-3 sm:h-[28px] sm:min-w-[28px] sm:text-[13px]">
+                        <span className="inline-flex h-14 min-w-14 items-center justify-center rounded-full border border-white/30 bg-white/15 px-3 text-[28px] font-black text-white sm:h-16 sm:min-w-16 sm:text-[32px]">
                           {index + 1}
                         </span>
-                        <span className="text-[34px] leading-none sm:text-[42px]">{tile.emoji}</span>
-                        {isWatching && isActive && (
-                          <span className="mt-2 rounded-full bg-white/18 px-3 py-1 text-[14px] font-semibold text-white sm:mt-3 sm:text-[15px]">
-                            {index + 1}
-                          </span>
-                        )}
                       </div>
                     </button>
                   );
@@ -2109,160 +2528,199 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
         </section>
       </div>
-    );
+    ));
   }
 
   const matchedPairs = matchedIds.length / 2;
   const totalPairs = memoryDeck.length / 2;
   const nextPlayableLevel = getNextPlayableLevel();
-  const canOpenNextLevel = nextPlayableLevel > plan.level;
-  const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
+  const visualMemoryProgress = completionMetrics
+    ? getVisualMemoryLevelProgress(gameHistory, plan.level)
+    : null;
+  const visualTotalLevels = definition?.levels.length ?? VISUAL_MEMORY_MAX_LEVEL;
+  const visualLevelCompleted = Boolean(visualMemoryProgress?.levelCompleted);
+  const canOpenNextLevel = Boolean(visualMemoryProgress?.advanced && nextPlayableLevel > plan.level);
+  const nextLevelLabel = t("memory.nextVisualLevelLabel", "Next Level {level}", { level: nextPlayableLevel });
   const memoryGridClassName =
     memoryDeck.length <= 4
-      ? "grid-cols-2 max-w-[540px] sm:max-w-[620px]"
+      ? "grid-cols-2 max-w-[380px]"
       : memoryDeck.length <= 6
-        ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
-        : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
-  const memoryCardHeight =
-    memoryComplete
-      ? "clamp(108px, 16dvh, 132px)"
-      : memoryDeck.length <= 4
-        ? "clamp(118px, 19dvh, 152px)"
-        : memoryDeck.length <= 6
-          ? "clamp(100px, 15dvh, 136px)"
-          : "clamp(88px, 13dvh, 124px)";
+        ? "grid-cols-3 max-w-[520px]"
+        : "grid-cols-2 max-w-[620px] sm:grid-cols-4";
+  const memoryCardClassName =
+    memoryDeck.length <= 6
+      ? "aspect-square sm:max-h-[156px]"
+      : memoryDeck.length <= 8
+        ? "aspect-[4/3] sm:aspect-square sm:max-h-[148px]"
+        : "h-[clamp(92px,12dvh,116px)] sm:h-auto sm:aspect-[1.12/1] sm:max-h-[118px]";
   const memoryStats = [
-    `${t("common.level")} ${plan.level}`,
-    `${matchedPairs}/${totalPairs} ${t("memory.pairs")}`,
-    `${memoryAccuracy}%`,
-    `${durationSeconds}s`,
+    { label: t("memory.pairs"), value: `${matchedPairs}/${totalPairs}` },
+    { label: t("memory.accuracy"), value: `${memoryAccuracy}%` },
+    { label: t("memory.duration"), value: `${durationSeconds}s` },
   ];
 
-  return (
-    <div className="mx-auto w-full max-w-[1120px] px-3 pb-3 sm:px-4 sm:pb-4">
-      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-          <button
-            onClick={backToList}
-            aria-label={t("common.back")}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#EADFD5] bg-white/95 px-3 text-[14px] font-semibold text-vyva-text-1 shadow-sm"
-          >
-            <ArrowLeft size={17} />
-            <span className="hidden sm:inline">{t("common.back")}</span>
-          </button>
-
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#EEE5FA] bg-white shadow-sm" style={gameIconStyle}>
-                <GameIcon size={19} />
-              </span>
-              <div className="min-w-0">
-                <h1 className="truncate font-display text-[23px] leading-none text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
-                <p className="mt-1 hidden truncate text-[13px] font-semibold text-vyva-text-2 sm:block">{t("memory.matchInstruction")}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden min-w-[390px] grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm sm:grid">
-            {memoryStats.map((item, index) => (
-              <span
-                key={`desktop-${item}`}
-                className={`flex min-h-8 items-center justify-center px-3 text-center text-[12px] font-semibold leading-none text-vyva-text-1 ${
-                  index === 0 ? "" : "border-l border-[#EFE7DB]"
-                }`}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-
-          <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:hidden">
-          <div className="min-w-0 rounded-full border border-[#EADFF8] bg-white/95 px-3 py-2 text-[12px] font-semibold leading-none text-vyva-text-1 shadow-sm sm:hidden">
-            <span className="block truncate">{t("memory.matchInstruction")}</span>
-          </div>
-          <div className="grid grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm">
-            {memoryStats.map((item, index) => (
-              <span
-                key={`mobile-${item}`}
-                className={`flex min-h-8 items-center justify-center px-2 text-center text-[11px] font-semibold leading-none text-vyva-text-1 sm:px-3 sm:text-[12px] ${
-                  index === 0 ? "" : "border-l border-[#EFE7DB]"
-                }`}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {voiceGameContextPanel}
-
-        <div className={`mx-auto mt-4 grid w-full gap-2 sm:mt-5 sm:gap-3 ${memoryGridClassName}`}>
-          {memoryDeck.map((card) => {
-            const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
-            return (
-              <button
-                key={card.deckId}
-                onClick={() => onMemoryCardClick(card)}
-                className="rounded-[16px] border border-vyva-border p-2 text-center shadow-vyva-card transition-all sm:rounded-[20px] sm:p-3"
-                style={
-                  isOpen
-                    ? { height: memoryCardHeight, background: "#FFFFFF", borderColor: "#C4B5FD", transform: "translateY(-1px)" }
-                    : { height: memoryCardHeight, background: "linear-gradient(145deg, #6B21A8 0%, #8B3FC8 100%)", color: "#FFFFFF" }
-                }
-              >
-                <div className="flex h-full flex-col items-center justify-center">
-                  {isOpen ? (
-                    <>
-                      <span className="text-[28px] leading-none sm:text-[36px]">{card.emoji}</span>
-                      <span className="mt-1 text-[12px] font-semibold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[17px]">{card.label}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-[30px] font-semibold sm:text-[34px]">?</span>
-                    </>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {memoryComplete && (
+  if (finished && memoryComplete) {
+    return renderBrainRunnerScreen(
+      "result",
+      "completion",
+      "modal_actions",
+      (
+        <div className="min-h-[100dvh] bg-[#FFF9F1]">
           <BrainGameCompletionDialog
             title={t("memory.wellDone")}
             summary={
               completionMetrics
-                ? `${t("memory.score")}: ${completionMetrics.score} | ${t("memory.accuracy")}: ${completionMetrics.accuracy}%`
+                ? visualLevelCompleted && !canOpenNextLevel
+                  ? t("memory.visualMasteryComplete", "Visual Memory journey complete. Play again or explore more games.")
+                  : canOpenNextLevel
+                    ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
+                    : t("memory.visualRoundComplete", "Round complete. Ready for a new board?")
                 : t("memory.exerciseCompleted")
             }
             metrics={[
               { label: t("memory.score"), value: completionMetrics?.score ?? "-" },
               { label: t("memory.accuracy"), value: completionMetrics ? `${completionMetrics.accuracy}%` : "-" },
+              { label: t("memory.moves", "Moves"), value: memoryAttempts },
+              { label: t("memory.duration"), value: `${completionMetrics?.durationSeconds ?? durationSeconds}s` },
             ]}
-            continueLabel={t("brainGames.resultActions.continue")}
+            continueLabel={!canOpenNextLevel ? t("brainGames.resultActions.moreGames", "More games") : undefined}
             nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
-            nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
+            nextLevelDisplayLabel={canOpenNextLevel ? t("memory.nextVisualLevel", "Next Level") : undefined}
             replayLabel={t("brainGames.resultActions.playAgain")}
-            anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
             assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
             assessmentReturnHint={
               assessmentPractice
                 ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
                 : undefined
             }
-            onContinue={openRecommended}
+            onContinue={!canOpenNextLevel ? backToList : undefined}
             onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-            onReplay={() => void openSameGame()}
-            onAnother={backToList}
+            onReplay={replayCurrentBoard}
             onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
             disabled={actionLoading !== null}
+            details={
+              <div className={`rounded-[20px] border px-4 py-4 ${visualLevelCompleted ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#EADFF8] bg-[#FAF7FF]"}`}>
+                <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                  <span>{t("memory.gameProgress", "Visual Memory progress")}</span>
+                  <span>{t("memory.visualLevelOf", "Level {level} of {total}", { level: plan.level, total: visualTotalLevels })}</span>
+                </div>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/80">
+                  <div
+                    className="h-full rounded-full bg-vyva-purple transition-[width] duration-500"
+                    style={{ width: `${(plan.level / visualTotalLevels) * 100}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {canOpenNextLevel
+                    ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
+                    : visualLevelCompleted
+                      ? t("memory.visualMasteryComplete", "Visual Memory journey complete. Play again or explore more games.")
+                    : t("memory.visualRoundCounted", "Round counted. Continue with a new board at this level.")}
+                </p>
+                <p className="mt-2 text-[13px] font-black text-vyva-purple">{getVisualMemoryProgressLabel(plan.level, language)}</p>
+              </div>
+            }
           />
-        )}
+        </div>
+      ),
+      "complete",
+    );
+  }
+
+  return (
+    <BrainCoachActivityShell
+      title={gameTitle}
+      backLabel={t("common.back")}
+      onBack={backToList}
+      action={
+        <button
+          type="button"
+          onClick={openVisualMemoryInstructions}
+          aria-label={t("memory.instructions", "Instructions")}
+          title={t("memory.instructions", "Instructions")}
+          className="vyva-tap grid h-11 w-11 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_8px_22px_rgba(61,35,83,0.12)] ring-1 ring-black/[0.05]"
+        >
+          <CircleHelp size={21} aria-hidden="true" />
+        </button>
+      }
+      testId={brainTestId}
+      presentationId={`${brainSceneId}.playing.touch`}
+      sceneId={brainSceneId}
+      sceneKind="playing"
+      sceneLayout="card_grid"
+    >
+      <section className="flex min-h-full flex-1 flex-col overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
+            {getVisualMemoryProgressLabel(plan.level, language)}
+          </span>
+          <p className="min-w-0 flex-1 text-right text-[14px] font-bold leading-snug text-vyva-text-2 sm:text-[15px]">
+            {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}
+          </p>
+        </div>
+
+        <dl className="mt-3 grid grid-cols-3 gap-2">
+          {memoryStats.map(({ label, value }) => (
+            <div key={label} className="rounded-[16px] border border-[#EADFF8] bg-white px-2 py-2.5 text-center shadow-sm">
+              <dt className="text-[10px] font-bold uppercase tracking-[0.04em] text-vyva-text-2 sm:text-[11px]">{label}</dt>
+              <dd className="mt-1 text-[17px] font-black leading-none text-vyva-text-1 sm:text-[19px]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div
+          data-testid="visual-memory-grid"
+          className={`mx-auto mt-3 grid w-full gap-2.5 sm:mt-5 sm:gap-3.5 ${memoryGridClassName}`}
+        >
+          {memoryDeck.map((card, index) => {
+            const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
+            const isMatched = matchedIds.includes(card.deckId);
+            return (
+              <button
+                key={card.deckId}
+                onClick={() => onMemoryCardClick(card)}
+                type="button"
+                data-testid="visual-memory-card"
+                aria-label={isOpen ? card.label : t("memory.hiddenCard", "Hidden card {number}", { number: index + 1 })}
+                aria-pressed={isOpen}
+                disabled={isMatched}
+                className={`relative w-full overflow-hidden rounded-[18px] border p-2 text-center shadow-[0_8px_18px_rgba(61,35,83,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(61,35,83,0.18)] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20 disabled:cursor-default sm:rounded-[22px] sm:p-3 ${memoryCardClassName}`}
+                style={
+                  isOpen
+                    ? {
+                        background: isMatched ? "#F0FDF4" : "#FFFFFF",
+                        borderColor: isMatched ? "#86EFAC" : "#C4B5FD",
+                        transform: "translateY(-1px)",
+                      }
+                    : {
+                        background: "radial-gradient(circle at 50% 35%, #9B4DCE 0%, #7B2CBF 48%, #612095 100%)",
+                        borderColor: "rgba(255,255,255,0.2)",
+                        color: "#FFFFFF",
+                      }
+                }
+              >
+                {!isOpen && <span aria-hidden="true" className="pointer-events-none absolute inset-2 rounded-[13px] border border-white/15 sm:rounded-[16px]" />}
+                <div className="flex h-full flex-col items-center justify-center">
+                  {isOpen ? (
+                    <>
+                      <MemoryMatchVisual
+                        visual={card.visual}
+                        className={card.visual.kind === "emoji" ? "text-[32px] leading-none sm:text-[40px]" : "h-14 w-14 sm:h-[68px] sm:w-[68px]"}
+                      />
+                      {visualMemoryShowLabels ? (
+                        <span className="mt-1.5 text-[12px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[16px]">{card.label}</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[30px] font-bold shadow-inner backdrop-blur-[1px] sm:h-14 sm:w-14 sm:text-[34px]">?</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </section>
-    </div>
+    </BrainCoachActivityShell>
   );
 };
 

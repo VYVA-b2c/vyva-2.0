@@ -13,8 +13,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Lora", "serif"],
-        body: ["DM Sans", "sans-serif"],
+        display: ["Figtree", "sans-serif"],
+        body: ["Figtree", "sans-serif"],
+        serif: ["Figtree", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

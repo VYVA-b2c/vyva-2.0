@@ -228,7 +228,7 @@ function ProgramSetup() {
                   Easy
                 </span>
                 <span className="inline-flex min-h-[32px] items-center rounded-full bg-[#FFFCF8] px-3 text-xs font-black text-[#766b63]">
-                  WhatsApp + app
+                  Uses your reminder settings
                 </span>
               </div>
             </div>
@@ -254,7 +254,7 @@ function ProgramSetup() {
                         <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#6B21A8]">Best</span>
                       ) : null}
                     </span>
-                    <span className={`mt-3 block text-[13px] font-black uppercase tracking-[0.1em] ${tone.marker}`}>{FREQUENCY_DETAILS[option]}</span>
+                    <span className="sr-only">{FREQUENCY_DETAILS[option]}</span>
                   </button>
                 );
               })}
@@ -368,7 +368,7 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
             }`}>
               <p className="text-xs font-black uppercase tracking-[0.1em]">{reminderDue ? "Ready now" : "Next check"}</p>
               <p className="mt-1 text-[20px] font-black leading-tight">{reminderDue ? "Now" : formatDateTime(enrollment?.nextRunAt)}</p>
-              <p className="mt-2 text-xs font-bold">WhatsApp + app</p>
+              <p className="mt-2 text-xs font-bold">Uses your reminder settings</p>
             </div>
           </div>
 
@@ -400,7 +400,7 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <InfoTile icon={<CalendarDays size={22} />} label="Reminder" value="WhatsApp + app" detail={`${cognitiveAssessmentFrequencyLabel(enrollment?.frequency ?? "monthly")} - ${enrollment?.reminderTime ?? "10:00"} local`} />
+            <InfoTile icon={<CalendarDays size={22} />} label="Reminder" value="Scheduled" detail={`${cognitiveAssessmentFrequencyLabel(enrollment?.frequency ?? "monthly")} - ${enrollment?.reminderTime ?? "10:00"} local`} />
             <InfoTile icon={<FileText size={22} />} label="Latest report" value={formatDate(latestReport?.completedAt)} detail={latestReport ? `${latestReport.tasksCompleted}/${latestReport.totalTasks} steps saved` : "Complete a check first"} />
             <InfoTile icon={<RotateCw size={22} />} label="Past reports" value={`${program.completedReportCount}`} detail={program.completedReportCount === 1 ? "saved report" : "saved reports"} />
           </div>

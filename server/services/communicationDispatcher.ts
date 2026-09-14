@@ -140,7 +140,26 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function buildEmailPayload(item: Communication): EmailPayload {
+function metadataEmailAttachments(metadata: Record<string, unknown>): EmailAttachment[] {
+  if (!Array.isArray(metadata.attachments)) return [];
+  return metadata.attachments.flatMap((value, index) => {
+    const item = metadataRecord(value);
+    const content = metadataString(item, "content");
+    const filename = metadataString(item, "filename");
+    const type = metadataString(item, "type");
+    if (!content || !filename || !type || !/^image\/(jpeg|png|webp)$/.test(type)) return [];
+    if (!/^[A-Za-z0-9+/=]+$/.test(content) || content.length > 2_500_000) return [];
+    return [{
+      content,
+      filename,
+      type,
+      disposition: "attachment" as const,
+      content_id: metadataString(item, "content_id") ?? `attachment-${index + 1}`,
+    }];
+  });
+}
+
+export function buildEmailPayload(item: Communication): EmailPayload {
   const metadata = metadataRecord(item.metadata);
   const subject = metadataString(metadata, "subject") ?? "Join VYVA";
 
@@ -155,6 +174,16 @@ function buildEmailPayload(item: Communication): EmailPayload {
   return {
     subject,
     text: item.body ?? "",
+    ...(() => {
+      const html = metadataString(metadata, "html")
+        ?? metadataString(metadata, "htmlBody")
+        ?? metadataString(metadata, "html_body");
+      return html ? { html } : {};
+    })(),
+    ...(() => {
+      const attachments = metadataEmailAttachments(metadata);
+      return attachments.length ? { attachments } : {};
+    })(),
   };
 }
 
@@ -232,15 +261,32 @@ async function sendSms(item: Communication) {
   return postTwilioForm("Messages", params);
 }
 
+export function buildWhatsappMessageParams(item: Communication) {
+  const metadata = metadataRecord(item.metadata);
+  const contentSid = metadataString(metadata, "content_sid");
+  const contentVariables = metadata.content_variables;
+  const params = new URLSearchParams({
+    To: withWhatsappPrefix(item.recipient),
+  });
+
+  if (contentSid) {
+    params.set("ContentSid", contentSid);
+    if (contentVariables && typeof contentVariables === "object" && !Array.isArray(contentVariables)) {
+      params.set("ContentVariables", JSON.stringify(contentVariables));
+    }
+  } else {
+    params.set("Body", item.body ?? "");
+  }
+
+  return params;
+}
+
 async function sendWhatsapp(item: Communication) {
   const from = process.env.TWILIO_WHATSAPP_FROM ?? process.env.TWILIO_WHATSAPP_FROM_NUMBER;
   const messagingServiceSid = process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID;
   if (!messagingServiceSid && !from) throw new Error("WhatsApp sender is not configured");
 
-  const params = new URLSearchParams({
-    To: withWhatsappPrefix(item.recipient),
-    Body: item.body ?? "",
-  });
+  const params = buildWhatsappMessageParams(item);
   setTwilioStatusCallback(params, "/api/webhooks/twilio/message-status");
   if (messagingServiceSid) params.set("MessagingServiceSid", messagingServiceSid);
   else if (from) params.set("From", withWhatsappPrefix(from));

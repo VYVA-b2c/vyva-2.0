@@ -132,7 +132,7 @@ describe("CognitiveAssessmentHubPage", () => {
     expect(await screen.findByText("Ready")).toBeInTheDocument();
     expect(screen.getByText("Ready now")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /start now/i })).toBeInTheDocument();
-    expect(screen.getAllByText("WhatsApp + app").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Uses your reminder settings").length).toBeGreaterThan(0);
   });
 
   it("continues an unfinished session using the URL session id", async () => {

@@ -80,7 +80,7 @@ const expectedDefaultNodes: Record<string, Record<PathStage, ExpectedNode>> = {
     trend: { question: "How is this confusion or memory change behaving?", labels: ["It started today or suddenly", "It has been changing over a few days", "It has been gradual over weeks or months", "I am not sure how long it has been changing"] },
   },
   other: {
-    red_flag: { question: "Do any of these warning signs apply?", labels: ["Chest pain, hard breathing, or blue/grey/pale skin", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Very confused, hard to wake, heavy bleeding, severe pain, or allergy swelling", "No, none of these"] },
+    red_flag: { question: "Do any of these warning signs apply?", labels: ["Chest pain, breathing trouble, or pale/blue skin", "Face/arm weakness, speech or vision trouble, seizure, or fainting", "Confusion, hard to wake, heavy bleeding, severe pain, or swelling", "No, none of these"] },
     duration: { question: "When did this start?", labels: ["Started today", "Few days", "Longer than a few days", "I am not sure"] },
     severity: { question: "Where is the main problem?", labels: ["Chest or breathing", "Head, weakness, dizziness, confusion, or fall", "Fever, urine, stomach, skin, or wound", "Other or not sure"] },
     trend: { question: "Which best describes what is happening now?", labels: ["It started suddenly or is worse today", "It started after medicine, surgery, hospital, or a fall", "It is ongoing and not improving", "It is mild, brief, and improving"] },
@@ -111,6 +111,27 @@ const benignFlows: Record<string, Array<{ stage: PathStage; answerId: string }>>
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 describe("triage wizard matrix", () => {
+  it("asks pain location before showing location-specific warning signs", () => {
+    const location = triageWizardNodeFor("location", "pain");
+    expect(location.question.en).toBe("Where is the main pain?");
+    expect(location.replies.map((reply) => reply.label.en)).toEqual([
+      "Head or neck",
+      "Back",
+      "Belly or side",
+      "Arm, leg, or joint",
+      "Somewhere else",
+    ]);
+    expect(location.replies.every((reply) => reply.kind === "location")).toBe(true);
+
+    const headacheSafety = triageWizardNodeFor("red_flag", "pain", new Set(["head_neck_pain"]));
+    expect(headacheSafety.question.en).toBe("Does the head or neck pain include any warning signs?");
+    expect(headacheSafety.replies.map((reply) => reply.label.en)).not.toContain("Bladder, bowel, numbness, or leg weakness");
+
+    const backSafety = triageWizardNodeFor("red_flag", "pain", new Set(["back_pain"]));
+    expect(backSafety.question.en).toBe("Does the back pain include any warning signs?");
+    expect(backSafety.replies.map((reply) => reply.label.en)).toContain("Bladder, bowel, numbness, or leg weakness");
+  });
+
   it.each(TRIAGE_SYMPTOM_IDS)("matches approved question and choice text for %s", (symptomId) => {
     const expectedStages = expectedDefaultNodes[symptomId];
 

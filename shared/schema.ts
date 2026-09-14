@@ -20,13 +20,14 @@
 // ============================================================
 
 import {
-  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
-  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
+  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index, foreignKey,
+  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType, check
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import type { TriageScanResult } from "./triageScans.js";
+import type { BenefitsEligibilityRule, BenefitsLocalizedText, BenefitsScreeningAnswers } from "./benefits.js";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {
@@ -452,11 +453,26 @@ export const checkinSessions = pgTable("checkin_sessions", {
   feeling_label:    text("feeling_label"),
   overall_state:    text("overall_state"),
   vyva_reading:     text("vyva_reading"),
+  why_today:        text("why_today"),
+  trend_note:       text("trend_note"),
+  personal_plan:    text("personal_plan"),
+  app_suggestion:   text("app_suggestion"),
+  suggested_app_action: text("suggested_app_action"),
   right_now:        jsonb("right_now").notNull().default([]),
   today_actions:    jsonb("today_actions").notNull().default([]),
   highlight:        text("highlight"),
   flag_caregiver:   boolean("flag_caregiver").notNull().default(false),
   watch_for:        text("watch_for"),
+  orchestration_flow_id: text("orchestration_flow_id"),
+  orchestration_flow_version: text("orchestration_flow_version"),
+  orchestration_flow_instance_id: text("orchestration_flow_instance_id"),
+  orchestration_completion_reference: text("orchestration_completion_reference"),
+  orchestration_answer_digest: text("orchestration_answer_digest"),
+  orchestration_completion_status: text("orchestration_completion_status"),
+  orchestration_claim_token: text("orchestration_claim_token"),
+  orchestration_claimed_at: timestamp("orchestration_claimed_at", { withTimezone: true }),
+  orchestration_claim_expires_at: timestamp("orchestration_claim_expires_at", { withTimezone: true }),
+  orchestration_failure_reason: text("orchestration_failure_reason"),
   language:         text("language").notNull().default("es"),
   completed:        boolean("completed").notNull().default(false),
   abandoned:        boolean("abandoned").notNull().default(false),
@@ -464,7 +480,17 @@ export const checkinSessions = pgTable("checkin_sessions", {
   started_at:       timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   completed_at:     timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
   created_at:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("checkin_sessions_task9_completion_unique_idx")
+    .on(
+      t.user_id,
+      t.orchestration_flow_id,
+      t.orchestration_flow_version,
+      t.orchestration_flow_instance_id,
+      t.orchestration_completion_reference,
+    )
+    .where(sql`${t.orchestration_completion_reference} is not null`),
+]);
 
 export const insertCheckinSessionSchema = createInsertSchema(checkinSessions).omit({ id: true, started_at: true, completed_at: true, created_at: true });
 export type InsertCheckinSession = z.infer<typeof insertCheckinSessionSchema>;
@@ -507,6 +533,168 @@ export const userMedications = pgTable("user_medications", {
 export const insertUserMedicationSchema = createInsertSchema(userMedications).omit({ id: true, created_at: true });
 export type InsertUserMedication = z.infer<typeof insertUserMedicationSchema>;
 export type UserMedication = typeof userMedications.$inferSelect;
+
+export const myMedicines = pgTable("my_medicines", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull(),
+  display_name:      text("display_name").notNull(),
+  common_name:       text("common_name"),
+  dose_text:         text("dose_text"),
+  purpose_text:      text("purpose_text"),
+  item_type:         text("item_type").notNull().default("prescription"),
+  drug_class_tag:    text("drug_class_tag"),
+  photo_url:         text("photo_url"),
+  prescriber_name:   text("prescriber_name"),
+  refill_due_date:   date("refill_due_date"),
+  dose_unit:         text("dose_unit"),
+  units_per_dose:    numeric("units_per_dose", { precision: 10, scale: 2 }),
+  inventory_unit:    text("inventory_unit"),
+  inventory_units_per_dose: numeric("inventory_units_per_dose", { precision: 10, scale: 2 }),
+  daily_frequency:   numeric("daily_frequency", { precision: 6, scale: 2 }),
+  inventory_tracking_enabled: boolean("inventory_tracking_enabled").notNull().default(false),
+  refill_alert_days: integer("refill_alert_days").notNull().default(7),
+  schedule_times:    text("schedule_times").array(),
+  status:            text("status").notNull().default("active"),
+  status_changed_at: timestamp("status_changed_at", { withTimezone: true }),
+  status_changed_by: text("status_changed_by"),
+  added_via:         text("added_via").notNull().default("voice"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_mm_user_status").on(t.user_id, t.status),
+  index("idx_mm_refill_due").on(t.user_id, t.refill_due_date),
+]);
+
+export const insertMyMedicineSchema = createInsertSchema(myMedicines).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMyMedicine = z.infer<typeof insertMyMedicineSchema>;
+export type MyMedicine = typeof myMedicines.$inferSelect;
+
+export const medicationInventoryEvents = pgTable("medication_inventory_events", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull(),
+  medicine_id:     uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  event_type:      text("event_type").notNull(),
+  quantity:        numeric("quantity", { precision: 12, scale: 2 }).notNull(),
+  unit:            text("unit").notNull(),
+  occurred_on:     date("occurred_on").notNull(),
+  source:          text("source").notNull().default("manual"),
+  actor_user_id:   text("actor_user_id").notNull(),
+  actor_role:      text("actor_role").notNull().default("user"),
+  actor_name:      text("actor_name"),
+  metadata:        jsonb("metadata").notNull().default({}),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_inventory_events_user_medicine_date_idx").on(t.user_id, t.medicine_id, t.occurred_on.desc()),
+]);
+
+export const insertMedicationInventoryEventSchema = createInsertSchema(medicationInventoryEvents).omit({ id: true, created_at: true });
+export type InsertMedicationInventoryEvent = z.infer<typeof insertMedicationInventoryEventSchema>;
+export type MedicationInventoryEvent = typeof medicationInventoryEvents.$inferSelect;
+
+export const medicationRefillAlerts = pgTable("medication_refill_alerts", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull(),
+  medicine_id:           uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  status:                text("status").notNull(),
+  cycle_key:             text("cycle_key").notNull(),
+  title:                 text("title").notNull(),
+  message:               text("message").notNull(),
+  days_remaining:        integer("days_remaining"),
+  projected_run_out_date: date("projected_run_out_date"),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolved_at:           timestamp("resolved_at", { withTimezone: true }),
+  resolved_reason:       text("resolved_reason"),
+}, (t) => [
+  uniqueIndex("medication_refill_alerts_cycle_status_unique").on(t.user_id, t.medicine_id, t.cycle_key, t.status),
+  index("medication_refill_alerts_user_open_idx").on(t.user_id, t.resolved_at, t.created_at.desc()),
+]);
+
+export const insertMedicationRefillAlertSchema = createInsertSchema(medicationRefillAlerts).omit({ id: true, created_at: true });
+export type InsertMedicationRefillAlert = z.infer<typeof insertMedicationRefillAlertSchema>;
+export type MedicationRefillAlert = typeof medicationRefillAlerts.$inferSelect;
+
+export const medicationRefillPushDeliveries = pgTable("medication_refill_push_deliveries", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  delivery_key:      text("delivery_key").notNull().unique(),
+  alert_id:          uuid("alert_id").notNull().references(() => medicationRefillAlerts.id, { onDelete: "cascade" }),
+  profile_id:        text("profile_id").notNull(),
+  medicine_id:       uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  cycle_key:         text("cycle_key").notNull(),
+  recipient_user_id: text("recipient_user_id").notNull(),
+  recipient_role:    text("recipient_role").notNull(),
+  subscription_id:   uuid("subscription_id").notNull(),
+  status:            text("status").notNull().default("sending"),
+  provider_status:   integer("provider_status"),
+  failure_reason:    text("failure_reason"),
+  requested_at:      timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  sent_at:           timestamp("sent_at", { withTimezone: true }),
+  failed_at:         timestamp("failed_at", { withTimezone: true }),
+  opened_at:         timestamp("opened_at", { withTimezone: true }),
+  resolved_at:       timestamp("resolved_at", { withTimezone: true }),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_refill_push_deliveries_recipient_idx").on(t.recipient_user_id, t.created_at.desc()),
+  index("medication_refill_push_deliveries_alert_idx").on(t.alert_id),
+  check("medication_refill_push_deliveries_status_chk", sql`${t.status} in ('sending', 'sent', 'failed_retryable', 'failed_permanent')`),
+  check("medication_refill_push_deliveries_role_chk", sql`${t.recipient_role} in ('elder', 'caregiver', 'family')`),
+]);
+
+export const insertMedicationRefillPushDeliverySchema = createInsertSchema(medicationRefillPushDeliveries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMedicationRefillPushDelivery = z.infer<typeof insertMedicationRefillPushDeliverySchema>;
+export type MedicationRefillPushDelivery = typeof medicationRefillPushDeliveries.$inferSelect;
+
+export const myMedicinesChangeLog = pgTable("my_medicines_change_log", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  user_id:        text("user_id").notNull(),
+  medicine_id:    uuid("medicine_id").references(() => myMedicines.id, { onDelete: "set null" }),
+  change_type:    text("change_type").notNull(),
+  previous_value: jsonb("previous_value"),
+  new_value:      jsonb("new_value"),
+  source:         text("source").notNull().default("voice_update"),
+  changed_at:     timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_mcl_user_time").on(t.user_id, t.changed_at.desc()),
+]);
+
+export const insertMyMedicineChangeLogSchema = createInsertSchema(myMedicinesChangeLog).omit({ id: true, changed_at: true });
+export type InsertMyMedicineChangeLog = z.infer<typeof insertMyMedicineChangeLogSchema>;
+export type MyMedicineChangeLog = typeof myMedicinesChangeLog.$inferSelect;
+
+export const interactionFlagRules = pgTable("interaction_flag_rules", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  class_a:         text("class_a").notNull(),
+  class_b:         text("class_b").notNull(),
+  flag_message_es: text("flag_message_es").notNull(),
+  flag_message_de: text("flag_message_de").notNull(),
+  flag_message_en: text("flag_message_en").notNull(),
+  severity_tier:   text("severity_tier").notNull().default("worth_asking"),
+  is_active:       boolean("is_active").notNull().default(false),
+  reviewed_by:     text("reviewed_by"),
+  reviewed_at:     timestamp("reviewed_at", { withTimezone: true }),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_ifr_classes").on(t.class_a, t.class_b),
+]);
+
+export const insertInteractionFlagRuleSchema = createInsertSchema(interactionFlagRules).omit({ id: true, created_at: true });
+export type InsertInteractionFlagRule = z.infer<typeof insertInteractionFlagRuleSchema>;
+export type InteractionFlagRule = typeof interactionFlagRules.$inferSelect;
+
+export const interactionFlagDismissals = pgTable("interaction_flag_dismissals", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  user_id:       text("user_id").notNull(),
+  rule_id:       uuid("rule_id").notNull().references(() => interactionFlagRules.id, { onDelete: "cascade" }),
+  medicine_pair: jsonb("medicine_pair").notNull(),
+  dismissed_at:  timestamp("dismissed_at", { withTimezone: true }).notNull().defaultNow(),
+  reason:        text("reason"),
+}, (t) => [
+  index("interaction_flag_dismissals_user_rule_idx").on(t.user_id, t.rule_id),
+]);
+
+export const insertInteractionFlagDismissalSchema = createInsertSchema(interactionFlagDismissals).omit({ id: true, dismissed_at: true });
+export type InsertInteractionFlagDismissal = z.infer<typeof insertInteractionFlagDismissalSchema>;
+export type InteractionFlagDismissal = typeof interactionFlagDismissals.$inferSelect;
 
 export const medicationSafetySignals = pgTable("medication_safety_signals", {
   id:              uuid("id").primaryKey().defaultRandom(),
@@ -813,7 +1001,16 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   fallback_chain:                text("fallback_chain").array().default(["whatsapp_outbound", "voice_outbound"]),
   max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
-});
+  concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
+  medication_refill_push_enabled: boolean("medication_refill_push_enabled").notNull().default(false),
+  preventive_web_push_enabled: boolean("preventive_web_push_enabled").notNull().default(false),
+  preventive_web_push_consent_revision: integer("preventive_web_push_consent_revision").notNull().default(0),
+  preventive_web_push_consent_updated_at: timestamp("preventive_web_push_consent_updated_at", { withTimezone: true }),
+  preventive_web_push_consent_granted_at: timestamp("preventive_web_push_consent_granted_at", { withTimezone: true }),
+  preventive_web_push_consent_revoked_at: timestamp("preventive_web_push_consent_revoked_at", { withTimezone: true }),
+}, (t) => [
+  check("user_channel_preferences_preventive_web_push_revision_chk", sql`${t.preventive_web_push_consent_revision} >= 0`),
+]);
 
 export const insertUserChannelPreferencesSchema = createInsertSchema(userChannelPreferences).omit({ id: true, updated_at: true });
 export type InsertUserChannelPreferences = z.infer<typeof insertUserChannelPreferencesSchema>;
@@ -1164,6 +1361,35 @@ export const advisorUserAgentState = pgTable("advisor_user_agent_state", {
 export const insertAdvisorUserAgentStateSchema = createInsertSchema(advisorUserAgentState).omit({ updated_at: true });
 export type InsertAdvisorUserAgentState = z.infer<typeof insertAdvisorUserAgentStateSchema>;
 export type AdvisorUserAgentStateRow = typeof advisorUserAgentState.$inferSelect;
+
+export const benefitsPrograms = pgTable("benefits_programs", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  country:           text("country").notNull(),
+  region:            text("region"),
+  name:              jsonb("name").$type<BenefitsLocalizedText>().notNull(),
+  description:       jsonb("description").$type<BenefitsLocalizedText>().notNull(),
+  eligibility_rules: jsonb("eligibility_rules").$type<BenefitsEligibilityRule[]>().notNull().default([]),
+  is_active:         boolean("is_active").notNull().default(false),
+}, (t) => [
+  index("benefits_programs_active_country_region_idx").on(t.is_active, t.country, t.region),
+]);
+
+export const insertBenefitsProgramSchema = createInsertSchema(benefitsPrograms).omit({ id: true });
+export type InsertBenefitsProgram = z.infer<typeof insertBenefitsProgramSchema>;
+export type BenefitsProgramRow = typeof benefitsPrograms.$inferSelect;
+
+export const benefitsScreeningResponses = pgTable("benefits_screening_responses", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  answers:    jsonb("answers").$type<BenefitsScreeningAnswers>().notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("benefits_screening_responses_user_created_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertBenefitsScreeningResponseSchema = createInsertSchema(benefitsScreeningResponses).omit({ id: true, created_at: true });
+export type InsertBenefitsScreeningResponse = z.infer<typeof insertBenefitsScreeningResponseSchema>;
+export type BenefitsScreeningResponseRow = typeof benefitsScreeningResponses.$inferSelect;
 
 export const socialConnections = pgTable("social_connections", {
   id:               uuid("id").primaryKey().defaultRandom(),
@@ -1577,6 +1803,17 @@ export type ParticipationNotificationRow = typeof participationNotifications.$in
 // NEW TABLE: triage_reports — persisted completed TriageSummary + vitals
 // ============================================================
 
+export type TriageReportVitalsSnapshot = {
+  capturedAt: string;
+  readings: Array<{
+    key: "bpm" | "respiratoryRate" | "oxygenSaturation" | "temperatureC" | "systolicBp" | "diastolicBp" | "glucoseMgdl" | "painScore" | "energyLevel";
+    value: number;
+    unit: string;
+    source: "phone_estimate" | "manual_entry" | "connected_device" | "clinical";
+    affectsTriage: boolean;
+  }>;
+};
+
 export const triageReports = pgTable("triage_reports", {
   id:               uuid("id").primaryKey().defaultRandom(),
   user_id:          text("user_id").notNull(),
@@ -1592,8 +1829,15 @@ export const triageReports = pgTable("triage_reports", {
   watch_signs:       text("watch_signs").array().notNull().default([]),
   profile_considerations: text("profile_considerations").array().notNull().default([]),
   vitals_notes:      text("vitals_notes").array().notNull().default([]),
+  vitals_snapshot:   jsonb("vitals_snapshot").$type<TriageReportVitalsSnapshot>(),
   scan_results:      jsonb("scan_results").$type<TriageScanResult[]>().notNull().default(sql`'[]'::jsonb`),
   scan_notes:        text("scan_notes").array().notNull().default([]),
+  interpretation:    text("interpretation"),
+  possible_patterns: jsonb("possible_patterns").$type<Array<{ id: string; label: string; explanation: string; supportingAnswers: string[]; clarifyingSigns: string[] }>>().notNull().default(sql`'[]'::jsonb`),
+  uncertainty:       text("uncertainty").array().notNull().default([]),
+  reassessment_window: text("reassessment_window"),
+  change_plan_triggers: text("change_plan_triggers").array().notNull().default([]),
+  clinical_handoff:  jsonb("clinical_handoff").$type<{ summary: string; keyPoints: string[]; questions: string[] }>(),
   bpm:               integer("bpm"),
   respiratory_rate:  integer("respiratory_rate"),
   duration_seconds:  integer("duration_seconds"),
@@ -1605,22 +1849,291 @@ export type InsertTriageReport = z.infer<typeof insertTriageReportSchema>;
 export type TriageReport = typeof triageReports.$inferSelect;
 
 export const insightOutcomes = pgTable("insight_outcomes", {
-  id:                 uuid("id").primaryKey().defaultRandom(),
-  user_id:            text("user_id").notNull(),
-  triage_report_id:   uuid("triage_report_id"),
-  delivered_surface:  text("delivered_surface").notNull(),
-  action_taken:       text("action_taken").notNull().default("none"),
-  tier_at_generation: integer("tier_at_generation").notNull().default(4),
-  outcome_payload:    jsonb("outcome_payload").notNull().default({}),
-  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  report_id:            uuid("report_id"),
+  action_id:            uuid("action_id"),
+  user_id:              uuid("user_id").notNull(),
+  tier_at_generation:   integer("tier_at_generation").notNull(),
+  delivered_at:         timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
+  delivered_surface:    text("delivered_surface").notNull(),
+  acknowledged_at:      timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledged_by:      text("acknowledged_by"),
+  action_taken:         text("action_taken").notNull().default("none"),
+  follow_up_check_at:   timestamp("follow_up_check_at", { withTimezone: true }),
+  outcome_metric_delta: jsonb("outcome_metric_delta"),
+  resolved:             boolean("resolved").notNull().default(false),
+  created_at:           timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
-  index("insight_outcomes_user_time_idx").on(t.user_id, t.created_at.desc()),
-  index("insight_outcomes_triage_report_idx").on(t.triage_report_id),
+  index("idx_insight_outcomes_user_report_delivered").on(t.user_id, t.report_id, t.delivered_at.desc()),
+  index("idx_insight_outcomes_followup_pending").on(t.follow_up_check_at).where(sql`${t.resolved} = false`),
 ]);
 
 export const insertInsightOutcomeSchema = createInsertSchema(insightOutcomes).omit({ id: true, created_at: true });
+
+export const longevityPreventionPlans = pgTable("longevity_prevention_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  generated_at: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  period_start: timestamp("period_start", { withTimezone: true }).notNull(),
+  period_end: timestamp("period_end", { withTimezone: true }).notNull(),
+  pillar_heart: text("pillar_heart").notNull().default("steady"),
+  pillar_brain: text("pillar_brain").notNull().default("steady"),
+  pillar_strength: text("pillar_strength").notNull().default("steady"),
+  pillar_nourishment: text("pillar_nourishment").notNull().default("steady"),
+  pillar_calm: text("pillar_calm").notNull().default("steady"),
+  pillar_heart_signals: jsonb("pillar_heart_signals"),
+  pillar_brain_signals: jsonb("pillar_brain_signals"),
+  pillar_strength_signals: jsonb("pillar_strength_signals"),
+  pillar_nourishment_signals: jsonb("pillar_nourishment_signals"),
+  pillar_calm_signals: jsonb("pillar_calm_signals"),
+  cross_pillar_patterns: jsonb("cross_pillar_patterns").notNull().default([]),
+  recommendations: jsonb("recommendations").notNull().default({}),
+  priority_intervention: text("priority_intervention"),
+  priority_why: text("priority_why"),
+  plan_narrative_senior: text("plan_narrative_senior"),
+  plan_narrative_caregiver: text("plan_narrative_caregiver"),
+  plan_abstract_gp: text("plan_abstract_gp"),
+  trajectory: text("trajectory"),
+  source_signals: jsonb("source_signals").notNull().default({}),
+  confidence: numeric("confidence", { precision: 3, scale: 2 }),
+  priority_pillar: text("priority_pillar"),
+  status: text("status").notNull().default("active"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_lpp_user_generated").on(t.user_id, t.generated_at.desc()),
+  index("idx_lpp_user_active").on(t.user_id, t.status).where(sql`${t.status} = 'active'`),
+  check("lpp_trajectory_check", sql`${t.trajectory} is null or ${t.trajectory} in ('improving','stable','declining','first')`),
+  check("lpp_priority_pillar_check", sql`${t.priority_pillar} is null or ${t.priority_pillar} in ('heart','brain','strength','nourishment','calm')`),
+]);
+
+export const insertLongevityPreventionPlanSchema = createInsertSchema(longevityPreventionPlans).omit({ id: true, generated_at: true, created_at: true });
+export type InsertLongevityPreventionPlan = z.infer<typeof insertLongevityPreventionPlanSchema>;
+export type LongevityPreventionPlan = typeof longevityPreventionPlans.$inferSelect;
 export type InsertInsightOutcome = z.infer<typeof insertInsightOutcomeSchema>;
 export type InsightOutcome = typeof insightOutcomes.$inferSelect;
+
+export const longevityDailyContent = pgTable("longevity_daily_content", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  content_type: text("content_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  detail_text: text("detail_text"),
+  timing_guidance: text("timing_guidance"),
+  source_label: text("source_label"),
+  source_url: text("source_url"),
+  condition_tags: text("condition_tags").array().notNull().default(sql`array['all']::text[]`),
+  pillar_tag: text("pillar_tag"),
+  time_of_day: text("time_of_day").notNull().default("any"),
+  moment: text("moment"),
+  program_key: text("program_key"),
+  resource_title: text("resource_title"),
+  duration_seconds: integer("duration_seconds"),
+  evidence_tags: text("evidence_tags").array().notNull().default(sql`array[]::text[]`),
+  safety_notes: text("safety_notes"),
+  mobility_fit: text("mobility_fit"),
+  region_fit: text("region_fit"),
+  review_status: text("review_status").notNull().default("approved"),
+  language: text("language").notNull().default("es"),
+  rotation_weight: integer("rotation_weight").notNull().default(1),
+  is_active: boolean("is_active").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_ldc_type_language_active").on(t.content_type, t.language, t.is_active),
+  index("idx_ldc_moment_review_active").on(t.language, t.review_status, t.is_active, t.moment, t.pillar_tag, t.content_type),
+  uniqueIndex("idx_ldc_unique_seed_content").on(t.content_type, t.title, t.language),
+  check("longevity_daily_content_moment_check", sql`${t.moment} is null or ${t.moment} in ('any','morning','midday','afternoon','evening','lunch','night')`),
+  check("longevity_daily_content_review_status_check", sql`${t.review_status} in ('draft','approved','rejected')`),
+  check("longevity_daily_content_duration_check", sql`${t.duration_seconds} is null or ${t.duration_seconds} > 0`),
+]);
+
+export const insertLongevityDailyContentSchema = createInsertSchema(longevityDailyContent).omit({ id: true, created_at: true });
+export type InsertLongevityDailyContent = z.infer<typeof insertLongevityDailyContentSchema>;
+export type LongevityDailyContent = typeof longevityDailyContent.$inferSelect;
+
+export const longevityDailyContentLog = pgTable("longevity_daily_content_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  content_id: uuid("content_id").notNull().references(() => longevityDailyContent.id, { onDelete: "cascade" }),
+  shown_on: date("shown_on").notNull().default(sql`current_date`),
+  engaged: boolean("engaged").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_daily_content_log_user_content_day_key").on(t.user_id, t.content_id, t.shown_on),
+  index("idx_ldcl_user_date").on(t.user_id, t.shown_on.desc()),
+]);
+
+export const insertLongevityDailyContentLogSchema = createInsertSchema(longevityDailyContentLog).omit({ id: true, shown_on: true, created_at: true });
+export type InsertLongevityDailyContentLog = z.infer<typeof insertLongevityDailyContentLogSchema>;
+export type LongevityDailyContentLog = typeof longevityDailyContentLog.$inferSelect;
+
+export const longevitySynthesisEvents = pgTable("longevity_synthesis_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  trigger_type: text("trigger_type").notNull(),
+  trigger_data: jsonb("trigger_data"),
+  synthesis_ran: boolean("synthesis_ran").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_lse_user_recent_run").on(t.user_id, t.created_at.desc()).where(sql`${t.synthesis_ran} = true`),
+]);
+
+export const insertLongevitySynthesisEventSchema = createInsertSchema(longevitySynthesisEvents).omit({ id: true, created_at: true });
+export type InsertLongevitySynthesisEvent = z.infer<typeof insertLongevitySynthesisEventSchema>;
+export type LongevitySynthesisEvent = typeof longevitySynthesisEvents.$inferSelect;
+
+export const longevityActionEvents = pgTable("longevity_action_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  plan_id: uuid("plan_id").references(() => longevityPreventionPlans.id, { onDelete: "set null" }),
+  pillar: text("pillar"),
+  action_key: text("action_key").notNull(),
+  action_title: text("action_title").notNull(),
+  event_type: text("event_type").notNull(),
+  barrier: text("barrier"),
+  moment: text("moment"),
+  content_id: uuid("content_id").references(() => longevityDailyContent.id, { onDelete: "set null" }),
+  resource_id: uuid("resource_id"),
+  source_context: jsonb("source_context").notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_longevity_action_events_user_created").on(t.user_id, t.created_at.desc()),
+  index("idx_longevity_action_events_user_action_created").on(t.user_id, t.action_key, t.created_at.desc()),
+  index("idx_longevity_action_events_user_moment_created").on(t.user_id, t.moment, t.created_at.desc()),
+  index("idx_longevity_action_events_content_created").on(t.content_id, t.created_at.desc()),
+  index("idx_longevity_action_events_resource_created").on(t.resource_id, t.created_at.desc()),
+  check("lae_pillar_check", sql`${t.pillar} is null or ${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("lae_moment_check", sql`${t.moment} is null or ${t.moment} in ('morning','midday','afternoon','evening')`),
+  check("lae_event_type_check", sql`${t.event_type} in ('shown','opened','saved','done','too_hard','not_relevant')`),
+]);
+
+export const insertLongevityActionEventSchema = createInsertSchema(longevityActionEvents).omit({ id: true, created_at: true });
+export type InsertLongevityActionEvent = z.infer<typeof insertLongevityActionEventSchema>;
+export type LongevityActionEvent = typeof longevityActionEvents.$inferSelect;
+
+export const longevityPrograms = pgTable("longevity_programs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  program_key: text("program_key").notNull().default("starter_video_longevity_v1"),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("active"),
+  focus_pillars: text("focus_pillars").array().notNull().default(sql`array['heart','brain','strength','nourishment','calm']::text[]`),
+  start_date: date("start_date").notNull().default(sql`current_date`),
+  current_day: integer("current_day").notNull().default(1),
+  total_days: integer("total_days").notNull().default(14),
+  language: text("language").notNull().default("en"),
+  cadence: text("cadence").notNull().default("daily"),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_longevity_programs_user_active_program").on(t.user_id, t.program_key).where(sql`${t.status} = 'active'`),
+  index("idx_longevity_programs_user_status").on(t.user_id, t.status, t.start_date.desc()),
+  check("longevity_programs_status_check", sql`${t.status} in ('active','paused','completed')`),
+]);
+
+export const longevityProgramDays = pgTable("longevity_program_days", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  program_id: uuid("program_id").notNull().references(() => longevityPrograms.id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  day_index: integer("day_index").notNull(),
+  pillar: text("pillar").notNull(),
+  theme: text("theme").notNull(),
+  objective: text("objective").notNull(),
+  action_title: text("action_title").notNull(),
+  action_detail: text("action_detail").notNull(),
+  video_query: text("video_query").notNull(),
+  fallback_video_key: text("fallback_video_key").notNull(),
+  scheduled_date: date("scheduled_date").notNull(),
+  status: text("status").notNull().default("scheduled"),
+  shown_at: timestamp("shown_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  skipped_at: timestamp("skipped_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_program_days_program_day_unique").on(t.program_id, t.day_index),
+  index("idx_longevity_program_days_user_scheduled").on(t.user_id, t.scheduled_date),
+  index("idx_longevity_program_days_program_day").on(t.program_id, t.day_index),
+  check("longevity_program_days_pillar_check", sql`${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("longevity_program_days_status_check", sql`${t.status} in ('scheduled','shown','completed','skipped')`),
+]);
+
+export const longevityVideoResources = pgTable("longevity_video_resources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  program_day_id: uuid("program_day_id").notNull().references(() => longevityProgramDays.id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("youtube"),
+  video_id: text("video_id").notNull(),
+  url: text("url").notNull(),
+  title: text("title").notNull(),
+  channel: text("channel"),
+  duration_seconds: integer("duration_seconds"),
+  thumbnail_url: text("thumbnail_url"),
+  language: text("language").notNull().default("en"),
+  summary: text("summary"),
+  selected_reason: text("selected_reason").notNull(),
+  safety_notes: text("safety_notes").notNull(),
+  transcript_status: text("transcript_status").notNull().default("pending"),
+  key_points: text("key_points").array().notNull().default(sql`array[]::text[]`),
+  senior_takeaway: text("senior_takeaway"),
+  pillar: text("pillar"),
+  transcript_summary: text("transcript_summary"),
+  after_watch_action: text("after_watch_action"),
+  good_for: text("good_for").array().notNull().default(sql`array[]::text[]`),
+  not_for: text("not_for").array().notNull().default(sql`array[]::text[]`),
+  moment_fit: text("moment_fit").array().notNull().default(sql`array[]::text[]`),
+  curation_status: text("curation_status").notNull().default("fallback"),
+  curator_agent: text("curator_agent").notNull().default("vyva-longevity-video-curator-v1"),
+  search_query: text("search_query").notNull(),
+  fetched_at: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_longevity_video_resources_day_video").on(t.program_day_id, t.video_id),
+  index("idx_longevity_video_resources_user_created").on(t.user_id, t.created_at.desc()),
+  index("idx_longevity_video_resources_user_pillar").on(t.user_id, t.pillar, t.created_at.desc()),
+  check("longevity_video_resources_provider_check", sql`${t.provider} = 'youtube'`),
+  check("longevity_video_resources_curation_status_check", sql`${t.curation_status} in ('ready','fallback','failed')`),
+  check("longevity_video_resources_transcript_status_check", sql`${t.transcript_status} in ('pending','available','unavailable','manual_reviewed')`),
+  check("longevity_video_resources_pillar_check", sql`${t.pillar} is null or ${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("longevity_video_resources_moment_fit_check", sql`${t.moment_fit} <@ array['morning','midday','afternoon','evening']::text[]`),
+]);
+
+export const insertLongevityProgramSchema = createInsertSchema(longevityPrograms).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityProgram = z.infer<typeof insertLongevityProgramSchema>;
+export type LongevityProgram = typeof longevityPrograms.$inferSelect;
+
+export const insertLongevityProgramDaySchema = createInsertSchema(longevityProgramDays).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityProgramDay = z.infer<typeof insertLongevityProgramDaySchema>;
+export type LongevityProgramDay = typeof longevityProgramDays.$inferSelect;
+
+export const insertLongevityVideoResourceSchema = createInsertSchema(longevityVideoResources).omit({ id: true, fetched_at: true, created_at: true });
+export type InsertLongevityVideoResource = z.infer<typeof insertLongevityVideoResourceSchema>;
+export type LongevityVideoResource = typeof longevityVideoResources.$inferSelect;
+
+export const longevityMomentSessions = pgTable("longevity_moment_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  plan_id: uuid("plan_id").references(() => longevityPreventionPlans.id, { onDelete: "set null" }),
+  local_date: date("local_date").notNull(),
+  moment: text("moment").notNull(),
+  program_day_id: uuid("program_day_id").references(() => longevityProgramDays.id, { onDelete: "set null" }),
+  primary_action_key: text("primary_action_key").notNull(),
+  content_id: uuid("content_id").references(() => longevityDailyContent.id, { onDelete: "set null" }),
+  resource_id: uuid("resource_id").references(() => longevityVideoResources.id, { onDelete: "set null" }),
+  payload: jsonb("payload").notNull().default({}),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_moment_sessions_user_date_moment_key").on(t.user_id, t.local_date, t.moment),
+  index("idx_longevity_moment_sessions_user_date").on(t.user_id, t.local_date.desc()),
+  check("longevity_moment_sessions_moment_check", sql`${t.moment} in ('morning','midday','afternoon','evening')`),
+]);
+
+export const insertLongevityMomentSessionSchema = createInsertSchema(longevityMomentSessions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityMomentSession = z.infer<typeof insertLongevityMomentSessionSchema>;
+export type LongevityMomentSession = typeof longevityMomentSessions.$inferSelect;
 
 
 // ============================================================
@@ -1655,6 +2168,7 @@ export const vyvaSignalReadings = pgTable("vyva_signal_readings", {
   capture_method:  text("capture_method"),
   unit:            text("unit"),
   source_ref:      jsonb("source_ref"),
+  assessment_session_id: text("assessment_session_id"),
   context_tag:     text("context_tag").default("general"),
   baseline_ref:    numeric("baseline_ref", { precision: 8, scale: 2 }),
   deviation_pct:   numeric("deviation_pct", { precision: 6, scale: 2 }),
@@ -1711,11 +2225,15 @@ export const userDeviceConnections = pgTable("user_device_connections", {
   is_active:       boolean("is_active").default(true),
   provider_user_id: text("provider_user_id"),
   device_label:    text("device_label"),
+  device_kind:     text("device_kind"),
+  external_device_id: text("external_device_id"),
+  status:          text("status").notNull().default("ready"),
+  capabilities:    text("capabilities").array().notNull().default([]),
   metadata:        jsonb("metadata").default({}),
   connected_at:    timestamp("connected_at", { withTimezone: true }).defaultNow(),
   last_synced_at:  timestamp("last_synced_at", { withTimezone: true }),
 }, (t) => [
-  unique("user_device_connections_user_provider_unique").on(t.user_id, t.provider),
+  unique("user_device_connections_user_provider_kind_unique").on(t.user_id, t.provider, t.device_kind),
 ]);
 
 export const insertVyvaSignalReadingSchema = createInsertSchema(vyvaSignalReadings).omit({ id: true, created_at: true });
@@ -1909,6 +2427,10 @@ export const breathGardenSessions = pgTable("breath_garden_sessions", {
   finalPaceBreathsPerMin:   numeric("final_pace_breaths_per_min", { precision: 4, scale: 1 }),
   gardenTheme:              text("garden_theme").notNull().default("garden"),
   bloomLevelReached:        integer("bloom_level_reached").notNull().default(1),
+  targetDurationSeconds:    integer("target_duration_seconds").notNull().default(120),
+  guidedCycleCount:         integer("guided_cycle_count").notNull().default(0),
+  guidedPatternId:          text("guided_pattern_id").notNull().default("gentle_5_6"),
+  completionReason:         text("completion_reason").notNull().default("timer_complete"),
   completed:                boolean("completed").notNull().default(false),
   abandoned:                boolean("abandoned").notNull().default(false),
 }, (t) => [
@@ -1922,6 +2444,7 @@ export const breathGardenUserState = pgTable("breath_garden_user_state", {
   streakDays:     integer("streak_days").notNull().default(0),
   lastStreakDate: date("last_streak_date"),
   preferredTheme: text("preferred_theme").default("garden"),
+  preferredDurationSeconds: integer("preferred_duration_seconds").notNull().default(120),
   updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -1939,7 +2462,7 @@ export const cognitiveSessionIndex = pgTable("cognitive_session_index", {
   difficultyScale: text("difficulty_scale").notNull().default("level"),
   completed:       boolean("completed").notNull().default(false),
   abandoned:       boolean("abandoned").notNull().default(false),
-  score:           integer("score").notNull().default(0),
+  score:           integer("score").default(0),
   accuracyPct:     numeric("accuracy_pct", { precision: 5, scale: 2 }),
   speedPct:        numeric("speed_pct", { precision: 5, scale: 2 }),
   durationSeconds: integer("duration_seconds").notNull().default(0),
@@ -2348,6 +2871,33 @@ export const insertCommunicationLogSchema = createInsertSchema(communicationsLog
 export type InsertCommunicationLog = z.infer<typeof insertCommunicationLogSchema>;
 export type CommunicationLog = typeof communicationsLog.$inferSelect;
 
+export const whatsappPrivateCheckins = pgTable("whatsapp_private_checkins", {
+  id:                         uuid("id").primaryKey().defaultRandom(),
+  token_hash:                 text("token_hash").notNull().unique(),
+  request_key_hash:           text("request_key_hash").notNull().unique(),
+  communication_id:           uuid("communication_id").references(() => communicationsLog.id, { onDelete: "set null" }),
+  recipient:                  text("recipient").notNull(),
+  language:                   text("language").notNull(),
+  workflow_id:                text("workflow_id").notNull(),
+  workflow_name:              text("workflow_name").notNull(),
+  step_id:                    text("step_id").notNull(),
+  step_name:                  text("step_name").notNull(),
+  questions:                  jsonb("questions").notNull().default([]),
+  response_payload:           jsonb("response_payload"),
+  status:                     text("status").notNull().default("queued"),
+  whatsapp_opt_in_confirmed_at: timestamp("whatsapp_opt_in_confirmed_at", { withTimezone: true }).notNull(),
+  whatsapp_opt_in_source:     text("whatsapp_opt_in_source").notNull(),
+  expires_at:                 timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumed_at:                timestamp("consumed_at", { withTimezone: true }),
+  created_by:                 text("created_by"),
+  created_at:                 timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:                 timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertWhatsappPrivateCheckinSchema = createInsertSchema(whatsappPrivateCheckins).omit({ id: true, created_at: true, updated_at: true });
+export type InsertWhatsappPrivateCheckin = z.infer<typeof insertWhatsappPrivateCheckinSchema>;
+export type WhatsappPrivateCheckin = typeof whatsappPrivateCheckins.$inferSelect;
+
 export const scheduledEvents = pgTable("scheduled_events", {
   id:                uuid("id").primaryKey().defaultRandom(),
   user_id:           text("user_id").notNull(),
@@ -2478,6 +3028,7 @@ export const userProviders = pgTable("user_providers", {
   contact_role: text("contact_role"),
   notes:        text("notes"),
   metadata:     jsonb("metadata").notNull().default({}),
+  is_trusted:   boolean("is_trusted").notNull().default(true),
   is_primary:   boolean("is_primary").notNull().default(true),
   is_active:    boolean("is_active").notNull().default(true),
   last_used_at: timestamp("last_used_at", { withTimezone: true }),
@@ -2511,6 +3062,158 @@ export const conciergePending = pgTable("concierge_pending", {
 export const insertConciergePendingSchema = createInsertSchema(conciergePending).omit({ id: true, confirmed_at: true, expires_at: true, updated_at: true });
 export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema>;
 export type ConciergePending = typeof conciergePending.$inferSelect;
+
+export const conciergeInboundMessages = pgTable("concierge_inbound_messages", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  channel:               text("channel").notNull(),
+  provider_event_id:     text("provider_event_id").notNull(),
+  webhook_event_id:      text("webhook_event_id"),
+  sender_email:          text("sender_email").notNull(),
+  recipient_emails:      text("recipient_emails").array().notNull().default([]),
+  subject:               text("subject").notNull().default(""),
+  body_text:             text("body_text").notNull().default(""),
+  received_at:           timestamp("received_at", { withTimezone: true }).notNull(),
+  matched_pending_id:    uuid("matched_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  match_status:          text("match_status").notNull().default("processing"),
+  match_method:          text("match_method"),
+  match_reason:          text("match_reason"),
+  action_needed:         boolean("action_needed").notNull().default(false),
+  review_status:         text("review_status").notNull().default("pending"),
+  reviewed_by:           text("reviewed_by"),
+  reviewed_at:           timestamp("reviewed_at", { withTimezone: true }),
+  provider_metadata:     jsonb("provider_metadata").notNull().default({}),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_inbound_messages_channel_event_unique").on(t.channel, t.provider_event_id),
+  uniqueIndex("concierge_inbound_messages_webhook_event_unique").on(t.webhook_event_id),
+  index("concierge_inbound_messages_review_idx").on(t.review_status, t.received_at),
+  index("concierge_inbound_messages_pending_idx").on(t.matched_pending_id),
+]);
+
+export const insertConciergeInboundMessageSchema = createInsertSchema(conciergeInboundMessages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeInboundMessage = z.infer<typeof insertConciergeInboundMessageSchema>;
+export type ConciergeInboundMessage = typeof conciergeInboundMessages.$inferSelect;
+
+export const conciergeTaskNotifications = pgTable("concierge_task_notifications", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  pending_id:         uuid("pending_id").notNull().references(() => conciergePending.id, { onDelete: "cascade" }),
+  inbound_message_id: uuid("inbound_message_id").notNull().references(() => conciergeInboundMessages.id, { onDelete: "cascade" }),
+  event_type:         text("event_type").notNull(),
+  title:              text("title").notNull(),
+  body:               text("body").notNull(),
+  task_path:          text("task_path").notNull(),
+  delivery_status:    text("delivery_status").notNull().default("ready"),
+  dedupe_key:         text("dedupe_key").notNull(),
+  read_at:            timestamp("read_at", { withTimezone: true }),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_task_notifications_dedupe_key_unique").on(t.dedupe_key),
+  uniqueIndex("concierge_task_notifications_inbound_message_unique").on(t.inbound_message_id),
+  index("concierge_task_notifications_user_unread_idx")
+    .on(t.user_id, t.created_at.desc())
+    .where(sql`${t.delivery_status} = 'ready' and ${t.read_at} is null`),
+  index("concierge_task_notifications_pending_idx").on(t.pending_id),
+]);
+
+export const insertConciergeTaskNotificationSchema = createInsertSchema(conciergeTaskNotifications).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeTaskNotification = z.infer<typeof insertConciergeTaskNotificationSchema>;
+export type ConciergeTaskNotification = typeof conciergeTaskNotifications.$inferSelect;
+
+export const crossPillarExecutionAttempts = pgTable("cross_pillar_execution_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull(),
+  handoff_id: text("handoff_id").notNull(),
+  attempt_number: integer("attempt_number").notNull(),
+  action_id: text("action_id").notNull(),
+  pillar: text("pillar").notNull(),
+  workflow_reference: text("workflow_reference").notNull(),
+  tool_families: text("tool_families").array().notNull().default([]),
+  confirmation_id: text("confirmation_id"),
+  outcome: text("outcome").notNull(),
+  started_at: timestamp("started_at", { withTimezone: true }).notNull(),
+  finished_at: timestamp("finished_at", { withTimezone: true }),
+  duration_ms: integer("duration_ms"),
+  fallback_path: text("fallback_path"),
+  fallback_reason: text("fallback_reason"),
+  idempotency_key: text("idempotency_key").notNull(),
+  retry_of_attempt_id: uuid("retry_of_attempt_id"),
+  what_happened: text("what_happened"),
+  what_remains: text("what_remains"),
+  error_code: text("error_code"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cross_pillar_execution_attempts_user_handoff_attempt_unique")
+    .on(t.user_id, t.handoff_id, t.attempt_number),
+  index("cross_pillar_execution_attempts_user_recent_idx").on(t.user_id, t.started_at.desc()),
+]);
+
+export const insertCrossPillarExecutionAttemptSchema = createInsertSchema(crossPillarExecutionAttempts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertCrossPillarExecutionAttempt = z.infer<typeof insertCrossPillarExecutionAttemptSchema>;
+export type CrossPillarExecutionAttempt = typeof crossPillarExecutionAttempts.$inferSelect;
+
+export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  kind:              text("kind").notNull(),
+  entry_payload:     jsonb("entry_payload").notNull().default({}),
+  progress_payload:  jsonb("progress_payload").notNull().default({}),
+  stage:             text("stage").notNull().default("details"),
+  status:            text("status").notNull().default("active"),
+  linked_pending_id: uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  language:          text("language").notNull().default("es"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completed_at:      timestamp("completed_at", { withTimezone: true }),
+  deleted_at:        timestamp("deleted_at", { withTimezone: true }),
+});
+
+export const insertConciergeTaskDraftSchema = createInsertSchema(conciergeTaskDrafts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  completed_at: true,
+  deleted_at: true,
+});
+export type InsertConciergeTaskDraft = z.infer<typeof insertConciergeTaskDraftSchema>;
+export type ConciergeTaskDraftRow = typeof conciergeTaskDrafts.$inferSelect;
+
+export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
+  channel:            text("channel").primaryKey(),
+  admin_enabled:      boolean("admin_enabled").notNull().default(false),
+  verified:           boolean("verified").notNull().default(false),
+  notes:              text("notes"),
+  last_probe_status:  text("last_probe_status"),
+  last_probe_at:      timestamp("last_probe_at", { withTimezone: true }),
+  last_probe_blocker: text("last_probe_blocker"),
+  last_probe_by:      text("last_probe_by"),
+  adapter_live_endpoint_url: text("adapter_live_endpoint_url"),
+  adapter_credential_reference: text("adapter_credential_reference"),
+  adapter_qa_target: text("adapter_qa_target"),
+  adapter_configured_by: text("adapter_configured_by"),
+  adapter_configured_at: timestamp("adapter_configured_at", { withTimezone: true }),
+  updated_by:         text("updated_by"),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertConciergeChannelReadinessSettingsSchema = createInsertSchema(conciergeChannelReadinessSettings).omit({ updated_at: true });
+export type InsertConciergeChannelReadinessSettings = z.infer<typeof insertConciergeChannelReadinessSettingsSchema>;
+export type ConciergeChannelReadinessSettings = typeof conciergeChannelReadinessSettings.$inferSelect;
 
 export const conciergeSessions = pgTable("concierge_sessions", {
   id:                    uuid("id").primaryKey().defaultRandom(),
@@ -2715,6 +3418,483 @@ export const insertVoiceTimelineEventSchema = createInsertSchema(voiceTimelineEv
 export type InsertVoiceTimelineEvent = z.infer<typeof insertVoiceTimelineEventSchema>;
 export type VoiceTimelineEventRow = typeof voiceTimelineEvents.$inferSelect;
 
+export const proactiveEngagementShadowAudits = pgTable("proactive_engagement_shadow_audits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  audit_id: text("audit_id").notNull().unique(),
+  schema_version: text("schema_version").notNull(),
+  policy_version: text("policy_version").notNull(),
+  idempotency_key: text("idempotency_key").notNull().unique(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  decision: text("decision").notNull(),
+  proposed_channel: text("proposed_channel"),
+  reason_codes: text("reason_codes").array().notNull().default([]),
+  due_at: timestamp("due_at", { withTimezone: true }).notNull(),
+  evaluated_at: timestamp("evaluated_at", { withTimezone: true }).notNull(),
+  timezone: text("timezone").notNull(),
+  consent_status: text("consent_status").notNull(),
+  quiet_hours_status: text("quiet_hours_status").notNull(),
+  limit_status: text("limit_status").notNull(),
+  duplicate_status: text("duplicate_status").notNull(),
+  source_classification: text("source_classification").notNull(),
+  normalized_audit: jsonb("normalized_audit").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  shadow_only: boolean("shadow_only").notNull().default(true),
+  non_executable: boolean("non_executable").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("proactive_engagement_shadow_audits_occurrence_idx").on(t.schedule_occurrence_id, t.policy_version),
+  index("proactive_engagement_shadow_audits_schedule_idx").on(t.schedule_id, t.evaluated_at),
+  index("proactive_engagement_shadow_audits_decision_idx").on(t.decision, t.evaluated_at),
+  index("proactive_engagement_shadow_audits_created_idx").on(t.created_at),
+]);
+
+export const insertProactiveEngagementShadowAuditSchema = createInsertSchema(proactiveEngagementShadowAudits).omit({ id: true, created_at: true });
+export type InsertProactiveEngagementShadowAudit = z.infer<typeof insertProactiveEngagementShadowAuditSchema>;
+export type ProactiveEngagementShadowAuditRow = typeof proactiveEngagementShadowAudits.$inferSelect;
+
+export const healthSemanticMemoryOutbox = pgTable("health_semantic_memory_outbox", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  proposal_id: text("proposal_id").notNull().unique(),
+  schema_version: text("schema_version").notNull(),
+  idempotency_key: text("idempotency_key").notNull().unique(),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id"),
+  mem0_user_id: text("mem0_user_id").notNull(),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  flow_instance_id: text("flow_instance_id").notNull(),
+  completion_reference: text("completion_reference").notNull(),
+  answer_digest: text("answer_digest").notNull(),
+  category: text("category").notNull(),
+  target: text("target").notNull(),
+  operation: text("operation").notNull(),
+  status: text("status").notNull(),
+  local_visibility: text("local_visibility").notNull().default("active"),
+  suppressed_at: timestamp("suppressed_at", { withTimezone: true }),
+  superseded_by: text("superseded_by"),
+  deleted_by: text("deleted_by"),
+  content: text("content"),
+  content_digest: text("content_digest"),
+  policy_decision: text("policy_decision").notNull(),
+  policy_reason_code: text("policy_reason_code").notNull(),
+  policy_decision_digest: text("policy_decision_digest").notNull(),
+  consent_revision: integer("consent_revision"),
+  approval_reference: text("approval_reference"),
+  provenance: jsonb("provenance").notNull(),
+  provider: text("provider").notNull().default("mem0"),
+  provider_memory_id: text("provider_memory_id"),
+  failure_reason: text("failure_reason"),
+  normalized_proposal: jsonb("normalized_proposal").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("health_semantic_memory_outbox_user_category_status_idx").on(t.user_id, t.category, t.status, t.updated_at.desc()),
+  index("health_semantic_memory_outbox_visibility_idx").on(t.user_id, t.category, t.local_visibility, t.status, t.updated_at.desc()),
+  index("health_semantic_memory_outbox_flow_completion_idx").on(t.flow_id, t.flow_version, t.completion_reference),
+  index("health_semantic_memory_outbox_status_updated_idx").on(t.status, t.updated_at),
+  check("health_semantic_memory_outbox_schema_version_chk", sql`${t.schema_version} = '1.0.0'`),
+  check("health_semantic_memory_outbox_identity_text_chk", sql`length(${t.proposal_id}) between 1 and 200 and length(${t.idempotency_key}) between 1 and 512 and length(${t.user_id}) between 1 and 160 and (${t.profile_id} is null or length(${t.profile_id}) between 1 and 160) and length(${t.mem0_user_id}) between 1 and 160 and length(${t.flow_instance_id}) between 1 and 200 and length(${t.completion_reference}) between 1 and 200`),
+  check("health_semantic_memory_outbox_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("health_semantic_memory_outbox_digest_chk", sql`${t.answer_digest} ~ '^sha256:[a-f0-9]{64}$' and ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$' and ${t.semantic_digest} ~ '^sha256:[a-f0-9]{64}$' and (${t.content_digest} is null or ${t.content_digest} ~ '^sha256:[a-f0-9]{64}$')`),
+  check("health_semantic_memory_outbox_category_chk", sql`${t.category} in ('general_preference', 'routine_health_context', 'restricted_health', 'mental_health', 'safety_emergency', 'care_instruction')`),
+  check("health_semantic_memory_outbox_target_chk", sql`${t.target} = 'mem0'`),
+  check("health_semantic_memory_outbox_operation_chk", sql`${t.operation} in ('write', 'correction', 'deletion')`),
+  check("health_semantic_memory_outbox_status_chk", sql`${t.status} in ('approval_required', 'proposal_only', 'delivery_pending', 'delivery_in_progress', 'delivered', 'delivery_failed', 'denied', 'corrected', 'delete_pending', 'delete_in_progress', 'deleted', 'deletion_failed')`),
+  check("health_semantic_memory_outbox_local_visibility_chk", sql`${t.local_visibility} in ('active', 'suppressed')`),
+  check("health_semantic_memory_outbox_suppression_reference_chk", sql`((${t.local_visibility} = 'active' and ${t.suppressed_at} is null and ${t.superseded_by} is null and ${t.deleted_by} is null and ${t.status} not in ('corrected', 'deleted')) or (${t.local_visibility} = 'suppressed' and ${t.suppressed_at} is not null and ${t.status} in ('corrected', 'deleted') and ((case when ${t.superseded_by} is not null then 1 else 0 end) + (case when ${t.deleted_by} is not null then 1 else 0 end)) = 1))`),
+  check("health_semantic_memory_outbox_suppression_text_chk", sql`(${t.superseded_by} is null or length(${t.superseded_by}) between 1 and 200) and (${t.deleted_by} is null or length(${t.deleted_by}) between 1 and 200)`),
+  check("health_semantic_memory_outbox_policy_decision_chk", sql`${t.policy_decision} in ('allow', 'deny', 'proposal_only', 'approval_required')`),
+  check("health_semantic_memory_outbox_content_pair_chk", sql`(${t.content} is null and ${t.content_digest} is null) or (${t.content} is not null and ${t.content_digest} is not null)`),
+  check("health_semantic_memory_outbox_provider_chk", sql`${t.provider} = 'mem0'`),
+  check("health_semantic_memory_outbox_delivered_provider_chk", sql`${t.status} <> 'delivered' or ${t.provider_memory_id} is not null`),
+  check("health_semantic_memory_outbox_sensitive_delivery_chk", sql`${t.status} <> 'delivered' or ${t.category} not in ('restricted_health', 'mental_health', 'safety_emergency', 'care_instruction')`),
+  check("health_semantic_memory_outbox_consent_revision_chk", sql`${t.consent_revision} is null or ${t.consent_revision} >= 0`),
+  check("health_semantic_memory_outbox_provenance_chk", sql`${t.provenance} ? 'source' and ${t.provenance} ? 'sourceRecordId' and ${t.provenance} ? 'sourceDigest' and ${t.provenance} ? 'observedAt' and ${t.provenance} ? 'flowInstanceId'`),
+]);
+
+export const insertHealthSemanticMemoryOutboxSchema = createInsertSchema(healthSemanticMemoryOutbox).omit({ id: true, created_at: true, updated_at: true });
+export type InsertHealthSemanticMemoryOutbox = z.infer<typeof insertHealthSemanticMemoryOutboxSchema>;
+export type HealthSemanticMemoryOutboxRow = typeof healthSemanticMemoryOutbox.$inferSelect;
+
+export const healthCaregiverOperatorEscalationProjections = pgTable("health_caregiver_operator_escalation_projections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  schema_version: text("schema_version").notNull(),
+  projection_id: text("projection_id").notNull().unique(),
+  idempotency_key: text("idempotency_key").notNull().unique(),
+  subject_user_id: text("subject_user_id").notNull(),
+  profile_id: text("profile_id"),
+  target_audience: text("target_audience").notNull(),
+  target_actor_id: text("target_actor_id"),
+  target_actor_role: text("target_actor_role").notNull(),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  flow_instance_id: text("flow_instance_id").notNull(),
+  source_event_id: text("source_event_id").notNull(),
+  source_alert_id: text("source_alert_id"),
+  completion_reference: text("completion_reference").notNull(),
+  answer_digest: text("answer_digest").notNull(),
+  escalation_purpose: text("escalation_purpose").notNull(),
+  safe_summary: jsonb("safe_summary").notNull(),
+  authorization_decision: text("authorization_decision").notNull(),
+  authorization_reason_code: text("authorization_reason_code").notNull(),
+  consent_decision: text("consent_decision").notNull(),
+  consent_reason_code: text("consent_reason_code").notNull(),
+  policy_decision_digest: text("policy_decision_digest").notNull(),
+  consent_revision: integer("consent_revision"),
+  approval_reference: text("approval_reference"),
+  status: text("status").notNull().default("visible"),
+  acknowledgement_state: text("acknowledgement_state").notNull().default("unacknowledged"),
+  acknowledgement_id: text("acknowledgement_id"),
+  acknowledged_at: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledged_by: text("acknowledged_by"),
+  acknowledged_by_role: text("acknowledged_by_role"),
+  semantic_digest: text("semantic_digest").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("health_escalation_projection_actor_idx").on(t.target_audience, t.target_actor_id, t.status, t.created_at.desc()),
+  index("health_escalation_projection_subject_flow_idx").on(t.subject_user_id, t.flow_id, t.flow_version, t.flow_instance_id),
+  index("health_escalation_projection_source_event_idx").on(t.source_event_id),
+  index("health_escalation_projection_ack_idx").on(t.acknowledgement_state, t.updated_at),
+  check("health_escalation_projection_schema_version_chk", sql`${t.schema_version} = '1.0.0'`),
+  check("health_escalation_projection_identity_text_chk", sql`length(${t.projection_id}) between 1 and 200 and length(${t.idempotency_key}) between 1 and 512 and length(${t.subject_user_id}) between 1 and 160 and (${t.profile_id} is null or length(${t.profile_id}) between 1 and 160) and (${t.target_actor_id} is null or length(${t.target_actor_id}) between 1 and 160) and length(${t.flow_instance_id}) between 1 and 200 and length(${t.source_event_id}) between 1 and 200 and (${t.source_alert_id} is null or length(${t.source_alert_id}) between 1 and 200) and length(${t.completion_reference}) between 1 and 200`),
+  check("health_escalation_projection_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("health_escalation_projection_digest_chk", sql`${t.answer_digest} ~ '^sha256:[a-f0-9]{64}$' and ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$' and ${t.semantic_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("health_escalation_projection_purpose_chk", sql`${t.escalation_purpose} = 'health.preventive_check.caregiver_operator_escalation'`),
+  check("health_escalation_projection_audience_chk", sql`${t.target_audience} in ('caregiver', 'operator')`),
+  check("health_escalation_projection_actor_role_chk", sql`${t.target_actor_role} in ('caregiver', 'family', 'admin', 'operator')`),
+  check("health_escalation_projection_actor_scope_chk", sql`((${t.target_audience} = 'caregiver' and ${t.target_actor_id} is not null and ${t.target_actor_role} in ('caregiver', 'family')) or (${t.target_audience} = 'operator' and ${t.target_actor_role} in ('admin', 'operator')))`),
+  check("health_escalation_projection_decision_chk", sql`${t.authorization_decision} = 'allow' and ${t.consent_decision} = 'allow'`),
+  check("health_escalation_projection_status_chk", sql`${t.status} in ('visible', 'suppressed')`),
+  check("health_escalation_projection_ack_state_chk", sql`${t.acknowledgement_state} in ('unacknowledged', 'acknowledged')`),
+  check("health_escalation_projection_ack_fields_chk", sql`((${t.acknowledgement_state} = 'unacknowledged' and ${t.acknowledgement_id} is null and ${t.acknowledged_at} is null and ${t.acknowledged_by} is null and ${t.acknowledged_by_role} is null) or (${t.acknowledgement_state} = 'acknowledged' and ${t.acknowledgement_id} is not null and ${t.acknowledged_at} is not null and ${t.acknowledged_by} is not null and ${t.acknowledged_by_role} in ('caregiver', 'family', 'admin', 'operator')))`),
+  check("health_escalation_projection_consent_revision_chk", sql`${t.consent_revision} is null or ${t.consent_revision} >= 0`),
+  check("health_escalation_projection_safe_summary_chk", sql`${t.safe_summary} ? 'category' and ${t.safe_summary} ? 'reasonCode' and ${t.safe_summary} ? 'rawHealthAnswerContentRetained' and ${t.safe_summary}->>'rawHealthAnswerContentRetained' = 'false'`),
+]);
+
+export const insertHealthCaregiverOperatorEscalationProjectionSchema = createInsertSchema(healthCaregiverOperatorEscalationProjections).omit({ id: true, created_at: true, updated_at: true });
+export type InsertHealthCaregiverOperatorEscalationProjection = z.infer<typeof insertHealthCaregiverOperatorEscalationProjectionSchema>;
+export type HealthCaregiverOperatorEscalationProjectionRow = typeof healthCaregiverOperatorEscalationProjections.$inferSelect;
+
+export const preventiveWebPushSubscriptions = pgTable("preventive_web_push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  endpoint_digest: text("endpoint_digest").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  content_encoding: text("content_encoding").notNull().default("aes128gcm"),
+  user_agent: text("user_agent"),
+  status: text("status").notNull().default("active"),
+  consent_revision: integer("consent_revision").notNull().default(0),
+  failure_count: integer("failure_count").notNull().default(0),
+  last_provider_status: integer("last_provider_status"),
+  last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_subscriptions_user_status_idx").on(t.user_id, t.status),
+  index("preventive_web_push_subscriptions_updated_idx").on(t.updated_at),
+  check("preventive_web_push_subscriptions_status_chk", sql`${t.status} in ('active', 'inactive', 'revoked', 'expired')`),
+  check("preventive_web_push_subscriptions_endpoint_digest_chk", sql`${t.endpoint_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_subscriptions_endpoint_https_chk", sql`${t.endpoint} like 'https://%'`),
+  check("preventive_web_push_subscriptions_keys_nonempty_chk", sql`length(${t.p256dh}) between 80 and 120 and length(${t.auth}) between 16 and 40`),
+  check("preventive_web_push_subscriptions_failure_count_chk", sql`${t.failure_count} >= 0`),
+]);
+
+export const preventiveWebPushDeliveries = pgTable("preventive_web_push_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  delivery_key: text("delivery_key").notNull().unique(),
+  user_id: text("user_id").notNull(),
+  subscription_id: uuid("subscription_id").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  channel: text("channel").notNull().default("web_push"),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  status: text("status").notNull().default("requested"),
+  policy_audit_id: text("policy_audit_id"),
+  policy_decision_digest: text("policy_decision_digest"),
+  entry_token_digest: text("entry_token_digest"),
+  provider_attempt_id: text("provider_attempt_id"),
+  provider_attempt_number: integer("provider_attempt_number").notNull().default(0),
+  provider_status: integer("provider_status"),
+  failure_reason: text("failure_reason"),
+  requested_at: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  sending_claim_token: text("sending_claim_token"),
+  sending_claim_expires_at: timestamp("sending_claim_expires_at", { withTimezone: true }),
+  provider_attempt_started_at: timestamp("provider_attempt_started_at", { withTimezone: true }),
+  provider_attempt_accepted_at: timestamp("provider_attempt_accepted_at", { withTimezone: true }),
+  sent_at: timestamp("sent_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
+  opened_at: timestamp("opened_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_deliveries_user_status_idx").on(t.user_id, t.status),
+  index("preventive_web_push_deliveries_occurrence_idx").on(t.schedule_occurrence_id, t.purpose_id),
+  check("preventive_web_push_deliveries_status_chk", sql`${t.status} in ('requested', 'sending', 'provider_attempt_started', 'delivery_uncertain', 'sent', 'failed_permanent', 'failed_retryable', 'opened', 'flow_started')`),
+  check("preventive_web_push_deliveries_channel_chk", sql`${t.channel} = 'web_push'`),
+  check("preventive_web_push_deliveries_purpose_chk", sql`${t.purpose_id} = 'daily_wellbeing_check'`),
+  check("preventive_web_push_deliveries_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_web_push_deliveries_delivery_key_chk", sql`length(${t.delivery_key}) between 1 and 512`),
+  check("preventive_web_push_deliveries_required_ids_chk", sql`length(${t.user_id}) between 1 and 160 and length(${t.schedule_occurrence_id}) between 1 and 200 and length(${t.schedule_id}) between 1 and 200`),
+  check("preventive_web_push_deliveries_token_digest_chk", sql`${t.entry_token_digest} is null or ${t.entry_token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_deliveries_policy_digest_chk", sql`${t.policy_decision_digest} is null or ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_deliveries_claim_chk", sql`(${t.sending_claim_token} is null and ${t.sending_claim_expires_at} is null) or (length(${t.sending_claim_token}) between 1 and 160 and ${t.sending_claim_expires_at} is not null)`),
+  check("preventive_web_push_deliveries_provider_attempt_count_chk", sql`${t.provider_attempt_number} >= 0`),
+  check("preventive_web_push_deliveries_provider_attempt_id_chk", sql`${t.provider_attempt_id} is null or length(${t.provider_attempt_id}) between 1 and 160`),
+  check("preventive_web_push_deliveries_provider_attempt_required_chk", sql`${t.status} not in ('provider_attempt_started', 'delivery_uncertain', 'sent') or ${t.provider_attempt_id} is not null`),
+]);
+
+export const preventiveWebPushEntryTokens = pgTable("preventive_web_push_entry_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  token_digest: text("token_digest").notNull().unique(),
+  delivery_id: uuid("delivery_id").notNull(),
+  user_id: text("user_id").notNull(),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  allowed_route: text("allowed_route").notNull().default("/health/check-in"),
+  status: text("status").notNull().default("active"),
+  issued_at: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  opened_at: timestamp("opened_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_entry_tokens_delivery_idx").on(t.delivery_id),
+  index("preventive_web_push_entry_tokens_user_status_idx").on(t.user_id, t.status),
+  check("preventive_web_push_entry_tokens_status_chk", sql`${t.status} in ('active', 'opened', 'flow_started', 'revoked', 'expired')`),
+  check("preventive_web_push_entry_tokens_digest_chk", sql`${t.token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_entry_tokens_route_chk", sql`${t.allowed_route} = '/health/check-in'`),
+  check("preventive_web_push_entry_tokens_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_web_push_entry_tokens_expiry_chk", sql`${t.expires_at} > ${t.issued_at}`),
+]);
+
+export const insertPreventiveWebPushSubscriptionSchema = createInsertSchema(preventiveWebPushSubscriptions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushSubscription = z.infer<typeof insertPreventiveWebPushSubscriptionSchema>;
+export type PreventiveWebPushSubscriptionRow = typeof preventiveWebPushSubscriptions.$inferSelect;
+
+export const insertPreventiveWebPushDeliverySchema = createInsertSchema(preventiveWebPushDeliveries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushDelivery = z.infer<typeof insertPreventiveWebPushDeliverySchema>;
+export type PreventiveWebPushDeliveryRow = typeof preventiveWebPushDeliveries.$inferSelect;
+
+export const insertPreventiveWebPushEntryTokenSchema = createInsertSchema(preventiveWebPushEntryTokens).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushEntryToken = z.infer<typeof insertPreventiveWebPushEntryTokenSchema>;
+export type PreventiveWebPushEntryTokenRow = typeof preventiveWebPushEntryTokens.$inferSelect;
+
+export const preventiveOutboundCallConsents = pgTable("preventive_outbound_call_consents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  consent_revision: integer("consent_revision").notNull().default(0),
+  phone_e164: text("phone_e164"),
+  phone_digest: text("phone_digest"),
+  phone_last4: text("phone_last4"),
+  phone_verified_at: timestamp("phone_verified_at", { withTimezone: true }),
+  verification_source: text("verification_source"),
+  verification_reference: text("verification_reference"),
+  granted_at: timestamp("granted_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("preventive_outbound_call_consents_user_profile_uidx").on(t.user_id, t.profile_id),
+  index("preventive_outbound_call_consents_phone_digest_idx").on(t.phone_digest),
+  check("preventive_outbound_call_consents_revision_chk", sql`${t.consent_revision} >= 0`),
+  check("preventive_outbound_call_consents_phone_chk", sql`${t.phone_e164} is null or ${t.phone_e164} ~ '^\\+[1-9][0-9]{7,14}$'`),
+  check("preventive_outbound_call_consents_phone_digest_chk", sql`${t.phone_digest} is null or ${t.phone_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_consents_last4_chk", sql`${t.phone_last4} is null or ${t.phone_last4} ~ '^[0-9]{4}$'`),
+  check("preventive_outbound_call_consents_enabled_requires_phone_chk", sql`${t.enabled} = false or (${t.phone_e164} is not null and ${t.phone_digest} is not null and ${t.phone_verified_at} is not null)`),
+]);
+
+export const preventiveOutboundCallAttempts = pgTable("preventive_outbound_call_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  call_key: text("call_key").notNull().unique(),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  channel: text("channel").notNull().default("voice_call"),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  status: text("status").notNull().default("requested"),
+  consent_id: uuid("consent_id").notNull(),
+  consent_revision: integer("consent_revision").notNull(),
+  phone_digest: text("phone_digest").notNull(),
+  policy_audit_id: text("policy_audit_id"),
+  policy_decision_digest: text("policy_decision_digest"),
+  claim_token: text("claim_token"),
+  claim_expires_at: timestamp("claim_expires_at", { withTimezone: true }),
+  provider_attempt_id: text("provider_attempt_id"),
+  provider_attempt_number: integer("provider_attempt_number").notNull().default(0),
+  provider_conversation_id: text("provider_conversation_id"),
+  twilio_call_sid: text("twilio_call_sid"),
+  confirmation_token_digest: text("confirmation_token_digest"),
+  confirmation_token_expires_at: timestamp("confirmation_token_expires_at", { withTimezone: true }),
+  confirmation_token_consumed_at: timestamp("confirmation_token_consumed_at", { withTimezone: true }),
+  confirmation_token_revoked_at: timestamp("confirmation_token_revoked_at", { withTimezone: true }),
+  flow_entry_claim_token: text("flow_entry_claim_token"),
+  flow_entry_claim_expires_at: timestamp("flow_entry_claim_expires_at", { withTimezone: true }),
+  flow_entry_evidence_reference: text("flow_entry_evidence_reference"),
+  flow_entry_failure_reason: text("flow_entry_failure_reason"),
+  cancellation_requested_at: timestamp("cancellation_requested_at", { withTimezone: true }),
+  cancellation_completed_at: timestamp("cancellation_completed_at", { withTimezone: true }),
+  cancellation_status: text("cancellation_status"),
+  cancellation_reason: text("cancellation_reason"),
+  failure_reason: text("failure_reason"),
+  requested_at: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  provider_attempt_started_at: timestamp("provider_attempt_started_at", { withTimezone: true }),
+  provider_started_at: timestamp("provider_started_at", { withTimezone: true }),
+  ringing_at: timestamp("ringing_at", { withTimezone: true }),
+  answered_at: timestamp("answered_at", { withTimezone: true }),
+  identity_confirmed_at: timestamp("identity_confirmed_at", { withTimezone: true }),
+  flow_entry_started_at: timestamp("flow_entry_started_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_outbound_call_attempts_user_status_idx").on(t.user_id, t.status),
+  index("preventive_outbound_call_attempts_occurrence_idx").on(t.schedule_occurrence_id, t.purpose_id),
+  uniqueIndex("preventive_outbound_call_attempts_conversation_uidx").on(t.provider_conversation_id).where(sql`${t.provider_conversation_id} is not null`),
+  uniqueIndex("preventive_outbound_call_attempts_sid_uidx").on(t.twilio_call_sid).where(sql`${t.twilio_call_sid} is not null`),
+  uniqueIndex("preventive_outbound_call_attempts_token_uidx").on(t.confirmation_token_digest).where(sql`${t.confirmation_token_digest} is not null`),
+  check("preventive_outbound_call_attempts_status_chk", sql`${t.status} in ('requested', 'claimed', 'provider_attempt_started', 'provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started', 'no_answer', 'busy', 'declined', 'cancelled', 'failed_retryable', 'failed_permanent', 'delivery_uncertain')`),
+  check("preventive_outbound_call_attempts_channel_chk", sql`${t.channel} = 'voice_call'`),
+  check("preventive_outbound_call_attempts_purpose_chk", sql`${t.purpose_id} = 'daily_wellbeing_check'`),
+  check("preventive_outbound_call_attempts_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_outbound_call_attempts_phone_digest_chk", sql`${t.phone_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_policy_digest_chk", sql`${t.policy_decision_digest} is null or ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_token_digest_chk", sql`${t.confirmation_token_digest} is null or ${t.confirmation_token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_claim_chk", sql`(${t.claim_token} is null and ${t.claim_expires_at} is null) or (length(${t.claim_token}) between 1 and 160 and ${t.claim_expires_at} is not null)`),
+  check("preventive_outbound_call_attempts_flow_entry_claim_chk", sql`(${t.flow_entry_claim_token} is null and ${t.flow_entry_claim_expires_at} is null) or (length(${t.flow_entry_claim_token}) between 1 and 160 and ${t.flow_entry_claim_expires_at} is not null)`),
+  check("preventive_outbound_call_attempts_cancellation_status_chk", sql`${t.cancellation_status} is null or ${t.cancellation_status} in ('requested', 'accepted', 'failed', 'uncertain')`),
+  check("preventive_outbound_call_attempts_provider_conversation_chk", sql`${t.provider_conversation_id} is null or ${t.provider_conversation_id} ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'`),
+  check("preventive_outbound_call_attempts_twilio_sid_chk", sql`${t.twilio_call_sid} is null or ${t.twilio_call_sid} ~ '^CA[a-fA-F0-9]{32}$'`),
+  check("preventive_outbound_call_attempts_provider_attempt_count_chk", sql`${t.provider_attempt_number} >= 0`),
+  check("preventive_outbound_call_attempts_provider_attempt_required_chk", sql`${t.status} not in ('provider_attempt_started', 'provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started', 'delivery_uncertain') or ${t.provider_attempt_id} is not null`),
+  check("preventive_outbound_call_attempts_provider_correlation_required_chk", sql`${t.status} not in ('provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started') or (${t.provider_conversation_id} is not null and ${t.twilio_call_sid} is not null)`),
+  check("preventive_outbound_call_attempts_flow_entry_evidence_chk", sql`${t.status} <> 'flow_started' or (${t.flow_entry_evidence_reference} is not null and ${t.confirmation_token_consumed_at} is not null)`),
+  check("preventive_outbound_call_attempts_token_expiry_chk", sql`${t.confirmation_token_expires_at} is null or ${t.confirmation_token_expires_at} > ${t.requested_at}`),
+]);
+
+export const preventiveOutboundCallWebhookEvents = pgTable("preventive_outbound_call_webhook_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  event_key: text("event_key").notNull().unique(),
+  attempt_id: uuid("attempt_id"),
+  provider: text("provider").notNull(),
+  provider_call_sid: text("provider_call_sid").notNull(),
+  provider_status: text("provider_status").notNull(),
+  transition_result: text("transition_result"),
+  received_at: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_outbound_call_webhook_events_attempt_idx").on(t.attempt_id),
+  index("preventive_outbound_call_webhook_events_sid_idx").on(t.provider_call_sid),
+  check("preventive_outbound_call_webhook_events_provider_chk", sql`${t.provider} = 'twilio'`),
+  check("preventive_outbound_call_webhook_events_key_chk", sql`${t.event_key} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_webhook_events_status_chk", sql`${t.provider_status} in ('queued', 'initiated', 'ringing', 'in-progress', 'completed', 'no-answer', 'busy', 'failed', 'canceled')`),
+]);
+
+export const insertPreventiveOutboundCallConsentSchema = createInsertSchema(preventiveOutboundCallConsents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveOutboundCallConsent = z.infer<typeof insertPreventiveOutboundCallConsentSchema>;
+export type PreventiveOutboundCallConsentRow = typeof preventiveOutboundCallConsents.$inferSelect;
+
+export const insertPreventiveOutboundCallAttemptSchema = createInsertSchema(preventiveOutboundCallAttempts).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveOutboundCallAttempt = z.infer<typeof insertPreventiveOutboundCallAttemptSchema>;
+export type PreventiveOutboundCallAttemptRow = typeof preventiveOutboundCallAttempts.$inferSelect;
+
+export const insertPreventiveOutboundCallWebhookEventSchema = createInsertSchema(preventiveOutboundCallWebhookEvents).omit({ id: true, created_at: true });
+export type InsertPreventiveOutboundCallWebhookEvent = z.infer<typeof insertPreventiveOutboundCallWebhookEventSchema>;
+export type PreventiveOutboundCallWebhookEventRow = typeof preventiveOutboundCallWebhookEvents.$inferSelect;
+
+export const orchestrationEventStateEvents = pgTable("orchestration_event_state_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  event_id: text("event_id").notNull().unique(),
+  schema_version: text("schema_version").notNull(),
+  event_type: text("event_type").notNull(),
+  occurred_at: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  received_at: timestamp("received_at", { withTimezone: true }),
+  correlation_id: text("correlation_id").notNull(),
+  causation_id: text("causation_id"),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id"),
+  session_id: text("session_id"),
+  flow_id: text("flow_id"),
+  flow_version: text("flow_version"),
+  channel: text("channel").notNull(),
+  locale: text("locale"),
+  source: text("source").notNull(),
+  modality: text("modality"),
+  trigger_source: text("trigger_source"),
+  payload: jsonb("payload").notNull().default({}),
+  metadata: jsonb("metadata").notNull().default({}),
+  safety_context: jsonb("safety_context").notNull().default({}),
+  normalized_event: jsonb("normalized_event").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("orchestration_event_state_events_correlation_idx").on(t.correlation_id, t.occurred_at),
+  index("orchestration_event_state_events_causation_idx").on(t.causation_id),
+  index("orchestration_event_state_events_session_idx").on(t.session_id, t.occurred_at),
+  index("orchestration_event_state_events_occurred_idx").on(t.occurred_at),
+]);
+
+export const orchestrationFlowStateProjections = pgTable("orchestration_flow_state_projections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  flow_key: text("flow_key").notNull(),
+  flow_version_key: text("flow_version_key").notNull(),
+  flow_id: text("flow_id"),
+  flow_version: text("flow_version"),
+  session_id: text("session_id").notNull(),
+  user_id: text("user_id").notNull(),
+  state: text("state").notNull(),
+  is_active: boolean("is_active").notNull().default(false),
+  expected_input: jsonb("expected_input"),
+  pending_tool: jsonb("pending_tool"),
+  interrupted_state: text("interrupted_state"),
+  resume_metadata: jsonb("resume_metadata"),
+  context: jsonb("context").notNull().default({}),
+  completion_outcome: jsonb("completion_outcome"),
+  correlation_id: text("correlation_id"),
+  causation_event_id: text("causation_event_id"),
+  metadata: jsonb("metadata").notNull().default({}),
+  normalized_flow_state: jsonb("normalized_flow_state").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  persisted_at: timestamp("persisted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("orchestration_flow_state_projections_identity_unique").on(t.session_id, t.flow_key, t.flow_version_key),
+  uniqueIndex("orchestration_flow_state_projections_one_active_session_idx")
+    .on(t.session_id)
+    .where(sql`${t.is_active} = true`),
+  index("orchestration_flow_state_projections_session_idx").on(t.session_id, t.updated_at),
+  index("orchestration_flow_state_projections_flow_idx").on(t.flow_id, t.flow_version),
+  index("orchestration_flow_state_projections_correlation_idx").on(t.correlation_id),
+]);
+
+export const insertOrchestrationEventStateEventSchema = createInsertSchema(orchestrationEventStateEvents).omit({ id: true, created_at: true });
+export type InsertOrchestrationEventStateEvent = z.infer<typeof insertOrchestrationEventStateEventSchema>;
+export type OrchestrationEventStateEventRow = typeof orchestrationEventStateEvents.$inferSelect;
+
+export const insertOrchestrationFlowStateProjectionSchema = createInsertSchema(orchestrationFlowStateProjections).omit({ id: true, created_at: true, persisted_at: true });
+export type InsertOrchestrationFlowStateProjection = z.infer<typeof insertOrchestrationFlowStateProjectionSchema>;
+export type OrchestrationFlowStateProjectionRow = typeof orchestrationFlowStateProjections.$inferSelect;
+
 export const voiceQaSessionReviews = pgTable("voice_qa_session_reviews", {
   id:         uuid("id").primaryKey().defaultRandom(),
   session_id: text("session_id").notNull().unique(),
@@ -2729,6 +3909,59 @@ export const voiceQaSessionReviews = pgTable("voice_qa_session_reviews", {
 export const insertVoiceQaSessionReviewSchema = createInsertSchema(voiceQaSessionReviews).omit({ id: true, created_at: true, updated_at: true });
 export type InsertVoiceQaSessionReview = z.infer<typeof insertVoiceQaSessionReviewSchema>;
 export type VoiceQaSessionReviewRow = typeof voiceQaSessionReviews.$inferSelect;
+
+export const elevenlabsConversations = pgTable("elevenlabs_conversations", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  provider_conversation_id: text("provider_conversation_id").notNull().unique(),
+  vyva_session_id:          text("vyva_session_id"),
+  user_id:                  text("user_id"),
+  agent_id:                 text("agent_id"),
+  agent_name:               text("agent_name"),
+  branch_id:                text("branch_id"),
+  version_id:               text("version_id"),
+  status:                   text("status").notNull().default("done"),
+  locale:                   text("locale"),
+  call_successful:          text("call_successful"),
+  has_audio:                boolean("has_audio").notNull().default(false),
+  has_transcript:           boolean("has_transcript").notNull().default(false),
+  consent_status:           text("consent_status").notNull().default("not_captured"),
+  consent_version:          text("consent_version"),
+  consent_recorded_at:      timestamp("consent_recorded_at", { withTimezone: true }),
+  started_at:               timestamp("started_at", { withTimezone: true }),
+  completed_at:             timestamp("completed_at", { withTimezone: true }),
+  duration_seconds:         integer("duration_seconds"),
+  retention_delete_at:      timestamp("retention_delete_at", { withTimezone: true }).notNull(),
+  provider_deleted_at:      timestamp("provider_deleted_at", { withTimezone: true }),
+  review_status:            text("review_status").notNull().default("unreviewed"),
+  review_note:              text("review_note"),
+  reviewed_by:              text("reviewed_by"),
+  reviewed_at:              timestamp("reviewed_at", { withTimezone: true }),
+  last_provider_sync_at:    timestamp("last_provider_sync_at", { withTimezone: true }),
+  created_at:               timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:               timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("elevenlabs_conversations_user_completed_idx").on(t.user_id, t.completed_at),
+  index("elevenlabs_conversations_review_completed_idx").on(t.review_status, t.completed_at),
+  index("elevenlabs_conversations_retention_idx").on(t.retention_delete_at),
+]);
+
+export const elevenlabsConversationAccessEvents = pgTable("elevenlabs_conversation_access_events", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  conversation_id:          uuid("conversation_id").notNull().references(() => elevenlabsConversations.id, { onDelete: "cascade" }),
+  provider_conversation_id: text("provider_conversation_id").notNull(),
+  actor_user_id:             text("actor_user_id").notNull(),
+  action:                    text("action").notNull(),
+  reason:                    text("reason").notNull(),
+  succeeded:                 boolean("succeeded").notNull().default(true),
+  metadata:                  jsonb("metadata").notNull().default({}),
+  created_at:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("elevenlabs_access_events_conversation_created_idx").on(t.conversation_id, t.created_at),
+  index("elevenlabs_access_events_actor_created_idx").on(t.actor_user_id, t.created_at),
+]);
+
+export type ElevenLabsConversationRow = typeof elevenlabsConversations.$inferSelect;
+export type ElevenLabsConversationAccessEventRow = typeof elevenlabsConversationAccessEvents.$inferSelect;
 
 export const voiceTriageSessions = pgTable("voice_triage_sessions", {
   id:                    uuid("id").primaryKey().defaultRandom(),
@@ -2754,6 +3987,53 @@ export const insertVoiceTriageSessionSchema = createInsertSchema(voiceTriageSess
 export type InsertVoiceTriageSession = z.infer<typeof insertVoiceTriageSessionSchema>;
 export type VoiceTriageSessionRow = typeof voiceTriageSessions.$inferSelect;
 
+export type VoiceConsultationAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind?: string;
+};
+
+export type VoiceConsultationVitals = {
+  bpm?: number | null;
+  respiratoryRate?: number | null;
+  oxygenSaturation?: number | null;
+  temperatureC?: number | null;
+  systolicBp?: number | null;
+  diastolicBp?: number | null;
+  glucoseMgdl?: number | null;
+  painScore?: number | null;
+  energyLevel?: number | null;
+};
+
+export const voiceConsultationSummaries = pgTable("voice_consultation_summaries", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull(),
+  conversation_id:       text("conversation_id").notNull().unique(),
+  triage_report_id:      uuid("triage_report_id").references(() => triageReports.id, { onDelete: "set null" }),
+  channel:               text("channel").notNull().default("voice_app"),
+  locale:                text("locale").notNull().default("en"),
+  status:                text("status").notNull(),
+  canonical_symptom_id:  text("canonical_symptom_id").notNull(),
+  concern:               text("concern").notNull(),
+  normalized_answers:    jsonb("normalized_answers").$type<VoiceConsultationAnswer[]>().notNull().default(sql`'[]'::jsonb`),
+  reported_vitals:       jsonb("reported_vitals").$type<VoiceConsultationVitals>().notNull().default(sql`'{}'::jsonb`),
+  urgency:               text("urgency").notNull(),
+  guidance_outcome:      text("guidance_outcome").notNull(),
+  next_step:             text("next_step"),
+  started_at:            timestamp("started_at", { withTimezone: true }).notNull(),
+  completed_at:          timestamp("completed_at", { withTimezone: true }).notNull(),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("voice_consultation_summaries_user_completed_idx").on(t.user_id, t.completed_at),
+  index("voice_consultation_summaries_user_symptom_completed_idx").on(t.user_id, t.canonical_symptom_id, t.completed_at),
+]);
+
+export const insertVoiceConsultationSummarySchema = createInsertSchema(voiceConsultationSummaries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertVoiceConsultationSummary = z.infer<typeof insertVoiceConsultationSummarySchema>;
+export type VoiceConsultationSummaryRow = typeof voiceConsultationSummaries.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),
@@ -2775,6 +4055,61 @@ export const homePlanCards = pgTable("home_plan_cards", {
 export const insertHomePlanCardSchema = createInsertSchema(homePlanCards).omit({ id: true, created_at: true, updated_at: true });
 export type InsertHomePlanCard = z.infer<typeof insertHomePlanCardSchema>;
 export type HomePlanCardRow = typeof homePlanCards.$inferSelect;
+
+export const homeFastHelpImpressions = pgTable("home_fast_help_impressions", {
+  id:              uuid("id").primaryKey(),
+  user_id:         uuid("user_id").notNull(),
+  action_ids:      text("action_ids").array().notNull(),
+  ranking_version: text("ranking_version").notNull(),
+  shown_at:        timestamp("shown_at", { withTimezone: true }).notNull(),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("home_fast_help_impressions_id_user_unique").on(t.id, t.user_id),
+  index("home_fast_help_impressions_user_shown_idx").on(t.user_id, t.shown_at),
+  index("home_fast_help_impressions_version_shown_idx").on(t.ranking_version, t.shown_at),
+]);
+
+export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
+  id:           uuid("id").primaryKey(),
+  user_id:      uuid("user_id").notNull(),
+  impression_id: uuid("impression_id"),
+  action_id:    text("action_id").notNull(),
+  status:       text("status").notNull(),
+  started_at:   timestamp("started_at", { withTimezone: true }).notNull(),
+  updated_at:   timestamp("updated_at", { withTimezone: true }).notNull(),
+  reference_id: text("reference_id"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  synced_at:    timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("home_fast_help_journeys_user_updated_idx").on(t.user_id, t.updated_at),
+  index("home_fast_help_journeys_user_action_updated_idx").on(t.user_id, t.action_id, t.updated_at),
+  index("home_fast_help_journeys_impression_idx").on(t.impression_id),
+  foreignKey({
+    columns: [t.impression_id, t.user_id],
+    foreignColumns: [homeFastHelpImpressions.id, homeFastHelpImpressions.user_id],
+    name: "home_fast_help_journeys_impression_id_fkey",
+  }),
+]);
+
+export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events", {
+  id:           uuid("id").primaryKey(),
+  journey_id:   uuid("journey_id").notNull().references(() => homeFastHelpJourneys.id, { onDelete: "cascade" }),
+  user_id:      uuid("user_id").notNull(),
+  status:       text("status").notNull(),
+  occurred_at:  timestamp("occurred_at", { withTimezone: true }).notNull(),
+  reference_id: text("reference_id"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("home_fast_help_journey_events_user_occurred_idx").on(t.user_id, t.occurred_at),
+  index("home_fast_help_journey_events_journey_occurred_idx").on(t.journey_id, t.occurred_at),
+]);
+
+export const insertHomeFastHelpJourneySchema = createInsertSchema(homeFastHelpJourneys).omit({ created_at: true, synced_at: true });
+export const insertHomeFastHelpJourneyEventSchema = createInsertSchema(homeFastHelpJourneyEvents).omit({ created_at: true });
+export const insertHomeFastHelpImpressionSchema = createInsertSchema(homeFastHelpImpressions).omit({ created_at: true });
+export type HomeFastHelpImpressionRow = typeof homeFastHelpImpressions.$inferSelect;
+export type HomeFastHelpJourneyRow = typeof homeFastHelpJourneys.$inferSelect;
+export type HomeFastHelpJourneyEventRow = typeof homeFastHelpJourneyEvents.$inferSelect;
 
 export const heroMessages = pgTable("hero_messages", {
   id:             uuid("id").primaryKey().defaultRandom(),
@@ -2819,6 +4154,58 @@ export const insertHeroMessageEventSchema = createInsertSchema(heroMessageEvents
 export type InsertHeroMessageEvent = z.infer<typeof insertHeroMessageEventSchema>;
 export type HeroMessageEventRow = typeof heroMessageEvents.$inferSelect;
 
+export const welcomeModuleTemplates = pgTable("welcome_module_templates", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  template_id:    text("template_id").notNull().unique(),
+  audience:       text("audience").notNull().default("elder"),
+  moment_type:    text("moment_type").notNull().default("daily_profile_nudge"),
+  profile_action: text("profile_action"),
+  priority:       integer("priority").notNull().default(10),
+  cooldown_hours: integer("cooldown_hours").notNull().default(24),
+  periods:        text("periods").array().notNull().default([]),
+  copy:           jsonb("copy").notNull().default({}),
+  action_route:   text("action_route"),
+  is_enabled:     boolean("is_enabled").notNull().default(true),
+  admin_notes:    text("admin_notes"),
+  created_at:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("welcome_module_templates_audience_idx").on(t.audience),
+  index("welcome_module_templates_moment_idx").on(t.moment_type),
+  index("welcome_module_templates_action_idx").on(t.profile_action),
+  index("welcome_module_templates_enabled_idx").on(t.is_enabled),
+]);
+
+export const insertWelcomeModuleTemplateSchema = createInsertSchema(welcomeModuleTemplates).omit({ id: true, created_at: true, updated_at: true });
+export type InsertWelcomeModuleTemplate = z.infer<typeof insertWelcomeModuleTemplateSchema>;
+export type WelcomeModuleTemplateRow = typeof welcomeModuleTemplates.$inferSelect;
+
+export const welcomeModuleEvents = pgTable("welcome_module_events", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  user_id:        text("user_id").notNull(),
+  profile_id:     text("profile_id"),
+  template_id:    text("template_id").notNull(),
+  audience:       text("audience").notNull(),
+  moment_type:    text("moment_type").notNull(),
+  profile_action: text("profile_action"),
+  event_type:     text("event_type").notNull(),
+  language:       text("language").notNull().default("es"),
+  route:          text("route").notNull().default(""),
+  event_date:     date("event_date").notNull().default(sql`CURRENT_DATE`),
+  source:         text("source").notNull().default("built_in"),
+  created_at:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("welcome_module_events_user_idx").on(t.user_id, t.created_at),
+  index("welcome_module_events_profile_idx").on(t.profile_id, t.created_at),
+  index("welcome_module_events_template_idx").on(t.template_id),
+  index("welcome_module_events_moment_idx").on(t.moment_type, t.event_date),
+  index("welcome_module_events_action_idx").on(t.profile_action, t.event_date),
+]);
+
+export const insertWelcomeModuleEventSchema = createInsertSchema(welcomeModuleEvents).omit({ id: true, created_at: true });
+export type InsertWelcomeModuleEvent = z.infer<typeof insertWelcomeModuleEventSchema>;
+export type WelcomeModuleEventRow = typeof welcomeModuleEvents.$inferSelect;
+
 export const marketingContentAssets = pgTable("marketing_content_assets", {
   id:                   uuid("id").primaryKey().defaultRandom(),
   title:                text("title").notNull(),
@@ -2827,8 +4214,11 @@ export const marketingContentAssets = pgTable("marketing_content_assets", {
   status:               text("status").notNull().default("draft"),
   subject:              text("subject"),
   body:                 text("body").notNull().default(""),
+  html_body:            text("html_body"),
   cta_label:            text("cta_label"),
   cta_url:              text("cta_url"),
+  design_json:          jsonb("design_json").notNull().default({}),
+  media_assets:         jsonb("media_assets").notNull().default([]),
   source:               text("source").notNull().default("vyva"),
   lovable_external_id:  text("lovable_external_id").unique(),
   metadata:             jsonb("metadata").notNull().default({}),
@@ -2845,6 +4235,115 @@ export const marketingContentAssets = pgTable("marketing_content_assets", {
 export const insertMarketingContentAssetSchema = createInsertSchema(marketingContentAssets).omit({ id: true, created_at: true, updated_at: true });
 export type InsertMarketingContentAsset = z.infer<typeof insertMarketingContentAssetSchema>;
 export type MarketingContentAssetRow = typeof marketingContentAssets.$inferSelect;
+
+export const marketingCampaignTemplates = pgTable("marketing_campaign_templates", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  description:         text("description"),
+  category:            text("category"),
+  language:            text("language").notNull().default("en"),
+  fields:              jsonb("fields").notNull().default([]),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  owner_external_id:   text("owner_external_id"),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_templates_category_idx").on(t.category),
+  index("marketing_campaign_templates_language_idx").on(t.language),
+  index("marketing_campaign_templates_source_idx").on(t.source),
+]);
+
+export const insertMarketingCampaignTemplateSchema = createInsertSchema(marketingCampaignTemplates).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignTemplate = z.infer<typeof insertMarketingCampaignTemplateSchema>;
+export type MarketingCampaignTemplateRow = typeof marketingCampaignTemplates.$inferSelect;
+
+export const marketingContactTags = pgTable("marketing_contact_tags", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  color:               text("color"),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  owner_external_id:   text("owner_external_id"),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_contact_tags_name_idx").on(t.name),
+  index("marketing_contact_tags_source_idx").on(t.source),
+]);
+
+export const insertMarketingContactTagSchema = createInsertSchema(marketingContactTags).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingContactTag = z.infer<typeof insertMarketingContactTagSchema>;
+export type MarketingContactTagRow = typeof marketingContactTags.$inferSelect;
+
+export const marketingMediaAssets = pgTable("marketing_media_assets", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  content_asset_id:    uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "cascade" }),
+  source:              text("source").notNull().default("lovable"),
+  asset_type:          text("asset_type").notNull().default("unknown"),
+  original_url:        text("original_url").notNull(),
+  local_url:           text("local_url"),
+  status:              text("status").notNull().default("referenced"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_media_assets_content_idx").on(t.content_asset_id),
+  index("marketing_media_assets_source_idx").on(t.source),
+  index("marketing_media_assets_status_idx").on(t.status),
+  index("marketing_media_assets_type_idx").on(t.asset_type),
+]);
+
+export const insertMarketingMediaAssetSchema = createInsertSchema(marketingMediaAssets).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingMediaAsset = z.infer<typeof insertMarketingMediaAssetSchema>;
+export type MarketingMediaAssetRow = typeof marketingMediaAssets.$inferSelect;
+
+export const marketingMediaFiles = pgTable("marketing_media_files", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  media_asset_id: uuid("media_asset_id").notNull().references(() => marketingMediaAssets.id, { onDelete: "cascade" }),
+  mime_type:     text("mime_type").notNull().default("image/jpeg"),
+  image_bytes:   bytea("image_bytes").notNull(),
+  width:         integer("width"),
+  height:        integer("height"),
+  prompt:        text("prompt"),
+  model:         text("model"),
+  created_by:    text("created_by"),
+  created_at:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_media_files_asset_unique").on(t.media_asset_id),
+]);
+
+export const insertMarketingMediaFileSchema = createInsertSchema(marketingMediaFiles).omit({ id: true, created_at: true });
+export type InsertMarketingMediaFile = z.infer<typeof insertMarketingMediaFileSchema>;
+export type MarketingMediaFileRow = typeof marketingMediaFiles.$inferSelect;
+
+export const marketingSocialConnections = pgTable("marketing_social_connections", {
+  id:                     uuid("id").primaryKey().defaultRandom(),
+  provider:               text("provider").notNull(),
+  external_account_id:    text("external_account_id").notNull(),
+  external_account_name:  text("external_account_name").notNull().default(""),
+  access_token_encrypted: text("access_token_encrypted").notNull(),
+  token_expires_at:       timestamp("token_expires_at", { withTimezone: true }),
+  status:                 text("status").notNull().default("connected"),
+  metadata:               jsonb("metadata").notNull().default({}),
+  connected_by:           text("connected_by"),
+  connected_at:           timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_social_connections_provider_account_unique").on(t.provider, t.external_account_id),
+  index("marketing_social_connections_provider_idx").on(t.provider),
+  index("marketing_social_connections_status_idx").on(t.status),
+]);
+
+export const insertMarketingSocialConnectionSchema = createInsertSchema(marketingSocialConnections).omit({ id: true, connected_at: true, updated_at: true });
+export type InsertMarketingSocialConnection = z.infer<typeof insertMarketingSocialConnectionSchema>;
+export type MarketingSocialConnectionRow = typeof marketingSocialConnections.$inferSelect;
 
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   id:                  uuid("id").primaryKey().defaultRandom(),
@@ -2895,12 +4394,47 @@ export const insertMarketingCampaignChannelSchema = createInsertSchema(marketing
 export type InsertMarketingCampaignChannel = z.infer<typeof insertMarketingCampaignChannelSchema>;
 export type MarketingCampaignChannelRow = typeof marketingCampaignChannels.$inferSelect;
 
+export const marketingCampaignMetrics = pgTable("marketing_campaign_metrics", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  campaign_id:         uuid("campaign_id").references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  channel:             text("channel").notNull().default("all"),
+  metric_date:         timestamp("metric_date", { withTimezone: true }),
+  sent:                integer("sent").notNull().default(0),
+  delivered:           integer("delivered").notNull().default(0),
+  opened:              integer("opened").notNull().default(0),
+  clicked:             integer("clicked").notNull().default(0),
+  bounced:             integer("bounced").notNull().default(0),
+  unsubscribed:        integer("unsubscribed").notNull().default(0),
+  replied:             integer("replied").notNull().default(0),
+  social_engagement:   integer("social_engagement").notNull().default(0),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_metrics_campaign_idx").on(t.campaign_id),
+  index("marketing_campaign_metrics_channel_idx").on(t.channel),
+  index("marketing_campaign_metrics_date_idx").on(t.metric_date),
+  index("marketing_campaign_metrics_source_idx").on(t.source),
+]);
+
+export const insertMarketingCampaignMetricSchema = createInsertSchema(marketingCampaignMetrics).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignMetric = z.infer<typeof insertMarketingCampaignMetricSchema>;
+export type MarketingCampaignMetricRow = typeof marketingCampaignMetrics.$inferSelect;
+
 export const marketingJourneys = pgTable("marketing_journeys", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   name:                text("name").notNull(),
   status:              text("status").notNull().default("draft"),
   audience_type:       text("audience_type").notNull().default("b2c"),
   objective:           text("objective").notNull().default(""),
+  trigger_type:        text("trigger_type"),
+  trigger_config:      jsonb("trigger_config").notNull().default({}),
+  goal_type:           text("goal_type"),
+  goal_config:         jsonb("goal_config").notNull().default({}),
+  exit_on_goal:        boolean("exit_on_goal").notNull().default(true),
   source:              text("source").notNull().default("vyva"),
   lovable_external_id: text("lovable_external_id").unique(),
   metadata:            jsonb("metadata").notNull().default({}),
@@ -2912,6 +4446,8 @@ export const marketingJourneys = pgTable("marketing_journeys", {
   index("marketing_journeys_status_idx").on(t.status),
   index("marketing_journeys_audience_idx").on(t.audience_type),
   index("marketing_journeys_source_idx").on(t.source),
+  index("marketing_journeys_trigger_idx").on(t.trigger_type),
+  index("marketing_journeys_goal_idx").on(t.goal_type),
 ]);
 
 export const insertMarketingJourneySchema = createInsertSchema(marketingJourneys).omit({ id: true, created_at: true, updated_at: true });
@@ -2925,6 +4461,11 @@ export const marketingJourneySteps = pgTable("marketing_journey_steps", {
   channel:           text("channel").notNull(),
   content_asset_id:  uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "set null" }),
   delay_hours:       integer("delay_hours").notNull().default(0),
+  kind:              text("kind").notNull().default("message"),
+  day_offset:        integer("day_offset").notNull().default(0),
+  template_kind:     text("template_kind"),
+  template_ref:      text("template_ref"),
+  config:            jsonb("config").notNull().default({}),
   status:            text("status").notNull().default("draft"),
   metadata:          jsonb("metadata").notNull().default({}),
   created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2933,6 +4474,8 @@ export const marketingJourneySteps = pgTable("marketing_journey_steps", {
   unique("marketing_journey_steps_order_unique").on(t.journey_id, t.step_order),
   index("marketing_journey_steps_journey_idx").on(t.journey_id),
   index("marketing_journey_steps_channel_idx").on(t.channel),
+  index("marketing_journey_steps_kind_idx").on(t.kind),
+  index("marketing_journey_steps_day_offset_idx").on(t.day_offset),
 ]);
 
 export const insertMarketingJourneyStepSchema = createInsertSchema(marketingJourneySteps).omit({ id: true, created_at: true, updated_at: true });
@@ -2950,6 +4493,10 @@ export const marketingContacts = pgTable("marketing_contacts", {
   whatsapp_number:      text("whatsapp_number"),
   role_label:           text("role_label"),
   company_name:         text("company_name"),
+  language:             text("language"),
+  category:             text("category"),
+  vertical:             text("vertical"),
+  market:               text("market"),
   consent_status:       text("consent_status").notNull().default("unknown"),
   source:               text("source").notNull().default("vyva"),
   channel_availability: jsonb("channel_availability").notNull().default({}),
@@ -2965,11 +4512,111 @@ export const marketingContacts = pgTable("marketing_contacts", {
   index("marketing_contacts_organization_idx").on(t.organization_id),
   index("marketing_contacts_email_idx").on(t.email),
   index("marketing_contacts_source_idx").on(t.source),
+  index("marketing_contacts_language_idx").on(t.language),
+  index("marketing_contacts_category_idx").on(t.category),
+  index("marketing_contacts_vertical_idx").on(t.vertical),
+  index("marketing_contacts_market_idx").on(t.market),
 ]);
 
 export const insertMarketingContactSchema = createInsertSchema(marketingContacts).omit({ id: true, created_at: true, updated_at: true });
 export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;
 export type MarketingContactRow = typeof marketingContacts.$inferSelect;
+
+export const marketingJourneyEnrollments = pgTable("marketing_journey_enrollments", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  journey_id:          uuid("journey_id").notNull().references(() => marketingJourneys.id, { onDelete: "cascade" }),
+  contact_id:          uuid("contact_id").references(() => marketingContacts.id, { onDelete: "set null" }),
+  contact_external_id: text("contact_external_id"),
+  status:              text("status").notNull().default("active"),
+  current_step_order:  integer("current_step_order").notNull().default(0),
+  entered_at:          timestamp("entered_at", { withTimezone: true }),
+  exited_at:           timestamp("exited_at", { withTimezone: true }),
+  last_activity_at:    timestamp("last_activity_at", { withTimezone: true }),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_journey_enrollments_journey_idx").on(t.journey_id),
+  index("marketing_journey_enrollments_contact_idx").on(t.contact_id),
+  index("marketing_journey_enrollments_external_contact_idx").on(t.contact_external_id),
+  index("marketing_journey_enrollments_status_idx").on(t.status),
+]);
+
+export const insertMarketingJourneyEnrollmentSchema = createInsertSchema(marketingJourneyEnrollments).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourneyEnrollment = z.infer<typeof insertMarketingJourneyEnrollmentSchema>;
+export type MarketingJourneyEnrollmentRow = typeof marketingJourneyEnrollments.$inferSelect;
+
+export const marketingJourneyStepEvents = pgTable("marketing_journey_step_events", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  enrollment_id:       uuid("enrollment_id").notNull().references(() => marketingJourneyEnrollments.id, { onDelete: "cascade" }),
+  journey_id:          uuid("journey_id").notNull().references(() => marketingJourneys.id, { onDelete: "cascade" }),
+  step_id:             uuid("step_id").references(() => marketingJourneySteps.id, { onDelete: "set null" }),
+  step_order:          integer("step_order").notNull().default(0),
+  event_type:          text("event_type").notNull().default("planned"),
+  event_at:            timestamp("event_at", { withTimezone: true }),
+  channel:             text("channel"),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_journey_step_events_enrollment_idx").on(t.enrollment_id),
+  index("marketing_journey_step_events_journey_idx").on(t.journey_id),
+  index("marketing_journey_step_events_step_idx").on(t.step_id),
+  index("marketing_journey_step_events_type_idx").on(t.event_type),
+  index("marketing_journey_step_events_at_idx").on(t.event_at),
+]);
+
+export const insertMarketingJourneyStepEventSchema = createInsertSchema(marketingJourneyStepEvents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourneyStepEvent = z.infer<typeof insertMarketingJourneyStepEventSchema>;
+export type MarketingJourneyStepEventRow = typeof marketingJourneyStepEvents.$inferSelect;
+
+export const marketingAudiences = pgTable("marketing_audiences", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  description:         text("description"),
+  list_type:           text("list_type").notNull().default("static"),
+  rules:               jsonb("rules").notNull().default({}),
+  source:              text("source").notNull().default("vyva"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_by:          text("created_by"),
+  updated_by:          text("updated_by"),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_audiences_source_idx").on(t.source),
+  index("marketing_audiences_list_type_idx").on(t.list_type),
+  index("marketing_audiences_updated_idx").on(t.updated_at),
+]);
+
+export const insertMarketingAudienceSchema = createInsertSchema(marketingAudiences).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingAudience = z.infer<typeof insertMarketingAudienceSchema>;
+export type MarketingAudienceRow = typeof marketingAudiences.$inferSelect;
+
+export const marketingAudienceMembers = pgTable("marketing_audience_members", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  audience_id:         uuid("audience_id").notNull().references(() => marketingAudiences.id, { onDelete: "cascade" }),
+  contact_id:          uuid("contact_id").references(() => marketingContacts.id, { onDelete: "cascade" }),
+  contact_external_id: text("contact_external_id").notNull(),
+  source:              text("source").notNull().default("lovable"),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("marketing_audience_members_external_unique").on(t.audience_id, t.contact_external_id),
+  index("marketing_audience_members_audience_idx").on(t.audience_id),
+  index("marketing_audience_members_contact_idx").on(t.contact_id),
+  index("marketing_audience_members_external_idx").on(t.contact_external_id),
+]);
+
+export const insertMarketingAudienceMemberSchema = createInsertSchema(marketingAudienceMembers).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingAudienceMember = z.infer<typeof insertMarketingAudienceMemberSchema>;
+export type MarketingAudienceMemberRow = typeof marketingAudienceMembers.$inferSelect;
 
 export const marketingCampaignRecipients = pgTable("marketing_campaign_recipients", {
   id:                   uuid("id").primaryKey().defaultRandom(),
@@ -3067,6 +4714,26 @@ export const conciergeShoppingPackageItems = pgTable("concierge_shopping_package
   index("concierge_shopping_package_items_package_idx").on(t.package_id),
 ]);
 
+export const trustedHelpPartners = pgTable("trusted_help_partners", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  partner_id:  text("partner_id").notNull().unique(),
+  name:        text("name").notNull(),
+  service:     text("service").notNull(),
+  label:       text("label").notNull(),
+  method:      text("method").notNull(),
+  payment:     text("payment").notNull(),
+  coverage:    text("coverage").array().notNull().default([]),
+  logo:        jsonb("logo").notNull().default({}),
+  is_enabled:  boolean("is_enabled").notNull().default(true),
+  priority:    integer("priority").notNull().default(50),
+  admin_notes: text("admin_notes"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("trusted_help_partners_service_enabled_idx").on(t.service, t.is_enabled, t.priority),
+  index("trusted_help_partners_priority_idx").on(t.priority),
+]);
+
 export const insertConciergeShoppingProductSchema = createInsertSchema(conciergeShoppingProducts).omit({ id: true, created_at: true, updated_at: true });
 export type InsertConciergeShoppingProduct = z.infer<typeof insertConciergeShoppingProductSchema>;
 export type ConciergeShoppingProductRow = typeof conciergeShoppingProducts.$inferSelect;
@@ -3078,6 +4745,10 @@ export type ConciergeShoppingPackageRow = typeof conciergeShoppingPackages.$infe
 export const insertConciergeShoppingPackageItemSchema = createInsertSchema(conciergeShoppingPackageItems).omit({ id: true, created_at: true });
 export type InsertConciergeShoppingPackageItem = z.infer<typeof insertConciergeShoppingPackageItemSchema>;
 export type ConciergeShoppingPackageItemRow = typeof conciergeShoppingPackageItems.$inferSelect;
+
+export const insertTrustedHelpPartnerSchema = createInsertSchema(trustedHelpPartners).omit({ id: true, created_at: true, updated_at: true });
+export type InsertTrustedHelpPartner = z.infer<typeof insertTrustedHelpPartnerSchema>;
+export type TrustedHelpPartnerRow = typeof trustedHelpPartners.$inferSelect;
 
 
 // ============================================================
@@ -3096,6 +4767,12 @@ export const schema = {
   checkinSessions,
   checkinTrendState,
   userMedications,
+  myMedicines,
+  medicationInventoryEvents,
+  medicationRefillAlerts,
+  myMedicinesChangeLog,
+  interactionFlagRules,
+  interactionFlagDismissals,
   medicationSafetySignals,
   medicationSafetyCases,
   medicationSafetyCaseEvents,
@@ -3142,6 +4819,12 @@ export const schema = {
   participationNotifications,
   triageReports,
   insightOutcomes,
+  longevityPreventionPlans,
+  longevityDailyContent,
+  longevityDailyContentLog,
+  longevitySynthesisEvents,
+  longevityActionEvents,
+  longevityMomentSessions,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,
@@ -3171,6 +4854,10 @@ export const schema = {
   consentAuditLogs,
   userProviders,
   conciergePending,
+  conciergeInboundMessages,
+  conciergeTaskNotifications,
+  crossPillarExecutionAttempts,
+  conciergeTaskDrafts,
   conciergeSessions,
   appointmentRequests,
   appointmentProviderOptions,
@@ -3179,19 +4866,43 @@ export const schema = {
   utilityReviewRuns,
   conciergeRecommendationFeedback,
   voiceRecommendationFeedback,
+  healthSemanticMemoryOutbox,
+  healthCaregiverOperatorEscalationProjections,
+  preventiveWebPushSubscriptions,
+  preventiveWebPushDeliveries,
+  preventiveWebPushEntryTokens,
+  preventiveOutboundCallConsents,
+  preventiveOutboundCallAttempts,
+  preventiveOutboundCallWebhookEvents,
+  orchestrationEventStateEvents,
+  orchestrationFlowStateProjections,
   voiceTriageSessions,
+  voiceConsultationSummaries,
   homePlanCards,
+  homeFastHelpJourneys,
+  homeFastHelpJourneyEvents,
   heroMessages,
   heroMessageEvents,
+  welcomeModuleTemplates,
+  welcomeModuleEvents,
+  marketingAudiences,
+  marketingAudienceMembers,
   marketingContentAssets,
+  marketingMediaAssets,
+  marketingMediaFiles,
+  marketingSocialConnections,
   marketingCampaigns,
   marketingCampaignChannels,
+  marketingCampaignMetrics,
   marketingJourneys,
   marketingJourneySteps,
+  marketingJourneyEnrollments,
+  marketingJourneyStepEvents,
   marketingContacts,
   marketingCampaignRecipients,
   marketingSyncRuns,
   conciergeShoppingProducts,
   conciergeShoppingPackages,
   conciergeShoppingPackageItems,
+  trustedHelpPartners,
 };
