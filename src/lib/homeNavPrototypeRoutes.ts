@@ -22,13 +22,28 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/ask-dr-ai-next",
   "/dev/home-master/symptom-warning",
   "/dev/home-master/symptom-report",
+  "/dev/home-master/vitals",
   "/menu",
   "/health",
   "/health/longevity",
   "/health/prevention",
   "/health/prevention-plan",
+  "/health/vitals",
   "/mind-memory",
+  "/brain-coach/remember",
+  "/brain-coach/focus",
+  "/brain-coach/think",
+  "/brain-coach/calm",
+  "/dev/brain/remember",
+  "/dev/brain/focus",
+  "/dev/brain/think",
+  "/dev/brain/calm",
   "/social-rooms",
+  "/social-rooms/experts",
+  "/dev/home-master/community-team",
+  "/dev/home-master/community-team/chat",
+  "/benefits",
+  "/dev/benefits",
   "/concierge",
   "/informes",
   "/meds",
@@ -55,7 +70,6 @@ const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
   "/dev/home-master/profile/preferences",
   "/dev/home-master/profile/accessibility",
   "/dev/home-master/symptom-report",
-  "/dev/home-master/vitals",
   "/dev/home-master/medicines",
   "/settings/account",
   "/health/check-in",
@@ -65,12 +79,46 @@ const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
   "/meds/adherence-report",
 ]);
 
+const BRAIN_COACH_OWNED_TOPBAR_ROUTES = new Set([
+  "/memory-games",
+  "/attention-boosters",
+  "/executive-function",
+  "/senses",
+  "/spatial-navigator",
+  "/face-name-match",
+  "/dual-task-walk",
+]);
+
+const BRAIN_COACH_OWNED_TOPBAR_PREFIXES = [
+  "/brain-coach/activity/",
+  "/memory-games/",
+  "/attention-boosters/",
+  "/executive-function/",
+  "/senses/",
+];
+
+function isBrainCoachOwnedTopbarRoute(pathname: string) {
+  return BRAIN_COACH_OWNED_TOPBAR_ROUTES.has(pathname) ||
+    BRAIN_COACH_OWNED_TOPBAR_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function isCommunityExpertChatRoute(pathname: string) {
+  return pathname.startsWith("/social-rooms/experts/") || pathname === "/dev/home-master/community-team/chat";
+}
+
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname);
+  return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname) ||
+    isBrainCoachOwnedTopbarRoute(pathname) ||
+    isCommunityExpertChatRoute(pathname) ||
+    isSymptomReportDetailRoute(pathname);
 }
 
 export function isHomeNavPrototypeDockRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname);
+  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) || isCommunityExpertChatRoute(pathname) || isSymptomReportDetailRoute(pathname);
+}
+
+function isSymptomReportDetailRoute(pathname: string) {
+  return pathname.startsWith("/informes/") && pathname !== "/informes/brain-coach";
 }
 
 export function hidesHomeNavPrototypeDock(pathname: string) {
@@ -86,6 +134,5 @@ export function hidesHomeNavPrototypeDock(pathname: string) {
     pathname === "/dev/home-master/profile/providers" ||
     pathname === "/dev/home-master/profile/preferences" ||
     pathname === "/dev/home-master/profile/accessibility" ||
-    pathname === "/dev/home-master/vitals" ||
     pathname === "/dev/home-master/medicines";
 }

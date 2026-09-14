@@ -25,6 +25,7 @@ import {
 } from "@/lib/voiceCanvasBridge";
 import {
   ensureVoiceSessionId,
+  openDrAiVitalsCapture,
   readVoiceSessionId,
   requestDrAiScreenSync,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
@@ -32,7 +33,9 @@ import {
 } from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
+import { TRIAGE_VITAL_SIGNAL_MAP } from "../../shared/vitalsAcquisition";
 import { dispatchOnboardingElevenLabsOutput } from "@/lib/onboardingElevenLabsRuntimeAdapter";
+import { requestNumberMemoryVoiceTool, type NumberMemoryVoiceToolName } from "@/lib/numberMemoryVoiceBridge";
 import {
   selectSpeechVoice,
   supportsSpeechPlayback,
@@ -858,6 +861,10 @@ function isAgentVoiceDebugEvent(payload: unknown) {
 
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
+  if (agentSlug === "amara" || agentSlug === "nora") return "health";
+  if (agentSlug === "diego") return "safety";
+  if (agentSlug === "sabio" || agentSlug === "marta") return "concierge";
+  if (agentSlug === "tomas" || agentSlug === "elena" || agentSlug === "ines") return "companion";
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
@@ -1728,6 +1735,16 @@ function useVyvaVoiceController() {
           },
           clientTools: {
             ...(sessionOptions.clientTools ?? {}),
+            ...Object.fromEntries(([
+              "start_number_memory_round",
+              "get_next_number_memory_digit",
+              "begin_number_memory_recall",
+              "submit_number_memory_answer",
+              "number_memory_not_sure",
+            ] satisfies NumberMemoryVoiceToolName[]).map((name) => [name, async (parameters: unknown) => {
+              const result = await requestNumberMemoryVoiceTool(name, toolParameters(parameters));
+              return JSON.stringify(result);
+            }])),
             sync_dr_ai_screen: async (parameters: unknown) => {
               const params = toolParameters(parameters);
               const conversationId = toolString(params, "conversation_id") || readVoiceSessionId();
@@ -1740,6 +1757,48 @@ function useVyvaVoiceController() {
                 rendered,
                 conversation_id: conversationId,
                 ...(rendered ? {} : { reason: "screen_sync_timeout" }),
+              });
+            },
+            open_dr_ai_vitals: async () => {
+              openDrAiVitalsCapture();
+              return JSON.stringify({ ok: true, opened: true, surface: "inline_vitals_capture" });
+            },
+            read_dr_ai_vitals: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const actionIds = Array.isArray(params.action_ids)
+                ? params.action_ids.filter((value): value is keyof typeof TRIAGE_VITAL_SIGNAL_MAP => typeof value === "string" && value in TRIAGE_VITAL_SIGNAL_MAP)
+                : [];
+              const signals = [...new Set(actionIds.flatMap((id) => TRIAGE_VITAL_SIGNAL_MAP[id]))];
+              if (!signals.length) return JSON.stringify({ ok: false, reason: "missing_relevant_signals" });
+              const response = await apiFetch(`/api/vitals-engine/acquisition-context?signals=${encodeURIComponent(signals.join(","))}`);
+              if (!response.ok) return JSON.stringify({ ok: false, reason: "connected_device_read_failed" });
+              const payload = await response.json() as { signals?: Array<{ signal_type?: string; current_reading?: { value?: number; source?: string } | null }> };
+              const readings = (payload.signals ?? [])
+                .map((signal) => ({ signal: signal.signal_type, ...signal.current_reading }))
+                .filter((reading) => signals.includes(reading.signal as never) && typeof reading.value === "number" && reading.source === "connected_device");
+              if (!readings.length) return JSON.stringify({ ok: false, reason: "no_current_connected_reading" });
+              const labels: Record<string, string> = {
+                resting_hr_bpm: "heart rate",
+                respiratory_rate: "breathing rate",
+                oxygen_saturation: "oxygen",
+                temperature_c: "temperature",
+                bp_systolic: "systolic blood pressure",
+                bp_diastolic: "diastolic blood pressure",
+                glucose_mgdl: "glucose",
+              };
+              const systolic = readings.find((reading) => reading.signal === "bp_systolic")?.value;
+              const diastolic = readings.find((reading) => reading.signal === "bp_diastolic")?.value;
+              const readableValues = readings
+                .filter((reading) => reading.signal !== "bp_systolic" && reading.signal !== "bp_diastolic")
+                .map((reading) => `${labels[reading.signal || ""] || reading.signal} ${reading.value}`);
+              if (typeof systolic === "number" && typeof diastolic === "number") {
+                readableValues.push(`blood pressure ${systolic} over ${diastolic}`);
+              }
+              return JSON.stringify({
+                ok: true,
+                source: "connected_device",
+                affects_triage: true,
+                vitals_text: readableValues.join(", "),
               });
             },
             open_app_action: async (parameters: unknown) => {

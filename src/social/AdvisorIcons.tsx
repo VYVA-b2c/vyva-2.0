@@ -1,4 +1,4 @@
-import { Apple, BadgePercent, FileText, PersonStanding, SearchCheck, Smartphone, Sprout, type LucideIcon } from "lucide-react";
+import { Apple, BadgePercent, FileText, PersonStanding, SearchCheck, ShieldCheck, Smartphone, Sprout, type LucideIcon } from "lucide-react";
 import type { AdvisorIconKey } from "../../shared/advisors";
 
 const advisorIconMap: Record<AdvisorIconKey, LucideIcon> = {
@@ -7,6 +7,7 @@ const advisorIconMap: Record<AdvisorIconKey, LucideIcon> = {
   deals: BadgePercent,
   research: SearchCheck,
   paperwork: FileText,
+  benefits: ShieldCheck,
   tech: Smartphone,
   coach: PersonStanding,
 };
@@ -26,6 +27,7 @@ export function AdvisorIcon({ iconKey, size = 24, strokeWidth = 2.45, className 
 type AdvisorAvatarProps = AdvisorIconProps & {
   chipBg: string;
   iconColor: string;
+  portraitSrc?: string;
   className?: string;
   iconClassName?: string;
 };
@@ -34,6 +36,7 @@ export function AdvisorAvatar({
   iconKey,
   chipBg,
   iconColor,
+  portraitSrc,
   className = "",
   iconClassName = "",
   size = 34,
@@ -41,7 +44,7 @@ export function AdvisorAvatar({
 }: AdvisorAvatarProps) {
   return (
     <span
-      className={`relative flex shrink-0 items-center justify-center rounded-[28px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.72)] ${className}`}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[28px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.72)] ${className}`}
       style={{
         background: `radial-gradient(circle at 35% 28%, #FFFFFF 0%, ${chipBg} 44%, ${chipBg} 100%)`,
         color: iconColor,
@@ -58,6 +61,16 @@ export function AdvisorAvatar({
         strokeWidth={strokeWidth}
         className={`relative drop-shadow-[0_4px_8px_rgba(63,45,35,0.10)] ${iconClassName}`}
       />
+      {portraitSrc ? (
+        <img
+          src={portraitSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full rounded-[inherit] object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
     </span>
   );
 }

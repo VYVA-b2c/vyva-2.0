@@ -42,7 +42,7 @@ describe("advisors API", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns seven enabled AI experts with localized copy", async () => {
+  it("returns eight enabled AI experts with localized copy", async () => {
     const res = await request(buildApp())
       .get("/api/advisors?lang=en")
       .set("x-user-id", "advisor-list-user")
@@ -55,6 +55,7 @@ describe("advisors API", () => {
       "elena",
       "sabio",
       "marta",
+      "ines",
       "diego",
     ]);
     expect(res.body.advisors[0]).toMatchObject({
@@ -63,6 +64,13 @@ describe("advisors API", () => {
       recencyLabel: "Never talked",
     });
     expect(res.body.ui.title).toBe("Choose an expert");
+    expect(res.body.advisors[6]).toMatchObject({
+      slug: "ines",
+      name: "Inés",
+      role: "Benefits",
+      iconKey: "benefits",
+      sortOrder: 55,
+    });
   });
 
   it("starts a first expert session and updates recency state", async () => {
@@ -92,18 +100,18 @@ describe("advisors API", () => {
     const res = await request(buildApp())
       .post("/api/advisors/diego/messages?lang=en")
       .set("x-user-id", userId)
-      .send({ prompt: "My phone is stuck", source: "text" })
+      .send({ prompt: "A caller asked for my bank code", source: "text" })
       .expect(200);
 
     expect(res.body.userMessage).toMatchObject({
       role: "user",
-      text: "My phone is stuck",
+      text: "A caller asked for my bank code",
     });
     expect(res.body.assistantMessage).toMatchObject({
       role: "assistant",
       source: "fallback",
     });
-    expect(res.body.assistantMessage.text).toMatch(/device/i);
+    expect(res.body.assistantMessage.text).toMatch(/suspicious|passwords|codes|bank details/i);
 
     const history = await request(buildApp())
       .get("/api/advisors/diego/session?lang=en")

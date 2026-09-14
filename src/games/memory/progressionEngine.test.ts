@@ -3,11 +3,15 @@ import {
   getRecommendedLevelForGame,
   getRepeatLevelForResult,
   getVisualMemoryLevelProgress,
+  applyStoryDifficultyChoice,
+  pickStoryVariantForTheme,
   MEMORY_LEVEL_UP_ACCURACY,
+  pickVariantForGame,
   pickNextVariantForSameGame,
   VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
 } from "./progressionEngine";
 import type { GameResult } from "./types";
+import { memoryGameRegistry } from "./memoryGameRegistry";
 
 function visualResult(level: number, accuracy: number, minutesAgo: number): GameResult {
   return {
@@ -25,6 +29,10 @@ function visualResult(level: number, accuracy: number, minutesAgo: number): Game
   };
 }
 
+function numberResult(level: number, accuracy: number): GameResult {
+  return { ...visualResult(level, accuracy, 0), gameType: "number_memory", cognitiveDomain: "working_memory", variantId: `number_memory-l${level}-v1` };
+}
+
 describe("memory game progression", () => {
   it("keeps repeat on the current level below the level-up threshold", () => {
     expect(getRepeatLevelForResult(3, MEMORY_LEVEL_UP_ACCURACY - 1)).toBe(3);
@@ -38,11 +46,51 @@ describe("memory game progression", () => {
     expect(getRepeatLevelForResult(20, 100)).toBe(20);
   });
 
+  it("allows Number Memory to advance from legacy Level 20 while other games remain capped", () => {
+    expect(getRepeatLevelForResult(20, 100, "number_memory")).toBe(21);
+    expect(getRepeatLevelForResult(30, 100, "number_memory")).toBe(30);
+    expect(getRepeatLevelForResult(20, 100, "word_recall")).toBe(20);
+  });
+
+  it("recommends Level 21 after a successful legacy Number Memory Level 20 result", () => {
+    expect(getRecommendedLevelForGame([numberResult(20, 100)], "number_memory")).toBe(21);
+  });
+
   it("can exclude the just-played variant before storage history catches up", () => {
-    const nextVariant = pickNextVariantForSameGame([], "memory_match", 1, "memory_match-l1-v1");
+    const nextVariant = pickNextVariantForSameGame([], "memory_match", 1, "memory_match-l1-v1", () => 0);
 
     expect(nextVariant.id).not.toBe("memory_match-l1-v1");
     expect(nextVariant.level).toBe(1);
+  });
+
+  it("randomly rotates the first variant for a fresh session", () => {
+    const firstChoice = pickVariantForGame([], "word_recall", 1, () => 0);
+    const laterChoice = pickVariantForGame([], "word_recall", 1, () => 0.75);
+
+    expect(firstChoice.id).toBe("word_recall-l1-v1");
+    expect(laterChoice.id).not.toBe(firstChoice.id);
+  });
+
+  it("randomly rotates retries while excluding the round just completed", () => {
+    const earlyChoice = pickNextVariantForSameGame([], "word_recall", 1, "word_recall-l1-v1", () => 0);
+    const laterChoice = pickNextVariantForSameGame([], "word_recall", 1, "word_recall-l1-v1", () => 0.75);
+
+    expect(earlyChoice.id).not.toBe("word_recall-l1-v1");
+    expect(laterChoice.id).not.toBe("word_recall-l1-v1");
+    expect(laterChoice.id).not.toBe(earlyChoice.id);
+  });
+
+  it("avoids every Word Recall variant used by a recent multi-round session", () => {
+    const historyEntry: GameResult = {
+      ...numberResult(1, 100),
+      gameType: "word_recall",
+      cognitiveDomain: "episodic_memory",
+      variantId: "word_recall-l1-v1",
+      metadata: { wordRecallVariantIds: ["word_recall-l1-v1", "word_recall-l1-v2", "word_recall-l1-v3"] },
+    };
+
+    const nextVariant = pickVariantForGame([historyEntry], "word_recall", 1, () => 0);
+    expect(nextVariant.id).toBe("word_recall-l1-v4");
   });
 
   it("advances Visual Memory after one completed board without trapping lower scores", () => {
@@ -63,12 +111,77 @@ describe("memory game progression", () => {
     expect(getRecommendedLevelForGame([visualResult(9, 46, 0)], "memory_match")).toBe(10);
   });
 
-  it("completes Mastery at Level 20 without inventing a Level 21", () => {
+  it("keeps the highest Visual Memory level unlocked after replaying an earlier level", () => {
+    const history = [visualResult(4, 100, 0), visualResult(12, 70, 10)];
+
+    expect(getRecommendedLevelForGame(history, "memory_match")).toBe(13);
+  });
+
+  it("unlocks Level 21 after completing the former Level 20 ceiling", () => {
     expect(getVisualMemoryLevelProgress([], 20)).toMatchObject({
       completedRounds: 1,
       levelCompleted: true,
-      advanced: false,
-      nextLevel: 20,
+      advanced: true,
+      nextLevel: 21,
     });
+    expect(getRecommendedLevelForGame([visualResult(20, 100, 0)], "memory_match")).toBe(21);
+  });
+
+  it("completes Mastery at Level 40 without inventing a Level 41", () => {
+    expect(getVisualMemoryLevelProgress([], 40)).toMatchObject({
+      completedRounds: 1,
+      levelCompleted: true,
+      advanced: false,
+      nextLevel: 40,
+    });
+    expect(getRecommendedLevelForGame([visualResult(40, 100, 0)], "memory_match")).toBe(40);
+  });
+
+  it("avoids the immediately previous Visual Memory theme", () => {
+    const level = memoryGameRegistry.memory_match.levels[20];
+    const justPlayed = level.variants[0];
+    const previousTheme = (justPlayed.content.en ?? justPlayed.content.es).payload.themeId;
+    const nextVariant = pickNextVariantForSameGame(
+      [{ ...visualResult(21, 100, 0), variantId: justPlayed.id }],
+      "memory_match",
+      21,
+      justPlayed.id,
+    );
+
+    expect((nextVariant.content.en ?? nextVariant.content.es).payload.themeId).not.toBe(previousTheme);
+  });
+
+  it("keeps story challenge choices within one level and the 20-level bounds", () => {
+    expect(applyStoryDifficultyChoice(1, "gentle")).toBe(1);
+    expect(applyStoryDifficultyChoice(8, "gentle")).toBe(7);
+    expect(applyStoryDifficultyChoice(8, "recommended")).toBe(8);
+    expect(applyStoryDifficultyChoice(8, "stretch")).toBe(9);
+    expect(applyStoryDifficultyChoice(20, "stretch")).toBe(20);
+  });
+
+  it("filters story variants by theme and avoids a recently played story id", () => {
+    const first = pickStoryVariantForTheme([], 6, "nature");
+    const storyId = first.content.en!.payload.storyId as string;
+    const history: GameResult[] = [{
+      ...visualResult(6, 90, 0),
+      gameType: "story_recall",
+      cognitiveDomain: "language",
+      variantId: first.id,
+      metadata: { storyId, themeId: "nature", scoringMode: "composite", adaptiveBaseline: 6 },
+    }];
+    const next = pickStoryVariantForTheme(history, 6, "nature");
+
+    expect(next.content.en!.payload.themeId).toBe("nature");
+    expect(next.content.en!.payload.storyId).not.toBe(storyId);
+  });
+
+  it("does not lower the adaptive story baseline after fallback scoring", () => {
+    const fallback: GameResult = {
+      ...visualResult(8, 0, 0),
+      gameType: "story_recall",
+      cognitiveDomain: "language",
+      metadata: { adaptiveBaseline: 8, scoringMode: "quiz_fallback" },
+    };
+    expect(getRecommendedLevelForGame([fallback], "story_recall")).toBe(8);
   });
 });

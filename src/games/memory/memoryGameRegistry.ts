@@ -4,6 +4,14 @@ import {
   BRAIN_COACH_MAX_LEVEL,
   getBrainCoachLevelBand,
 } from "../shared/brainCoachProgression";
+import {
+  getVisualMemoryBand,
+  getVisualMemoryDifficulty,
+  VISUAL_MEMORY_MAX_LEVEL,
+  VISUAL_MEMORY_NEW_THEMES,
+  type VisualMemoryBandId,
+  type VisualMemoryVisual,
+} from "./visualMemoryJourney";
 import type {
   CognitiveDomain,
   MemoryGameDefinition,
@@ -12,18 +20,28 @@ import type {
   MemoryGameVariant,
   MemoryGameVariantContent,
 } from "./types";
+import { buildConnectionsLevels } from "./connectionsData";
+import { buildNumberMemoryLevels } from "./numberMemoryData";
+import { buildStoryRecallLevels } from "./storyRecallData";
 
 type LocalizedValue<T> = Partial<Record<LanguageCode, T>> & { es: T };
 
 type MemoryMatchItem = {
-  emoji: string;
+  emoji?: string;
+  id?: string;
   labels: Record<LanguageCode, string>;
+  visual?: VisualMemoryVisual;
 };
 
 type MemoryMatchSet = {
   titles: Record<LanguageCode, string>;
   prompts: Record<LanguageCode, string>;
   items: MemoryMatchItem[];
+};
+
+type JourneyMemoryMatchSet = MemoryMatchSet & {
+  id: string;
+  bandId: VisualMemoryBandId;
 };
 
 type SequenceTemplate = {
@@ -48,20 +66,42 @@ type WordRecallSet = {
   distractors: WordRecallItem[];
 };
 
+const WORD_RECALL_SET_THEMES = ["food", "home", "garden", "community", "home", "community", "community", "home", "travel", "garden"] as const;
+const WORD_RECALL_THEME_EMOJI = { food: "🍲", home: "🏡", garden: "🌿", community: "🤝", travel: "🧳" } as const;
+const WORD_RECALL_THEME_SUPPLEMENTAL_WORDS: Partial<Record<(typeof WORD_RECALL_SET_THEMES)[number], WordRecallItem[]>> = {
+  food: [
+    { labels: { es: "manzana", en: "apple", fr: "pomme", de: "Apfel", it: "mela", pt: "maca" } },
+    { labels: { es: "arroz", en: "rice", fr: "riz", de: "Reis", it: "riso", pt: "arroz" } },
+    { labels: { es: "tomate", en: "tomato", fr: "tomate", de: "Tomate", it: "pomodoro", pt: "tomate" } },
+    { labels: { es: "te", en: "tea", fr: "the", de: "Tee", it: "te", pt: "cha" } },
+    { labels: { es: "yogur", en: "yogurt", fr: "yaourt", de: "Joghurt", it: "yogurt", pt: "iogurte" } },
+    { labels: { es: "galleta", en: "biscuit", fr: "biscuit", de: "Keks", it: "biscotto", pt: "bolacha" } },
+  ],
+  travel: [
+    { labels: { es: "autobus", en: "bus", fr: "bus", de: "Bus", it: "autobus", pt: "autocarro" } },
+    { labels: { es: "pasaporte", en: "passport", fr: "passeport", de: "Reisepass", it: "passaporto", pt: "passaporte" } },
+    { labels: { es: "hotel", en: "hotel", fr: "hotel", de: "Hotel", it: "hotel", pt: "hotel" } },
+    { labels: { es: "playa", en: "beach", fr: "plage", de: "Strand", it: "spiaggia", pt: "praia" } },
+    { labels: { es: "camara", en: "camera", fr: "appareil photo", de: "Kamera", it: "macchina fotografica", pt: "camara" } },
+    { labels: { es: "puente", en: "bridge", fr: "pont", de: "Brucke", it: "ponte", pt: "ponte" } },
+  ],
+};
+const WORD_RECALL_WORD_ICONS: Record<string, string> = {
+  bread: "🍞", milk: "🥛", cheese: "🧀", soup: "🥣", pear: "🍐", honey: "🍯",
+  key: "🔑", table: "🪑", chair: "🪑", lamp: "💡", window: "🪟", cushion: "🛋️",
+  cat: "🐈", dog: "🐕", bird: "🐦", fish: "🐟", horse: "🐴", rabbit: "🐇",
+  shirt: "👕", shoe: "👞", coat: "🧥", sock: "🧦", glove: "🧤", scarf: "🧣",
+  "wake up": "🌅", wash: "🫧", dress: "👔", breakfast: "☕", walk: "🚶", read: "📖",
+  park: "🌳", pharmacy: "⚕️", market: "🧺", church: "⛪", cafe: "☕", square: "🏘️",
+  doctor: "🩺", appointment: "📅", diary: "📔", taxi: "🚕", prescription: "📄", card: "💳",
+  television: "📺", remote: "🎛️", sofa: "🛋️", blanket: "🧶",
+  train: "🚆", ticket: "🎫", platform: "🚉", suitcase: "🧳", seat: "💺", map: "🗺️",
+  flower: "🌸", plant: "🪴", pot: "🪴", "watering can": "🚿", leaf: "🍃", bench: "🪑",
+};
+
 type RoutineTemplate = {
   title: string;
   activities: string[];
-};
-
-type AssociationLabel = Partial<Record<LanguageCode, string>> & {
-  es: string;
-  en: string;
-};
-
-type AssociationTemplate = {
-  left: AssociationLabel;
-  right: AssociationLabel;
-  extra: string;
 };
 
 type GameContentLanguage = LanguageCode;
@@ -84,6 +124,9 @@ type StoryTemplate = Record<GameContentLanguage, StoryContent>;
 const GAME_CONTENT_LANGUAGES: GameContentLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
 const MEMORY_GAME_LEVELS = Array.from({ length: BRAIN_COACH_MAX_LEVEL }, (_, index) => index + 1);
 const MEMORY_MATCH_VARIANTS_PER_THEME = 3;
+const VISUAL_MEMORY_LEVELS = Array.from({ length: VISUAL_MEMORY_MAX_LEVEL }, (_, index) => index + 1);
+
+export { getVisualMemoryDifficulty } from "./visualMemoryJourney";
 
 function createVariant(
   id: string,
@@ -141,10 +184,11 @@ function getMemoryMatchOffsets(itemCount: number, pairCount: number) {
   );
 }
 
-function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, level: number, itemOffset: number): LocalizedValue<MemoryGameVariantContent> {
+function localizeMemoryMatchContent(set: JourneyMemoryMatchSet, pairCount: number, level: number, itemOffset: number): LocalizedValue<MemoryGameVariantContent> {
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
-  const band = getBrainCoachLevelBand(level);
+  const band = getVisualMemoryBand(level);
   const pairItems = pickMemoryMatchItems(set.items, pairCount, itemOffset);
+  const difficulty = getVisualMemoryDifficulty(level);
 
   return languages.reduce((accumulator, language) => {
     accumulator[language] = {
@@ -152,11 +196,18 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
       prompt: set.prompts[language],
       payload: {
         pairItems: pairItems.map((item) => ({
+          id: item.id ?? `${set.id}-${item.labels.en}`,
           label: item.labels[language],
-          emoji: item.emoji,
+          emoji: item.emoji ?? (item.visual?.kind === "emoji" ? item.visual.glyph : ""),
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
         })),
-        levelBand: band.label,
+        themeId: set.id,
+        bandId: set.bandId,
+        levelBand: band.labels[language],
         previewSeconds: Math.max(0, 6 - Math.floor((level - 1) / 4)),
+        showLabels: difficulty.showLabels,
+        mismatchRevealMs: difficulty.mismatchRevealMs,
+        matchRevealMs: difficulty.matchRevealMs,
       },
     };
 
@@ -164,24 +215,25 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
   }, {} as LocalizedValue<MemoryGameVariantContent>);
 }
 
-function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const pairCounts = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
-  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
+function buildMemoryMatchLevels(sets: JourneyMemoryMatchSet[]): MemoryGameLevel[] {
+  const levelSpecs = VISUAL_MEMORY_LEVELS.map((level) => ({
     level,
-    pairs: pairCounts[level - 1] ?? 8,
+    pairs: getVisualMemoryDifficulty(level).pairCount,
   }));
 
   return levelSpecs.map((spec) => {
-    const maxOffsetCount = Math.max(...sets.map((set) => getMemoryMatchOffsets(set.items.length, spec.pairs).length));
+    const bandId = getVisualMemoryBand(spec.level).id;
+    const levelSets = sets.filter((set) => set.bandId === bandId);
+    const maxOffsetCount = Math.max(...levelSets.map((set) => getMemoryMatchOffsets(set.items.length, spec.pairs).length));
     const variants = Array.from({ length: maxOffsetCount }).flatMap((_, offsetIndex) =>
-      sets.flatMap((set, setIndex) => {
+      levelSets.flatMap((set) => {
         const offsets = getMemoryMatchOffsets(set.items.length, spec.pairs);
         const itemOffset = offsets[offsetIndex];
         if (itemOffset === undefined) return [];
 
         return [
           createVariant(
-            `memory_match-l${spec.level}-v${offsetIndex * sets.length + setIndex + 1}`,
+            `memory_match-l${spec.level}-${set.id}-v${offsetIndex + 1}`,
             spec.level,
             localizeMemoryMatchContent(set, spec.pairs, spec.level, itemOffset),
           ),
@@ -220,17 +272,48 @@ function buildListLevels(
 }
 
 function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
-  const distractionRotation = ["count_backwards", "choose_blue", "breathe_continue"] as const;
+  const distractionRotation = ["count_backwards", "choose_blue", "breathe_continue", "number_order"] as const;
   const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
     level,
-    count: Math.min(6, 3 + Math.floor((level - 1) / 4)),
-    distractionType: level <= 4 ? null : distractionRotation[(level - 5) % distractionRotation.length],
+    count: Math.min(6, 3 + Math.floor((level - 1) / 5)),
+    distractionType: level <= 5 ? null : distractionRotation[(level - 6) % distractionRotation.length],
   }));
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
 
   return levelSpecs.map((spec) => ({
     level: spec.level,
-    variants: sets.map((set, index) => {
+    variants: sets.map((_set, index) => {
+      const themeIndex = (index + spec.level - 1) % sets.length;
+      const set = sets[themeIndex];
+      const themeId = WORD_RECALL_SET_THEMES[themeIndex];
+      const precedingWordCount = levelSpecs
+        .filter((levelSpec) => levelSpec.level < spec.level)
+        .reduce((total, levelSpec) => total + levelSpec.count, 0);
+      const themeWords = [
+        ...sets.flatMap((candidateSet, candidateIndex) => (
+          WORD_RECALL_SET_THEMES[candidateIndex] === themeId ? candidateSet.words : []
+        )),
+        ...(WORD_RECALL_THEME_SUPPLEMENTAL_WORDS[themeId] ?? []),
+      ].filter((item, itemIndex, items) => items.findIndex((candidate) => candidate.labels.es === item.labels.es) === itemIndex);
+      const themeVariantRank = Array.from({ length: index }, (_, candidateIndex) => candidateIndex)
+        .filter((candidateIndex) => WORD_RECALL_SET_THEMES[(candidateIndex + spec.level - 1) % sets.length] === themeId)
+        .length;
+      const wordOffset = (precedingWordCount + themeVariantRank * spec.count) % themeWords.length;
+      const rotatedThemeWords = [...themeWords.slice(wordOffset), ...themeWords.slice(0, wordOffset)];
+      const selectedWords = rotatedThemeWords.slice(0, spec.count);
+      const selectedSpanishWords = new Set(selectedWords.map((item) => item.labels.es));
+      const distractorOffset = (spec.level + index) % set.distractors.length;
+      const distractorCandidates = [
+        ...rotatedThemeWords.slice(spec.count),
+        ...set.distractors.slice(distractorOffset),
+        ...set.distractors.slice(0, distractorOffset),
+        ...sets.flatMap((entry) => [...entry.distractors, ...entry.words]),
+      ];
+      const selectedDistractors = distractorCandidates.filter((item, candidateIndex, candidates) => (
+        !selectedSpanishWords.has(item.labels.es)
+        && candidates.findIndex((candidate) => candidate.labels.es === item.labels.es) === candidateIndex
+      )).slice(0, spec.count + 1);
+
       const content = languages.reduce((accumulator, language) => {
         const distractionType = spec.distractionType;
 
@@ -238,11 +321,16 @@ function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
           title: set.titles[language],
           prompt: set.prompts[language],
           payload: {
-            words: set.words.slice(0, spec.count).map((item) => item.labels[language]),
-            distractors: set.distractors.slice(0, spec.count + 1).map((item) => item.labels[language]),
+            words: selectedWords.map((item) => item.labels[language]),
+            distractors: selectedDistractors.map((item) => item.labels[language]),
             distractionType,
             levelBand: getBrainCoachLevelBand(spec.level).label,
             recallMode: spec.level >= 15 ? "mastery" : spec.level >= 9 ? "delayed" : "guided",
+            themeId,
+            themeEmoji: WORD_RECALL_THEME_EMOJI[themeId],
+            wordIcons: selectedWords.map((item) => WORD_RECALL_WORD_ICONS[item.labels.en] ?? WORD_RECALL_THEME_EMOJI[themeId]),
+            showWordCues: spec.level <= 8,
+            challengeKind: spec.level >= 17 ? "order" : spec.level === 10 || spec.level === 15 ? "first" : spec.level >= 13 ? "category" : "recognition",
           },
         };
 
@@ -465,69 +553,6 @@ function buildSequenceLevels(templates: readonly SequenceTemplate[]): MemoryGame
   }));
 }
 
-function buildNumberDigits(set: readonly string[], templateIndex: number, level: number, targetLength: number) {
-  const source = set[(level - 1) % set.length] ?? set[0] ?? "123";
-  if (source.length >= targetLength) return source.slice(0, targetLength);
-
-  let digits = source;
-  let seed = (templateIndex + 1) * 41 + level * 67;
-  while (digits.length < targetLength) {
-    seed = (seed * 9301 + 49297) % 233280;
-    digits += String(seed % 10);
-  }
-
-  return digits;
-}
-
-function getNumberMemoryTitle(language: LanguageCode, index: number) {
-  return language === "es" ? `Números ${index + 1}` : `Numbers ${index + 1}`;
-}
-
-function getNumberMemoryPrompt(language: LanguageCode, count: number, reverse: boolean) {
-  if (language === "es") {
-    return reverse
-      ? `Recuerda ${count} digitos y repitelos en orden inverso.`
-      : `Recuerda ${count} digitos en orden.`;
-  }
-
-  return reverse
-    ? `Remember ${count} digits and enter them in reverse order.`
-    : `Remember ${count} digits in order.`;
-}
-
-function buildNumberLevels(numberTemplates: readonly string[][]): MemoryGameLevel[] {
-  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
-    const count = Math.min(8, 3 + Math.floor((level - 1) / 3));
-    const reverse = level >= 6 && level % 2 === 0;
-    return {
-      level,
-      count,
-      reverse,
-    };
-  });
-
-  return levelSpecs.map((spec) => ({
-    level: spec.level,
-    variants: numberTemplates.map((set, index) => {
-      const digits = buildNumberDigits(set, index, spec.level, spec.count);
-      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
-        accumulator[language] = {
-          title: getNumberMemoryTitle(language, index),
-          prompt: getNumberMemoryPrompt(language, spec.count, spec.reverse),
-          payload: {
-            digits,
-            reverse: spec.reverse,
-            levelBand: getBrainCoachLevelBand(spec.level).label,
-          },
-        };
-        return accumulator;
-      }, {} as LocalizedValue<MemoryGameVariantContent>);
-
-      return createVariant(`number_memory-l${spec.level}-v${index + 1}`, spec.level, content);
-    }),
-  }));
-}
-
 function buildRoutineLevels(routines: readonly RoutineTemplate[]): MemoryGameLevel[] {
   return [
     {
@@ -575,100 +600,6 @@ function buildRoutineLevels(routines: readonly RoutineTemplate[]): MemoryGameLev
         payload: spec.payload(template, index),
       })),
     ),
-  }));
-}
-
-function getAssociationLabel(label: AssociationLabel, language: LanguageCode) {
-  return label[language] ?? label.en ?? label.es;
-}
-
-function getAssociationTitle(language: LanguageCode, index: number) {
-  return language === "es" ? `Asociación ${index + 1}` : `Association ${index + 1}`;
-}
-
-function buildAssociationLevels(templates: readonly AssociationTemplate[]): MemoryGameLevel[] {
-  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
-    const mode = ((level - 1) % 5) + 1;
-    const sharedPayload = (template: AssociationTemplate) => ({
-      levelBand: getBrainCoachLevelBand(level).label,
-      delaySeconds: level >= 11 ? 6 : level >= 6 ? 4 : 2,
-      choiceCount: Math.min(4, 2 + Math.floor((level - 1) / 5)),
-      icon: template.extra,
-    });
-    const promptByLanguage = (es: string, en: string) => (language: LanguageCode) => language === "es" ? es : en;
-
-    if (mode === 1) {
-      return {
-        level,
-        prompt: promptByLanguage("Relaciona objeto y categoria.", "Link the item to its group."),
-        payload: (template: AssociationTemplate, language: LanguageCode) => ({
-          ...sharedPayload(template),
-          left: getAssociationLabel(template.left, language),
-          right: getAssociationLabel(template.right, language),
-        }),
-      };
-    }
-
-    if (mode === 2) {
-      return {
-        level,
-        prompt: promptByLanguage("Relaciona un nombre con su objeto.", "Link the person to the item."),
-        payload: (template: AssociationTemplate, language: LanguageCode) => ({
-          ...sharedPayload(template),
-          name: getAssociationLabel(template.left, language),
-          object: getAssociationLabel(template.right, language),
-        }),
-      };
-    }
-
-    if (mode === 3) {
-      return {
-        level,
-        prompt: promptByLanguage("Relaciona un icono con un nombre.", "Link the symbol to the name."),
-        payload: (template: AssociationTemplate, language: LanguageCode) => ({
-          ...sharedPayload(template),
-          icon: template.extra,
-          name: getAssociationLabel(template.left, language),
-        }),
-      };
-    }
-
-    if (mode === 4) {
-      return {
-        level,
-        prompt: promptByLanguage("Relaciona una persona con su rutina.", "Link the person to the daily detail."),
-        payload: (template: AssociationTemplate, language: LanguageCode) => ({
-          ...sharedPayload(template),
-          person: getAssociationLabel(template.left, language),
-          routine: getAssociationLabel(template.right, language),
-        }),
-      };
-    }
-
-    return {
-      level,
-      prompt: promptByLanguage("Memoriza la asociacion ahora y recuerdala despues.", "Remember the link, then recall it after a short pause."),
-      payload: (template: AssociationTemplate, language: LanguageCode) => ({
-        ...sharedPayload(template),
-        pair: [getAssociationLabel(template.left, language), getAssociationLabel(template.right, language)],
-      }),
-    };
-  });
-
-  return levelSpecs.map((spec) => ({
-    level: spec.level,
-    variants: templates.map((template, index) => {
-      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
-        accumulator[language] = {
-          title: getAssociationTitle(language, index),
-          prompt: spec.prompt(language),
-          payload: spec.payload(template, language),
-        };
-        return accumulator;
-      }, {} as LocalizedValue<MemoryGameVariantContent>);
-
-      return createVariant(`association_memory-l${spec.level}-v${index + 1}`, spec.level, content);
-    }),
   }));
 }
 
@@ -989,6 +920,20 @@ const memoryMatchSets: MemoryMatchSet[] = [
   },
 ];
 
+const visualMemoryJourneySets: JourneyMemoryMatchSet[] = [
+  { ...memoryMatchSets[0], id: "foundation-fruit", bandId: "foundation" },
+  { ...memoryMatchSets[2], id: "foundation-animals", bandId: "foundation" },
+  { ...memoryMatchSets[3], id: "foundation-home", bandId: "foundation" },
+  { ...memoryMatchSets[8], id: "foundation-breakfast", bandId: "foundation" },
+  ...VISUAL_MEMORY_NEW_THEMES.map((theme) => ({
+    id: theme.id,
+    bandId: theme.bandId,
+    titles: theme.titles,
+    prompts: theme.prompts,
+    items: theme.items,
+  })),
+];
+
 const sequenceTemplates: SequenceTemplate[] = [
   { titles: { es: "Colores del jardín", en: "Garden colours", fr: "Couleurs du jardin", de: "Farben im Garten", it: "Colori del giardino", pt: "Cores do jardim" }, items: ["verde", "amarillo", "rojo", "azul", "blanco", "morado"] },
   { titles: { es: "Pasos de cocina", en: "Cooking steps", fr: "Étapes de cuisine", de: "Kochschritte", it: "Passi in cucina", pt: "Passos na cozinha" }, items: ["lavar", "cortar", "mezclar", "cocinar", "servir", "probar"] },
@@ -1298,18 +1243,58 @@ const wordRecallSets: WordRecallSet[] = [
   },
 ];
 
-const numberTemplates = [
-  ["318", "4827", "56091", "704126", "381204"],
-  ["245", "6718", "53942", "186405", "297531"],
-  ["907", "1245", "68319", "452781", "640215"],
-  ["156", "9084", "37162", "824903", "915742"],
-  ["482", "3159", "74018", "193684", "258470"],
-  ["639", "2704", "85213", "470925", "613580"],
-  ["571", "8462", "20954", "315870", "462193"],
-  ["824", "1937", "68420", "951306", "704281"],
-  ["260", "7815", "43092", "286417", "539162"],
-  ["714", "5628", "14730", "820564", "381947"],
-] as const;
+const wordRecallSimilarDistractors: WordRecallItem[][] = [
+  [
+    { labels: { es: "yogur", en: "yogurt", fr: "yaourt", de: "Joghurt", it: "yogurt", pt: "iogurte" } },
+    { labels: { es: "manzana", en: "apple", fr: "pomme", de: "Apfel", it: "mela", pt: "maçã" } },
+    { labels: { es: "arroz", en: "rice", fr: "riz", de: "Reis", it: "riso", pt: "arroz" } },
+  ],
+  [
+    { labels: { es: "espejo", en: "mirror", fr: "miroir", de: "Spiegel", it: "specchio", pt: "espelho" } },
+    { labels: { es: "armario", en: "cupboard", fr: "placard", de: "Schrank", it: "armadio", pt: "armário" } },
+    { labels: { es: "jarrón", en: "vase", fr: "vase", de: "Vase", it: "vaso", pt: "jarra" } },
+  ],
+  [
+    { labels: { es: "oveja", en: "sheep", fr: "mouton", de: "Schaf", it: "pecora", pt: "ovelha" } },
+    { labels: { es: "tortuga", en: "turtle", fr: "tortue", de: "Schildkröte", it: "tartaruga", pt: "tartaruga" } },
+    { labels: { es: "pato", en: "duck", fr: "canard", de: "Ente", it: "anatra", pt: "pato" } },
+  ],
+  [
+    { labels: { es: "pantalón", en: "trousers", fr: "pantalon", de: "Hose", it: "pantaloni", pt: "calças" } },
+    { labels: { es: "chaqueta", en: "jacket", fr: "veste", de: "Jacke", it: "giacca", pt: "casaco" } },
+    { labels: { es: "gorra", en: "cap", fr: "casquette", de: "Kappe", it: "berretto", pt: "boné" } },
+  ],
+  [
+    { labels: { es: "ducharse", en: "shower", fr: "se doucher", de: "duschen", it: "fare la doccia", pt: "tomar banho" } },
+    { labels: { es: "peinarse", en: "comb hair", fr: "se coiffer", de: "kämmen", it: "pettinarsi", pt: "pentear-se" } },
+    { labels: { es: "estirarse", en: "stretch", fr: "s'étirer", de: "dehnen", it: "stirarsi", pt: "alongar-se" } },
+  ],
+  [
+    { labels: { es: "panadería", en: "bakery", fr: "boulangerie", de: "Bäckerei", it: "panetteria", pt: "padaria" } },
+    { labels: { es: "banco", en: "bank", fr: "banque", de: "Bank", it: "banca", pt: "banco" } },
+    { labels: { es: "biblioteca", en: "library", fr: "bibliothèque", de: "Bibliothek", it: "biblioteca", pt: "biblioteca" } },
+  ],
+  [
+    { labels: { es: "recibo", en: "receipt", fr: "reçu", de: "Quittung", it: "ricevuta", pt: "recibo" } },
+    { labels: { es: "cartera", en: "wallet", fr: "portefeuille", de: "Geldbörse", it: "portafoglio", pt: "carteira" } },
+    { labels: { es: "turno", en: "queue number", fr: "numéro", de: "Wartenummer", it: "numero", pt: "senha" } },
+  ],
+  [
+    { labels: { es: "estantería", en: "bookshelf", fr: "bibliothèque", de: "Bücherregal", it: "libreria", pt: "estante" } },
+    { labels: { es: "cortina", en: "curtain", fr: "rideau", de: "Vorhang", it: "tenda", pt: "cortina" } },
+    { labels: { es: "alfombra", en: "rug", fr: "tapis", de: "Teppich", it: "tappeto", pt: "tapete" } },
+  ],
+  [
+    { labels: { es: "pasaporte", en: "passport", fr: "passeport", de: "Reisepass", it: "passaporto", pt: "passaporte" } },
+    { labels: { es: "horario", en: "timetable", fr: "horaire", de: "Fahrplan", it: "orario", pt: "horário" } },
+    { labels: { es: "estación", en: "station", fr: "gare", de: "Bahnhof", it: "stazione", pt: "estação" } },
+  ],
+  [
+    { labels: { es: "tierra", en: "soil", fr: "terre", de: "Erde", it: "terra", pt: "terra" } },
+    { labels: { es: "semilla", en: "seed", fr: "graine", de: "Samen", it: "seme", pt: "semente" } },
+    { labels: { es: "valla", en: "fence", fr: "clôture", de: "Zaun", it: "recinzione", pt: "vedação" } },
+  ],
+];
 
 const routineTemplates: RoutineTemplate[] = [
   { title: "Mañana tranquila", activities: ["despertarse", "lavarse la cara", "desayunar", "salir a caminar", "leer el periódico"] },
@@ -1322,19 +1307,6 @@ const routineTemplates: RoutineTemplate[] = [
   { title: "Comprar ingredientes", activities: ["revisar nevera", "anotar faltas", "ir a tienda", "pagar", "guardar ticket"] },
   { title: "Paseo con paraguas", activities: ["mirar tiempo", "ponerse abrigo", "coger paraguas", "cerrar puerta", "salir"] },
   { title: "Merienda en casa", activities: ["poner mantel", "servir té", "cortar fruta", "sentarse", "recoger mesa"] },
-];
-
-const associationTemplates: AssociationTemplate[] = [
-  { left: { es: "manzana", en: "apple" }, right: { es: "fruta", en: "fruit" }, extra: "🍎" },
-  { left: { es: "Carmen", en: "Carmen" }, right: { es: "gafas", en: "glasses" }, extra: "👓" },
-  { left: { es: "Javier", en: "Javier" }, right: { es: "paraguas", en: "umbrella" }, extra: "☂️" },
-  { left: { es: "taza", en: "cup" }, right: { es: "cocina", en: "kitchen" }, extra: "☕" },
-  { left: { es: "Lola", en: "Lola" }, right: { es: "llaves", en: "keys" }, extra: "🔑" },
-  { left: { es: "vecino", en: "neighbour" }, right: { es: "periódico", en: "newspaper" }, extra: "📰" },
-  { left: { es: "farmacia", en: "pharmacy" }, right: { es: "medicación", en: "medicine" }, extra: "💊" },
-  { left: { es: "Rosa", en: "Rosa" }, right: { es: "bufanda", en: "scarf" }, extra: "🧣" },
-  { left: { es: "doctor", en: "doctor" }, right: { es: "agenda", en: "calendar" }, extra: "📒" },
-  { left: { es: "mercado", en: "market" }, right: { es: "tomates", en: "tomatoes" }, extra: "🍅" },
 ];
 
 const storyTemplates: StoryTemplate[] = [
@@ -1748,11 +1720,11 @@ const wordRecallLevels = buildListLevels(
 );
 
 const wordRecallPlayableLevels = buildWordRecallLevels(wordRecallSets);
-const numberMemoryLevels = buildNumberLevels(numberTemplates);
+const numberMemoryLevels = buildNumberMemoryLevels();
 const routineLevels = buildRoutineLevels(routineTemplates);
-const associationLevels = buildAssociationLevels(associationTemplates);
-const storyLevels = buildStoryLevels(storyTemplates);
-const memoryMatchLevels = buildMemoryMatchLevels(memoryMatchSets);
+const associationLevels = buildConnectionsLevels();
+const storyLevels = buildStoryRecallLevels();
+const memoryMatchLevels = buildMemoryMatchLevels(visualMemoryJourneySets);
 
 export const MEMORY_GAME_ORDER: MemoryGameType[] = [
   "memory_match",

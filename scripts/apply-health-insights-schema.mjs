@@ -31,6 +31,7 @@ const longevityPlanSql = readMigration("0086_longevity_prevention_plans.sql");
 const longevityIdentitySql = readMigration("0087_longevity_prevention_identity.sql");
 const longevityDailyContentSql = readMigration("0089_prevention_daily_content.sql");
 const longevityCompanionSql = readMigration("0093_longevity_companion_events.sql");
+const longevityContentUpgradeSql = readMigration("0096_longevity_content_upgrade.sql");
 const actionSeedInserts = extractActionSeedInserts(actionSeedSql);
 
 const agewellActionTableSql = `
@@ -93,6 +94,7 @@ try {
   await client.query(longevityIdentitySql);
   await client.query(longevityDailyContentSql);
   await client.query(longevityCompanionSql);
+  await client.query(longevityContentUpgradeSql);
   await client.query("commit");
 
   const counts = await client.query(`

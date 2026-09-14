@@ -1,8 +1,10 @@
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 import {
   BRAIN_COACH_COMPLETION_SHELL_CONTRACT,
   getBrainCoachPresentationAttributes,
 } from "@/components/brain/brainCoachPresentation";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { cn } from "@/lib/utils";
 
 function metricGridClass(count) {
   if (count <= 1) return "grid-cols-1";
@@ -37,9 +39,14 @@ export default function BrainGameCompletionDialog({
   onReplay,
   onAnother,
   onAssessmentReturn,
+  onClose,
+  closeLabel = "Close",
+  appearance = "theme",
   disabled = false,
   className = "",
 }) {
+  const { isDark } = useHomeMasterTheme();
+  const usesDarkSurface = appearance === "theme" && isDark;
   const visibleMetrics = metrics.filter(Boolean);
   const hasNextLevel = Boolean(onNextLevel && nextLevelLabel);
   const primaryLabel = hasNextLevel ? nextLevelDisplayLabel ?? nextLevelLabel : continueLabel;
@@ -64,8 +71,9 @@ export default function BrainGameCompletionDialog({
           id: "stay",
           label: stayLabel,
           onClick: onStay,
-          className:
-            "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
+          className: usesDarkSurface
+            ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
+            : "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
         }
       : null,
     onReplay && replayLabel
@@ -73,8 +81,9 @@ export default function BrainGameCompletionDialog({
           id: "replay",
           label: replayLabel,
           onClick: onReplay,
-          className:
-            "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
+          className: usesDarkSurface
+            ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
+            : "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
         }
       : null,
     onAnother && anotherLabel
@@ -82,15 +91,20 @@ export default function BrainGameCompletionDialog({
           id: "another",
           label: anotherLabel,
           onClick: onAnother,
-          className:
-            "border-2 border-vyva-border bg-white text-vyva-text-1 shadow-vyva-card",
+          className: usesDarkSurface
+            ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
+            : "border-2 border-vyva-border bg-white text-vyva-text-1 shadow-vyva-card",
         }
       : null,
   ].filter(Boolean);
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-[rgba(43,34,51,0.42)] px-4 py-6 backdrop-blur-[2px] ${className}`}
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-[3px]",
+        usesDarkSurface ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]",
+        className,
+      )}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -105,26 +119,44 @@ export default function BrainGameCompletionDialog({
         shellContract: BRAIN_COACH_COMPLETION_SHELL_CONTRACT,
       })}
     >
-      <div className="w-full max-w-[720px] rounded-[30px] border border-white/80 bg-white px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7">
+      <div className={cn(
+        "relative w-full max-w-[680px] rounded-[30px] border px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7",
+        usesDarkSurface ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
+      )}>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={disabled}
+            aria-label={closeLabel}
+            className={cn(
+              "absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full transition-colors disabled:opacity-60",
+              usesDarkSurface ? "bg-white/[0.08] text-[#F7F0FF] hover:bg-white/[0.14]" : "bg-[#F5F0F8] text-vyva-text-2 hover:bg-[#ECE3F2]",
+            )}
+          >
+            <X size={22} strokeWidth={2.5} />
+          </button>
+        )}
+
         <div className="mx-auto flex h-[78px] w-[78px] items-center justify-center rounded-[26px] bg-[#ECFDF5] text-[#0A7C4E] shadow-[0_12px_30px_rgba(10,124,78,0.18)]">
           <CheckCircle2 size={38} />
         </div>
 
-        <h2 id={titleId} className="mt-4 font-display text-[34px] leading-tight text-vyva-text-1 sm:text-[38px]">
+        <h2 id={titleId} className="mt-4 font-display text-[34px] leading-tight text-inherit sm:text-[38px]">
           {title}
         </h2>
         {summary && (
-          <p id={summaryId} className="mx-auto mt-2 max-w-[42ch] text-[16px] font-medium leading-[1.45] text-vyva-text-2 sm:text-[17px]">
+          <p id={summaryId} className={cn("mx-auto mt-2 max-w-[42ch] text-[16px] font-medium leading-[1.45] sm:text-[17px]", usesDarkSurface ? "text-[#D8CDE4]" : "text-vyva-text-2")}>
             {summary}
           </p>
         )}
 
         {visibleMetrics.length > 0 && (
-          <dl className={`mt-5 grid overflow-hidden rounded-[20px] border border-[#EADFF8] bg-[#EADFF8] ${metricGridClass(visibleMetrics.length)}`}>
+          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", metricGridClass(visibleMetrics.length), usesDarkSurface ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
             {visibleMetrics.map((item) => (
-              <div key={item.label} className="bg-[#FFF9F1] px-3 py-4">
-                <dt className="text-[12px] font-semibold uppercase text-vyva-text-2">{item.label}</dt>
-                <dd className="mt-1 text-[24px] font-extrabold leading-none text-vyva-text-1">{item.value}</dd>
+              <div key={item.label} className={cn("px-3 py-4", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
+                <dt className={cn("text-[12px] font-semibold uppercase", usesDarkSurface ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
+                <dd className="mt-1 text-[24px] font-extrabold leading-none text-inherit">{item.value}</dd>
               </div>
             ))}
           </dl>

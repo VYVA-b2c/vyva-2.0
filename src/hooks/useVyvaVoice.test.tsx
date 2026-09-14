@@ -652,6 +652,42 @@ describe("useVyvaVoice", () => {
     window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleRequest);
   });
 
+  it("opens the inline Dr. AI vitals capture from the agent tool", async () => {
+    const sessionOptions = await renderStartedVoice();
+    const opened = vi.fn();
+    window.addEventListener("vyva:dr-ai-vitals-open", opened);
+
+    const result = await sessionOptions?.clientTools?.open_dr_ai_vitals?.({ conversation_id: "voice-vitals" });
+
+    expect(JSON.parse(result || "{}")).toMatchObject({ ok: true, opened: true, surface: "inline_vitals_capture" });
+    expect(opened).toHaveBeenCalledOnce();
+    window.removeEventListener("vyva:dr-ai-vitals-open", opened);
+  });
+
+  it("reads relevant current vitals from a connected device for Dr. AI", async () => {
+    const sessionOptions = await renderStartedVoice();
+    voiceMocks.apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/vitals-engine/acquisition-context?signals=bp_systolic%2Cbp_diastolic") {
+        return jsonResponse({
+          signals: [
+            { signal_type: "bp_systolic", current_reading: { value: 128, source: "connected_device" } },
+            { signal_type: "bp_diastolic", current_reading: { value: 76, source: "connected_device" } },
+          ],
+        });
+      }
+      throw new Error(`Unexpected voice API request: ${url}`);
+    });
+
+    const result = await sessionOptions?.clientTools?.read_dr_ai_vitals?.({ action_ids: ["blood_pressure"] });
+
+    expect(JSON.parse(result || "{}")).toMatchObject({
+      ok: true,
+      source: "connected_device",
+      affects_triage: true,
+      vitals_text: "blood pressure 128 over 76",
+    });
+  });
+
   it("syncs tapped symptom-check answers into the active ElevenLabs session", async () => {
     let controller: VoiceController | null = null;
 

@@ -158,23 +158,35 @@ describe("AdvisorChat", () => {
 
     renderChat();
 
-    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nora Nutrition");
-    expect(screen.queryByText("Hi, I am Nora. I can help with simple meal ideas.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("advisor-disclaimer")).toHaveTextContent("not medical advice");
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nutrition Expert");
+    expect(screen.getByRole("button", { name: /Voice chat/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Text chat/i })).toBeInTheDocument();
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("I can help with meals, appetite and hydration.");
+    expect(screen.queryByText("How would you like to talk today?")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-disclaimer")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
     });
     expect(startVoiceMock).toHaveBeenCalledWith(
-      expect.stringContaining("Ask an Expert with Nora"),
-      undefined,
+      expect.stringContaining("Nutrition Expert"),
+      expect.stringContaining("nutrition specialist"),
       expect.objectContaining({
         agentSlug: "nora",
         dynamicVariables: expect.objectContaining({ app_entrypoint: "ask_an_expert_chat" }),
       }),
     );
+  });
+
+  it("shows a message field immediately and focuses it from Text chat", () => {
+    renderChat();
+    const input = screen.getByTestId("input-advisor-message");
+    expect(input).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-advisor-start-chat"));
+    expect(input).toHaveFocus();
+    expect(startVoiceMock).not.toHaveBeenCalled();
   });
 
   it("sends typed messages and shows user plus assistant bubbles", async () => {
@@ -239,6 +251,19 @@ describe("AdvisorChat", () => {
     expect(screen.getByText("Yes. Tell me what you have at home.")).toBeInTheDocument();
   });
 
+  it("prefills a validated starter handoff from Benefits Navigator", () => {
+    queryMock.mockReturnValue({
+      data: { ...noraSession, introRequired: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat("/social-rooms/experts/nora?starter=Please%20explain%20housing%20benefit");
+
+    expect(screen.getByTestId("input-advisor-message")).toHaveValue("Please explain housing benefit");
+  });
+
   it("renders the backend movement coach with touch routine shortcuts", async () => {
     queryMock.mockReturnValue({
       data: amaraSession,
@@ -249,7 +274,7 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    expect(screen.getByRole("heading", { name: "Amara Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
@@ -282,13 +307,13 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));
       expect(startVoiceMock).toHaveBeenCalledWith(
-        expect.stringContaining("Ask an Expert with Amara Coach"),
-        undefined,
+        expect.stringContaining("Wellness Coach"),
+        expect.stringContaining("movement coach"),
         expect.objectContaining({
           agentSlug: "amara",
           dynamicVariables: expect.objectContaining({ advisor_slug: "amara" }),

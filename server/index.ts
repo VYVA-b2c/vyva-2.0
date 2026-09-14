@@ -63,6 +63,10 @@ import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import { adminMarketingRouter } from "./routes/adminMarketing.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
+import {
+  careOperationsWhatsappRouter,
+  publicWhatsappCheckinRouter,
+} from "./routes/whatsappPrivateCheckins.js";
 import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import resendWebhooksRouter from "./routes/resendWebhooks.js";
 import { authRouter } from "./routes/auth.js";
@@ -111,6 +115,8 @@ import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import advisorsRouter from "./routes/advisors.js";
+import { advisorLiveSearchToolHandler } from "./routes/advisorSearchTools.js";
+import benefitsRouter from "./routes/benefits.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import medicationRefillsRouter from "./routes/medicationRefills.js";
 import medicationRefillPushRouter from "./routes/medicationRefillPush.js";
@@ -228,6 +234,7 @@ app.get("/api/config/features/dr-ai-voice", authMiddleware, requireUser, require
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
 app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.post("/api/elevenlabs/tools/search-advisor-sources", advisorLiveSearchToolHandler);
 app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
 app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/voice-triage/session/:conversation_id/end", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionEndHandler);
@@ -253,6 +260,8 @@ app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
 app.post("/api/address-voice-parse", addressVoiceParseHandler);
 app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
 app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioWebhooksRouter);
+app.use("/api/public/whatsapp-private-checkins", publicWhatsappCheckinRouter);
+app.use("/api/integrations/care-operations/whatsapp-private-checkins", careOperationsWhatsappRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/vyva-demo", vyvaDemoRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
@@ -299,6 +308,7 @@ app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("sympto
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
+app.use("/api/benefits", authMiddleware, requireUser, benefitsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api/meds/refill-notifications", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medicationRefillPushRouter);
 app.use("/api/meds/refills", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medicationRefillsRouter);

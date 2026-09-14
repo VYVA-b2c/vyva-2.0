@@ -1,22 +1,39 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdvisorHub from "./AdvisorHub";
-import type { AdvisorHubResponse } from "../../shared/advisors";
+import type { AdvisorHubResponse, AdvisorSlug, AdvisorSummary } from "../../shared/advisors";
 
 const queryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
-  return {
-    ...actual,
-    useQuery: () => queryMock(),
-  };
+  return { ...actual, useQuery: () => queryMock() };
 });
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({ language: "en" }),
 }));
+
+const slugs: AdvisorSlug[] = ["amara", "nora", "tomas", "elena", "diego", "ines", "sabio", "marta"];
+
+function makeAdvisor(slug: AdvisorSlug, sortOrder: number): AdvisorSummary {
+  return {
+    slug,
+    name: slug,
+    role: "Legacy role",
+    shortRole: "Legacy short role",
+    intro: "Legacy intro",
+    starter: "Legacy starter",
+    sortOrder,
+    iconKey: "coach",
+    chipBg: "#F1EAFB",
+    iconColor: "#7024C4",
+    recencyLabel: "Never talked",
+    sessionCount: 0,
+    lastMessageAt: null,
+  };
+}
 
 const advisorResponse: AdvisorHubResponse = {
   language: "en",
@@ -41,55 +58,7 @@ const advisorResponse: AdvisorHubResponse = {
     sendError: "Could not send. Try again.",
     disclaimerLabel: "Important note",
   },
-  advisors: [
-    {
-      slug: "amara",
-      name: "Amara",
-      role: "Coach",
-      shortRole: "Movement",
-      intro: "Gentle movement, balance, Tai chi, chair yoga, and light strength.",
-      starter: "Would you like to move seated, with chair support, or a little more actively?",
-      disclaimerText: "Amara shares gentle movement guidance. Stop if you feel pain, dizzy, or short of breath.",
-      sortOrder: 5,
-      iconKey: "coach",
-      chipBg: "#E8F7EF",
-      iconColor: "#0A7C4E",
-      recencyLabel: "Never talked",
-      sessionCount: 0,
-      lastMessageAt: null,
-    },
-    {
-      slug: "nora",
-      name: "Nora",
-      role: "Nutrition",
-      shortRole: "Meals",
-      intro: "Hi, I am Nora.",
-      starter: "What would you like help planning today?",
-      disclaimerText: "General information only.",
-      sortOrder: 10,
-      iconKey: "nutrition",
-      chipBg: "#E4F3E7",
-      iconColor: "#3F8752",
-      recencyLabel: "Never talked",
-      sessionCount: 0,
-      lastMessageAt: null,
-    },
-    {
-      slug: "tomas",
-      name: "Tomas",
-      role: "Garden",
-      shortRole: "Plants",
-      intro: "Hi, I am Tomas.",
-      starter: "Which plant?",
-      sortOrder: 20,
-      iconKey: "garden",
-      chipBg: "#F6E7DE",
-      iconColor: "#B4623E",
-      recencyLabel: "Yesterday",
-      sessionCount: 1,
-      lastMessageAt: "2026-07-06T12:00:00.000Z",
-    },
-  ],
+  advisors: [...slugs].reverse().map(makeAdvisor),
 };
 
 function LocationProbe() {
@@ -111,6 +80,8 @@ function renderHub() {
 
 describe("AdvisorHub", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
+    window.scrollTo = vi.fn();
     queryMock.mockReset();
     queryMock.mockReturnValue({ data: advisorResponse, isLoading: false, isError: false });
   });
@@ -120,35 +91,54 @@ describe("AdvisorHub", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the expert hub as compact visual cards", () => {
+  it("uses the canonical shell and function-first expert cards", () => {
     renderHub();
 
-    expect(screen.getByTestId("advisor-hub-screen")).toBeInTheDocument();
-    expect(screen.getByText("MY EXPERTS")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Choose an expert" })).toBeInTheDocument();
+    const screenRoot = screen.getByTestId("advisor-hub-screen");
+    expect(screenRoot).toHaveAttribute("data-home-master-theme", "light");
+    expect(screenRoot).toHaveAttribute("data-shell-contract", "home.production");
+    expect(screen.getByRole("heading", { name: "My Team" })).toBeInTheDocument();
+    expect(screen.queryByText("Choose an expert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Who can help today?")).not.toBeInTheDocument();
 
-    const list = screen.getByTestId("advisor-list");
-    expect(within(list).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "AmaraCoachMovement",
-      "NoraNutritionMeals",
-      "TomasGardenPlants",
+    expect(slugs.map((slug) => screen.getByTestId(`button-advisor-${slug}`).textContent)).toEqual([
+      "Wellness CoachMovement, energy and balance",
+      "Nutrition ExpertMeals, appetite and hydration",
+      "Hobby CompanionActivities matched to your interests",
+      "Savings GuideBills, prices and everyday costs",
+      "Scam ProtectorCheck suspicious messages and calls",
+      "Benefits FinderFind support you may be missing",
+      "Senior Home FinderCompare suitable living options",
+      "Outings CompanionPlan accessible local activities",
     ]);
     expect(screen.getByTestId("button-advisor-amara")).toHaveAccessibleName(
-      "Amara Coach. Gentle movement, balance, Tai chi, chair yoga, and light strength.",
+      "Wellness Coach. Movement, energy and balance",
     );
-    expect(screen.getByTestId("button-advisor-nora")).toHaveAccessibleName("Nora Nutrition. Hi, I am Nora.");
   });
 
-  it("opens an expert chat", () => {
+  it("paginates four expert cards at a time on mobile", () => {
     renderHub();
 
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-amara")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("button-advisor-diego")).toHaveClass("advisor-team-card--other-page");
+
+    fireEvent.click(screen.getByTestId("button-advisor-page-next"));
+
+    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-amara")).toHaveClass("advisor-team-card--other-page");
+    expect(screen.getByTestId("button-advisor-diego")).not.toHaveClass("hidden");
+    expect(window.sessionStorage.getItem("vyva:community-expert-page")).toBe("1");
+  });
+
+  it("opens an expert chat using the existing stable slug", () => {
+    renderHub();
     fireEvent.click(screen.getByTestId("button-advisor-nora"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/nora");
   });
 
   it("returns to Community from back", () => {
     renderHub();
-
     fireEvent.click(screen.getByTestId("button-advisor-hub-back"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms");
   });

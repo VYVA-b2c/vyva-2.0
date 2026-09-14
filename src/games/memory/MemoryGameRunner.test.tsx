@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import { getGameHistory, saveGameResult } from "./gameStorage";
 import type { GameResult } from "./types";
-import MemoryGameRunner from "./MemoryGameRunner";
+import MemoryGameRunner, { createWordRecallNumberChallenge, scoreWordRecallChoices } from "./MemoryGameRunner";
 
 const mocks = vi.hoisted(() => ({
   speakSequence: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => null,
   useTtsReadout: () => ({
     speakSequence: mocks.speakSequence,
     stopTts: mocks.stopTts,
@@ -52,6 +53,8 @@ function renderMemoryGame(initialEntry: string) {
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/memory-games/:gameType" element={<MemoryGameRunner />} />
+        <Route path="/brain-coach/activity/:gameType" element={<MemoryGameRunner />} />
+        <Route path="/dev/connections" element={<MemoryGameRunner forcedGameType="association_memory" />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -74,13 +77,13 @@ function renderRhythmTap() {
   );
 }
 
-function visualResult(minutesAgo: number): GameResult {
+function visualResult(minutesAgo: number, level = 1): GameResult {
   return {
     userId: "user-1",
     gameType: "memory_match",
     cognitiveDomain: "visual_memory",
-    variantId: `memory_match-l1-v${minutesAgo + 2}`,
-    level: 1,
+    variantId: `memory_match-l${level}-v${minutesAgo + 2}`,
+    level,
     score: 500,
     accuracy: 100,
     mistakes: 0,
@@ -110,7 +113,83 @@ async function completeLevelOneVisualMemoryBoard() {
   });
 }
 
+async function completeEightPairVisualMemoryBoard() {
+  const cards = await screen.findAllByTestId("visual-memory-card");
+  const pairs = [[0, 15], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12], [13, 14]];
+
+  for (const [first, second] of pairs) {
+    fireEvent.click(cards[first]);
+    fireEvent.click(cards[second]);
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 325));
+    });
+  }
+}
+
 describe("MemoryGameRunner word recall", () => {
+  it("penalizes selecting distractors instead of awarding full accuracy", () => {
+    expect(scoreWordRecallChoices(
+      ["bread", "milk", "cheese"],
+      ["bread", "milk", "cheese", "table", "coat", "door", "dog"],
+    )).toMatchObject({ accuracy: 43, score: 43, mistakes: 4 });
+  });
+
+  it("adds a small first-word and order challenge without replacing recognition", () => {
+    expect(scoreWordRecallChoices(["bread", "milk", "cheese"], ["milk", "bread", "cheese"], "first")).toMatchObject({ accuracy: 80, mistakes: 1 });
+    expect(scoreWordRecallChoices(["bread", "milk", "cheese"], ["bread", "cheese", "milk"], "order")).toMatchObject({ accuracy: 80, mistakes: 2 });
+  });
+
+  it("randomizes a larger number-order pause as difficulty increases", () => {
+    const build = createWordRecallNumberChallenge(9);
+    const challenge = createWordRecallNumberChallenge(13);
+    const mastery = createWordRecallNumberChallenge(17);
+
+    expect(build).toHaveLength(4);
+    expect(challenge).toHaveLength(5);
+    expect(mastery).toHaveLength(6);
+    expect(new Set(mastery).size).toBe(6);
+    expect(mastery.some((value) => value >= 10)).toBe(true);
+  });
+
+  it("chooses the theme before opening the word round", async () => {
+    renderWordRecall();
+
+    expect(await screen.findByRole("heading", { name: "Choose a theme" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Remember 3 words/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Garden/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
+
+    expect(await screen.findByRole("heading", { name: "Remember 3 words" })).toBeInTheDocument();
+    expect(screen.getByText("bird")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Garden/i })).not.toBeInTheDocument();
+  });
+  it("never narrates Word Recall even when the saved audio preference is enabled", async () => {
+    window.localStorage.setItem("vyva_memory_audio_muted", "false");
+    renderWordRecall();
+    expect(await screen.findByRole("heading", { name: "Choose a theme" })).toBeInTheDocument();
+    expect(screen.queryByText("bread")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
+    await screen.findByRole("button", { name: "Hide words" });
+    expect(screen.getByRole("heading", { name: "Remember 3 words" })).toBeInTheDocument();
+    expect(screen.queryByText("3 words", { selector: "span" })).not.toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(mocks.speakSequence).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Hide words" }));
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(mocks.speakSequence).not.toHaveBeenCalled();
+  });
+
+  it("caps recall choices at the number of studied words", async () => {
+    renderWordRecall();
+    fireEvent.click(await screen.findByRole("button", { name: "Start game" }));
+    fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
+    for (const word of ["bread", "milk", "cheese"]) {
+      fireEvent.click(await screen.findByRole("button", { name: word }));
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "soup" }));
+
+    expect(screen.getByRole("button", { name: "soup" })).toHaveAttribute("aria-pressed", "false");
+  });
   beforeEach(() => {
     setLanguage("en");
     mocks.speakSequence.mockClear();
@@ -129,59 +208,119 @@ describe("MemoryGameRunner word recall", () => {
   it("keeps the next-level action available when result persistence is still pending", async () => {
     renderWordRecall();
 
+    fireEvent.click(await screen.findByRole("button", { name: "Start game" }));
     fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
+    expect(screen.getByRole("heading", { name: "Which 3 words do you remember?" })).toBeInTheDocument();
+    expect(screen.getByText("Choose every word you remember.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /say the words/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/remembered 0\/3/i)).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "bread" }));
     fireEvent.click(await screen.findByRole("button", { name: "milk" }));
     fireEvent.click(await screen.findByRole("button", { name: "cheese" }));
 
-    const continueButton = screen.getByRole("button", { name: "Continue" });
-    expect(continueButton).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    fireEvent.click(continueButton);
-
-    expect(await screen.findByText("Well done")).toBeInTheDocument();
+    expect(await screen.findByText("3/3")).toBeInTheDocument();
     expect(screen.getByText(/building the base/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue to Level 2" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Another round" })).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Same theme" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New theme" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play another game" })).not.toBeDisabled();
+    expect(screen.queryByText("Themes explored")).not.toBeInTheDocument();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
       cognitiveDomain: "episodic_memory",
       variantId: "word_recall-l1-v1",
       language: "en",
+      metadata: expect.objectContaining({ themeId: "food", wordCount: 3, correctCount: 3 }),
     }));
   });
 
-  it("uses fewer Association choices in Foundation and more in Challenge", async () => {
-    const { unmount } = renderMemoryGame("/memory-games/association_memory?level=1&variant=association_memory-l1-v1");
+  it("runs Connections through study, neutral reset, deferred recall, and review", async () => {
+    vi.mocked(saveGameResult).mockResolvedValueOnce();
+    renderMemoryGame("/dev/connections?level=3&variant=association_memory-l3-v1");
 
-    expect(await screen.findByText("Remember one link.")).toBeInTheDocument();
-    expect(screen.getByText("apple")).toBeInTheDocument();
-    expect(screen.getByText("fruit")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
+    expect((await screen.findAllByText("Connections")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Remember these plans")).toBeInTheDocument();
+    expect(screen.getByText("red folder")).toBeInTheDocument();
+    expect(screen.getByText("striped umbrella")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start recall" }));
 
-    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
-    expect(screen.getAllByTestId("association-choice")).toHaveLength(2);
+    expect(screen.getByText("Clear your mind")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "11" }));
+    fireEvent.click(screen.getByRole("button", { name: "15" }));
+    fireEvent.click(screen.getByRole("button", { name: "18" }));
 
-    unmount();
-    renderMemoryGame("/memory-games/association_memory?level=11&variant=association_memory-l11-v1");
+    expect(screen.getByText(/Question 1\/4/)).toBeInTheDocument();
+    expect(screen.queryByText("Correct connection")).not.toBeInTheDocument();
+    for (let index = 0; index < 4; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Not sure" }));
+    }
 
-    expect(await screen.findByText("Level 11 - Challenge")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+    expect(screen.getAllByText("Correct connection")).toHaveLength(4);
+    expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
+      gameType: "association_memory",
+      score: 0,
+      accuracy: 0,
+      metadata: expect.objectContaining({
+        roundVersion: "connections_v2",
+        associationCount: 3,
+        questionCount: 4,
+        correctCount: 0,
+        questionsAnswered: 0,
+        resetKind: "number_order",
+      }),
+    }));
 
-    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
-    expect(screen.getAllByTestId("association-choice")).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "See results" }));
+    const tryAgainButton = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("dialog", { name: "Keep practising!" })).toBeInTheDocument();
+    expect(screen.getByText("80% to advance")).toBeInTheDocument();
+    expect(screen.queryByText("0/4 connections remembered")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Next level/i })).not.toBeInTheDocument();
+
+    fireEvent.click(tryAgainButton);
+    expect(await screen.findByText("Remember these plans")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Connections complete" })).not.toBeInTheDocument();
   });
 
-  it("shows Number Memory order and level mode before recall", async () => {
+  it("makes the next level explicit after reaching the 80 percent threshold", async () => {
+    vi.mocked(saveGameResult).mockResolvedValueOnce();
+    renderMemoryGame("/memory-games/association_memory?level=3&variant=association_memory-l3-v1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start recall" }));
+    fireEvent.click(screen.getByRole("button", { name: "11" }));
+    fireEvent.click(screen.getByRole("button", { name: "15" }));
+    fireEvent.click(screen.getByRole("button", { name: "18" }));
+    fireEvent.click(screen.getByRole("button", { name: "library" }));
+    fireEvent.click(screen.getByRole("button", { name: "Daniel" }));
+    fireEvent.click(screen.getByRole("button", { name: "green notebook" }));
+    fireEvent.click(screen.getByRole("button", { name: "Maya" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "See results" }));
+    expect(await screen.findByRole("dialog", { name: "Excellent recall!" })).toBeInTheDocument();
+    expect(screen.getByText("Level 4 unlocked")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Next level 4" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
+  });
+
+  it("shows Number Memory guidance before the first three-round session", async () => {
     renderMemoryGame("/memory-games/number_memory?level=6&variant=number_memory-l6-v1");
 
-    expect(await screen.findByText("Level 6 - Build")).toBeInTheDocument();
-    expect(screen.getByText("Reverse order")).toBeInTheDocument();
-    expect(screen.getByText("4 digits")).toBeInTheDocument();
+    expect(await screen.findByText("Level 6")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Remember in the same order" })).toBeInTheDocument();
+    expect(screen.getByText("Watch or listen, then repeat the numbers in the same order.")).toBeInTheDocument();
+    expect(screen.queryByText(/Example:/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide digits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByLabelText("Type the digits in reverse")).toBeInTheDocument();
+    expect(await screen.findByText("Round 1 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Let’s start" })).toBeInTheDocument();
   });
 
   it("shows Rhythm Tap instructions once and reopens them from the icon", async () => {
@@ -201,12 +340,12 @@ describe("MemoryGameRunner word recall", () => {
   });
 
   it("shows Visual Memory instructions once at Level 1 and reopens them on request", async () => {
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
-    expect(screen.getByText("Different pictures? Both cards turn back. Try another pair.")).toBeInTheDocument();
+    expect(screen.queryByText("Different pictures? Both cards turn back. Try another pair.")).not.toBeInTheDocument();
     expect(screen.getByText("Find all 3 pairs to finish. There is no timer.")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Do not show these instructions again." })).toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start Level 1" }));
 
@@ -218,21 +357,52 @@ describe("MemoryGameRunner word recall", () => {
   });
 
   it("starts Visual Memory above Level 1 without repeating basic instructions", async () => {
-    renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-v1");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 1)]);
+    renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-foundation-fruit-v1");
 
-    expect(await screen.findByRole("heading", { name: /Visual memory/i })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /Visual memory/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Find the pairs" })).not.toBeInTheDocument();
     expect(screen.queryByText("Tap two cards to find the pair.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
   });
 
+  it("does not allow a direct URL to skip locked Visual Memory levels", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-foundation-fruit-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(6);
+    expect(screen.getByText("Level 1 of 40")).toBeInTheDocument();
+    expect(screen.queryByText("Level 5 of 40")).not.toBeInTheDocument();
+  });
+
+  it("replaces a stale variant URL with a valid board at the highest unlocked level", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 20)]);
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(16);
+    expect(screen.getByText("Level 21 of 40")).toBeInTheDocument();
+  });
+
+  it("keeps larger Visual Memory boards readable on narrow screens", async () => {
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 4)]);
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-foundation-fruit-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(10);
+    expect(screen.getByTestId("visual-memory-grid")).toHaveClass("grid-cols-2", "sm:grid-cols-4");
+    expect(screen.getByText("Level 5 of 40")).toBeInTheDocument();
+    expect(screen.getByText("Pairs")).toBeInTheDocument();
+    expect(screen.getByText("Accuracy")).toBeInTheDocument();
+    expect(screen.getByText("Duration")).toBeInTheDocument();
+  });
+
   it("unlocks the next Visual Memory level after one completed board", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 20");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 40");
     expect(mocks.speakSequence).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
@@ -242,13 +412,44 @@ describe("MemoryGameRunner word recall", () => {
   it("keeps Next Level available when earlier Visual Memory history exists", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
     vi.mocked(getGameHistory).mockResolvedValue([visualResult(0), visualResult(1)]);
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 20");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 40");
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
   });
+
+  it("renders deterministic pattern cards without visible labels from Level 21", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 20)]);
+    renderMemoryGame("/memory-games/memory_match?level=21&variant=memory_match-l21-shapes-colour-v1");
+
+    expect(await screen.findByText("Level 21 of 40")).toBeInTheDocument();
+    const cards = await screen.findAllByTestId("visual-memory-card");
+    expect(cards).toHaveLength(16);
+
+    fireEvent.click(cards[0]);
+    expect(await screen.findByTestId("visual-memory-pattern")).toBeInTheDocument();
+    const accessibleLabel = cards[0].getAttribute("aria-label");
+    expect(accessibleLabel).not.toMatch(/Hidden card/);
+    expect(screen.queryByText(accessibleLabel!)).not.toBeInTheDocument();
+  });
+
+  it("ends the journey at Level 40 with Play again and More games", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 39)]);
+    renderMemoryGame("/memory-games/memory_match?level=40&variant=memory_match-l40-mastery-mixed-v1");
+
+    await completeEightPairVisualMemoryBoard();
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Visual Memory journey complete");
+    expect(dialog).toHaveTextContent("Level 40 of 40");
+    expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More games" })).toBeInTheDocument();
+    expect(screen.queryByText(/Level 41/)).not.toBeInTheDocument();
+  }, 10_000);
 });

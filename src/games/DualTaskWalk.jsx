@@ -1,23 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Brain,
   Check,
-  ChevronDown,
-  ChevronUp,
-  CircleHelp,
   Eye,
-  Square,
+  LoaderCircle,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import {
   BRAIN_COACH_MAX_LEVEL,
-  getBrainCoachLevelBand,
-  getBrainCoachSupportiveProgressCopy,
 } from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -56,6 +52,50 @@ const FALLBACK_SEQUENCE = {
   difficulty_tier: 1,
   language: "es",
 };
+
+const RESULT_PREVIEW = {
+  serial7s_accuracy_pct: 67,
+  tap_accuracy_pct: 75,
+  combined_accuracy_pct: 71,
+  dual_task_score: 710,
+  serial7s_log: [],
+  tap_hits: 3,
+  tap_false_positives: 0,
+  tap_misses: 1,
+};
+
+const LOCAL_PRACTICE_SEQUENCES = [
+  FALLBACK_SEQUENCE,
+  {
+    ...FALLBACK_SEQUENCE,
+    id: "local-2",
+    start_number: 65,
+    expected_answers: [58, 51, 44, 37],
+    symbol_stream: ["●", "■", "▲", "▲", "★", "♦", "●", "●", "■", "▲"],
+    match_indices: [3, 7],
+  },
+  {
+    ...FALLBACK_SEQUENCE,
+    id: "local-3",
+    start_number: 72,
+    expected_answers: [65, 58, 51, 44],
+    symbol_stream: ["♦", "▲", "■", "●", "●", "★", "▲", "■", "■", "♦"],
+    match_indices: [4, 8],
+  },
+  {
+    ...FALLBACK_SEQUENCE,
+    id: "local-4",
+    start_number: 79,
+    expected_answers: [72, 65, 58, 51],
+    symbol_stream: ["■", "★", "♦", "●", "▲", "▲", "■", "★", "★", "●"],
+    match_indices: [5, 8],
+  },
+];
+
+function getNextLocalSequence(currentId) {
+  const choices = LOCAL_PRACTICE_SEQUENCES.filter((item) => item.id !== currentId);
+  return choices[Math.floor(Math.random() * choices.length)] ?? FALLBACK_SEQUENCE;
+}
 
 const DUAL_TASK_TUTORIAL_KEY = "dualTaskWalk:tutorialSeen:v1";
 
@@ -96,6 +136,14 @@ function asArray(value) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+export function isGreatDualTaskResult(result) {
+  if (!result) return false;
+  const combinedAccuracy = Number.isFinite(result.combined_accuracy_pct)
+    ? result.combined_accuracy_pct
+    : (Number(result.serial7s_accuracy_pct || 0) + Number(result.tap_accuracy_pct || 0)) / 2;
+  return combinedAccuracy >= 80;
 }
 
 function shuffle(items) {
@@ -178,11 +226,10 @@ function getTapStats(tapLog, sequence) {
 function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, decreaseLabel }) {
   const safeValue = Number.isFinite(value) ? value : min;
   const setNext = (nextValue) => onChange(clamp(nextValue, min, max));
-  const visible = [clamp(safeValue + 1, min, max), safeValue, clamp(safeValue - 1, min, max)];
 
   return (
     <div
-      className="grid w-[118px] grid-rows-[44px_56px_44px] overflow-hidden rounded-[8px] border-2 bg-white sm:w-[178px] sm:grid-rows-[64px_76px_64px]"
+      className="grid h-16 w-[156px] grid-cols-[48px_60px_48px] overflow-hidden rounded-full border bg-white sm:h-[72px] sm:w-[184px] sm:grid-cols-[56px_72px_56px]"
       style={{ borderColor: BRAND.border }}
       onWheel={(event) => {
         event.preventDefault();
@@ -196,34 +243,30 @@ function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, dec
     >
       <button
         type="button"
-        onClick={() => setNext(safeValue + 1)}
-        className="flex min-h-[44px] items-center justify-center text-[22px] font-semibold sm:min-h-[64px] sm:text-[26px]"
-        style={{ color: BRAND.purple }}
-        aria-label={increaseLabel}
-      >
-        <ChevronUp size={30} />
-      </button>
-      <div className="grid grid-rows-3 text-center">
-        <div className="text-[18px] leading-[17px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[0] === safeValue ? "" : visible[0]}</div>
-        <div className="text-[30px] font-bold leading-[22px] sm:text-[38px] sm:leading-[32px]" style={{ color: BRAND.ink }}>
-          {safeValue}
-        </div>
-        <div className="text-[18px] leading-[17px] text-[#7C6D94] sm:text-[24px] sm:leading-[22px]">{visible[2] === safeValue ? "" : visible[2]}</div>
-      </div>
-      <button
-        type="button"
         onClick={() => setNext(safeValue - 1)}
-        className="flex min-h-[44px] items-center justify-center text-[22px] font-semibold sm:min-h-[64px] sm:text-[26px]"
+        className="flex items-center justify-center text-vyva-purple"
         style={{ color: BRAND.purple }}
         aria-label={decreaseLabel}
       >
-        <ChevronDown size={30} />
+        <Minus size={25} strokeWidth={2.5} />
+      </button>
+      <div className="flex items-center justify-center border-x text-[30px] font-bold sm:text-[36px]" style={{ borderColor: BRAND.border, color: BRAND.ink }}>
+        {safeValue}
+      </div>
+      <button
+        type="button"
+        onClick={() => setNext(safeValue + 1)}
+        className="flex items-center justify-center text-vyva-purple"
+        style={{ color: BRAND.purple }}
+        aria-label={increaseLabel}
+      >
+        <Plus size={25} strokeWidth={2.5} />
       </button>
     </div>
   );
 }
 
-export default function DualTaskWalk({ userId, onExit }) {
+export default function DualTaskWalk({ userId, onExit, previewResult = false }) {
   const { language, t } = useLanguage();
   const lang = normalizeGameLanguage(language);
   const text = useMemo(() => ({
@@ -253,6 +296,10 @@ export default function DualTaskWalk({ userId, onExit }) {
     visualDone: t("brainGames.dualTask.visualDone"),
     resultGreat: t("brainGames.dualTask.resultGreat"),
     resultGood: t("brainGames.dualTask.resultGood"),
+    resultPractice: t("brainGames.dualTask.resultPractice"),
+    preparingResults: t("brainGames.dualTask.preparingResults"),
+    progressRequirement: t("brainGames.dualTask.progressRequirement"),
+    maxLevelReached: t("brainGames.dualTask.maxLevelReached"),
     mathTask: t("brainGames.dualTask.mathTask"),
     visualTask: t("brainGames.dualTask.visualTask"),
     totalScore: t("brainGames.dualTask.totalScore"),
@@ -277,9 +324,9 @@ export default function DualTaskWalk({ userId, onExit }) {
     tutorialTap: t("brainGames.dualTask.tutorialTap", "Tap repeats"),
   }), [t]);
 
-  const [screen, setScreen] = useState("loading");
-  const [sequence, setSequence] = useState(null);
-  const [userState, setUserState] = useState(null);
+  const [screen, setScreen] = useState(previewResult ? "result" : "loading");
+  const [sequence, setSequence] = useState(previewResult ? FALLBACK_SEQUENCE : null);
+  const [userState, setUserState] = useState(previewResult ? getDefaultUserState(userId) : null);
   const [tutorialSeen, setTutorialSeen] = useState(() => readTutorialSeen(userId));
   const [tutorialReturnScreen, setTutorialReturnScreen] = useState("intro");
 
@@ -295,7 +342,8 @@ export default function DualTaskWalk({ userId, onExit }) {
   const [symbolsComplete, setSymbolsComplete] = useState(false);
 
   const [roundProgress, setRoundProgress] = useState(1);
-  const [sessionResult, setSessionResult] = useState(null);
+  const [sessionResult, setSessionResult] = useState(previewResult ? RESULT_PREVIEW : null);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   const symbolIntervalRef = useRef(null);
   const roundTimerRef = useRef(null);
@@ -576,6 +624,7 @@ export default function DualTaskWalk({ userId, onExit }) {
   const finishRound = useCallback(async (abandoned = false) => {
     if (finalizingRef.current) return;
     finalizingRef.current = true;
+    setIsFinalizing(!abandoned);
 
     const seq = sequenceRef.current ?? FALLBACK_SEQUENCE;
     if (screenRef.current === "playing" && !symbolsCompleteRef.current) {
@@ -586,10 +635,15 @@ export default function DualTaskWalk({ userId, onExit }) {
     const result = computeScore(serial7sLogRef.current, tapLogRef.current, seq, abandoned);
     setSessionResult(result);
 
+    const preparationStartedAt = Date.now();
     await saveSession(result);
     if (!abandoned) {
-      setScreen("result");
       await updateUserState(result);
+      const remainingPreparationMs = Math.max(0, 2000 - (Date.now() - preparationStartedAt));
+      if (remainingPreparationMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingPreparationMs));
+      }
+      setScreen("result");
     } else if (onExit) {
       onExit();
     }
@@ -622,7 +676,7 @@ export default function DualTaskWalk({ userId, onExit }) {
       setSymbolsComplete(true);
       if (symbolIntervalRef.current) window.clearInterval(symbolIntervalRef.current);
       symbolIntervalRef.current = null;
-      checkRoundCompletion();
+      void finishRound(false);
       return;
     }
 
@@ -631,7 +685,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     tapWindowRef.current = false;
     setLastTapResult(null);
     setSymbolIndex(nextIndex);
-  }, [checkRoundCompletion, evaluateTapWindow]);
+  }, [evaluateTapWindow, finishRound]);
 
   const startRound = useCallback((overrideSequence = null) => {
     const seq = overrideSequence ?? sequenceRef.current ?? FALLBACK_SEQUENCE;
@@ -641,6 +695,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     }
     clearRoundTimers();
     finalizingRef.current = false;
+    setIsFinalizing(false);
     roundStartedAtRef.current = Date.now();
     symbolIndexRef.current = 0;
     symbolsCompleteRef.current = false;
@@ -679,25 +734,9 @@ export default function DualTaskWalk({ userId, onExit }) {
       const nextSequence = await loadSequence(userStateRef.current ?? userState ?? getDefaultUserState(userId));
       startRound(nextSequence);
     } catch {
-      startRound();
+      startRound(getNextLocalSequence(sequenceRef.current?.id));
     }
   }, [loadSequence, startRound, userId, userState]);
-
-  const handlePlayAgain = useCallback(async () => {
-    const completedTier = sequenceRef.current?.difficulty_tier ?? sequence?.difficulty_tier ?? FALLBACK_SEQUENCE.difficulty_tier;
-    const sameTierState = {
-      ...(userStateRef.current ?? userState ?? getDefaultUserState(userId)),
-      current_tier: completedTier,
-    };
-
-    setScreen("loading");
-    try {
-      const nextSequence = await loadSequence(sameTierState);
-      startRound(nextSequence);
-    } catch {
-      startRound(sequenceRef.current ?? sequence ?? FALLBACK_SEQUENCE);
-    }
-  }, [loadSequence, sequence, startRound, userId, userState]);
 
   const handleTap = useCallback(() => {
     if (screenRef.current !== "playing" || symbolsCompleteRef.current || tapWindowRef.current) return;
@@ -750,10 +789,11 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const closeTutorial = useCallback(() => {
     markTutorialSeen();
-    setScreen(tutorialReturnScreen || "intro");
-  }, [markTutorialSeen, tutorialReturnScreen]);
+    startRound(sequenceRef.current ?? sequence ?? FALLBACK_SEQUENCE);
+  }, [markTutorialSeen, sequence, startRound]);
 
   useEffect(() => {
+    if (previewResult) return undefined;
     let active = true;
 
     async function prepare() {
@@ -767,16 +807,18 @@ export default function DualTaskWalk({ userId, onExit }) {
         setPickerValue(nextSequence.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
+        setScreen("intro");
       } catch {
         if (!active) return;
         const fallbackState = getDefaultUserState(userId);
         setUserState(fallbackState);
-        setSequence(FALLBACK_SEQUENCE);
-        setPickerValue(FALLBACK_SEQUENCE.start_number);
+        const localSequence = getNextLocalSequence(sequenceRef.current?.id);
+        sequenceRef.current = localSequence;
+        setSequence(localSequence);
+        setPickerValue(localSequence.start_number);
         setPickerTouched(false);
         setTutorialReturnScreen("intro");
-        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
+        setScreen("intro");
       }
     }
 
@@ -784,26 +826,15 @@ export default function DualTaskWalk({ userId, onExit }) {
     return () => {
       active = false;
     };
-  }, [loadSequence, loadUserState, userId]);
+  }, [loadSequence, loadUserState, previewResult, userId]);
 
   useEffect(() => clearRoundTimers, [clearRoundTimers]);
 
-  const resultToneGreat = (sessionResult?.dual_task_score ?? 0) >= 600;
-  const lastThreeMath = serial7sLog.slice(-3);
-  const progressToPromotion = clamp(((userState?.consecutive_wins ?? 0) / 3) * 100, 0, 100);
-  const currentBand = getBrainCoachLevelBand(currentSequence.difficulty_tier ?? 1);
-  const nextTier = clamp((userState?.current_tier ?? currentSequence.difficulty_tier) + 1, 1, BRAIN_COACH_MAX_LEVEL);
 
   const shellStyle = {
     background: BRAND.bg,
     color: BRAND.ink,
   };
-  const fixedShellStyle = {
-    ...shellStyle,
-    paddingTop: "max(8px, env(safe-area-inset-top))",
-    paddingBottom: "max(8px, env(safe-area-inset-bottom))",
-  };
-
   if (screen === "loading") {
     return (
       <BrainCoachLoadingState
@@ -818,57 +849,38 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <BrainCoachFullscreenActivity
+      <BrainCoachActivityShell
         title={text.title}
+        backLabel={text.back}
+        onBack={handleExit}
         testId="dual-task-walk-flow-shell"
         presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.intro.touch"
         sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
         sceneKind="intro"
         sceneLayout="dual_task_preview"
       >
-        <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
-        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <div className="flex shrink-0 items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleExit}
-              className="inline-flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold text-vyva-text-1 shadow-vyva-card"
-            >
-              <ArrowLeft size={24} />
-              {text.back}
-            </button>
-            <div className="flex min-h-[64px] items-center rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card" style={{ background: BRAND.gold }}>
-              {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
+        <div className="pb-6" data-testid="dual-task-intro">
+        <div className="mx-auto flex w-full max-w-[820px] flex-col rounded-[28px] border border-[#EEE8F1] bg-white p-5 shadow-vyva-card sm:p-6">
+          <div className="flex shrink-0 items-center justify-center gap-3">
+            <div className="flex min-h-[56px] items-center rounded-full bg-[#FEF3C7] px-5 text-[21px] font-bold text-[#92400E]">
+              {text.level} {currentSequence.difficulty_tier}
             </div>
-            {tutorialSeen ? (
-              <button
-                type="button"
-                onClick={openInstructions}
-                aria-label={text.instructions}
-                title={text.instructions}
-                className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
-              >
-                <CircleHelp size={28} aria-hidden="true" />
-              </button>
-            ) : null}
           </div>
 
-          <main className="flex min-h-0 flex-1 flex-col justify-center py-4 md:py-6">
+          <main className="flex min-h-0 flex-1 flex-col justify-center py-5">
             <div className="text-center">
-              <div className="text-[60px] leading-none md:text-[68px]">🧠</div>
-              <h1 className="mt-3 font-display text-[40px] font-bold leading-none md:text-[46px]">{text.title}</h1>
-              <p className="mx-auto mt-3 max-w-[26ch] text-[24px] leading-[1.35] text-[#5B4B71]">{text.subtitle}</p>
+              <p className="mx-auto max-w-[26ch] text-[22px] font-bold leading-[1.35] text-[#5B4B71]">{text.subtitle}</p>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 md:mt-7">
-              <div className="flex min-h-[124px] items-center gap-4 rounded-[8px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[8px]" style={{ background: BRAND.softPurple }}>
+              <div className="flex min-h-[124px] items-center gap-4 rounded-[24px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: BRAND.softPurple }}>
                   <Brain className="h-10 w-10" style={{ color: BRAND.purple }} />
                 </div>
                 <p className="text-[24px] font-bold leading-[1.2]">{text.countBack}</p>
               </div>
-              <div className="flex min-h-[124px] items-center gap-4 rounded-[8px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#FFF7ED]">
+              <div className="flex min-h-[124px] items-center gap-4 rounded-[24px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+                <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#FFF7ED]">
                   <Eye className="h-10 w-10" style={{ color: BRAND.gold }} />
                 </div>
                 <p className="text-[24px] font-bold leading-[1.2]">{text.tapMatch}</p>
@@ -879,39 +891,33 @@ export default function DualTaskWalk({ userId, onExit }) {
           <button
             type="button"
             onClick={() => startRound()}
-            className="min-h-[72px] w-full shrink-0 rounded-[8px] px-6 text-[26px] font-bold text-white shadow-vyva-card sm:px-8 sm:text-[28px]"
+            className="min-h-[72px] w-full shrink-0 rounded-full px-6 text-[26px] font-bold text-white shadow-vyva-card sm:px-8 sm:text-[28px]"
             style={{ background: BRAND.purple }}
           >
             {text.start}
           </button>
         </div>
         </div>
-      </BrainCoachFullscreenActivity>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "tutorial") {
     return (
-      <BrainCoachFullscreenActivity
+      <BrainCoachActivityShell
         title={text.title}
+        backLabel={text.back}
+        onBack={handleExit}
         testId="dual-task-walk-flow-shell"
         presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.tutorial.touch"
         sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
         sceneKind="tutorial"
         sceneLayout="dual_task_example"
       >
-        <div className="h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={fixedShellStyle}>
-        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3">
+        <div className="pb-6">
+        <div className="mx-auto flex w-full max-w-[820px] flex-col">
+          <header className="flex min-h-[64px] shrink-0 items-center gap-3">
             <h1 className="min-w-0 font-display text-[34px] font-bold leading-tight sm:text-[40px]">{text.tutorialTitle}</h1>
-            <button
-              type="button"
-              onClick={closeTutorial}
-              className="min-h-[64px] shrink-0 rounded-full px-5 text-[22px] font-bold sm:px-6 sm:text-[24px]"
-              style={{ background: BRAND.softPurple, color: BRAND.purple }}
-            >
-              {text.skip}
-            </button>
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center py-3">
@@ -959,14 +965,14 @@ export default function DualTaskWalk({ userId, onExit }) {
           <button
             type="button"
             onClick={closeTutorial}
-            className="min-h-[72px] w-full shrink-0 rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
+            className="min-h-[72px] w-full shrink-0 rounded-full px-8 text-[28px] font-bold text-white shadow-vyva-card"
             style={{ background: BRAND.purple }}
           >
             {text.tutorialUnderstand}
           </button>
         </div>
         </div>
-      </BrainCoachFullscreenActivity>
+      </BrainCoachActivityShell>
     );
   }
 
@@ -974,72 +980,52 @@ export default function DualTaskWalk({ userId, onExit }) {
     const mathDone = serial7sStep >= serialSteps;
 
     return (
-      <BrainCoachFullscreenActivity
+      <BrainCoachActivityShell
         title={text.title}
+        backLabel={text.exit}
+        onBack={handleExit}
         testId="dual-task-walk-flow-shell"
         presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.playing.touch"
         sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
         sceneKind="playing"
         sceneLayout="dual_task_board"
       >
-        <div className="h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={fixedShellStyle}>
-        <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
-          <header className="shrink-0">
-            <div className="flex min-h-[52px] items-center justify-between gap-3 sm:min-h-[64px]">
-              <h1 className="min-w-0 font-display text-[20px] font-bold leading-[1.05] sm:text-[30px]">{text.title}</h1>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="inline-flex min-h-[46px] shrink-0 items-center gap-2 rounded-full px-4 text-[18px] font-bold sm:min-h-[64px] sm:gap-3 sm:px-5 sm:text-[24px]"
-                style={{ background: "#FFF7ED", color: "#9A3412" }}
-              >
-                <Square size={22} />
-                {text.exit}
-              </button>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[#EDE6F4]">
+        <div className="pb-6">
+        <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4">
+          <header className="flex shrink-0 items-center gap-4 px-1">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#EDE6F4]">
               <div className="h-full transition-[width] duration-100" style={{ width: `${roundProgress * 100}%`, background: BRAND.purple }} />
             </div>
+            <p className="shrink-0 text-[15px] font-bold text-[#5B4B71] sm:text-[17px]">
+              {Math.min(serial7sStep + 1, serialSteps)}/{serialSteps}
+            </p>
           </header>
 
-          <main className="flex min-h-0 flex-1 flex-col gap-2">
+          {isFinalizing ? (
+            <main className="flex min-h-[420px] flex-1 flex-col items-center justify-center gap-5 rounded-[28px] border bg-white p-8 text-center shadow-sm" style={{ borderColor: BRAND.border }} aria-live="polite">
+              <LoaderCircle className="animate-spin text-vyva-purple" size={56} strokeWidth={2.5} />
+              <p className="text-[22px] font-bold text-[#2B2233] sm:text-[26px]">{text.preparingResults}</p>
+            </main>
+          ) : (
+          <main className="flex min-h-0 flex-1 flex-col gap-4">
             <section
-              className={`flex min-h-0 shrink-0 flex-col rounded-[8px] border-2 bg-white p-3 transition-colors sm:p-4 ${
+              className={`flex min-h-0 shrink-0 flex-col rounded-[28px] border bg-white p-5 shadow-sm transition-colors sm:p-7 ${
                 serialFeedback === "correct" ? "bg-[#ECFDF3]" : serialFeedback === "almost" ? "bg-[#FFFBEB]" : ""
               }`}
               style={{
                 borderColor: serialFeedback === "correct" ? "#16A34A" : serialFeedback === "almost" ? BRAND.gold : BRAND.border,
-                flexBasis: "clamp(228px, 34dvh, 316px)",
               }}
             >
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 text-[18px] font-bold leading-[1.1] sm:text-[28px]">
-                  {text.startAt}: <span style={{ color: BRAND.purple }}>{currentSequence.start_number}</span>
-                </p>
-                <p className="shrink-0 text-[17px] font-bold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
-                  {text.step} {Math.min(serial7sStep + 1, serialSteps)} {text.of} {serialSteps}
-                </p>
-              </div>
-
               {mathDone ? (
-                <div className="mt-2 flex min-h-0 flex-1 items-center justify-center rounded-[8px] text-[30px] font-bold sm:text-[32px]" style={{ background: "#ECFDF3", color: "#15803D" }}>
-                  <Check size={46} />
-                  <span className="ml-3">✓ ✓ ✓</span>
+                <div className="flex min-h-[112px] items-center justify-center gap-3 rounded-[20px] text-[24px] font-bold sm:text-[28px]" style={{ background: "#ECFDF3", color: "#15803D" }}>
+                  <Check size={36} />
+                  <span>{text.mathTask}</span>
                 </div>
               ) : (
-                <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
-                  <div className="min-w-0 shrink-0">
-                    <p className="text-[22px] font-bold leading-[1.05] sm:text-[30px]">
-                      {text.question} {currentMinuend} - 7?
-                    </p>
-                    <p className="mt-1 text-[17px] font-semibold leading-[1.1] text-[#5B4B71] sm:text-[24px]">
-                      {text.recent}:{" "}
-                      {lastThreeMath.length === 0
-                        ? "—"
-                        : lastThreeMath.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ")}
-                    </p>
-                  </div>
-                  <div className="grid min-h-0 grid-cols-[118px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[178px_minmax(0,1fr)] sm:gap-3">
+                <div className="mx-auto grid w-full max-w-[680px] grid-cols-[auto_156px_64px] items-center justify-center gap-3 sm:grid-cols-[auto_184px_72px] sm:gap-5">
+                  <p className="whitespace-nowrap text-[30px] font-bold leading-none sm:text-[42px]">
+                    {currentMinuend} − 7 =
+                  </p>
                     <NumberPicker
                       value={pickerValue}
                       min={pickerMin}
@@ -1052,82 +1038,84 @@ export default function DualTaskWalk({ userId, onExit }) {
                       increaseLabel={text.increaseNumber}
                       decreaseLabel={text.decreaseNumber}
                     />
-                    <button
-                      type="button"
-                      onClick={handleSerial7sConfirm}
-                      disabled={!pickerTouched}
-                      className="inline-flex min-h-[72px] items-center justify-center gap-2 rounded-[8px] px-3 text-[20px] font-bold leading-[1.05] text-white transition-opacity disabled:opacity-45 sm:min-h-[96px] sm:gap-3 sm:px-6 sm:text-[26px]"
-                      style={{ background: pickerTouched ? BRAND.purple : "#9CA3AF" }}
-                    >
-                      <Check size={28} />
-                      {text.confirm}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSerial7sConfirm}
+                    disabled={!pickerTouched}
+                    aria-label={text.confirm}
+                    title={text.confirm}
+                    className="inline-flex size-16 items-center justify-center rounded-full text-white transition-opacity disabled:opacity-45 sm:size-[72px]"
+                    style={{ background: pickerTouched ? BRAND.purple : "#9CA3AF" }}
+                  >
+                    <Check size={32} strokeWidth={3} />
+                  </button>
                 </div>
               )}
             </section>
 
             <section
-              className={`flex min-h-0 flex-1 flex-col rounded-[8px] border-2 bg-white p-3 transition-colors sm:p-4 ${
+              className={`flex min-h-0 flex-1 flex-col rounded-[28px] border bg-white p-5 shadow-sm transition-colors sm:p-7 ${
                 lastTapResult === "hit" ? "bg-[#ECFDF3]" : lastTapResult === "fp" ? "bg-[#FEF2F2]" : ""
               }`}
               style={{ borderColor: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.border }}
             >
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <p className="text-[18px] font-semibold leading-[1.05] text-[#5B4B71] sm:text-[24px]">
-                  {text.previousSymbol}: <span className="text-[24px] text-[#2B2233] sm:text-[36px]">{previousSymbol}</span>
-                </p>
-                <div className="flex items-center gap-3 text-[18px] font-bold leading-[1.05] sm:gap-6 sm:text-[24px]">
-                  <span>{text.hits}: {tapLog.filter((entry) => entry.wasMatch && entry.tapped).length}</span>
-                  <span>{text.almost}: {tapLog.filter((entry) => !entry.wasMatch && entry.tapped).length}</span>
-                </div>
-              </div>
-              <div className="flex min-h-0 flex-1 items-center justify-center py-1">
+              <div className="flex min-h-[126px] flex-1 items-center justify-center gap-4 py-2 sm:min-h-[150px] sm:gap-6">
                 {symbolsComplete ? (
                   <p className="text-center text-[24px] font-bold sm:text-[32px]" style={{ color: BRAND.purple }}>{text.visualDone}</p>
                 ) : (
-                  <div className="text-[62px] font-bold leading-none sm:text-[112px]">{currentSymbol}</div>
+                  <>
+                    <div className="flex size-[92px] items-center justify-center rounded-[24px] bg-[#F5F1F7] text-[46px] font-bold leading-none text-[#756680] sm:size-[112px] sm:text-[58px]" aria-label={`${text.previousSymbol}: ${previousSymbol}`}>
+                      {previousSymbol}
+                    </div>
+                    <span className="text-[32px] font-bold text-[#A899B2]" aria-hidden="true">=</span>
+                    <div className="flex size-[112px] items-center justify-center rounded-[28px] border-2 bg-white text-[64px] font-bold leading-none shadow-sm sm:size-[132px] sm:text-[76px]" style={{ borderColor: BRAND.border }}>
+                      {currentSymbol}
+                    </div>
+                  </>
                 )}
               </div>
               <button
                 type="button"
                 onClick={handleTap}
                 disabled={symbolsComplete}
-                className="mx-auto flex min-h-[108px] w-full max-w-[560px] shrink-0 items-center justify-center rounded-[8px] px-6 text-center text-[24px] font-bold leading-[1.05] text-white disabled:opacity-60 sm:min-h-[200px] sm:px-8 sm:text-[32px]"
+                aria-label={text.tapHere}
+                title={text.tapHere}
+                className="mx-auto flex size-[72px] shrink-0 items-center justify-center rounded-full text-center text-[36px] font-bold leading-none text-white shadow-md disabled:opacity-60 sm:size-[80px] sm:text-[40px]"
                 style={{ background: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.purple }}
               >
-                {text.tapHere}
+                =
               </button>
             </section>
           </main>
+          )}
         </div>
         </div>
-      </BrainCoachFullscreenActivity>
+      </BrainCoachActivityShell>
     );
   }
 
   const result = sessionResult ?? computeScore(serial7sLog, tapLog, currentSequence, false);
-  const mathMarks = result.serial7s_log.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ");
+  const resultTitle = isGreatDualTaskResult(result)
+    ? text.resultGreat
+    : result.combined_accuracy_pct >= 40
+      ? text.resultGood
+      : text.resultPractice;
   const completedTier = currentSequence.difficulty_tier;
   const adaptiveTier = userState?.current_tier ?? completedTier;
-  const adaptiveBand = getBrainCoachLevelBand(adaptiveTier);
   const resultWasPromoted = adaptiveTier > completedTier;
-  const resultSummary = resultWasPromoted
-    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: completedTier })
-    : result.dual_task_score >= 600
-      ? `${text.totalScore}: ${result.dual_task_score}`
-      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
+  const progressionSummary = adaptiveTier >= BRAIN_COACH_MAX_LEVEL
+    ? text.maxLevelReached
+    : text.progressRequirement.replace("{count}", String(userState?.consecutive_wins ?? 0));
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(adaptiveTier))
     : text.continueAction;
-  const promotionLabel =
-    resultWasPromoted
-      ? text.newLevel
-      : `${text.keepGoing} ${text.level} ${nextTier}`;
 
   return (
-    <BrainCoachFullscreenActivity
+    <BrainCoachActivityShell
       title={text.title}
+      backLabel={text.exit}
+      onBack={handleExit}
+      showHeader={false}
       testId="dual-task-walk-flow-shell"
       presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.result.touch"
       sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
@@ -1137,63 +1125,23 @@ export default function DualTaskWalk({ userId, onExit }) {
     >
       <div className="min-h-[100dvh]" style={shellStyle}>
         <BrainGameCompletionDialog
-          title={resultToneGreat ? text.resultGreat : text.resultGood}
-          summary={resultSummary}
+          appearance="light"
+          title={resultTitle}
+          summary={progressionSummary}
           metrics={[
             { label: text.mathTask, value: `${Math.round(result.serial7s_accuracy_pct)}%` },
             { label: text.visualTask, value: `${Math.round(result.tap_accuracy_pct)}%` },
             { label: text.totalScore, value: result.dual_task_score },
-            { label: text.streak, value: `${userState?.streak_days ?? 0} ${text.days}` },
           ]}
           continueLabel={continueLabel}
-          replayLabel={text.playAgain}
           anotherLabel={text.playAnotherGame}
           onContinue={handleContinue}
-          onReplay={handlePlayAgain}
           onAnother={handleExit}
-          details={
-            <div className="grid gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
-                    <span>{text.mathTask}</span>
-                    <span>{Math.round(result.serial7s_accuracy_pct)}%</span>
-                  </div>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
-                    <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${result.serial7s_accuracy_pct}%` }} />
-                  </div>
-                  <p className="mt-2 text-[14px] font-bold text-vyva-text-2">{text.mathLine}: {mathMarks || "-"}</p>
-                </div>
-                <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
-                    <span>{text.visualTask}</span>
-                    <span>{Math.round(result.tap_accuracy_pct)}%</span>
-                  </div>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
-                    <div className="h-full rounded-full bg-vyva-gold" style={{ width: `${result.tap_accuracy_pct}%` }} />
-                  </div>
-                  <p className="mt-2 text-[14px] font-bold text-vyva-text-2">
-                    {text.visualLine}: {text.hits} {result.tap_hits} | {text.almost} {result.tap_false_positives + result.tap_misses}
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
-                <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
-                  <span>{promotionLabel}</span>
-                  <span>{Math.round(progressToPromotion)}%</span>
-                </div>
-                <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
-                  {text.level} {adaptiveTier} - {adaptiveBand.label}
-                </p>
-                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
-                  <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${progressToPromotion}%` }} />
-                </div>
-              </div>
-            </div>
-          }
+          onClose={handleExit}
+          closeLabel={t("common.close")}
         />
       </div>
-    </BrainCoachFullscreenActivity>
+    </BrainCoachActivityShell>
   );
 }
 

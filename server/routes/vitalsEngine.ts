@@ -66,6 +66,7 @@ router.use(requireUser);
 const ANALYSIS_MODEL = "claude-sonnet-4-20250514";
 const FALLBACK_MODEL_VERSION = "deterministic-fallback-v1";
 const ALERT_TYPE = "vitals_safety_check";
+const SAFETY_CONTEXT_FRESHNESS_HOURS = 48;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -364,6 +365,7 @@ async function getLatestAnalysis(userId: string): Promise<PatternWindowRow | nul
     SELECT *
     FROM vyva_pattern_windows
     WHERE user_id = ${userId}
+      AND analysed_at >= ${daysAgo(SAFETY_CONTEXT_FRESHNESS_HOURS)}
     ORDER BY analysed_at DESC
     LIMIT 1
   `);
@@ -403,7 +405,12 @@ async function getLatestAlerts(userId: string, limit = 3) {
       created_at: caregiverAlerts.created_at,
     })
     .from(caregiverAlerts)
-    .where(eq(caregiverAlerts.user_id, userId))
+    .where(and(
+      eq(caregiverAlerts.user_id, userId),
+      eq(caregiverAlerts.alert_type, ALERT_TYPE),
+      isNull(caregiverAlerts.resolved_at),
+      gte(caregiverAlerts.created_at, daysAgo(SAFETY_CONTEXT_FRESHNESS_HOURS)),
+    ))
     .orderBy(desc(caregiverAlerts.created_at))
     .limit(limit);
 }
@@ -479,7 +486,10 @@ async function getLatestTriage(userId: string): Promise<TriageSafetyContext | nu
   const [row] = await db
     .select()
     .from(triageReports)
-    .where(eq(triageReports.user_id, userId))
+    .where(and(
+      eq(triageReports.user_id, userId),
+      gte(triageReports.created_at, daysAgo(SAFETY_CONTEXT_FRESHNESS_HOURS)),
+    ))
     .orderBy(desc(triageReports.created_at))
     .limit(1);
   return row ?? null;
