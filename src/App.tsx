@@ -1125,6 +1125,8 @@ const App = () => (
                     <Route path="/dev/brain/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                     <Route path="/dev/brain/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/brain-coach/focus" /></AppShell>} />
                     <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
+                    <Route path="/dev/home-master/community-team" element={<AppShell><AdvisorHub preview /></AppShell>} />
+                    <Route path="/dev/home-master/community-team/chat" element={<AppShell><AdvisorChat preview /></AppShell>} />
                     <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />

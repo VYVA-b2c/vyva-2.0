@@ -127,7 +127,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByTestId("prototype-symptom-assessment-content")).toHaveClass("mt-5", "sm:mt-7");
   });
 
-  it.each(["/health/symptom-check", "/health/vitals", "/informes/report-1", "/brain-coach/remember", "/brain-coach/focus", "/brain-coach/think", "/brain-coach/calm", "/dev/brain/remember", "/dev/brain/focus", "/dev/brain/think", "/dev/brain/calm", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report", "/dev/home-master/vitals", "/meds/refills", "/benefits", "/dev/benefits"])(
+  it.each(["/health/symptom-check", "/health/vitals", "/informes/report-1", "/brain-coach/remember", "/brain-coach/focus", "/brain-coach/think", "/brain-coach/calm", "/dev/brain/remember", "/dev/brain/focus", "/dev/brain/think", "/dev/brain/calm", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report", "/dev/home-master/vitals", "/meds/refills", "/benefits", "/dev/benefits", "/social-rooms/experts", "/dev/home-master/community-team", "/dev/home-master/community-team/chat"])(
     "keeps one flow-owned header and the shared Home/SOS/Reports dock on %s",
     (pathname) => {
       expect(isHomeNavPrototypeTopbarRoute(pathname)).toBe(true);
@@ -135,6 +135,11 @@ describe("Home/Nav prototype screens", () => {
       expect(hidesHomeNavPrototypeDock(pathname)).toBe(false);
     },
   );
+
+  it("keeps expert chats inside the canonical topbar and dock frame", () => {
+    expect(isHomeNavPrototypeTopbarRoute("/social-rooms/experts/nora")).toBe(true);
+    expect(isHomeNavPrototypeDockRoute("/social-rooms/experts/nora")).toBe(true);
+  });
 
   it.each([
     "/brain-coach/activity/remember_later",

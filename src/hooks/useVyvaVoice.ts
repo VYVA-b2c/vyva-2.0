@@ -861,6 +861,10 @@ function isAgentVoiceDebugEvent(payload: unknown) {
 
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
+  if (agentSlug === "amara" || agentSlug === "nora") return "health";
+  if (agentSlug === "diego") return "safety";
+  if (agentSlug === "sabio" || agentSlug === "marta") return "concierge";
+  if (agentSlug === "tomas" || agentSlug === "elena" || agentSlug === "ines") return "companion";
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";

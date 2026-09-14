@@ -39,6 +39,9 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/brain/think",
   "/dev/brain/calm",
   "/social-rooms",
+  "/social-rooms/experts",
+  "/dev/home-master/community-team",
+  "/dev/home-master/community-team/chat",
   "/benefits",
   "/dev/benefits",
   "/concierge",
@@ -99,14 +102,19 @@ function isBrainCoachOwnedTopbarRoute(pathname: string) {
     BRAIN_COACH_OWNED_TOPBAR_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
+function isCommunityExpertChatRoute(pathname: string) {
+  return pathname.startsWith("/social-rooms/experts/") || pathname === "/dev/home-master/community-team/chat";
+}
+
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {
   return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname) ||
     isBrainCoachOwnedTopbarRoute(pathname) ||
+    isCommunityExpertChatRoute(pathname) ||
     isSymptomReportDetailRoute(pathname);
 }
 
 export function isHomeNavPrototypeDockRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) || isSymptomReportDetailRoute(pathname);
+  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) || isCommunityExpertChatRoute(pathname) || isSymptomReportDetailRoute(pathname);
 }
 
 function isSymptomReportDetailRoute(pathname: string) {
