@@ -247,6 +247,7 @@ const marketingSocialPackageSchema = z.object({
   audienceType: audienceTypeSchema,
   targetAudienceId: nullableUuidSchema,
   language: z.string().trim().min(2).max(24).default("en"),
+  languages: z.array(z.string().trim().toLowerCase().min(2).max(24)).min(1).max(10).optional(),
   tone: marketingAiToneSchema.default("warm"),
   channels: z.array(socialStudioChannelSchema).min(1).max(6),
   ctaLabel: z.string().trim().max(80).optional().default("Open VYVA"),
@@ -392,6 +393,7 @@ type MarketingSocialStudioInput = z.infer<typeof marketingSocialPackageSchema>;
 
 type MarketingSocialVariant = {
   channel: SocialStudioChannel;
+  language: string;
   title: string;
   subject: string | null;
   body: string;
@@ -413,6 +415,11 @@ type MarketingSocialPackage = {
   objective: string;
   variants: MarketingSocialVariant[];
 };
+
+function selectedSocialLanguages(input: MarketingSocialStudioInput) {
+  const requested = input.languages?.length ? input.languages : [input.language];
+  return Array.from(new Set([input.language.toLowerCase(), ...requested.map((language) => language.toLowerCase())]));
+}
 
 const socialStudioChannelConfig: Record<SocialStudioChannel, {
   label: string;
@@ -500,6 +507,7 @@ function fallbackMarketingSocialVariant(input: MarketingSocialStudioInput, chann
 
   return {
     channel,
+    language: input.language,
     title,
     subject,
     body,
@@ -568,7 +576,7 @@ function normalizeMarketingSocialPackage(value: unknown, fallback: MarketingSoci
   };
 }
 
-async function generateMarketingSocialPackage(input: MarketingSocialStudioInput) {
+async function generateMarketingSocialPackageForLanguage(input: MarketingSocialStudioInput) {
   const fallback = fallbackMarketingSocialPackage(input);
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -634,6 +642,23 @@ async function generateMarketingSocialPackage(input: MarketingSocialStudioInput)
       note: "OpenAI could not generate this package, so VYVA used the built-in safe fallback.",
     };
   }
+}
+
+async function generateMarketingSocialPackage(input: MarketingSocialStudioInput) {
+  const languages = selectedSocialLanguages(input);
+  const packages = await Promise.all(languages.map((language) =>
+    generateMarketingSocialPackageForLanguage({ ...input, language, languages: [language] }),
+  ));
+  return {
+    configured: packages.every((item) => item.configured),
+    source: packages.every((item) => item.source === "openai") ? "openai" as const : "fallback" as const,
+    package: {
+      campaignName: packages[0]?.package.campaignName ?? input.campaignName,
+      objective: packages[0]?.package.objective ?? input.brief,
+      variants: packages.flatMap((item) => item.package.variants),
+    },
+    note: Array.from(new Set(packages.map((item) => item.note).filter((note): note is string => Boolean(note)))).join(" ") || null,
+  };
 }
 
 type MarketingAiCampaignDraft = {
@@ -2714,6 +2739,7 @@ function socialStudioContentMetadata(content: MarketingContentAssetRow) {
 
 type MarketingSocialReadiness = {
   channel: string;
+  language: string;
   state: "ready" | "needs_action" | "approved";
   issues: string[];
 };
@@ -2748,6 +2774,7 @@ function socialStudioReadiness(
     }
     return {
       channel: campaignChannel.channel,
+      language: content?.language || "en",
       state: issues.length ? "needs_action" : content?.status === "approved" ? "approved" : "ready",
       issues,
     };
@@ -2798,6 +2825,7 @@ function socialStudioInputForContent(content: MarketingContentAssetRow): Marketi
     audienceType,
     targetAudienceId: typeof studio.targetAudienceId === "string" ? studio.targetAudienceId : null,
     language: content.language || "en",
+    languages: [content.language || "en"],
     tone,
     channels: [channel],
     ctaLabel: content.cta_label || "Open VYVA",
@@ -3186,6 +3214,7 @@ adminMarketingRouter.post("/social-packages", async (req, res) => {
         audienceType: parsed.data.audienceType,
         targetAudienceId: parsed.data.targetAudienceId ?? null,
         language: parsed.data.language,
+        languages: selectedSocialLanguages(parsed.data),
         tone: parsed.data.tone,
         channels: parsed.data.channels,
         ctaLabel: parsed.data.ctaLabel,
@@ -3214,7 +3243,7 @@ adminMarketingRouter.post("/social-packages", async (req, res) => {
     const contentRows = await db.insert(marketingContentAssets).values(generated.package.variants.map((variant) => ({
       title: variant.title,
       channel: variant.channel,
-      language: parsed.data.language,
+      language: variant.language,
       status: "review",
       subject: variant.subject,
       body: variant.body,
@@ -3247,6 +3276,7 @@ adminMarketingRouter.post("/social-packages", async (req, res) => {
           imageApprovalStatus: parsed.data.generateImages ? "pending" : "not_requested",
           approvalStatus: "pending",
           generationSource: generated.source,
+          languages: selectedSocialLanguages(parsed.data),
         },
       },
       created_by: actor(req),
@@ -3254,17 +3284,18 @@ adminMarketingRouter.post("/social-packages", async (req, res) => {
       updated_at: now,
     }))).returning();
 
-    const contentByChannel = new Map(contentRows.map((content) => [content.channel, content]));
+    const contentByVariant = new Map(contentRows.map((content) => [`${content.channel}:${content.language}`, content]));
     const channelRows = await db.insert(marketingCampaignChannels).values(generated.package.variants.map((variant) => ({
       campaign_id: campaign.id,
       channel: variant.channel,
-      content_asset_id: contentByChannel.get(variant.channel)?.id ?? null,
+      content_asset_id: contentByVariant.get(`${variant.channel}:${variant.language}`)?.id ?? null,
       scheduled_at: dateOrNull(parsed.data.scheduledAt),
       status: "draft",
       send_capability: sendCapabilityForChannel(variant.channel),
       metadata: sendMetadataForChannel(variant.channel, {
         socialStudio: {
           format: socialStudioChannelConfig[variant.channel].format,
+          language: variant.language,
           aspectRatio: variant.imageAspectRatio,
           imageRequired: variant.imageRequired,
         },
@@ -3276,12 +3307,12 @@ adminMarketingRouter.post("/social-packages", async (req, res) => {
     const imageNotes: string[] = [];
     if (parsed.data.generateImages && process.env.OPENAI_API_KEY?.trim()) {
       for (const variant of generated.package.variants) {
-        const content = contentByChannel.get(variant.channel);
+        const content = contentByVariant.get(`${variant.channel}:${variant.language}`);
         if (!content) continue;
         try {
           const result = await generateAndStoreMarketingSocialImage({ content, variant, actorName: actor(req) });
           imageAssets.push(result.mediaAsset);
-          contentByChannel.set(variant.channel, result.content);
+          contentByVariant.set(`${variant.channel}:${variant.language}`, result.content);
         } catch (error) {
           console.error(`[admin/marketing] ${variant.channel} image generation failed`, error);
           imageNotes.push(`${socialStudioChannelConfig[variant.channel].label} image generation failed; generate or attach it before approval.`);
