@@ -2610,6 +2610,36 @@ describe("admin marketing router", () => {
       });
   });
 
+  it("creates one reviewable variant per selected channel and language", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    const response = await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/social-packages")
+      .send({
+        brief: "Share a practical VYVA update.",
+        audienceType: "both",
+        language: "en",
+        languages: ["en", "es"],
+        channels: ["instagram", "linkedin"],
+        generateImages: false,
+      })
+      .expect(201);
+
+    expect(response.body.content).toHaveLength(4);
+    expect(response.body.content.map((item: { channel: string; language: string }) => `${item.channel}:${item.language}`)).toEqual([
+      "instagram:en",
+      "linkedin:en",
+      "instagram:es",
+      "linkedin:es",
+    ]);
+    expect(response.body.readiness.map((item: { channel: string; language: string }) => `${item.channel}:${item.language}`)).toEqual([
+      "instagram:en",
+      "linkedin:en",
+      "instagram:es",
+      "linkedin:es",
+    ]);
+  });
+
   it("regenerates one Social Studio variant and returns it to review", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
     const createResponse = await request(buildApp("ops@example.com"))
