@@ -45,6 +45,8 @@ import {
   Users,
   Mail,
   MessageCircle,
+  LifeBuoy,
+  Compass,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17067,68 +17069,76 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     openInline();
   }
 
+  function launchConciergeCategoryPicker(pickerPath: string, entry: ConciergeTaskEntry, openInline: () => void) {
+    if (mode === "home") {
+      navigate(pickerPath);
+      return;
+    }
+    launchConciergeTask(entry, openInline);
+  }
+
   const conciergeMasterCards: MasterDashboardCard[] = [
     {
-      id: "home-care",
-      icon: Home,
-      title: t("concierge.master.cards.homeCare", "Home Care"),
-      detail: t("concierge.master.cards.homeCareDetail", "Plumber, electrician, cleaning"),
+      id: "get-help",
+      icon: LifeBuoy,
+      title: t("concierge.master.cards.getHelp", "Get Help"),
+      detail: t("concierge.master.cards.getHelpDetail", "Home repair, healthcare, admin, home care"),
       chips: [
-        t("concierge.master.cards.homeCareChipPlumber", "Plumber"),
-        t("concierge.master.cards.homeCareChipElectrician", "Electrician"),
-        t("concierge.master.cards.homeCareChipCleaning", "Cleaning"),
+        t("concierge.master.cards.getHelpChipHomeRepair", "Home Repair"),
+        t("concierge.master.cards.getHelpChipHealthcare", "Healthcare"),
+        t("concierge.master.cards.getHelpChipAdminService", "Admin Service"),
       ],
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => launchConciergeTask({ kind: "home_service" }, openHomeServiceAssistant),
+      onClick: () => launchConciergeCategoryPicker("/concierge/get-help", { kind: "home_service" }, openHomeServiceAssistant),
       testId: "button-concierge-card-service",
-    },
-    {
-      id: "personal-care",
-      icon: UserRound,
-      title: t("concierge.master.cards.personalCare", "Personal Care"),
-      detail: t("concierge.master.cards.personalCareDetail", "Find a specialist, find a residence"),
-      chips: [
-        t("concierge.master.cards.personalCareChipSpecialist", "Find a Specialist"),
-        t("concierge.master.cards.personalCareChipResidence", "Find a Residence"),
-      ],
-      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
-      onClick: () => {
-        const query = isSpanish
-          ? "comparar especialista, cuidado personal o residencia"
-          : "compare a specialist, personal care, or residence";
-        launchConciergeTask(
-          { kind: "provider_contact", providerSearchMode: "personal-care", query },
-          () => openProviderSearchPanel("personal-care", query),
-        );
-      },
-      testId: "button-concierge-card-ride",
     },
     {
       id: "order-in",
       icon: PackageCheck,
       title: t("concierge.master.cards.orderIn", "Order In"),
-      detail: t("concierge.master.cards.orderInDetail", "Groceries, household"),
+      detail: t("concierge.master.cards.orderInDetail", "A ride, food, shopping"),
       chips: [
-        t("concierge.master.cards.orderInChipGroceries", "Groceries"),
-        t("concierge.master.cards.orderInChipHousehold", "Household"),
+        t("concierge.master.cards.orderInChipRide", "A Ride"),
+        t("concierge.master.cards.orderInChipFood", "Food"),
+        t("concierge.master.cards.orderInChipShopping", "Shopping"),
       ],
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: () => openShoppingHelp("groceries"),
+      onClick: () => {
+        if (mode === "home") {
+          navigate("/concierge/order-in");
+          return;
+        }
+        openShoppingHelp("groceries");
+      },
       testId: "button-concierge-card-delivery",
     },
     {
-      id: "book-now",
+      id: "book-appointments",
       icon: Calendar,
-      title: t("concierge.master.cards.bookNow", "Book Now"),
-      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, personal care"),
+      title: t("concierge.master.cards.bookAppointments", "Book Appointments"),
+      detail: t("concierge.master.cards.bookAppointmentsDetail", "Medical, admin, personal care"),
       chips: [
-        t("concierge.master.cards.bookNowChipMedical", "Medical"),
-        t("concierge.master.cards.bookNowChipGovernment", "Government"),
-        t("concierge.master.cards.bookNowChipPersonalCare", "Personal care"),
+        t("concierge.master.cards.bookAppointmentsChipMedical", "Medical"),
+        t("concierge.master.cards.bookAppointmentsChipAdmin", "Admin"),
+        t("concierge.master.cards.bookAppointmentsChipPersonalCare", "Personal Care"),
       ],
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => launchConciergeTask({ kind: "appointment" }, () => openScheduleAssistant()),
+      onClick: () => launchConciergeCategoryPicker("/concierge/book-appointments", { kind: "appointment" }, () => openScheduleAssistant()),
       testId: "button-concierge-card-appointment",
+    },
+    {
+      id: "discover",
+      icon: Compass,
+      title: t("concierge.master.cards.discover", "Discover"),
+      detail: t("concierge.master.cards.discoverDetail", "Local services and offers"),
+      chips: [
+        t("concierge.master.cards.discoverChipSafeHome", "Safe Home"),
+        t("concierge.master.cards.discoverChipCheckScam", "Check Scam"),
+        t("concierge.master.cards.discoverChipOtcPharmacy", "OTC Pharmacy"),
+      ],
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => navigate("/concierge/discover"),
+      testId: "button-concierge-card-discover",
     },
   ];
 
