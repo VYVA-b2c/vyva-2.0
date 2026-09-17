@@ -45,13 +45,19 @@ describe("MenuScreen", () => {
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
-      "/social-rooms",
+      "/social-rooms/experts",
       "/concierge",
     ]);
     expect(screen.getByTestId("menu-tile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
     expect(screen.getByTestId("menu-tile-brain").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
     expect(screen.getByTestId("menu-tile-community").querySelector('[data-vyva-accent="link"]')).toBeInTheDocument();
     expect(screen.getByTestId("menu-tile-concierge").querySelector('[data-vyva-accent="clapper"]')).toBeInTheDocument();
+  });
+
+  it("opens the expert team directly from Community", () => {
+    renderMenu();
+    fireEvent.click(screen.getByTestId("menu-tile-community"));
+    expect(screen.getByTestId("location-probe").textContent).toBe("/social-rooms/experts");
   });
 
   it("routes each Menu tile to the existing app destination", () => {

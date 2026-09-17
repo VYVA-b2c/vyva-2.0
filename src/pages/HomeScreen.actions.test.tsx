@@ -1837,7 +1837,7 @@ describe("Home fast service actions", () => {
 
   it.each([
     ["cognitive", "mind", ["memory", "reflexes", "focus", "senses"], "/mind-memory"],
-    ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms"],
+    ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms/experts"],
     ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
   ] as const)("opens the four %s choices before routing to the full pillar", (_masterCard, intent, cardIds, route) => {
     renderHomeScreen();

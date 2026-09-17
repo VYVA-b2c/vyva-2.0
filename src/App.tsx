@@ -279,7 +279,6 @@ const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsS
 const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
 const TrustedHelpSettings = lazy(() => import("./pages/settings/TrustedHelpSettings"));
 const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
-const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
 const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
 const ShareStoriesScreen = lazy(() => import("./social/ShareStoriesScreen"));
@@ -1237,7 +1236,7 @@ const App = () => (
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
-                  <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
+                  <Route path="/social-rooms" element={<Navigate to="/social-rooms/experts" replace />} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />

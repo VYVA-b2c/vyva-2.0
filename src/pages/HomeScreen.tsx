@@ -341,7 +341,7 @@ function homeDoctorMailto(email: string | undefined | null, subject: string, bod
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "health", icon: Heart, path: "/health", theme: "pink" },
   { id: "cognitive", icon: Brain, path: "/mind-memory", theme: "purple" },
-  { id: "social", icon: Users, path: "/social-rooms", theme: "blue" },
+  { id: "social", icon: Users, path: "/social-rooms/experts", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
 ];
 
@@ -1377,10 +1377,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
       title: t("home.master.cards.communityShortTitle", "Community"),
       detail: t("home.master.cards.communityDetailShort", "Rooms and support"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => {
-        setHomeIntentLayer("community");
-        setHomeSubflow(null);
-      },
+      onClick: () => handleNavigate("/social-rooms/experts"),
       testId: "card-home-agent-social",
     },
     {
@@ -2330,7 +2327,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
   const moreRouteByIntent: Partial<Record<HomeIntentLayer, string>> = {
     health: "/health",
     mind: "/mind-memory",
-    community: "/social-rooms",
+    community: "/social-rooms/experts",
     concierge: "/concierge",
   };
   const homeMasterVisibleCards = cardsByIntent[homeIntentLayer].map((card) => {
