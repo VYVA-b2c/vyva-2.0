@@ -93,6 +93,10 @@ type CanonicalVoiceButtonProps = {
   dynamicVariables?: Record<string, string | number | boolean>;
   label?: string;
   testId?: string;
+  /** Preserve a flow's registered voice capture while using the canonical control. */
+  onToggle?: () => void;
+  isActive?: boolean;
+  touchLabel?: string;
 };
 
 export function CanonicalVoiceButton({
@@ -101,16 +105,23 @@ export function CanonicalVoiceButton({
   dynamicVariables,
   label = "Talk to VYVA",
   testId = "button-canonical-voice",
+  onToggle,
+  isActive,
+  touchLabel = "Return to touch mode",
 }: CanonicalVoiceButtonProps) {
   const voice = useOptionalVyvaVoice();
-  const active = voice?.status === "connected" || voice?.isConnecting;
+  const active = isActive ?? (voice?.status === "connected" || voice?.isConnecting);
 
   return (
     <button
       type="button"
-      aria-label={active ? "Return to touch mode" : label}
+      aria-label={active ? touchLabel : label}
       data-testid={testId}
       onClick={() => {
+        if (onToggle) {
+          onToggle();
+          return;
+        }
         if (!voice) return;
         if (active) {
           voice.stopVoice();

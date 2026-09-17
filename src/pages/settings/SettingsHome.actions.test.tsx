@@ -6,6 +6,16 @@ import SettingsHome from "./SettingsHome";
 const toastMock = vi.fn();
 const logoutMock = vi.fn();
 const profileHeroMock = vi.hoisted(() => vi.fn());
+const voiceMock = vi.hoisted(() => ({
+  status: "disconnected",
+  isConnecting: false,
+  startVoice: vi.fn(),
+  stopVoice: vi.fn(),
+}));
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => voiceMock,
+}));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
@@ -15,7 +25,11 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/components/onboarding/PhoneFrame", () => ({
-  PhoneFrame: ({ children }: { children: React.ReactNode }) => <div data-testid="phone-frame">{children}</div>,
+  PhoneFrame: ({ children, rightAction, showCompanionMode }: {
+    children: React.ReactNode;
+    rightAction?: React.ReactNode;
+    showCompanionMode?: boolean;
+  }) => <div data-testid="phone-frame" data-companion-mode={String(showCompanionMode)}>{rightAction}{children}</div>,
 }));
 
 vi.mock("@/components/onboarding/ProfileSectionHero", () => ({
@@ -49,19 +63,36 @@ afterEach(() => {
   toastMock.mockClear();
   logoutMock.mockClear();
   profileHeroMock.mockClear();
+  voiceMock.startVoice.mockClear();
+  voiceMock.stopVoice.mockClear();
+  voiceMock.status = "disconnected";
 });
 
 describe("SettingsHome action rows", () => {
-  it("keeps the Settings hero free of section chips", () => {
+  it("removes the introduction and mode panel while keeping settings and the canonical microphone", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
         <SettingsHome />
       </MemoryRouter>,
     );
 
-    const props = profileHeroMock.mock.calls[0]?.[0];
-    expect(props).toEqual(expect.objectContaining({ title: "settings.home.title" }));
-    expect(props).not.toHaveProperty("badges");
+    expect(profileHeroMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("settings-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("phone-frame")).toHaveAttribute("data-companion-mode", "false");
+    expect(screen.getByTestId("button-settings-health-devices")).toBeInTheDocument();
+    const microphone = screen.getByTestId("button-settings-canonical-voice");
+    expect(microphone).toHaveClass("rounded-full", "bg-vyva-purple");
+    fireEvent.click(microphone);
+    expect(voiceMock.startVoice).toHaveBeenCalledWith(
+      "Help me manage my VYVA settings.", undefined, { autoStartListening: true },
+    );
+  });
+
+  it("returns to touch mode from the canonical voice control", () => {
+    voiceMock.status = "connected";
+    render(<MemoryRouter><SettingsHome /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Return to touch mode" }));
+    expect(voiceMock.stopVoice).toHaveBeenCalledOnce();
   });
 
   it("turns delete account into a safe support request action", () => {

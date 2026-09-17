@@ -1,0 +1,1 @@
+- [UI verification](ui-verification.md) — the screenshot browser may capture the splash without an authenticated session; do not treat it as page verification.

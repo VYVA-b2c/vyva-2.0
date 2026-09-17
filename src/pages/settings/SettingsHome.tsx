@@ -21,7 +21,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
-import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
@@ -237,16 +237,20 @@ export default function SettingsHome() {
   };
 
   return (
-    <PhoneFrame>
-      <div data-testid="settings-home-grid" className="grid gap-5 px-1 pb-6 pt-5 sm:px-2 md:grid-cols-2 md:items-start md:px-3">
-        <ProfileSectionHero
-          icon={Shield}
-          title={t("settings.home.title")}
-          kicker="VYVA settings"
-          description={t("settings.home.subtitle")}
-          className="md:col-span-2"
+    <PhoneFrame
+      subtitle={t("settings.home.title")}
+      showBack
+      onBack={() => navigate("/menu")}
+      showCompanionMode={false}
+      rightAction={
+        <CanonicalVoiceButton
+          contextHint="Help me manage my VYVA settings."
+          label={t("profile.voice.tellVyva", "Tell VYVA")}
+          testId="button-settings-canonical-voice"
         />
-
+      }
+    >
+      <div data-testid="settings-home-grid" className="grid gap-5 px-1 pb-6 pt-5 sm:px-2 md:grid-cols-2 md:items-start md:px-3">
         <Section title={t("settings.home.sections.account")}>
           <Row
             icon={UserRound}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,13 +11,13 @@ import {
   ShieldCheck,
   Smartphone,
   Stethoscope,
-  UserRoundPlus,
   Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
-import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { PhoneFrame as BasePhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
@@ -225,6 +225,44 @@ function roleFromVoiceValue(value: string | undefined): Role | undefined {
   if (cleaned.includes("carer") || cleaned.includes("caregiver") || cleaned.includes("care")) return "carer";
   if (cleaned.includes("family") || cleaned.includes("relative")) return "family";
   return undefined;
+}
+
+function PhoneFrame({ children, ...props }: ComponentProps<typeof BasePhoneFrame>) {
+  const { t } = useTranslation();
+  const { mode, voiceStatus, error, currentPrompt, setMode, runPrimaryVoiceAction } = useOnboardingAgent();
+  const active = mode === "voice" && (voiceStatus === "listening" || voiceStatus === "speaking" || voiceStatus === "thinking");
+
+  return (
+    <BasePhoneFrame
+      {...props}
+      showCompanionMode={false}
+      showAllSections={false}
+      rightAction={
+        <CanonicalVoiceButton
+          contextHint="Help with care team setup."
+          label={t("profile.voice.tellVyva", "Tell VYVA")}
+          touchLabel={t("profile.overview.companionMode.tactileDescription", "Use touch or keyboard controls quietly.")}
+          testId="button-careteam-canonical-voice"
+          isActive={active}
+          onToggle={() => {
+            if (active) {
+              setMode("tactile");
+            } else {
+              setMode("voice");
+              window.setTimeout(runPrimaryVoiceAction, 0);
+            }
+          }}
+        />
+      }
+    >
+      {mode === "voice" && (error || (active && currentPrompt)) ? (
+        <p role={error ? "alert" : "status"} className="mb-3 font-body text-sm text-vyva-text-2">
+          {error || currentPrompt}
+        </p>
+      ) : null}
+      {children}
+    </BasePhoneFrame>
+  );
 }
 
 export default function CareTeamFlow() {
@@ -708,17 +746,6 @@ export default function CareTeamFlow() {
         onAllSections={() => navigate("/onboarding/profile")}
       >
         <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
-          <ProfileSectionHero
-            icon={UserRoundPlus}
-            title={plainLabel(t("onboarding.careTeam.step1.heading"))}
-            kicker={careTeamTitle}
-            description={t("onboarding.careTeam.step1.subtitle")}
-            badges={ROLE_OPTIONS.map((opt, index) => ({
-              label: t(opt.titleKey),
-              color: index === 0 ? "purple" : index === 1 ? "green" : "blue",
-            }))}
-          />
-
           <div className="flex items-start gap-3 rounded-[22px] border border-purple-100 bg-purple-50 px-4 py-4 text-purple-800">
             <ShieldCheck size={20} className="mt-0.5 flex-shrink-0" />
             <p className="font-body text-[14px] font-bold leading-relaxed">{t("onboarding.careTeam.step1.infoBanner")}</p>
