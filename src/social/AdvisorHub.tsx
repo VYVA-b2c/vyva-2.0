@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -20,7 +20,6 @@ import SocialStyles from "./SocialStyles";
 import "./AdvisorHub.css";
 
 const MOBILE_PAGE_SIZE = 4;
-const PAGE_STORAGE_KEY = "vyva:community-expert-page";
 
 const previewThemes: Record<AdvisorSlug, Pick<AdvisorSummary, "iconKey" | "chipBg" | "iconColor">> = {
   amara: { iconKey: "coach", chipBg: "#F1EAFB", iconColor: "#7024C4" },
@@ -46,11 +45,6 @@ const PREVIEW_ADVISORS: AdvisorSummary[] = ADVISOR_PRESENTATION_ORDER.map((slug,
   lastMessageAt: null,
   ...previewThemes[slug],
 }));
-
-function getInitialPage() {
-  if (typeof window === "undefined") return 0;
-  return window.sessionStorage.getItem(PAGE_STORAGE_KEY) === "1" ? 1 : 0;
-}
 
 function AdvisorCard({
   advisor,
@@ -100,7 +94,7 @@ function AdvisorCard({
 export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const [mobilePage, setMobilePage] = useState(getInitialPage);
+  const [mobilePage, setMobilePage] = useState(0);
   const query = useQuery<AdvisorHubResponse>({
     queryKey: [`/api/advisors?lang=${encodeURIComponent(language)}`],
     staleTime: 30 * 1000,
@@ -124,10 +118,6 @@ export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
     bottomNavId: "home-sos-reports",
     composer: "hidden",
   };
-
-  useEffect(() => {
-    window.sessionStorage.setItem(PAGE_STORAGE_KEY, String(activePage));
-  }, [activePage]);
 
   const changePage = (nextPage: number) => {
     const safePage = Math.max(0, Math.min(pageCount - 1, nextPage));

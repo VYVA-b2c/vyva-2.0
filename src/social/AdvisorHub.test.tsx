@@ -70,7 +70,7 @@ function renderHub() {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms/experts"]}>
       <Routes>
-        <Route path="/social-rooms" element={<LocationProbe />} />
+        <Route path="/menu" element={<LocationProbe />} />
         <Route path="/social-rooms/experts" element={<><AdvisorHub /><LocationProbe /></>} />
         <Route path="/social-rooms/experts/:agentSlug" element={<LocationProbe />} />
       </Routes>
@@ -128,7 +128,24 @@ describe("AdvisorHub", () => {
     expect(screen.getByText("2 of 2")).toBeInTheDocument();
     expect(screen.getByTestId("button-advisor-amara")).toHaveClass("advisor-team-card--other-page");
     expect(screen.getByTestId("button-advisor-diego")).not.toHaveClass("hidden");
-    expect(window.sessionStorage.getItem("vyva:community-expert-page")).toBe("1");
+    fireEvent.click(screen.getByTestId("button-advisor-page-previous"));
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+  });
+
+  it("starts on page one even when the old saved page was two", () => {
+    window.sessionStorage.setItem("vyva:community-expert-page", "1");
+    renderHub();
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-page-previous")).toBeDisabled();
+  });
+
+  it("returns to page one when My Team is reopened after viewing page two", () => {
+    const view = renderHub();
+    fireEvent.click(screen.getByTestId("button-advisor-page-next"));
+    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    view.unmount();
+    renderHub();
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
   });
 
   it("opens an expert chat using the existing stable slug", () => {
@@ -137,9 +154,9 @@ describe("AdvisorHub", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/nora");
   });
 
-  it("returns to Community from back", () => {
+  it("returns to the menu from back", () => {
     renderHub();
     fireEvent.click(screen.getByTestId("button-advisor-hub-back"));
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms");
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/menu");
   });
 });
