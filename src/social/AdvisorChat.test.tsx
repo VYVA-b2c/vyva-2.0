@@ -172,7 +172,7 @@ describe("AdvisorChat", () => {
     });
     expect(startVoiceMock).toHaveBeenCalledWith(
       expect.stringContaining("Nutrition Expert"),
-      expect.stringContaining("nutrition specialist"),
+      expect.stringContaining("shopping-friendly substitutions"),
       expect.objectContaining({
         agentSlug: "nora",
         dynamicVariables: expect.objectContaining({ app_entrypoint: "ask_an_expert_chat" }),
@@ -313,7 +313,7 @@ describe("AdvisorChat", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));
       expect(startVoiceMock).toHaveBeenCalledWith(
         expect.stringContaining("Wellness Coach"),
-        expect.stringContaining("movement coach"),
+        expect.stringContaining("chair yoga"),
         expect.objectContaining({
           agentSlug: "amara",
           dynamicVariables: expect.objectContaining({ advisor_slug: "amara" }),
