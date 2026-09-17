@@ -1125,6 +1125,8 @@ export const scamChecks = pgTable("scam_checks", {
   explanation:  text("explanation").notNull(),
   steps:        text("steps").array().notNull().default([]),
   image_data:   text("image_data"),
+  linked_pending_id: uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  source:       text("source"),
   checked_at:   timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1145,6 +1147,9 @@ export const homeScans = pgTable("home_scans", {
   hazards:      text("hazards").array().notNull().default([]),
   advice:       text("advice").notNull(),
   image_data:   text("image_data"),
+  linked_pending_id: uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  source:       text("source"),
+  flow_reference: text("flow_reference"),
   scanned_at:   timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -3054,6 +3059,9 @@ export const conciergePending = pgTable("concierge_pending", {
   action_payload:   jsonb("action_payload").notNull().default({}),
   status:           text("status").notNull().default("pending"),
   language:         text("language").notNull().default("es"),
+  scheduled_for:    timestamp("scheduled_for", { withTimezone: true }),
+  due_at:           timestamp("due_at", { withTimezone: true }),
+  location:         text("location"),
   confirmed_at:     timestamp("confirmed_at", { withTimezone: true }).defaultNow(),
   expires_at:       timestamp("expires_at", { withTimezone: true }).default(sql`now() + interval '30 minutes'`),
   updated_at:       timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -3371,6 +3379,152 @@ export const conciergeRecommendationFeedback = pgTable("concierge_recommendation
 export const insertConciergeRecommendationFeedbackSchema = createInsertSchema(conciergeRecommendationFeedback).omit({ id: true, created_at: true });
 export type InsertConciergeRecommendationFeedback = z.infer<typeof insertConciergeRecommendationFeedbackSchema>;
 export type ConciergeRecommendationFeedback = typeof conciergeRecommendationFeedback.$inferSelect;
+
+// ============================================================
+// Transport requests — structured record for "Order In > A Ride"
+// (previously tracked only as loose jsonb on concierge_pending)
+// ============================================================
+
+export const transportRequests = pgTable("transport_requests", {
+  id:                        uuid("id").primaryKey().defaultRandom(),
+  user_id:                   text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  pickup_address:            text("pickup_address"),
+  pickup_place_id:           text("pickup_place_id"),
+  pickup_lat:                real("pickup_lat"),
+  pickup_lng:                real("pickup_lng"),
+  destination_address:       text("destination_address"),
+  destination_place_id:      text("destination_place_id"),
+  destination_lat:           real("destination_lat"),
+  destination_lng:           real("destination_lng"),
+  requested_time:            text("requested_time"),
+  scheduled_for:             timestamp("scheduled_for", { withTimezone: true }),
+  purpose:                   text("purpose"),
+  mobility_needs:            text("mobility_needs").array().notNull().default([]),
+  status:                    text("status").notNull().default("draft"),
+  selected_provider_id:      uuid("selected_provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  selected_option_snapshot:  jsonb("selected_option_snapshot").notNull().default({}),
+  selected_channel:          text("selected_channel"),
+  price_estimate:            text("price_estimate"),
+  booking_reference:         text("booking_reference"),
+  linked_pending_id:         uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  linked_scheduled_event_id: uuid("linked_scheduled_event_id").references(() => scheduledEvents.id, { onDelete: "set null" }),
+  language:                  text("language").notNull().default("es"),
+  created_at:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:                timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertTransportRequestSchema = createInsertSchema(transportRequests).omit({ id: true, created_at: true, updated_at: true });
+export type InsertTransportRequest = z.infer<typeof insertTransportRequestSchema>;
+export type TransportRequest = typeof transportRequests.$inferSelect;
+
+export const transportProviderOptions = pgTable("transport_provider_options", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  request_id:         uuid("request_id").notNull().references(() => transportRequests.id, { onDelete: "cascade" }),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider_id:        uuid("provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  provider_source:    text("provider_source").notNull().default("saved"),
+  provider_snapshot:  jsonb("provider_snapshot").notNull().default({}),
+  match_reason:       text("match_reason"),
+  price_estimate:     text("price_estimate"),
+  rank:               integer("rank").notNull().default(0),
+  status:             text("status").notNull().default("suggested"),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertTransportProviderOptionSchema = createInsertSchema(transportProviderOptions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertTransportProviderOption = z.infer<typeof insertTransportProviderOptionSchema>;
+export type TransportProviderOption = typeof transportProviderOptions.$inferSelect;
+
+// ============================================================
+// Provider search requests — structured record for provider_contact
+// tasks (Healthcare, Home Care, Find Residence, Personal Care search)
+// ============================================================
+
+export const providerSearchRequests = pgTable("provider_search_requests", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  search_mode:           text("search_mode").notNull(),
+  query:                 text("query"),
+  criteria:              text("criteria").array().notNull().default([]),
+  location_used:         text("location_used"),
+  result_count:          integer("result_count").notNull().default(0),
+  status:                text("status").notNull().default("searching"),
+  linked_task_draft_id:  uuid("linked_task_draft_id").references(() => conciergeTaskDrafts.id, { onDelete: "set null" }),
+  linked_pending_id:     uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  language:              text("language").notNull().default("es"),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertProviderSearchRequestSchema = createInsertSchema(providerSearchRequests).omit({ id: true, created_at: true, updated_at: true });
+export type InsertProviderSearchRequest = z.infer<typeof insertProviderSearchRequestSchema>;
+export type ProviderSearchRequest = typeof providerSearchRequests.$inferSelect;
+
+export const providerShortlistItems = pgTable("provider_shortlist_items", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  request_id:        uuid("request_id").notNull().references(() => providerSearchRequests.id, { onDelete: "cascade" }),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider_id:       uuid("provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  name:              text("name").notNull(),
+  category:          text("category"),
+  phone:             text("phone"),
+  email:             text("email"),
+  whatsapp:          text("whatsapp"),
+  booking_url:       text("booking_url"),
+  maps_url:          text("maps_url"),
+  provider_snapshot: jsonb("provider_snapshot").notNull().default({}),
+  rank:              integer("rank").notNull().default(0),
+  status:            text("status").notNull().default("suggested"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertProviderShortlistItemSchema = createInsertSchema(providerShortlistItems).omit({ id: true, created_at: true });
+export type InsertProviderShortlistItem = z.infer<typeof insertProviderShortlistItemSchema>;
+export type ProviderShortlistItem = typeof providerShortlistItems.$inferSelect;
+
+// ============================================================
+// Concierge shopping requests — structured record for "Order In >
+// Food / Shopping / Other" (previously not persisted at all)
+// ============================================================
+
+export const conciergeShoppingRequests = pgTable("concierge_shopping_requests", {
+  id:                      uuid("id").primaryKey().defaultRandom(),
+  user_id:                 text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  need_text:               text("need_text"),
+  category:                text("category"),
+  priorities:              text("priorities").array().notNull().default([]),
+  constraints:             text("constraints").array().notNull().default([]),
+  profile_needs:           text("profile_needs").array().notNull().default([]),
+  package_id:              text("package_id").references(() => conciergeShoppingPackages.package_id, { onDelete: "set null" }),
+  source:                  text("source"),
+  source_recommendation:   text("source_recommendation"),
+  status:                  text("status").notNull().default("draft"),
+  linked_pending_id:       uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  recommendation_snapshot: jsonb("recommendation_snapshot").notNull().default({}),
+  language:                text("language").notNull().default("es"),
+  created_at:              timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:              timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertConciergeShoppingRequestSchema = createInsertSchema(conciergeShoppingRequests).omit({ id: true, created_at: true, updated_at: true });
+export type InsertConciergeShoppingRequest = z.infer<typeof insertConciergeShoppingRequestSchema>;
+export type ConciergeShoppingRequest = typeof conciergeShoppingRequests.$inferSelect;
+
+export const conciergeShoppingRequestItems = pgTable("concierge_shopping_request_items", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  request_id:  uuid("request_id").notNull().references(() => conciergeShoppingRequests.id, { onDelete: "cascade" }),
+  product_id:  text("product_id").references(() => conciergeShoppingProducts.product_id, { onDelete: "set null" }),
+  quantity:    integer("quantity").notNull().default(1),
+  shortlisted: boolean("shortlisted").notNull().default(false),
+  chosen:      boolean("chosen").notNull().default(false),
+  rank:        integer("rank").notNull().default(0),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertConciergeShoppingRequestItemSchema = createInsertSchema(conciergeShoppingRequestItems).omit({ id: true, created_at: true });
+export type InsertConciergeShoppingRequestItem = z.infer<typeof insertConciergeShoppingRequestItemSchema>;
+export type ConciergeShoppingRequestItem = typeof conciergeShoppingRequestItems.$inferSelect;
 
 export const voiceRecommendationFeedback = pgTable("voice_recommendation_feedback", {
   id:                uuid("id").primaryKey().defaultRandom(),
@@ -4905,4 +5059,10 @@ export const schema = {
   conciergeShoppingPackages,
   conciergeShoppingPackageItems,
   trustedHelpPartners,
+  transportRequests,
+  transportProviderOptions,
+  providerSearchRequests,
+  providerShortlistItems,
+  conciergeShoppingRequests,
+  conciergeShoppingRequestItems,
 };
