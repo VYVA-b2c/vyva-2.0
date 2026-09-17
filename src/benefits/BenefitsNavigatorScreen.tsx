@@ -156,9 +156,9 @@ export default function BenefitsNavigatorScreen() {
     }
   };
 
-  const askInes = (starter?: string) => {
+  const askInes = (starter?: string, handoffMessage?: string) => {
     const suffix = starter ? "?starter=" + encodeURIComponent(starter) : "";
-    navigate("/social-rooms/experts/ines" + suffix);
+    navigate(`/social-rooms/experts/ines${suffix}`, handoffMessage ? { state: { handoffMessage } } : undefined);
   };
 
   const voiceContext = "Benefits Navigator. Help the user understand possible pensions, care benefits, and financial support. Never guarantee eligibility.";
@@ -426,7 +426,10 @@ export default function BenefitsNavigatorScreen() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => askInes(program.askInesStarter)}
+                      onClick={() => askInes(
+                        program.askInesStarter,
+                        t("benefits.askInesHandoff", `I can see you were looking at "${program.name}". What would you like to know?`),
+                      )}
                       className="vyva-tap min-h-[48px] rounded-[16px] bg-vyva-purple px-4 font-body font-black text-white"
                     >
                       {t("benefits.askInes", "Ask Inés about this")}

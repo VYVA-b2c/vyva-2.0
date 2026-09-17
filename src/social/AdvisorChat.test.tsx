@@ -111,7 +111,7 @@ function LocationProbe() {
   return <div data-testid="current-route">{location.pathname}</div>;
 }
 
-function renderChat(initialPath = "/social-rooms/experts/nora") {
+function renderChat(initialPath: string | { pathname: string; state?: unknown } = "/social-rooms/experts/nora") {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
       <Routes>
@@ -262,6 +262,43 @@ describe("AdvisorChat", () => {
     renderChat("/social-rooms/experts/nora?starter=Please%20explain%20housing%20benefit");
 
     expect(screen.getByTestId("input-advisor-message")).toHaveValue("Please explain housing benefit");
+  });
+
+  it("shows a hand-off message from router state instead of the static intro on a fresh advisor", () => {
+    queryMock.mockReturnValue({
+      data: noraSession,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat({
+      pathname: "/social-rooms/experts/nora",
+      state: { handoffMessage: "I can see you were looking at \"Housing benefit\". What would you like to know?" },
+    });
+
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent(
+      "I can see you were looking at \"Housing benefit\". What would you like to know?",
+    );
+    expect(screen.getByTestId("advisor-intro")).not.toHaveTextContent("I can help with meals, appetite and hydration.");
+  });
+
+  it("shows a hand-off message as the opening bubble when returning to an advisor with no messages yet", () => {
+    queryMock.mockReturnValue({
+      data: { ...noraSession, introRequired: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat({
+      pathname: "/social-rooms/experts/nora",
+      state: { handoffMessage: "Marta sent you here to double check a benefit." },
+    });
+
+    expect(screen.getByTestId("advisor-message-assistant")).toHaveTextContent(
+      "Marta sent you here to double check a benefit.",
+    );
   });
 
   it("renders the backend movement coach with touch routine shortcuts", async () => {

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Info, Loader2, MessageCircle, Mic, Send, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
@@ -43,6 +43,11 @@ type AdvisorVoiceControls = {
 };
 
 type ConversationMode = "voice" | "text";
+
+// Set by a caller navigating here as a hand-off from elsewhere (e.g. another
+// advisor, or a screen that already gathered context), via router state:
+// navigate(path, { state: { handoffMessage: "..." } as AdvisorHandoffState }).
+export type AdvisorHandoffState = { handoffMessage?: string };
 
 function asHelpStatement(detail: string) {
   return `I can help with ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
@@ -186,8 +191,11 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const apiSlug = isAdvisorSlug(agentSlug) ? agentSlug : (preview ? "nora" : null);
   const isMovementCoach = isMovementCoachSlug(agentSlug);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const starterPrompt = (searchParams.get("starter") ?? "").trim().slice(0, 2000);
+  const handoffState = location.state as AdvisorHandoffState | null;
+  const handoffMessage = typeof handoffState?.handoffMessage === "string" ? handoffState.handoffMessage.trim().slice(0, 2000) : "";
   const { language } = useLanguage();
   const voice = useVyvaVoice() as AdvisorVoiceControls;
   const [session, setSession] = useState<AdvisorSessionSummary | null>(null);
@@ -220,7 +228,8 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const advisor = advisorData?.advisor;
   const advisorDisplayName = advisor ? `${advisor.name} ${advisor.role}` : "";
   const advisorPresentation = advisor ? getAdvisorPresentation(advisor.slug, language) : null;
-  const helpStatement = advisorPresentation ? asHelpStatement(advisorPresentation.detail) : advisor?.intro ?? "";
+  const defaultHelpStatement = advisorPresentation ? asHelpStatement(advisorPresentation.detail) : advisor?.intro ?? "";
+  const helpStatement = handoffMessage || defaultHelpStatement;
   const ui = advisorData?.ui;
   const isAdvisorLoading = !preview && isLoading;
   const isAdvisorError = !preview && isError;
@@ -489,7 +498,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   message={{
                     id: "starter",
                     role: "assistant",
-                    text: starterPrompt || advisor.starter,
+                    text: handoffMessage || starterPrompt || advisor.starter,
                     source: "text",
                     createdAt: new Date().toISOString(),
                   }}

@@ -43,7 +43,13 @@ vi.mock("@/components/CanonicalDetailFlowShell", async (importOriginal) => {
 
 function LocationProbe() {
   const location = useLocation();
-  return <div data-testid="current-route">{location.pathname + location.search}</div>;
+  const state = location.state as { handoffMessage?: string } | null;
+  return (
+    <>
+      <div data-testid="current-route">{location.pathname + location.search}</div>
+      <div data-testid="current-route-handoff">{state?.handoffMessage ?? ""}</div>
+    </>
+  );
 }
 
 function renderScreen() {
@@ -131,6 +137,9 @@ describe("BenefitsNavigatorScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ask Inés about this" }));
     expect(screen.getByTestId("current-route")).toHaveTextContent(
       "/social-rooms/experts/ines?starter=Can%20you%20explain%20Minimum%20Living%20Income%3F",
+    );
+    expect(screen.getByTestId("current-route-handoff")).toHaveTextContent(
+      "I can see you were looking at \"Minimum Living Income\". What would you like to know?",
     );
   });
 
