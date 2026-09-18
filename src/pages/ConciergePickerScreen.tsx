@@ -386,7 +386,6 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
     <CanonicalDetailFlowShell
       shellContract={shellContract}
       onBack={() => navigate("/concierge")}
-      appearance="light"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
