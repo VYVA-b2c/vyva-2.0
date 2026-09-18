@@ -1317,24 +1317,23 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(voiceHeroMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("Shop");
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Home Care");
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Plumber");
-    expect(screen.getByTestId("button-concierge-card-ride")).toHaveTextContent("Personal Care");
-    expect(screen.getByTestId("button-concierge-card-ride")).toHaveTextContent("Find a Specialist");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Get Help");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Home Repair");
     expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("Order In");
-    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("Groceries");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Book Now");
+    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("A Ride");
+    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Book Appointments");
+    expect(screen.getByTestId("button-concierge-card-discover")).toHaveTextContent("Discover");
     expect(screen.queryByRole("button", { name: "Plan a Trip" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Find Events" })).not.toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-card-service")).not.toHaveTextContent("Home service, forms, legal/admin, care");
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveAccessibleName("Home Care. Plumber, electrician, cleaning");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveAccessibleName("Get Help. Home repair, healthcare, admin, home care");
     expect(screen.getByTestId("button-concierge-card-delivery")).not.toHaveTextContent("Groceries, essentials, prepared meals");
-    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveAccessibleName("Order In. Groceries, household");
+    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveAccessibleName("Order In. A ride, food, shopping");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Medical");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Government");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Personal care");
+    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Admin");
+    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Personal Care");
     expect(screen.getByTestId("button-concierge-card-appointment")).not.toHaveTextContent("Ride");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Book Now. Medical, government, personal care");
+    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Book Appointments. Medical, admin, personal care");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("button-concierge-fast-safe-home")).toHaveTextContent("Safe Home");
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
@@ -1536,9 +1535,6 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
     expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
     await dismissHomeServiceGuide();
-
-    fireEvent.click(screen.getByTestId("button-concierge-card-ride"));
-    expect(screen.getByTestId("panel-offers-search")).toBeVisible();
   });
 
   it("opens appointment choices directly without the old mission popup", async () => {
@@ -2244,8 +2240,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
 
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTitle("No commissions")).toBeVisible();
@@ -2331,8 +2336,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
@@ -2459,8 +2473,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
     fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
     fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
@@ -2592,8 +2615,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
     fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
     fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
@@ -2705,8 +2737,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
@@ -2794,8 +2835,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
     fireEvent.click(await screen.findByTestId("button-provider-shortlist-harbour-clinic-1"));
@@ -3415,8 +3465,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
 
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
     expect(screen.getByTestId("button-provider-criterion-nearby")).toHaveAttribute("aria-pressed", "true");
@@ -3460,8 +3519,17 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: {
+        conciergeTaskEntry: {
+          kind: "provider_contact",
+          providerSearchMode: "personal-care",
+          query: "compare a specialist, personal care, or residence",
+        },
+      },
+    }], "task");
+    await screen.findByTestId("panel-offers-search");
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
     expect(await screen.findByText("No verified provider matched those needs.")).toBeVisible();

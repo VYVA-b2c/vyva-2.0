@@ -78,6 +78,7 @@ const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
+const ConciergePickerScreen = lazy(() => import("./pages/ConciergePickerScreen"));
 const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
@@ -1283,6 +1284,10 @@ const App = () => (
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/get-help" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="get-help" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/order-in" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="order-in" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/book-appointments" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="book-appointments" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/discover" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="discover" /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
