@@ -824,7 +824,7 @@ function HealthHubRoute() {
         healthPlanPath="/health/prevention-plan"
         askDrAiPath="/health/symptom-check?fresh=1"
         vitalsPath="/health/vitals"
-        medicinesPath="/meds/my-medicines"
+        medicinesPath="/meds"
         voicePath="/"
         profilePath="/settings/account"
         backPath="/menu"
