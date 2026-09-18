@@ -149,7 +149,7 @@ describe("MenuScreen", () => {
     const grid = screen.getByTestId("menu-tile-grid");
     const firstTile = screen.getByTestId("menu-tile-health");
 
-    expect(grid).toHaveClass("flex", "flex-col", "gap-3");
+    expect(grid).toHaveClass("grid", "grid-cols-1", "gap-3", "md:grid-cols-2");
     expect(firstTile).toHaveClass("min-h-[76px]", "w-full", "rounded-[20px]");
     expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
     expect(screen.getByTestId("menu-tile-health-detail")).toHaveTextContent("Check-ins & medicines");
