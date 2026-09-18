@@ -119,6 +119,31 @@ describe("Task 11 preventive outbound call runtime", () => {
       .not.toMatch(/symptom|medication|diagnosis|transcript|recording/i);
   });
 
+  it("passes an honest reason summary through to the provider when the caller supplies one", async () => {
+    const callProvider = provider({
+      outcome: "started",
+      providerStatus: 201,
+      providerConversationId: "conv.task11.reason",
+      twilioCallSid: "CA22222222222222222222222222222222",
+    });
+    const result = await runPreventiveOutboundCallEntry({
+      userId: "user.test",
+      profileId: "profile.test.elder",
+      evaluationInput: basePreventiveOutboundCallEvaluationInput(),
+      reasonSummary: "your Wellness Coach noticed it's been a while since your last check-in",
+    }, {
+      auditStore: new InMemoryProactiveEngagementAuditStore(),
+      callStore: await consentedStore(),
+      provider: callProvider,
+      env: validPreventiveOutboundCallEnv(),
+      currentTime: () => validPreventiveOutboundCallNow,
+    });
+    expect(result.outcome).toBe("provider_started");
+    expect(callProvider.start).toHaveBeenCalledWith(expect.objectContaining({
+      reasonSummary: "your Wellness Coach noticed it's been a while since your last check-in",
+    }));
+  });
+
   it("does not blindly redial provider-accepted calls when local persistence becomes uncertain", async () => {
     const store = await consentedStore();
     const baseMark = store.markProviderStarted.bind(store);

@@ -36,6 +36,10 @@ const preventiveOutboundCallRuntimeInputSchema = z.object({
   userId: proactiveOpaqueIdSchema,
   profileId: proactiveOpaqueIdSchema,
   evaluationInput: proactiveEngagementEvaluationInputSchema,
+  // Honest, spoken reason for the call (e.g. "your Wellness Coach noticed
+  // you've been quiet"). Optional so existing (pre-Task-8-generalization)
+  // callers keep working; the agent falls back to a generic opening without it.
+  reasonSummary: z.string().trim().min(1).max(240).optional(),
 }).strict();
 
 export type PreventiveOutboundCallRuntimeInput =
@@ -349,6 +353,7 @@ export async function runPreventiveOutboundCallEntry(
     phoneE164: consent.phoneE164,
     confirmationToken: confirmationToken.token,
     callbackUrl,
+    ...(input.reasonSummary ? { reasonSummary: input.reasonSummary } : {}),
   });
   if (start.outcome === "started") {
     const recorded = await callStore.markProviderStarted({

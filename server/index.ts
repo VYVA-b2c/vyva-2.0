@@ -151,6 +151,7 @@ import { startCommunicationDispatcher } from "./services/communicationDispatcher
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
 import { startMedicationRefillMonitor } from "./services/medicationRefillMonitor.js";
+import { startProactiveOutreachMonitor } from "./engagement/proactiveOutreachSweep.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -586,6 +587,9 @@ configureFrontend().then(() => {
     }
     if (startMedicationRefillMonitor()) {
       console.log("[medication-refill-monitor] proactive refill alerts enabled");
+    }
+    if (startProactiveOutreachMonitor()) {
+      console.log("[proactive-outreach] silence/signal detector sweep enabled");
     }
   });
 }).catch((err) => {
