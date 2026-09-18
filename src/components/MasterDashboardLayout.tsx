@@ -103,6 +103,7 @@ type MasterDashboardLayoutProps = {
   showCards?: boolean;
   heroLayoutVariant?: "dashboard" | "canonicalMenu";
   cardLayoutVariant?: "dashboard" | "canonicalActionGrid";
+  cardChevronVariant?: "circle" | "plain";
   fastHelpLayoutVariant?: "dashboard" | "canonicalActionGrid";
   modeSwitcher?: ReactNode;
   isDarkMode?: boolean;
@@ -154,6 +155,7 @@ export default function MasterDashboardLayout({
   showCards = showLauncher,
   heroLayoutVariant = "dashboard",
   cardLayoutVariant = "dashboard",
+  cardChevronVariant = "circle",
   fastHelpLayoutVariant = "dashboard",
   modeSwitcher,
   isDarkMode = false,
@@ -609,10 +611,13 @@ export default function MasterDashboardLayout({
                     aria-hidden="true"
                   />
                 ) : null}
-                {usesCanonicalCardGrid ? (
+                {usesCanonicalCardGrid && cardChevronVariant === "circle" ? (
                   <span className="grid h-[34px] w-[34px] place-items-center rounded-full text-white" style={{ background: card.tone.iconColor }} aria-hidden="true">
                     <ChevronRight size={18} strokeWidth={2.5} />
                   </span>
+                ) : null}
+                {usesCanonicalCardGrid && cardChevronVariant === "plain" ? (
+                  <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
                 ) : null}
                 {card.highlighted && card.highlightLabel ? (
                   <span
