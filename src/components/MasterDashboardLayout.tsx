@@ -445,7 +445,7 @@ export default function MasterDashboardLayout({
             isHomeMaster
               ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-4 lg:gap-5")
               : usesCanonicalCardGrid
-                ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:grid-cols-2 md:gap-4"
+                ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 md:gap-4"
                 : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"
           }
           data-card-layout={usesCanonicalCardGrid ? "canonical-action-grid" : "dashboard-grid"}
@@ -565,7 +565,7 @@ export default function MasterDashboardLayout({
                     <span
                       className={[
                         "block font-body text-[17px] font-black leading-tight min-[390px]:text-[18px]",
-                        usesCanonicalCardGrid ? "font-display text-[20px] font-semibold leading-[1.03] min-[390px]:text-[21px] md:text-[24px]" : "",
+                        usesCanonicalCardGrid ? "truncate font-display text-[20px] font-semibold leading-[1.03] min-[390px]:text-[21px] md:text-[24px]" : "",
                         usesDarkCanonicalCards ? "text-[#F9F4FF]" : "text-vyva-text-1",
                       ].join(" ")}
                       data-testid={card.testId ? `${card.testId}-title` : undefined}
