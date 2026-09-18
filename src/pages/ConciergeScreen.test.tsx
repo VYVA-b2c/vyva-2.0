@@ -1339,6 +1339,9 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
     expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find Plumber");
     expect(screen.getByTestId("panel-concierge-trusted-help")).toHaveTextContent("My Trusted Help");
+    expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("button-concierge-card-service-title")).toHaveTextContent("Get Help");
   });
 
   it("opens Trusted Help setup from Concierge", async () => {

@@ -17425,6 +17425,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     <MasterDashboardLayout
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
+      cardLayoutVariant="canonicalActionGrid"
       fastHelpTestId="concierge-fast-help"
       fastHelpTitle={t("concierge.fastHelp.kicker", "Fast help")}
       hero={{
