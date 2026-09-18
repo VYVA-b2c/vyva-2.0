@@ -367,9 +367,13 @@ export default function MenuScreen({
                       {title}
                     </span>
                     <span
-                      data-testid={`menu-tile-${tile.id}-detail`}
-                      className={["mt-0.5 block truncate font-body text-[13.5px] font-semibold leading-snug lg:sr-only", isDark ? "text-[#C9BEDA]" : "text-[#71667A]"].join(" ")}
+                      aria-hidden="true"
+                      data-testid={`menu-tile-${tile.id}-detail-text`}
+                      className={["mt-0.5 block truncate font-body text-[13.5px] font-semibold leading-snug lg:hidden", isDark ? "text-[#C9BEDA]" : "text-[#71667A]"].join(" ")}
                     >
+                      {tile.detail}
+                    </span>
+                    <span data-testid={`menu-tile-${tile.id}-detail`} className="sr-only">
                       {tile.detail}
                     </span>
                   </span>

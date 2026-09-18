@@ -152,8 +152,9 @@ describe("MenuScreen", () => {
     expect(grid).toHaveClass("grid", "grid-cols-1", "gap-3", "md:grid-cols-2");
     expect(firstTile).toHaveClass("min-h-[76px]", "w-full", "rounded-[20px]");
     expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("menu-tile-health-detail")).toHaveTextContent("Check-ins & medicines");
-    expect(screen.getByTestId("menu-tile-health-detail")).not.toHaveClass("sr-only");
+    expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveTextContent("Check-ins & medicines");
+    expect(screen.getByTestId("menu-tile-health-detail-text")).not.toHaveClass("sr-only");
+    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("sr-only");
     expect(firstTile).toHaveAccessibleName("My Health. Check-ins & medicines");
     expect(firstTile.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
     expect(firstTile.querySelector("svg.lucide-chevron-right")).toBeInTheDocument();
