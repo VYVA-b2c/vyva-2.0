@@ -133,6 +133,7 @@ import specialistsRouter from "./routes/specialists.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
+import { createSeniorHomeFinderShareHandler, sharedSeniorHomeFinderReportHandler } from "./routes/seniorHomeFinderShare.js";
 import gamesRouter from "./routes/games.js";
 import cognitiveAssessmentRouter from "./routes/cognitiveAssessment.js";
 import learningRouter from "./routes/learning.js";
@@ -307,6 +308,8 @@ app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_
 app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
+app.get("/api/senior-home-finder/shared/:token", sharedSeniorHomeFinderReportHandler);
+app.post("/api/advisors/sabio/share", authMiddleware, requireUser, createSeniorHomeFinderShareHandler);
 app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
 app.use("/api/benefits", authMiddleware, requireUser, benefitsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
