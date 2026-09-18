@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Info, Loader2, MessageCircle, Mic, Send, Square } from "lucide-react";
+import { ArrowLeft, Check, Info, Loader2, MessageCircle, Mic, Send, Share2, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -51,6 +51,17 @@ export type AdvisorHandoffState = { handoffMessage?: string };
 
 function asHelpStatement(detail: string) {
   return `I can help with ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+}
+
+// What Sabio (Senior Home Finder) actually told the user — the assistant's
+// own synthesis, not the raw back-and-forth — is what's worth sharing.
+export function buildSeniorHomeFinderShareSummary(messages: AdvisorMessage[]): string {
+  return messages
+    .filter((message) => message.role === "assistant")
+    .map((message) => message.text.trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 6000);
 }
 
 const previewUi = {
@@ -204,6 +215,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const [sendError, setSendError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [introDismissed, setIntroDismissed] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "sharing" | "copied" | "error">("idle");
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
 
@@ -238,12 +250,20 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return [...messages, ...voiceMessages];
   }, [messages, voice.status, voice.transcript]);
   const showIntro = Boolean(advisor && advisorData?.introRequired && !introDismissed && messages.length === 0);
+  const isSeniorHomeFinder = apiSlug === "sabio";
+  const canShareShortlist = isSeniorHomeFinder && !preview && messages.some((message) => message.role === "assistant");
 
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [liveMessages.length, showIntro]);
+
+  useEffect(() => {
+    if (shareStatus !== "copied" && shareStatus !== "error") return;
+    const timer = window.setTimeout(() => setShareStatus("idle"), 3000);
+    return () => window.clearTimeout(timer);
+  }, [shareStatus]);
 
   const startVoiceForAdvisor = () => {
     if (!apiSlug || !advisor || preview) return;
@@ -263,6 +283,31 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
         },
       ),
     ).catch(() => {});
+  };
+
+  const handleShareShortlist = async () => {
+    if (!canShareShortlist) return;
+    const summary = buildSeniorHomeFinderShareSummary(messages);
+    if (!summary) return;
+    setShareStatus("sharing");
+    try {
+      const response = await apiFetch("/api/advisors/sabio/share", {
+        method: "POST",
+        body: JSON.stringify({ name: advisor?.name ?? "", language, summary }),
+      });
+      if (!response.ok) throw new Error("share failed");
+      const payload = await response.json() as { token: string };
+      const shareUrl = `${window.location.origin}/shared/senior-home/${payload.token}`;
+      if (navigator.share) {
+        await navigator.share({ url: shareUrl, title: "Senior Home Finder shortlist" });
+        setShareStatus("idle");
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareStatus("copied");
+      }
+    } catch (error) {
+      setShareStatus(error instanceof Error && error.name === "AbortError" ? "idle" : "error");
+    }
   };
 
   const handleStartSession = async (mode: ConversationMode) => {
@@ -504,6 +549,26 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   }}
                 />
               )}
+              {canShareShortlist ? (
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => void handleShareShortlist()}
+                    disabled={shareStatus === "sharing"}
+                    className="vyva-tap mt-1 flex min-h-[48px] items-center gap-2 rounded-full border border-[#E8E2F0] bg-white px-4 font-body text-[15px] font-black text-[#6B21A8] shadow-sm disabled:opacity-60"
+                    data-testid="button-advisor-share-shortlist"
+                  >
+                    {shareStatus === "sharing" ? (
+                      <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                    ) : shareStatus === "copied" ? (
+                      <Check size={18} aria-hidden="true" />
+                    ) : (
+                      <Share2 size={18} aria-hidden="true" />
+                    )}
+                    {shareStatus === "copied" ? "Link copied" : shareStatus === "error" ? "Could not share. Try again." : "Share this with family"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

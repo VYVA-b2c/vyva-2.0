@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import AdvisorChat from "./AdvisorChat";
+import AdvisorChat, { buildSeniorHomeFinderShareSummary } from "./AdvisorChat";
 import type { AdvisorSessionResponse } from "../../shared/advisors";
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -104,6 +104,33 @@ const amaraSession: AdvisorSessionResponse = {
   introRequired: true,
   session: null,
   messages: [],
+};
+
+const sabioSession: AdvisorSessionResponse = {
+  language: "en",
+  ui,
+  advisor: {
+    slug: "sabio",
+    name: "Sabio",
+    role: "Research",
+    shortRole: "Questions",
+    intro: "I can help you compare suitable senior living options.",
+    starter: "What matters most to you in a possible new home?",
+    disclaimerText: "Sabio gives general information; verify details with each provider.",
+    sortOrder: 40,
+    iconKey: "research",
+    chipBg: "#E3EDF7",
+    iconColor: "#3C6E9E",
+    recencyLabel: "Never talked",
+    sessionCount: 1,
+    lastMessageAt: "2026-07-07T10:00:00.000Z",
+  },
+  introRequired: false,
+  session: { id: "sabio-session-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: "2026-07-07T10:02:00.000Z" },
+  messages: [
+    { id: "m1", role: "user", text: "Can you compare two homes near Madrid?", source: "text", createdAt: "2026-07-07T10:01:00.000Z" },
+    { id: "m2", role: "assistant", text: "Willow Court and Oak Gardens both accept visits this week.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+  ],
 };
 
 function LocationProbe() {
@@ -357,5 +384,63 @@ describe("AdvisorChat", () => {
         }),
       );
     });
+  });
+
+  it("only shows the shortlist share button for Sabio once there is an assistant reply", () => {
+    queryMock.mockReturnValue({ data: noraSession, isLoading: false, isError: false, refetch: vi.fn() });
+    renderChat("/social-rooms/experts/nora");
+    expect(screen.queryByTestId("button-advisor-share-shortlist")).not.toBeInTheDocument();
+    cleanup();
+
+    queryMock.mockReturnValue({
+      data: { ...sabioSession, messages: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    renderChat("/social-rooms/experts/sabio");
+    expect(screen.queryByTestId("button-advisor-share-shortlist")).not.toBeInTheDocument();
+    cleanup();
+
+    queryMock.mockReturnValue({ data: sabioSession, isLoading: false, isError: false, refetch: vi.fn() });
+    renderChat("/social-rooms/experts/sabio");
+    expect(screen.getByTestId("button-advisor-share-shortlist")).toBeInTheDocument();
+  });
+
+  it("creates a share link from the assistant's own messages and copies it when Web Share is unavailable", async () => {
+    queryMock.mockReturnValue({ data: sabioSession, isLoading: false, isError: false, refetch: vi.fn() });
+    apiFetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ token: "share-token-1" }) });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    vi.stubGlobal("navigator", { ...navigator, share: undefined });
+
+    renderChat("/social-rooms/experts/sabio");
+    fireEvent.click(screen.getByTestId("button-advisor-share-shortlist"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/sabio/share", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Sabio", language: "en", summary: "Willow Court and Oak Gardens both accept visits this week." }),
+      }));
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/shared/senior-home/share-token-1"));
+    });
+    expect(await screen.findByText("Link copied")).toBeInTheDocument();
+  });
+});
+
+describe("buildSeniorHomeFinderShareSummary", () => {
+  it("joins only the assistant's own messages, not the user's", () => {
+    const summary = buildSeniorHomeFinderShareSummary([
+      { id: "1", role: "user", text: "Compare two homes", source: "text", createdAt: "2026-07-07T10:00:00.000Z" },
+      { id: "2", role: "assistant", text: "Willow Court is nearby.", source: "text", createdAt: "2026-07-07T10:01:00.000Z" },
+      { id: "3", role: "assistant", text: "Oak Gardens has availability.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+    ]);
+    expect(summary).toBe("Willow Court is nearby.\n\nOak Gardens has availability.");
+  });
+
+  it("returns an empty string with no assistant messages", () => {
+    expect(buildSeniorHomeFinderShareSummary([])).toBe("");
   });
 });
