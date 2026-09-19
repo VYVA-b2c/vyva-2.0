@@ -132,4 +132,18 @@ describe("appointment discovery", () => {
     expect(queries[0]).toContain("Marbella, Spain");
     expect(queries.some((query) => query.includes("home service repair maintenance"))).toBe(true);
   });
+
+  it("puts the canonical home-service specialty ahead of free-form detail", () => {
+    const queries = buildAppointmentSearchQueries({
+      appointmentType: "home-service",
+      serviceType: "electrician",
+      detail: "The kitchen light is not working",
+      constraints: ["trusted"],
+      location: "Marbella, Spain",
+      language: "en",
+    });
+
+    expect(queries[0]).toMatch(/^Electrician electrician electrical/i);
+    expect(queries[0]).toContain("Marbella, Spain");
+  });
 });

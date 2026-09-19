@@ -1,4 +1,4 @@
-type AgentAppEventType = "page_change" | "button_click";
+type AgentAppEventType = "page_change" | "button_click" | "context_update";
 
 type AgentAppEvent = {
   type: AgentAppEventType;
@@ -35,6 +35,7 @@ function formatEvent(event: AgentAppEvent): string {
   if (event.type === "page_change") {
     return `Opened ${pageName} (${event.path})`;
   }
+  if (event.type === "context_update") return event.label;
   return `Clicked "${event.label}" on ${pageName} (${event.path})`;
 }
 
@@ -73,6 +74,18 @@ export function recordAgentButtonClick(input: { label: string; path: string }) {
   pushEvent({
     type: "button_click",
     label,
+    path: cleanText(input.path) || currentPath,
+    timestamp: Date.now(),
+  });
+}
+
+export function recordAgentContextUpdate(input: { summary: string; path?: string }) {
+  const summary = (input.summary ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+  if (!summary) return;
+  if (recentEvents[0]?.type === "context_update" && recentEvents[0].label === summary) return;
+  pushEvent({
+    type: "context_update",
+    label: summary,
     path: cleanText(input.path) || currentPath,
     timestamp: Date.now(),
   });

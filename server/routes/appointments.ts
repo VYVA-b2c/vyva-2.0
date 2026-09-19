@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -45,10 +46,15 @@ import {
   homeServiceAccessNotesFromPreferences,
   homeServiceAddressFromPreferences,
   homeServiceIntakeFromPreferences,
-  homeServiceSearchTerms,
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
+import {
+  decideProviderCandidates,
+  type ProviderCandidate,
+  type ProviderDecisionRequest,
+  type ProviderDecisionResult,
+} from "../../shared/providerDecision.js";
 
 const router = Router();
 
@@ -169,53 +175,6 @@ function appointmentChannelRecipient(channel: AppointmentChannel, snapshot: Reco
   if (channel === "email") return snapshotText(snapshot, "email");
   if (channel === "whatsapp") return snapshotText(snapshot, "whatsapp") ?? snapshotText(snapshot, "phone");
   return null;
-}
-
-function scoreProviderForType(
-  provider: UserProvider,
-  appointmentType: string,
-  detail: string,
-  requestPreferences: Record<string, unknown> = {},
-): number {
-  const haystack = normalizeForMatch([
-    provider.category,
-    provider.name,
-    provider.notes,
-    provider.address,
-    JSON.stringify(provider.metadata ?? {}),
-  ].filter(Boolean).join(" "));
-  const detailText = normalizeForMatch(detail);
-  let score = 0;
-
-  if (appointmentType === "medical" && /(medical|doctor|gp|clinic|hospital|pharmacy|dentist|health|salud|medic|farmacia)/.test(haystack)) score += 70;
-  if (appointmentType === "personal-care" && /(personal|care|hair|beauty|barber|nail|spa|podiatry)/.test(haystack)) score += 70;
-  if (appointmentType === "government" && /(government|council|ayuntamiento|public|office|administration)/.test(haystack)) score += 70;
-  if (appointmentType === "home-service" && /(home|repair|plumber|electrician|locksmith|cleaner|maintenance)/.test(haystack)) score += 70;
-  if (appointmentType === "social" && /(social|restaurant|cafe|meal|food|community|club)/.test(haystack)) score += 70;
-
-  if (appointmentType === "home-service") {
-    const intake = homeServiceIntakeFromPreferences(requestPreferences);
-    const serviceTerms = homeServiceSearchTerms(intake?.service_type);
-    if (serviceTerms.some((term) => haystack.includes(normalizeForMatch(term)))) score += 90;
-  }
-
-  for (const word of detailText.split(/[^a-z0-9]+/).filter((entry) => entry.length > 3)) {
-    if (haystack.includes(word)) score += 8;
-  }
-
-  if (provider.booking_url) score += 10;
-  if (provider.phone) score += 8;
-  if (provider.email || provider.whatsapp) score += 5;
-  if (provider.is_primary) score += 3;
-  return score;
-}
-
-function matchReason(provider: UserProvider, appointmentType: string, score: number, requestPreferences: Record<string, unknown> = {}): string {
-  const intake = appointmentType === "home-service" ? homeServiceIntakeFromPreferences(requestPreferences) : null;
-  if (intake && score >= 70) return `Saved ${homeServiceTypeLabel(intake.service_type, "en").toLowerCase()} provider`;
-  if (score >= 70) return `Saved ${appointmentType.replace("-", " ")} provider`;
-  if (provider.is_primary) return "Saved provider from Settings";
-  return "Saved provider";
 }
 
 async function loadRequestForUser(requestId: string, userId: string): Promise<AppointmentRequest | null> {
@@ -549,14 +508,15 @@ async function loadOptionForRequest(optionId: string, requestId: string, userId:
   return rows[0] ?? null;
 }
 
-async function loadOptionsForRequest(requestId: string, userId: string): Promise<AppointmentProviderOption[]> {
-  return await db
+async function loadOptionsForRequest(requestId: string, userId: string, includeExcluded = false): Promise<AppointmentProviderOption[]> {
+  const rows = await db
     .select()
     .from(appointmentProviderOptions)
     .where(and(
       eq(appointmentProviderOptions.request_id, requestId),
       eq(appointmentProviderOptions.user_id, userId),
     ));
+  return includeExcluded ? rows : rows.filter((option) => option.status !== "excluded");
 }
 
 async function savedProviderOptions(
@@ -576,37 +536,126 @@ async function savedProviderOptions(
     ))
     .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at));
 
-  return providers
-    .map((provider) => ({
-      provider,
-      score: scoreProviderForType(provider, appointmentType, detail, requestPreferences),
-    }))
-    .filter((item) => item.score > 0 || providers.length <= 3)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map((item, index) => {
-      const snapshot = providerSnapshot(item.provider);
+  const intake = appointmentType === "home-service" ? homeServiceIntakeFromPreferences(requestPreferences) : null;
+  const decision = decideProviderCandidates(providers.map(savedProviderCandidate), {
+    appointmentType,
+    serviceType: intake?.service_type,
+    detail,
+    criteria: intake?.criteria,
+    maxResults: 3,
+  });
+
+  return decision.ranked.map((item, index) => {
+      const provider = item.candidate.raw as UserProvider;
+      const snapshot = providerSnapshot(provider);
       const ordered = orderAppointmentChannels({
-        channels: channelsForProvider(item.provider),
+        channels: channelsForProvider(provider),
         providerSnapshot: snapshot,
         requestPreferences,
       });
       return {
         request_id: requestId,
         user_id: userId,
-        provider_id: item.provider.id,
+        provider_id: provider.id,
         provider_source: "saved",
         provider_snapshot: {
           ...snapshot,
           provider_preference_snapshot: ordered.preferenceSnapshot,
           preferred_channel: ordered.preferredChannel,
+          provider_decision: providerDecisionSnapshot(item),
         },
-        match_reason: matchReason(item.provider, appointmentType, item.score, requestPreferences),
+        match_reason: providerMatchReason(item, appointmentType, intake?.service_type, "en"),
         available_channels: ordered.channels,
         rank: index + 1,
         status: index === 0 ? "recommended" : "suggested",
       };
     });
+}
+
+function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
+  const metadata = recordValue(provider.metadata);
+  return {
+    id: provider.id,
+    source: "saved",
+    name: provider.name,
+    category: provider.category,
+    specialtyText: [provider.category, provider.name, provider.notes, JSON.stringify(metadata)].filter(Boolean).join(" "),
+    address: provider.address,
+    phone: provider.phone,
+    website: provider.website_url ?? provider.booking_url,
+    placeId: provider.place_id,
+    active: provider.is_active,
+    trusted: provider.is_trusted,
+    preferred: provider.is_primary,
+    availability: "unknown",
+    evidenceStatus: metadata.source === "profile_settings" ? "reported" : "unknown",
+    checkedAt: provider.updated_at?.toISOString() ?? null,
+    contactable: channelsForProvider(provider).some((channel) => channel !== "manual"),
+    raw: provider,
+  };
+}
+
+function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
+  const snapshot = recordValue(option.provider_snapshot);
+  const openingStatus = snapshotText(snapshot, "opening_status")?.toLowerCase() ?? "";
+  return {
+    id: option.id,
+    source: option.provider_source === "saved" || option.provider_source === "manual" ? option.provider_source : "external",
+    name: snapshotText(snapshot, "name") ?? "Provider",
+    category: snapshotText(snapshot, "category") ?? (Array.isArray(snapshot.place_types) ? snapshot.place_types.map(String).join(" ") : null),
+    specialtyText: [
+      snapshotText(snapshot, "category"),
+      snapshotText(snapshot, "name"),
+      Array.isArray(snapshot.place_types) ? snapshot.place_types.join(" ") : "",
+      snapshotText(snapshot, "notes"),
+    ].filter(Boolean).join(" "),
+    address: snapshotText(snapshot, "address"),
+    phone: snapshotText(snapshot, "phone"),
+    website: snapshotText(snapshot, "website_url") ?? snapshotText(snapshot, "booking_url"),
+    placeId: snapshotText(snapshot, "place_id"),
+    active: snapshotText(snapshot, "business_status") !== "CLOSED_PERMANENTLY",
+    trusted: option.provider_source === "saved",
+    preferred: option.status === "recommended" && option.provider_source === "saved",
+    rating: typeof snapshot.rating === "number" ? snapshot.rating : null,
+    reviewCount: typeof snapshot.review_count === "number" ? snapshot.review_count : null,
+    availability: openingStatus.includes("open") && !openingStatus.includes("closed") ? "available" : "unknown",
+    evidenceStatus: option.provider_source === "saved" ? "reported" : "verified",
+    checkedAt: option.updated_at?.toISOString() ?? null,
+    contactable: option.available_channels.some((channel) => channel !== "manual"),
+    raw: option,
+  };
+}
+
+function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionRequest {
+  const preferences = recordValue(request.preferences);
+  const intake = request.appointment_type === "home-service" ? homeServiceIntakeFromPreferences(preferences) : null;
+  return {
+    appointmentType: request.appointment_type,
+    serviceType: intake?.service_type,
+    detail: intake?.research_brief ?? request.reason_detail,
+    criteria: intake?.criteria,
+    maxResults: 3,
+  };
+}
+
+function providerDecisionSnapshot(item: ProviderDecisionResult) {
+  return {
+    code: item.code,
+    score: item.score,
+    reasons: item.reasons,
+    uncertainties: item.uncertainties,
+    category: item.canonicalCategory,
+    exact_subservice_match: item.exactSubserviceMatch,
+  };
+}
+
+function providerMatchReason(item: ProviderDecisionResult, appointmentType: string, serviceType?: string | null, language = "en") {
+  const spanish = language.startsWith("es");
+  if (appointmentType === "home-service" && serviceType) {
+    const label = homeServiceTypeLabel(serviceType, spanish ? "es" : "en");
+    return spanish ? `${label} adecuado para esta solicitud` : `${label} matching this request`;
+  }
+  return spanish ? "Coincide con esta solicitud" : "Matches this request";
 }
 
 function appointmentMessage(
@@ -938,7 +987,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
   try {
     const [location, existingOptions] = await Promise.all([
       loadAppointmentSearchLocation(userId),
-      loadOptionsForRequest(request.id, userId),
+      loadOptionsForRequest(request.id, userId, true),
     ]);
 
     const requestPreferences = recordValue(request.preferences);
@@ -950,7 +999,10 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
       location,
       language: request.language,
-      maxResults: 5,
+      maxResults: 12,
+      serviceType: serviceIntake?.service_type,
+      urgency: serviceIntake?.urgency,
+      constraints: serviceIntake?.criteria,
     });
 
     const existingIdentities = new Set(
@@ -990,8 +1042,53 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const insertedOptions = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
-    const allOptions = [...existingOptions, ...insertedOptions].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-    const status = allOptions.length > 0 ? "options_ready" : request.status;
+    const allCandidates = [...existingOptions, ...insertedOptions];
+    const decision = decideProviderCandidates(allCandidates.map(optionCandidate), providerDecisionRequest(request));
+    const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
+    await Promise.all(allCandidates.map(async (option) => {
+      const item = decisionById.get(option.id);
+      if (!item) return;
+      const snapshot = recordValue(option.provider_snapshot);
+      await db.update(appointmentProviderOptions).set({
+        rank: item.eligible ? decision.ranked.findIndex((ranked) => ranked.candidate.id === option.id) + 1 : option.rank,
+        status: item.eligible
+          ? decision.ranked[0]?.candidate.id === option.id ? "recommended" : "suggested"
+          : "excluded",
+        match_reason: item.eligible
+          ? providerMatchReason(item, request.appointment_type, serviceIntake?.service_type, request.language)
+          : option.match_reason,
+        provider_snapshot: {
+          ...snapshot,
+          provider_decision: providerDecisionSnapshot(item),
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentProviderOptions.id, option.id));
+    }));
+    const rankedOptions = decision.ranked.map((item, index) => {
+      const option = item.candidate.raw as AppointmentProviderOption;
+      return {
+        ...option,
+        rank: index + 1,
+        status: index === 0 ? "recommended" : "suggested",
+        match_reason: providerMatchReason(item, request.appointment_type, serviceIntake?.service_type, request.language),
+        provider_snapshot: {
+          ...recordValue(option.provider_snapshot),
+          provider_decision: providerDecisionSnapshot(item),
+        },
+      };
+    });
+    const searchId = randomUUID();
+    console.info("[provider-decision]", JSON.stringify({
+      search_id: searchId,
+      request_id: request.id,
+      appointment_type: request.appointment_type,
+      service_type: serviceIntake?.service_type ?? null,
+      candidate_count: allCandidates.length,
+      eligible_count: rankedOptions.length,
+      exclusion_summary: decision.exclusionSummary,
+      confidence: decision.confidence,
+    }));
+    const status = rankedOptions.length > 0 ? "options_ready" : request.status;
     const [updatedRequest] = await db
       .update(appointmentRequests)
       .set({ status, updated_at: new Date() })
@@ -1001,13 +1098,18 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const responseRequest = updatedRequest ?? request;
     return res.json({
       request: responseRequest,
-      options: allOptions,
-      mission: missionStateFor({ request: responseRequest, options: allOptions }),
+      options: rankedOptions,
+      mission: missionStateFor({ request: responseRequest, options: rankedOptions }),
       discovery: {
+        search_id: searchId,
         source: discovery.source,
         fallback_reason: discovery.fallback_reason,
         reservation_systems: discovery.reservation_systems,
         inserted_count: insertedOptions.length,
+        exclusion_summary: decision.exclusionSummary,
+        criteria_used: decision.criteriaUsed,
+        result_confidence: decision.confidence,
+        eligible_count: decision.ranked.length,
       },
     });
   } catch (err) {
