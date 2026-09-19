@@ -22,7 +22,7 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
-import { writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { readHomeMasterTheme, writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { LongevityMoment, PreventionPlanData } from "./pages/PreventionPlan";
 import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
@@ -197,7 +197,8 @@ const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
       source: "manual_entry",
       capture_method: "manual",
       source_confidence: "high",
-      source_display_label: "Daily check-in",
+      source_display_label: "Latest voice conversation",
+      source_ref: { conversation_channel: "voice", agent_name: "VYVA" },
       source_context_label: "Today",
       deviation_pct: 0,
       context_tag: "general",
@@ -948,7 +949,12 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
   }
 
   if (kind === "vitals") {
-    const scenario = new URLSearchParams(location.search).get("scenario");
+    const params = new URLSearchParams(location.search);
+    const scenario = params.get("scenario");
+    const requestedTheme = params.get("theme");
+    if ((requestedTheme === "light" || requestedTheme === "dark") && readHomeMasterTheme() !== requestedTheme) {
+      writeHomeMasterTheme(requestedTheme);
+    }
     return (
       <AppShell>
         <VitalsScreen

@@ -29,7 +29,7 @@ const previewData: VitalsTrackerPreviewData = {
   recent_readings: [
     { signal_type: "resting_hr_bpm", value: 72, recorded_at: "2026-08-28T08:00:00.000Z", source: "manual_entry", source_confidence: "high", deviation_pct: 1, context_tag: "resting" },
     { signal_type: "oxygen_saturation", value: 98, recorded_at: "2026-08-28T07:59:00.000Z", source: "connected_device", source_confidence: "high", deviation_pct: 0, context_tag: "resting", capture_method: "web_bluetooth", source_ref: { device_name: "Pulse oximeter" } },
-    { signal_type: "mood_score", value: 8, recorded_at: "2026-08-28T07:58:00.000Z", source: "manual_entry", source_confidence: "medium", deviation_pct: 0, context_tag: "general" },
+    { signal_type: "mood_score", value: 8, recorded_at: "2026-08-28T07:58:00.000Z", source: "manual_entry", source_confidence: "medium", deviation_pct: 0, context_tag: "general", source_display_label: "Latest chat conversation", source_ref: { conversation_channel: "chat", agent_name: "VYVA" } },
   ],
   latest_alert: null,
 };
@@ -43,48 +43,52 @@ function renderTracker(onVoiceStateChange?: Parameters<typeof VitalsTracker>[0][
 }
 
 describe("VitalsTracker redesign", () => {
-  it("uses the real safety label, shows a labelled risk score, and declutters untracked readings", () => {
+  it("shows a large personalized dashboard without the risk-led presentation", () => {
     renderTracker();
 
-    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Steady");
-    expect(screen.getByTestId("vitals-hero")).toHaveClass("-mx-2", "sm:-mx-4", "lg:-mx-14");
-    expect(screen.getByTestId("vitals-hero-metric").querySelector("svg")).toBeNull();
-    expect(screen.getByLabelText("Steady")).toBeVisible();
+    expect(screen.queryByText("Your vitals today")).not.toBeInTheDocument();
+    expect(screen.getByTestId("personalized-vitals-grid")).toHaveClass("md:grid-cols-2");
+    expect(screen.getByTestId("vitals-dashboard-card-mood_score")).toHaveTextContent("Sentiment");
+    expect(screen.getByTestId("vitals-dashboard-card-mood_score")).toHaveTextContent("8 /10");
+    expect(screen.getByTestId("vitals-dashboard-card-mood_score")).toHaveTextContent("Latest chat conversation");
+    expect(screen.getByTestId("vitals-dashboard-card-resting_hr_bpm")).toHaveTextContent("72 bpm");
+    expect(screen.getByTestId("vitals-dashboard-card-oxygen_saturation")).toHaveTextContent("98 %");
+    expect(screen.getByTestId("vitals-dashboard-card-oxygen_saturation")).toHaveTextContent("Pulse oximeter");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
-    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
-    expect(screen.getByTestId("vitals-hero-message")).toHaveTextContent("All good");
-    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");
-    expect(screen.getByTestId("vitals-risk-score")).toHaveClass("max-w-[520px]");
-    expect(screen.getByTestId("vitals-risk-score")).not.toHaveClass("sm:mx-auto", "sm:w-[380px]");
-    expect(screen.queryByTestId("vitals-hero-marker")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Latest readings 1" }));
-    expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
-    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
-    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
-    expect(screen.getByTestId("vitals-hero-value")).toHaveClass("shrink-0", "whitespace-nowrap");
-    expect(screen.getByTestId("vitals-hero-value")).not.toHaveClass("truncate");
-    expect(screen.getByTestId("vitals-hero-metric").querySelector("svg")).toBeNull();
-    expect(screen.getByTestId("vitals-hero-message")).toHaveTextContent("1% above your baseline");
-    expect(screen.getByTestId("vitals-hero-marker")).toHaveClass("max-w-[520px]");
-    expect(screen.getByTestId("vitals-hero-marker")).not.toHaveClass("sm:mx-auto", "sm:w-[380px]");
-    fireEvent.click(screen.getByRole("button", { name: "Latest readings 2" }));
-    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Oxygen");
-    expect(screen.getByTestId("vitals-hero-marker")).not.toHaveTextContent("0%");
-    expect(screen.getByTestId("vitals-hero-message")).toHaveTextContent("Near your baseline");
-    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Your latest readings look steady.");
-    expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Heart");
-    expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Breathing");
-    expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
-    expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
-    expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
-    expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Add reading");
-    expect(screen.getByTestId("button-vitals-hero-add")).not.toHaveTextContent("Add reading");
-    expect(screen.getByTestId("button-vitals-hero-add")).toHaveClass("right-6", "top-[26px]", "sm:right-8");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("All good · Lower is better");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Capture latest vitals");
+    expect(screen.queryByTestId("daily-safety-check")).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByText("How VYVA connects your health signals"));
-    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");
-    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("signals that move together");
-    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("anticipate possible outcomes and flag risks");
+  it("promotes genuine glucose data ahead of mood for a diabetic profile", () => {
+    const diabeticPreview: VitalsTrackerPreviewData = {
+      analysis: null,
+      recent_readings: [{
+        signal_type: "glucose_mgdl",
+        value: 136,
+        recorded_at: "2026-09-19T08:30:00.000Z",
+        source: "connected_device",
+        source_confidence: "high",
+        deviation_pct: null,
+        context_tag: "fasting",
+        source_ref: { device_name: "Libre 3" },
+      }],
+      latest_alert: null,
+    };
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VitalsTracker userId="preview-user" userConditions={["Type 2 diabetes"]} language="en" previewData={diabeticPreview} />
+      </MemoryRouter>,
+    );
+
+    const cards = screen.getByTestId("personalized-vitals-grid").querySelectorAll(":scope > button");
+    expect(cards[0]).toHaveAttribute("data-testid", "vitals-dashboard-card-glucose_mgdl");
+    expect(cards[0]).toHaveTextContent("136 mg/dL");
+    expect(cards[0]).toHaveTextContent("Libre 3");
+    expect(cards[1]).toHaveAttribute("data-testid", "vitals-dashboard-card-mood_score");
+    expect(cards[1]).toHaveTextContent("No recent insight");
+    expect(cards[1]).toHaveTextContent("latest VYVA voice or chat conversation");
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {
@@ -215,15 +219,10 @@ describe("VitalsTracker redesign", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("VYVA noticed a change worth same-day medical advice.");
-    expect(screen.getByTestId("daily-safety-check")).toHaveTextContent("Rapport de symptômes : Douleur à la tête ou au cou");
-    expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Appeler Quiron");
-    expect(screen.getByTestId("button-safety-email-gp")).toHaveTextContent("Envoyer un e-mail au médecin");
-    expect(screen.getByTestId("button-safety-doctor-help")).toHaveTextContent("Aide médicale");
-    expect(screen.getByText("Autres options")).toBeVisible();
-    expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Prendre rendez-vous");
-    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Trouver un transport");
-    expect(screen.queryByText(/VYVA noticed|Symptom report|Next:|Doctor help|Book appointment|Find transport/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Vos constantes aujourd'hui")).not.toBeInTheDocument();
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Score de risque");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Relever les constantes");
+    expect(screen.queryByText(/VYVA noticed|Rapport de symptômes|Aide médicale|Prendre rendez-vous|Trouver un transport/i)).not.toBeInTheDocument();
   });
 });
 
