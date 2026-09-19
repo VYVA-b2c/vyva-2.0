@@ -20,9 +20,10 @@ async function fulfillJson(route: Route, status: number, body: unknown) {
 async function openConciergeTask(page: Page, taskId: string) {
   test.info().setTimeout(Math.max(test.info().timeout, 60_000));
   await page.goto("/concierge", { waitUntil: "domcontentloaded" });
-  const continueButton = page.getByTestId("button-concierge-continue-task");
-  await expect(continueButton).toBeVisible({ timeout: 20_000 });
-  await continueButton.click();
+  const attentionCard = page.locator('[data-highlighted="true"]');
+  await expect(attentionCard).toBeVisible({ timeout: 20_000 });
+  await expect(attentionCard).toContainText("Needs attention");
+  await attentionCard.click();
   await expect(page).toHaveURL(new RegExp(`/concierge/tasks/pending%3A${taskId}$`));
   await expect(page.getByTestId("concierge-task-detail")).toBeVisible({ timeout: 20_000 });
   const primaryAction = page.getByTestId("button-concierge-task-primary-action");

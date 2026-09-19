@@ -489,7 +489,7 @@ export default function MasterDashboardLayout({
                 aria-current={card.highlighted ? "true" : undefined}
                 data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
-                  "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  "vyva-tap group relative rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
                     ? isHomeMasterIntentLayer
@@ -519,13 +519,13 @@ export default function MasterDashboardLayout({
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                   ...(card.highlighted
                     ? {
-                        borderTopColor: card.tone.iconColor,
-                        borderRightColor: card.tone.iconColor,
-                        borderBottomColor: card.tone.iconColor,
-                        borderLeftColor: card.tone.iconColor,
-                        boxShadow: `0 12px 28px ${card.tone.iconColor}22`,
-                        outlineColor: card.tone.iconColor,
-                        "--tw-ring-color": card.tone.iconColor,
+                        borderTopColor: "#D69A20",
+                        borderRightColor: "#D69A20",
+                        borderBottomColor: "#D69A20",
+                        borderLeftColor: "#D69A20",
+                        boxShadow: "0 12px 28px rgba(214,154,32,0.20)",
+                        outlineColor: "#D69A20",
+                        "--tw-ring-color": "#D69A20",
                       } as CSSProperties
                     : {}),
                 }}
@@ -624,7 +624,7 @@ export default function MasterDashboardLayout({
                 {card.highlighted && card.highlightLabel ? (
                   <span
                     className="absolute right-9 top-2.5 max-w-[42%] truncate rounded-full px-2 py-1 font-body text-[9px] font-black leading-none min-[390px]:right-10 min-[390px]:text-[10px] sm:right-11"
-                    style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
+                    style={{ background: "#FFF4CF", color: "#A16207" }}
                   >
                     {card.highlightLabel}
                   </span>

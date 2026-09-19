@@ -1,7 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ConciergePickerScreen from "./ConciergePickerScreen";
+
+const apiFetchMock = vi.fn();
+
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -27,20 +34,43 @@ function LocationProbe() {
   );
 }
 
-function renderPicker(category: "get-help" | "order-in" | "book-appointments" | "discover") {
+function jsonResponse(data: unknown) {
+  return { ok: true, json: async () => data } as Response;
+}
+
+const configuredProfile = {
+  street: "42 Calle Mayor",
+  cityState: "Zamora",
+  savedProviders: [
+    { name: "Radio Taxi", category: "transport", isTrusted: true },
+    { name: "Trusted Pharmacy", category: "pharmacy", isTrusted: true },
+    { name: "Trusted Clinic", category: "doctor_clinic", isTrusted: true },
+    { name: "Trusted Plumber", category: "home_service", isTrusted: true },
+  ],
+};
+
+function renderPicker(category: "get-help" | "order-in" | "book-appointments" | "discover", profile = configuredProfile) {
+  apiFetchMock.mockResolvedValue(jsonResponse(profile));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[`/concierge/${category}`]}>
-      <LocationProbe />
-      <Routes>
-        <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} />} />
-        <Route path="*" element={null} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[`/concierge/${category}`]}>
+        <LocationProbe />
+        <Routes>
+          <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
+async function waitForPickerReady(testId: string) {
+  await waitFor(() => expect(screen.getByTestId(testId)).not.toBeDisabled());
+}
+
 describe("ConciergePickerScreen", () => {
-  it("shows the four Get Help options and routes to the home-service task", () => {
+  it("shows the four Get Help options and routes to the home-service task", async () => {
     renderPicker("get-help");
 
     expect(screen.getByText("Get Help")).toBeInTheDocument();
@@ -49,35 +79,39 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("button-concierge-picker-admin-service")).toHaveTextContent("Admin Service");
     expect(screen.getByTestId("button-concierge-picker-home-care")).toHaveTextContent("Home Care");
 
+    await waitForPickerReady("button-concierge-picker-home-repair");
     fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"home_service\"");
   });
 
-  it("shows the four Book Appointments options and routes each appointment kind", () => {
+  it("shows the four Book Appointments options and routes each appointment kind", async () => {
     renderPicker("book-appointments");
 
     expect(screen.getByText("Book Appointments")).toBeInTheDocument();
+    await waitForPickerReady("button-concierge-picker-appointment-admin");
     fireEvent.click(screen.getByTestId("button-concierge-picker-appointment-admin"));
 
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"appointmentKind\":\"government\"");
   });
 
-  it("routes Order In's Food option to the shopping helper with a groceries prefill", () => {
+  it("routes Order In's Food option to the shopping helper with a groceries prefill", async () => {
     renderPicker("order-in");
 
     expect(screen.getByText("Order In")).toBeInTheDocument();
+    await waitForPickerReady("button-concierge-picker-food");
     fireEvent.click(screen.getByTestId("button-concierge-picker-food"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"groceries\"");
   });
 
-  it("routes Discover's Safe Home option to the safe-home flow", () => {
+  it("routes Discover's Safe Home option to the safe-home flow", async () => {
     renderPicker("discover");
 
     expect(screen.getByText("Discover")).toBeInTheDocument();
+    await waitForPickerReady("button-concierge-picker-safe-home");
     fireEvent.click(screen.getByTestId("button-concierge-picker-safe-home"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/safe-home");
@@ -89,5 +123,27 @@ describe("ConciergePickerScreen", () => {
     fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+  });
+
+  it("shows only the missing ride setup and routes to address onboarding", async () => {
+    renderPicker("order-in", { savedProviders: [{ name: "Radio Taxi", category: "transport", isTrusted: true }] });
+
+    await waitForPickerReady("button-concierge-picker-ride");
+    fireEvent.click(screen.getByTestId("button-concierge-picker-ride"));
+
+    expect(await screen.findByTestId("panel-concierge-service-setup")).toHaveTextContent("Add home address");
+    expect(screen.queryByTestId("button-concierge-setup-provider")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-setup-address"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/address");
+  });
+
+  it("shows only the missing pharmacy setup for OTC support", async () => {
+    renderPicker("discover", { street: "42 Calle Mayor", cityState: "Zamora", savedProviders: [] });
+
+    await waitForPickerReady("button-concierge-picker-otc-pharmacy");
+    fireEvent.click(screen.getByTestId("button-concierge-picker-otc-pharmacy"));
+
+    expect(await screen.findByTestId("panel-concierge-service-setup")).toHaveTextContent("Add trusted provider");
+    expect(screen.queryByTestId("button-concierge-setup-address")).not.toBeInTheDocument();
   });
 });

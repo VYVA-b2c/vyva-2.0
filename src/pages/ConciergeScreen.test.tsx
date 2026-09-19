@@ -291,15 +291,18 @@ describe("ConciergeScreen task navigation", () => {
     });
   }
 
-  it("keeps the production home focused on starting and resuming tasks", async () => {
+  it("nudges an attention-needed task on its matching service", async () => {
     mockConciergeLists();
     renderScreen(["/concierge"], "home");
 
-    expect(await screen.findByTestId("concierge-home-task-overview")).toBeInTheDocument();
+    const appointments = await screen.findByTestId("button-concierge-card-appointment");
+    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
+    expect(appointments).toHaveTextContent("Needs attention");
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-home-task-overview")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-hero")).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
+    fireEvent.click(appointments);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
   });
 
@@ -311,8 +314,8 @@ describe("ConciergeScreen task navigation", () => {
 
     renderScreen(["/concierge"], "home", queryClient);
 
-    expect(await screen.findByTestId("concierge-home-task-overview")).toBeInTheDocument();
-    expect(await screen.findByTestId("button-concierge-continue-task")).toBeInTheDocument();
+    const appointments = await screen.findByTestId("button-concierge-card-appointment");
+    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
   });
 
   it("shows only the provider task that needs the user's next action", async () => {
@@ -359,11 +362,10 @@ describe("ConciergeScreen task navigation", () => {
     ]);
     renderScreen(["/concierge"], "home");
 
-    expect(await screen.findByTestId("concierge-home-task-status")).toHaveTextContent("Needs input");
-    expect(screen.getByTestId("concierge-home-task-explanation")).toHaveTextContent("VYVA needs your decision to continue.");
-    expect(screen.getByTestId("concierge-home-active-task")).toHaveTextContent("Please confirm your insurance plan.");
-    expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
+    const appointments = await screen.findByTestId("button-concierge-card-appointment");
+    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
+    expect(appointments).toHaveTextContent("Needs attention");
+    fireEvent.click(appointments);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });
 
@@ -395,32 +397,6 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("concierge-task-confirmation-screen")).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Task progress" })).getByText("Confirm")).toHaveAttribute("aria-current", "step");
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
-  });
-
-  it("opens the newest saved task in My Tasks before continuing", async () => {
-    const savedTask = {
-      id: savedTaskId,
-      user_id: "user-1",
-      kind: "document",
-      entry_payload: { kind: "document", documentKind: "claim" },
-      progress_payload: {
-        documentKind: "claim",
-        documentDetails: { subject: "Roof claim", recipient: "Insurer", deadline: "Friday", notes: "Photos ready" },
-      },
-      stage: "review",
-      status: "active",
-      linked_pending_id: null,
-      language: "en",
-      created_at: "2026-07-18T12:00:00.000Z",
-      updated_at: "2026-07-18T12:05:00.000Z",
-      completed_at: null,
-      deleted_at: null,
-    };
-    mockConciergeLists([], [], [savedTask]);
-    renderScreen(["/concierge"], "route");
-
-    fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/tasks/draft%3A${savedTaskId}`);
   });
 
   it.each([
@@ -1290,7 +1266,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-card-appointment")).not.toHaveTextContent("Ride");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Book Appointments. Medical, admin, personal care");
     expect(screen.queryByTestId("button-concierge-fast-safe-home")).not.toBeInTheDocument();
-    expect(screen.getByTestId("panel-concierge-trusted-help")).toHaveTextContent("My Trusted Help");
+    expect(screen.queryByTestId("panel-concierge-trusted-help")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
     expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
     expect(screen.getByTestId("button-concierge-card-service-title")).toHaveTextContent("Get Help");
@@ -1298,17 +1274,6 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-card-delivery").querySelector('[data-vyva-icon-tile="check"]')).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-card-appointment").querySelector('[data-vyva-icon-tile="calendar"]')).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-card-discover").querySelector('[data-vyva-icon-tile="pin"]')).toBeInTheDocument();
-  });
-
-  it("opens Trusted Help setup from Concierge", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
-
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-trusted-help"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-path")).toHaveTextContent("/settings/trusted-help");
-    });
   });
 
   it("routes delivery through the shopping helper", async () => {

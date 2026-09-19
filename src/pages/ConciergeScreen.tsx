@@ -65,10 +65,7 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
-import {
-  ConciergeHomeTaskOverview,
-  ConciergeTaskWorkspaceHeader,
-} from "@/components/concierge/ConciergeTaskNavigation";
+import { ConciergeTaskWorkspaceHeader } from "@/components/concierge/ConciergeTaskNavigation";
 import {
   AppointmentVoiceCanvas,
   ProviderReplyVoiceCanvas,
@@ -17258,42 +17255,53 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         canvasSummary: activeActionCanvasState,
       }
     : null;
-  const trustedHelpSetupPanel = (
-    <section
-      className="order-[10] mt-4 rounded-[26px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_16px_34px_rgba(15,118,110,0.08)]"
-      data-testid="panel-concierge-trusted-help"
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#0F766E] shadow-sm">
-            <ShieldCheck size={23} aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
-              {isSpanish ? "Configuracion segura" : "Trusted setup"}
-            </p>
-            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
-              {isSpanish ? "Mi ayuda de confianza" : "My Trusted Help"}
-            </h2>
-            <p className="mt-1 max-w-[560px] font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-              {isSpanish
-                ? "Proveedores, pagos, familia y limites para pedidos o reservas."
-                : "Providers, payment, family approvals, and limits for orders or bookings."}
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("/settings/trusted-help")}
-          className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#0F766E] px-5 font-body text-[14px] font-black text-white shadow-[0_12px_26px_rgba(15,118,110,0.18)]"
-          data-testid="button-concierge-trusted-help"
-        >
-          <Sparkles size={16} aria-hidden="true" />
-          {isSpanish ? "Configurar" : "Set up"}
-        </button>
-      </div>
-    </section>
-  );
+  const homeTaskNeedsAttention = homeActiveTask && (
+    homeActiveTask.canvasState === "collecting"
+    || homeActiveTask.canvasState === "ready_to_review"
+    || homeActiveTask.canvasState === "awaiting_confirmation"
+    || homeActiveTask.canvasState === "needs_user_input"
+    || homeActiveTask.canvasState === "failed"
+    || homeActiveTask.providerStatus === "action_needed"
+    || homeActiveTask.providerStatus === "reply_received"
+  ) ? homeActiveTask : null;
+  const homeTaskFlowReference = activeSavedTaskExecutionTask?.flow_reference
+    ?? activeActionExecutionTask?.flow_reference
+    ?? (activeSavedTask?.action ? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]) : "")
+    ?? (activeAction ? payloadString(activeAction.action_payload, ["flow_reference"]) : "");
+  const homeTaskUseCase = activeSavedTask?.action?.use_case ?? activeAction?.use_case ?? "";
+  const homeTaskServiceCardId = (() => {
+    if (!homeTaskNeedsAttention) return null;
+    if (activeSavedTaskEntry?.kind === "appointment") return "book-appointments";
+    if (activeSavedTaskEntry?.kind === "transport") return "order-in";
+    if (activeSavedTaskEntry?.kind === "otc_pharmacy" || activeSavedTaskEntry?.kind === "scam_review") return "discover";
+    if (activeSavedTaskEntry?.kind === "home_service") return "get-help";
+
+    if (homeTaskUseCase.includes("appointment")) return "book-appointments";
+    if (homeTaskUseCase.includes("ride") || homeTaskUseCase.includes("shopping")) return "order-in";
+    if (homeTaskUseCase.includes("pharmacy") || homeTaskUseCase.includes("scam")) return "discover";
+    if (homeTaskUseCase.includes("home_service")) return "get-help";
+    if (homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.medicalAppointment) return "book-appointments";
+    if (
+      homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.transportBooking
+      || homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.shoppingSupport
+    ) return "order-in";
+    if (
+      homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.otcPharmacy
+      || homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.scamCheck
+      || homeTaskFlowReference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport
+    ) return "discover";
+    return "get-help";
+  })();
+  const conciergeCardsWithTaskNudge = conciergeMasterCards.map((card) => (
+    card.id === homeTaskServiceCardId && homeTaskNeedsAttention
+      ? {
+          ...card,
+          highlighted: true,
+          highlightLabel: isSpanish ? "Necesita atención" : "Needs attention",
+          onClick: () => navigate(homeTaskNeedsAttention.detailPath),
+        }
+      : card
+  ));
   return (
     <MasterDashboardLayout
       testId="concierge-master-layout"
@@ -17353,23 +17361,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           surface: "#FFFFFF",
         },
       }}
-      cards={conciergeMasterCards}
+      cards={conciergeCardsWithTaskNudge}
       showLauncher={mode !== "task"}
     >
-      {mode === "home" ? (
+      {mode !== "home" ? (
         <>
-          <ConciergeHomeTaskOverview
-            activeTask={homeActiveTask}
-            isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
-            isSpanish={isSpanish}
-            onContinue={(task) => navigate(task.detailPath)}
-            onOpenInbox={() => navigate("/concierge/tasks")}
-          />
-          {trustedHelpSetupPanel}
-        </>
-      ) : (
-        <>
-          {mode !== "task" ? trustedHelpSetupPanel : null}
           {mode === "task" ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
@@ -21319,7 +21315,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       </section> : null}
 
         </>
-      )}
+      ) : null}
 
     </MasterDashboardLayout>
   );
