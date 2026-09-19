@@ -143,21 +143,22 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("button-menu-profile")).toBeInTheDocument();
   });
 
-  it("uses the canonical row-list style shared with Concierge and My Health lists", () => {
+  it("uses the large canonical action grid shared with My Health", () => {
     renderMenu();
 
     const grid = screen.getByTestId("menu-tile-grid");
     const firstTile = screen.getByTestId("menu-tile-health");
 
-    expect(grid).toHaveClass("grid", "grid-cols-1", "gap-3", "md:grid-cols-2");
-    expect(firstTile).toHaveClass("min-h-[76px]", "w-full", "rounded-[20px]");
+    expect(grid).toHaveClass("grid", "grid-cols-1", "gap-4", "md:grid-cols-2", "md:gap-5");
+    expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]", "w-full", "rounded-[26px]");
     expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
     expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveTextContent("Check-ins & medicines");
-    expect(screen.getByTestId("menu-tile-health-detail-text")).not.toHaveClass("sr-only");
+    expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveClass("sr-only");
     expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("sr-only");
     expect(firstTile).toHaveAccessibleName("My Health. Check-ins & medicines");
     expect(firstTile.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
     expect(firstTile.querySelector("svg.lucide-chevron-right")).toBeInTheDocument();
+    expect(firstTile.querySelector("svg.lucide-arrow-up-right")).toBeInTheDocument();
   });
 
   it("matches the Home master responsive shell width without becoming fixed-width", () => {
