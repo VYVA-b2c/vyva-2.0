@@ -99,7 +99,6 @@ import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
 import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
-  type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
@@ -17142,141 +17141,6 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     },
   ];
 
-  const conciergeMasterFastHelpActions: MasterFastHelpAction[] = [
-    {
-      id: "safe-home",
-      icon: ShieldCheck,
-      label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
-      detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () =>
-        navigate("/safe-home", {
-          state: {
-            source: "concierge_fast_help",
-            flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
-          },
-        }),
-      testId: "button-concierge-fast-safe-home",
-    },
-    {
-      id: "paperwork-help",
-      icon: FileText,
-      label: t("concierge.master.fastHelp.paperworkHelp", "Paperwork Help"),
-      detail: t("concierge.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => launchConciergeTask({ kind: "document" }, () => openInsuranceAdminAssistant()),
-      testId: "button-concierge-fast-fill-form",
-    },
-    {
-      id: "find-plumber",
-      icon: Wrench,
-      label: t("concierge.master.fastHelp.findPlumber", "Find Plumber"),
-      detail: t("concierge.master.fastHelp.findPlumberDetail", "Home repair"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => launchConciergeTask({ kind: "home_service" }, openHomeServiceAssistant),
-      testId: "button-concierge-fast-home-service",
-    },
-    {
-      id: "check-scam",
-      icon: AlertTriangle,
-      label: t("concierge.master.fastHelp.checkScam", "Check Scam"),
-      detail: t("concierge.master.fastHelp.checkScamDetail", "Message or offer"),
-      tone: { iconBg: "#FFF1F2", iconColor: "#E11D48", border: "#FECACA" },
-      onClick: () => launchConciergeTask({ kind: "scam_review" }, openScamCheckAssistant),
-      testId: "button-concierge-fast-check-scam",
-    },
-    {
-      id: "book-ride",
-      icon: Car,
-      label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
-      detail: t("concierge.master.fastHelp.bookRideDetail", "Transport help"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => launchConciergeTask({ kind: "transport" }, () => prepareRideRequest(undefined, "now")),
-      testId: "button-concierge-fast-book-ride",
-    },
-    {
-      id: "order-groceries",
-      icon: ShoppingBasket,
-      label: t("concierge.master.fastHelp.orderGroceries", "Order Groceries"),
-      detail: t("concierge.master.fastHelp.orderGroceriesDetail", "Food shopping"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => openShoppingHelp("groceries"),
-      testId: "button-concierge-fast-order-groceries",
-    },
-    {
-      id: "otc-pharmacy",
-      icon: Pill,
-      label: t("concierge.master.fastHelp.otcPharmacy", "OTC Pharmacy"),
-      detail: t("concierge.master.fastHelp.otcPharmacyDetail", "Non-prescription"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => launchConciergeTask({ kind: "otc_pharmacy" }, openOtcPharmacyAssistant),
-      testId: "button-concierge-fast-otc-pharmacy",
-    },
-    {
-      id: "find-specialist",
-      icon: UserRound,
-      label: t("concierge.master.fastHelp.findSpecialist", "Find Specialist"),
-      detail: t("concierge.master.fastHelp.findSpecialistDetail", "Care options"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => {
-        const query = isSpanish ? "buscar especialista" : "find a specialist";
-        launchConciergeTask(
-          { kind: "provider_contact", providerSearchMode: "specialist", query },
-          () => openProviderSearchPanel("specialist", query),
-        );
-      },
-      testId: "button-concierge-fast-find-care",
-    },
-    {
-      id: "find-residence",
-      icon: HeartHandshake,
-      label: t("concierge.master.fastHelp.findResidence", "Find Residence"),
-      detail: t("concierge.master.fastHelp.findResidenceDetail", "Compare support"),
-      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => {
-        const query = isSpanish ? "comparar residencias o centros de cuidado" : "compare residences or care homes";
-        launchConciergeTask(
-          { kind: "provider_contact", providerSearchMode: "residence", query },
-          () => openProviderSearchPanel("residence", query),
-        );
-      },
-      testId: "button-concierge-fast-find-residence",
-    },
-    {
-      id: "book-medical",
-      icon: Calendar,
-      label: t("concierge.master.fastHelp.bookMedical", "Book Medical"),
-      detail: t("concierge.master.fastHelp.bookMedicalDetail", "Doctor or clinic"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => launchConciergeTask(
-        { kind: "appointment", appointmentKind: "medical" },
-        () => openScheduleAssistant("medical"),
-      ),
-      testId: "button-concierge-fast-book-medical",
-    },
-    {
-      id: "government-help",
-      icon: Building2,
-      label: t("concierge.master.fastHelp.governmentHelp", "Government Help"),
-      detail: t("concierge.master.fastHelp.governmentHelpDetail", "Official tasks"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => launchConciergeTask(
-        { kind: "document", documentKind: "government-form" },
-        () => openInsuranceAdminAssistant("government-form"),
-      ),
-      testId: "button-concierge-fast-government-help",
-    },
-    {
-      id: "prepared-meals",
-      icon: PackageCheck,
-      label: t("concierge.master.fastHelp.preparedMeals", "Prepared Meals"),
-      detail: t("concierge.master.fastHelp.preparedMealsDetail", "Simple meals"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => openShoppingHelp("prepared-meals"),
-      testId: "button-concierge-fast-prepared-meals",
-    },
-  ];
-
   const taskWorkspaceStage: ConciergeTaskStage = activeActionNeedsUserConfirmation
     ? "confirmation"
     : activeAction || routePrefill
@@ -17427,8 +17291,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
       cardChevronVariant="plain"
-      fastHelpTestId="concierge-fast-help"
-      fastHelpTitle={t("concierge.fastHelp.kicker", "Fast help")}
+      showFastHelp={false}
       hero={{
         icon: ConciergeBell,
         eyebrow: t("concierge.master.heroEyebrow", "Concierge"),
@@ -17452,7 +17315,6 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         },
       }}
       cards={conciergeMasterCards}
-      fastHelpActions={conciergeMasterFastHelpActions}
       showLauncher={mode !== "task"}
     >
       {mode === "home" ? (

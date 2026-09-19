@@ -82,8 +82,9 @@ export type MasterDashboardHero = {
 type MasterDashboardLayoutProps = {
   hero: MasterDashboardHero;
   cards: MasterDashboardCard[];
-  fastHelpTitle: string;
-  fastHelpActions: MasterFastHelpAction[];
+  showFastHelp?: boolean;
+  fastHelpTitle?: string;
+  fastHelpActions?: MasterFastHelpAction[];
   launcherVariant?: "default" | "homeMaster";
   intentLayer?: boolean;
   cardSectionTitle?: string;
@@ -135,8 +136,9 @@ const twoLineClampStyle: CSSProperties = {
 export default function MasterDashboardLayout({
   hero,
   cards,
+  showFastHelp = true,
   fastHelpTitle,
-  fastHelpActions,
+  fastHelpActions = [],
   launcherVariant = "default",
   intentLayer = false,
   cardSectionTitle,
@@ -676,7 +678,7 @@ export default function MasterDashboardLayout({
 
       {beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
-      {showLauncher && !isHomeMaster ? <section
+      {showLauncher && !isHomeMaster && showFastHelp ? <section
         className={[
           usesCanonicalFastHelp
             ? "mt-3 min-[390px]:mt-3.5"
