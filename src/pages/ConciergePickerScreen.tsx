@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Wrench,
   Stethoscope,
@@ -28,7 +30,13 @@ import {
   conciergeTaskPath,
   type ConciergeTaskEntry,
 } from "@/lib/conciergeTaskNavigation";
-import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  CONCIERGE_FLOW_REFERENCES,
+  normalizeConciergeProviderCategory,
+  providerSetupFocusForFlow,
+  type ConciergeFlowReference,
+} from "../../shared/conciergeFlowRegistry";
+import { apiFetch } from "@/lib/queryClient";
 
 export type ConciergePickerCategory = "get-help" | "order-in" | "book-appointments" | "discover";
 
@@ -45,8 +53,49 @@ type PickerOptionConfig = {
   detailKey: string;
   detailFallback: string;
   action: PickerNavigateAction | PickerTaskAction;
+  flowReference?: ConciergeFlowReference;
   testId: string;
 };
+
+type ConciergeProfile = {
+  street?: string | null;
+  cityState?: string | null;
+  savedProviders?: Array<{ name?: string | null; category?: string | null; role?: string | null; isTrusted?: boolean | null }>;
+};
+
+type SetupRequirement = "home_address" | "trusted_provider";
+
+function hasHomeAddress(profile: ConciergeProfile | null): boolean {
+  return Boolean(profile?.street?.trim() || profile?.cityState?.trim());
+}
+
+function hasSavedProvider(profile: ConciergeProfile | null, flowReference: ConciergeFlowReference): boolean {
+  const setupFocus = providerSetupFocusForFlow(flowReference);
+  if (!setupFocus) return true;
+  return (profile?.savedProviders ?? []).some((provider) => (
+    Boolean(provider.name?.trim())
+    && provider.isTrusted !== false
+    && normalizeConciergeProviderCategory(provider.category ?? provider.role ?? "") === setupFocus
+  ));
+}
+
+function setupRequirementsForOption(option: PickerOptionConfig, profile: ConciergeProfile | null): SetupRequirement[] {
+  const flow = option.flowReference;
+  if (!flow) return [];
+  const requirements: SetupRequirement[] = [];
+  if ([
+    CONCIERGE_FLOW_REFERENCES.transportBooking,
+    CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+    CONCIERGE_FLOW_REFERENCES.homeService,
+  ].includes(flow) && !hasHomeAddress(profile)) requirements.push("home_address");
+  if ([
+    CONCIERGE_FLOW_REFERENCES.transportBooking,
+    CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+    CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+    CONCIERGE_FLOW_REFERENCES.homeService,
+  ].includes(flow) && !hasSavedProvider(profile, flow)) requirements.push("trusted_provider");
+  return requirements;
+}
 
 type PickerCategoryConfig = {
   titleKey: string;
@@ -94,6 +143,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           detailKey: "concierge.master.picker.getHelp.options.homeRepairDetail",
           detailFallback: "Plumber, electrician, cleaning",
           action: { kind: "task", entry: { kind: "home_service" } },
+          flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
           testId: "button-concierge-picker-home-repair",
         },
         {
@@ -164,6 +214,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           detailKey: "concierge.master.picker.bookAppointments.options.medicalDetail",
           detailFallback: "Doctor or clinic",
           action: { kind: "task", entry: { kind: "appointment", appointmentKind: "medical" } },
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
           testId: "button-concierge-picker-medical",
         },
         {
@@ -220,6 +271,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           detailKey: "concierge.master.picker.orderIn.options.rideDetail",
           detailFallback: "Transport help",
           action: { kind: "task", entry: { kind: "transport" } },
+          flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,
           testId: "button-concierge-picker-ride",
         },
         {
@@ -240,6 +292,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
               ? "VYVA prepara opciones de compra y pide confirmacion antes de cualquier pedido."
               : "VYVA prepares grocery options and asks for confirmation before any order.",
           ),
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
           testId: "button-concierge-picker-food",
         },
         {
@@ -260,6 +313,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
               ? "VYVA prepara productos para el hogar y pide confirmacion antes de cualquier pedido."
               : "VYVA prepares household-item options and asks for confirmation before any order.",
           ),
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
           testId: "button-concierge-picker-shopping",
         },
         {
@@ -280,6 +334,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
               ? "VYVA compara opciones y pide confirmacion antes de cualquier pedido."
               : "VYVA compares options and asks for confirmation before any order.",
           ),
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
           testId: "button-concierge-picker-order-other",
         },
       ],
@@ -328,6 +383,7 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           detailKey: "concierge.master.picker.discover.options.otcPharmacyDetail",
           detailFallback: "Non-prescription items",
           action: { kind: "task", entry: { kind: "otc_pharmacy" } },
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
           testId: "button-concierge-picker-otc-pharmacy",
         },
         {
@@ -362,8 +418,19 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isSpanish = language.split("-")[0].toLowerCase() === "es";
   const config = buildCategoryConfigs(isSpanish)[category];
+  const [blockedOption, setBlockedOption] = useState<PickerOptionConfig | null>(null);
+  const { data: conciergeProfile = null, isLoading: profileLoading } = useQuery<ConciergeProfile | null>({
+    queryKey: ["/api/profile"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/profile");
+      return response.ok ? await response.json() as ConciergeProfile : null;
+    },
+    retry: false,
+  });
 
   const shellContract: CanonicalDetailFlowShellContract = {
     shellId: "home.production",
@@ -374,12 +441,54 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
     composer: "hidden",
   };
 
-  function handleOptionSelect(option: PickerOptionConfig) {
+  const continueToOption = useCallback((option: PickerOptionConfig) => {
     if (option.action.kind === "navigate") {
       navigate(option.action.path, { state: option.action.state });
       return;
     }
     navigate(conciergeTaskPath(), { state: { conciergeTaskEntry: option.action.entry } });
+  }, [navigate]);
+
+  function handleOptionSelect(option: PickerOptionConfig) {
+    const missing = setupRequirementsForOption(option, conciergeProfile);
+    if (missing.length > 0) {
+      setBlockedOption(option);
+      return;
+    }
+    continueToOption(option);
+  }
+
+  const blockedRequirements = useMemo(
+    () => blockedOption ? setupRequirementsForOption(blockedOption, conciergeProfile) : [],
+    [blockedOption, conciergeProfile],
+  );
+
+  useEffect(() => {
+    const resumeOptionId = searchParams.get("resume");
+    if (!resumeOptionId || profileLoading) return;
+    const option = config.options.find((candidate) => candidate.id === resumeOptionId);
+    setSearchParams({}, { replace: true });
+    if (!option) return;
+    const missing = setupRequirementsForOption(option, conciergeProfile);
+    if (missing.length === 0) continueToOption(option);
+    else setBlockedOption(option);
+  }, [conciergeProfile, config.options, continueToOption, profileLoading, searchParams, setSearchParams]);
+
+  function openAddressSetup() {
+    if (!blockedOption) return;
+    navigate(`/onboarding/profile/address?returnTo=${encodeURIComponent(`${location.pathname}?resume=${blockedOption.id}`)}`);
+  }
+
+  function openProviderSetup() {
+    if (!blockedOption?.flowReference) return;
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: `${location.pathname}?resume=${blockedOption.id}`,
+        setupFocus: providerSetupFocusForFlow(blockedOption.flowReference),
+        setupFlow: blockedOption.flowReference,
+        setupReason: `Set up ${blockedOption.labelFallback} for Concierge`,
+      },
+    });
   }
 
   return (
@@ -408,6 +517,7 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
               type="button"
               data-testid={option.testId}
               onClick={() => handleOptionSelect(option)}
+              disabled={profileLoading}
               aria-label={`${label}. ${detail}`}
               className="vyva-tap flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border border-[#EFE7F7] bg-white px-4 py-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.05)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
             >
@@ -430,6 +540,34 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
           );
         })}
       </div>
+      {blockedOption ? (
+        <section className="mt-5 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4" data-testid="panel-concierge-service-setup">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "Configuracion necesaria" : "Setup needed"}
+          </p>
+          <h2 className="mt-1 font-body text-[20px] font-black text-vyva-text-1">
+            {isSpanish ? `Prepara ${blockedOption.labelFallback} primero` : `Set up ${blockedOption.labelFallback} first`}
+          </h2>
+          <p className="mt-2 font-body text-[14px] font-bold text-vyva-text-2">
+            {isSpanish ? "VYVA solo pide los datos necesarios para este servicio." : "VYVA only asks for the details this service needs."}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {blockedRequirements.includes("home_address") ? (
+              <button type="button" onClick={openAddressSetup} className="vyva-primary-action min-h-[44px] px-4" data-testid="button-concierge-setup-address">
+                {isSpanish ? "Anadir direccion" : "Add home address"}
+              </button>
+            ) : null}
+            {blockedRequirements.includes("trusted_provider") ? (
+              <button type="button" onClick={openProviderSetup} className="vyva-primary-action min-h-[44px] px-4" data-testid="button-concierge-setup-provider">
+                {isSpanish ? "Anadir proveedor" : "Add trusted provider"}
+              </button>
+            ) : null}
+            <button type="button" onClick={() => setBlockedOption(null)} className="vyva-tap min-h-[44px] rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[14px] font-black text-[#0F766E]">
+              {isSpanish ? "Ahora no" : "Not now"}
+            </button>
+          </div>
+        </section>
+      ) : null}
     </CanonicalDetailFlowShell>
   );
 }
