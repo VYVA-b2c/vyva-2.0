@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -69,6 +70,60 @@ type PrototypeSection = {
   eyebrow?: string;
   items: RowItem[];
 };
+
+type HealthHubPreventionFocus = {
+  focus?: string | null;
+};
+
+type HealthHubVitalReading = {
+  signal_type: string;
+  value: string | number;
+  recorded_at?: string | null;
+};
+
+type HealthHubLatestVitals = {
+  recent_readings?: HealthHubVitalReading[];
+};
+
+type HealthHubMedicationReport = {
+  nextDue?: { scheduled_time?: string | null } | null;
+  todaySummary?: { scheduled?: number; remaining?: number } | null;
+};
+
+function compactHealthHubVital(readings: HealthHubVitalReading[] | undefined): string {
+  if (!readings?.length) return "Add";
+  const systolic = readings.find((reading) => reading.signal_type === "bp_systolic");
+  const diastolic = readings.find((reading) => reading.signal_type === "bp_diastolic");
+  if (systolic && diastolic) return `${systolic.value}/${diastolic.value}`;
+
+  const reading = ["resting_hr_bpm", "oxygen_saturation", "respiratory_rate", "glucose_mgdl", "weight_kg"]
+    .map((signal) => readings.find((candidate) => candidate.signal_type === signal))
+    .find(Boolean) ?? readings[0];
+  if (!reading) return "Add";
+  const units: Record<string, string> = {
+    resting_hr_bpm: " bpm",
+    oxygen_saturation: "%",
+    respiratory_rate: "/min",
+    glucose_mgdl: " mg/dL",
+    weight_kg: " kg",
+  };
+  return `${reading.value}${units[reading.signal_type] ?? ""}`;
+}
+
+function compactHealthHubMedication(report: HealthHubMedicationReport | undefined): string {
+  const scheduledTime = report?.nextDue?.scheduled_time?.trim();
+  if (scheduledTime) {
+    const match = scheduledTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return scheduledTime;
+    const date = new Date();
+    date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  const remaining = report?.todaySummary?.remaining ?? 0;
+  if (remaining > 0) return `${remaining} due`;
+  if ((report?.todaySummary?.scheduled ?? 0) > 0) return "Done";
+  return "Set up";
+}
 
 const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string; darkIcon: string }> = {
   health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)", darkIcon: "#FF5C52" },
@@ -880,11 +935,29 @@ export function PrototypeHealthScreen({
   contained?: boolean;
 }) {
   const { t } = useLanguage();
+  const { data: preventionFocus } = useQuery<HealthHubPreventionFocus>({
+    queryKey: ["/api/health/prevention"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: latestVitals } = useQuery<HealthHubLatestVitals>({
+    queryKey: ["/api/vitals-engine/latest"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: medicationReport } = useQuery<HealthHubMedicationReport>({
+    queryKey: ["/api/meds/adherence-report"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const preventionBadge = preventionFocus?.focus?.trim() || "Plan";
+  const vitalsBadge = compactHealthHubVital(latestVitals?.recent_readings);
+  const medicationBadge = compactHealthHubMedication(medicationReport);
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: t("healthHub.start", "Start"), tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: t("healthHub.today", "Today"), tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: "Telehealth", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: preventionBadge, tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: vitalsBadge, tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: medicationBadge, tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
