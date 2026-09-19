@@ -82,8 +82,9 @@ export type MasterDashboardHero = {
 type MasterDashboardLayoutProps = {
   hero: MasterDashboardHero;
   cards: MasterDashboardCard[];
-  fastHelpTitle: string;
-  fastHelpActions: MasterFastHelpAction[];
+  showFastHelp?: boolean;
+  fastHelpTitle?: string;
+  fastHelpActions?: MasterFastHelpAction[];
   launcherVariant?: "default" | "homeMaster";
   intentLayer?: boolean;
   cardSectionTitle?: string;
@@ -103,6 +104,7 @@ type MasterDashboardLayoutProps = {
   showCards?: boolean;
   heroLayoutVariant?: "dashboard" | "canonicalMenu";
   cardLayoutVariant?: "dashboard" | "canonicalActionGrid";
+  cardChevronVariant?: "circle" | "plain";
   fastHelpLayoutVariant?: "dashboard" | "canonicalActionGrid";
   modeSwitcher?: ReactNode;
   isDarkMode?: boolean;
@@ -134,8 +136,9 @@ const twoLineClampStyle: CSSProperties = {
 export default function MasterDashboardLayout({
   hero,
   cards,
+  showFastHelp = true,
   fastHelpTitle,
-  fastHelpActions,
+  fastHelpActions = [],
   launcherVariant = "default",
   intentLayer = false,
   cardSectionTitle,
@@ -154,6 +157,7 @@ export default function MasterDashboardLayout({
   showCards = showLauncher,
   heroLayoutVariant = "dashboard",
   cardLayoutVariant = "dashboard",
+  cardChevronVariant = "circle",
   fastHelpLayoutVariant = "dashboard",
   modeSwitcher,
   isDarkMode = false,
@@ -609,10 +613,13 @@ export default function MasterDashboardLayout({
                     aria-hidden="true"
                   />
                 ) : null}
-                {usesCanonicalCardGrid ? (
+                {usesCanonicalCardGrid && cardChevronVariant === "circle" ? (
                   <span className="grid h-[34px] w-[34px] place-items-center rounded-full text-white" style={{ background: card.tone.iconColor }} aria-hidden="true">
                     <ChevronRight size={18} strokeWidth={2.5} />
                   </span>
+                ) : null}
+                {usesCanonicalCardGrid && cardChevronVariant === "plain" ? (
+                  <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
                 ) : null}
                 {card.highlighted && card.highlightLabel ? (
                   <span
@@ -671,7 +678,7 @@ export default function MasterDashboardLayout({
 
       {beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
-      {showLauncher && !isHomeMaster ? <section
+      {showLauncher && !isHomeMaster && showFastHelp ? <section
         className={[
           usesCanonicalFastHelp
             ? "mt-3 min-[390px]:mt-3.5"

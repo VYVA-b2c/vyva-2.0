@@ -222,54 +222,6 @@ function renderScreen(
   return Object.assign(result, { rerenderScreen: () => result.rerender(renderTree()) });
 }
 
-function showBookRideFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(9000);
-  });
-  return screen.getByTestId("button-concierge-fast-book-ride");
-}
-
-function showOrderGroceriesFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(9000);
-  });
-  return screen.getByTestId("button-concierge-fast-order-groceries");
-}
-
-function showOtcPharmacyFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(18000);
-  });
-  return screen.getByTestId("button-concierge-fast-otc-pharmacy");
-}
-
-function showFindCareFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(18000);
-  });
-  return screen.getByTestId("button-concierge-fast-find-care");
-}
-
-function showScamCheckFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(9000);
-  });
-  return screen.getByTestId("button-concierge-fast-check-scam");
-}
-
-function showBookMedicalFastHelp() {
-  screen.getByTestId("button-concierge-fast-home-service");
-  act(() => {
-    vi.advanceTimersByTime(27000);
-  });
-  return screen.getByTestId("button-concierge-fast-book-medical");
-}
-
 afterEach(() => {
   vi.useRealTimers();
   apiFetchMock.mockReset();
@@ -400,20 +352,6 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Respond" }));
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
-  });
-
-  it("opens a selected home workflow after the route changes without requiring a remount", async () => {
-    mockConciergeLists([]);
-    renderScreen(["/concierge"], "route");
-
-    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${savedTaskId}`);
-    });
-    expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
-    expect(await screen.findByTestId("panel-insurance-admin")).toBeInTheDocument();
-    expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -1305,14 +1243,14 @@ describe("ConciergeScreen action hub", () => {
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
-  it("renders the requested primary cards and fast help actions", async () => {
+  it("renders the requested primary cards without the retired fast help section", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen();
 
     expect(await screen.findByTestId("concierge-master-layout")).toBeVisible();
     expect(await screen.findByTestId("concierge-guided-hub")).toBeVisible();
-    expect(screen.getByTestId("concierge-fast-help")).toBeVisible();
+    expect(screen.queryByTestId("concierge-fast-help")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-hero")).toHaveTextContent("Concierge ready");
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(voiceHeroMock).not.toHaveBeenCalled();
@@ -1334,10 +1272,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Personal Care");
     expect(screen.getByTestId("button-concierge-card-appointment")).not.toHaveTextContent("Ride");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Book Appointments. Medical, admin, personal care");
-    expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
-    expect(screen.getByTestId("button-concierge-fast-safe-home")).toHaveTextContent("Safe Home");
-    expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
-    expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find Plumber");
+    expect(screen.queryByTestId("button-concierge-fast-safe-home")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-concierge-trusted-help")).toHaveTextContent("My Trusted Help");
     expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
     expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
@@ -1370,43 +1305,13 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
-  it("routes Safe Home fast help with the tracked safety flow reference", async () => {
+  it("opens a Find Specialist task entry as a provider comparison search", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-fast-safe-home"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-path")).toHaveTextContent("/safe-home");
-      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
-      expect(screen.getByTestId("route-state")).toHaveTextContent("concierge_fast_help");
-    });
-  });
-
-  it("routes Order Groceries fast help through the shopping assistant", async () => {
-    vi.useFakeTimers();
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
-
-    renderScreen();
-    fireEvent.click(await showOrderGroceriesFastHelp());
-    vi.useRealTimers();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"groceries\"");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"delivery\"");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"simplicity\"");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"safety\"");
-    });
-  });
-
-  it("opens Find Specialist fast help as a provider comparison search", async () => {
-    vi.useFakeTimers();
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
-
-    renderScreen();
-    fireEvent.click(await showFindCareFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" } },
+    }], "task");
 
     expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
@@ -1414,13 +1319,13 @@ describe("ConciergeScreen action hub", () => {
     expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("find a specialist");
   });
 
-  it("opens Book Medical fast help directly in the medical appointment flow", async () => {
-    vi.useFakeTimers();
+  it("opens a Book Medical task entry directly in the medical appointment flow", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await showBookMedicalFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "appointment", appointmentKind: "medical" } },
+    }], "task");
 
     const panel = await screen.findByTestId("panel-appointment-assistant");
     expect(panel).toHaveTextContent("Appointment");
@@ -4155,12 +4060,12 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("still prepares ride requests without booking", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "transport" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
@@ -4204,8 +4109,10 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "document" } },
+    }], "task");
 
     const panel = await screen.findByTestId("panel-insurance-admin");
     expect(panel).toHaveTextContent("What do you need to prepare?");
@@ -4378,7 +4285,6 @@ describe("ConciergeScreen action hub", () => {
   }, 60000);
 
   it("opens a scam check router and prepares a safe review request", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/concierge/actions/trigger")) {
         expect(init?.method).toBe("POST");
@@ -4410,9 +4316,10 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await showScamCheckFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "scam_review" } },
+    }], "task");
 
     const panel = await screen.findByTestId("panel-scam-check");
     expect(panel).toHaveTextContent("Check a possible scam");
@@ -4472,27 +4379,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent("null");
   });
 
-  it("replaces an open home service assistant when the ride card is tapped", async () => {
-    vi.useFakeTimers();
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
-
-    renderScreen();
-    fireEvent.click(screen.getByTestId("button-concierge-card-service"));
-    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
-    expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
-
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("panel-concierge-transport")).toHaveTextContent("Transport options");
-    });
-    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("panel-home-service-intake")).not.toBeInTheDocument();
-  });
-
   it("uses the trusted default transport provider and only asks for mobility when missing", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
@@ -4510,9 +4397,10 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "transport" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
@@ -4532,12 +4420,12 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("routes missing transport provider setup to trusted providers", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "transport" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No trusted provider selected");
@@ -4557,12 +4445,12 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("routes missing provider helper setup to care team onboarding", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "transport" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-transport-missing-provider")).toHaveTextContent("Ask someone to help");
@@ -4577,12 +4465,12 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("requires pharmacy setup before OTC pharmacy help can start", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await showOtcPharmacyFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "otc_pharmacy" } },
+    }], "task");
 
     expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Save a pharmacy first");
     expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Service not active yet");
@@ -4599,7 +4487,6 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("prepares OTC pharmacy requests only through a saved pharmacy", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
@@ -4663,9 +4550,10 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await showOtcPharmacyFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "otc_pharmacy" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
@@ -4729,7 +4617,6 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("finds transport options and prepares a provider without starting a booking", async () => {
-    vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
@@ -4850,9 +4737,10 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    renderScreen();
-    fireEvent.click(await showBookRideFastHelp());
-    vi.useRealTimers();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "transport" } },
+    }], "task");
 
     await waitFor(() => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Radio Taxi");
