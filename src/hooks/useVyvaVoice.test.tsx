@@ -1068,4 +1068,69 @@ describe("useVyvaVoice", () => {
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("user:I need help");
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:I can help with that.");
   });
+
+  it("refreshes Concierge memory from the first completed user request", async () => {
+    voiceMocks.apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/voice-readiness") {
+        return jsonResponse({ ready: true, agent_id_present: true, agent_slug: "concierge" });
+      }
+      if (url === "/api/voice-context") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse(body.memory_refresh === true
+          ? { dynamic_variables: { memory_block: "Preference: prefers providers who speak Spanish." } }
+          : { dynamic_variables: { routing_domain: "concierge" } });
+      }
+      if (url === "/api/elevenlabs-conversation-token") {
+        return jsonResponse({ signed_url: "wss://example.test/voice-session" });
+      }
+      throw new Error(`Unexpected voice API request: ${url}`);
+    });
+
+    let controller: VoiceController | null = null;
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("Concierge support", undefined, {
+        agentSlug: "concierge",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    await act(async () => {
+      sessionOptions?.onMessage?.({ role: "user", source: "user", message: "Find me an electrician" });
+    });
+
+    await waitFor(() => expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(
+      expect.stringContaining("prefers providers who speak Spanish"),
+    ));
+    const refreshCalls = voiceMocks.apiFetch.mock.calls.filter(([url, init]) => {
+      if (url !== "/api/voice-context") return false;
+      const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? "{}")) as Record<string, unknown>;
+      return body.memory_refresh === true;
+    });
+    expect(refreshCalls).toHaveLength(1);
+    expect(JSON.parse(String((refreshCalls[0][1] as RequestInit).body))).toMatchObject({
+      domain: "concierge",
+      memory_query: "Find me an electrician",
+      memory_refresh: true,
+    });
+
+    act(() => {
+      sessionOptions?.onMessage?.({ role: "user", source: "user", message: "It is urgent" });
+    });
+    expect(voiceMocks.apiFetch.mock.calls.filter(([url, init]) => {
+      if (url !== "/api/voice-context") return false;
+      const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? "{}")) as Record<string, unknown>;
+      return body.memory_refresh === true;
+    })).toHaveLength(1);
+  });
 });
