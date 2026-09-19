@@ -106,6 +106,11 @@ import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
+  normalizeConciergeActionEnvelope,
+  normalizeConciergeActionItems,
+  type ConciergeActionListEnvelope,
+} from "@/lib/conciergeActionLists";
+import {
   getTrustedHelpMissionPresentation,
   getTrustedHelpMissionStatusLabel,
   type TrustedHelpMissionPresentation,
@@ -1161,8 +1166,6 @@ type TransportPreparedResponse = { pendingId?: string; status?: string; message?
 type OtcPreparedResponse = { pendingId?: string; status?: string; message?: string };
 type PreparedTaskResponse = { pendingId?: string; status?: string; message?: string };
 
-type ConciergeActionListResponse<T> = { items?: T[] };
-
 async function completePendingConciergeAction(params: {
   pendingId: string;
   outcomeSummary: string;
@@ -2082,18 +2085,16 @@ async function callConcierge(
   return data.response ?? "";
 }
 
-async function fetchPendingActions(): Promise<ConciergePendingItem[]> {
+async function fetchPendingActions(): Promise<ConciergeActionListEnvelope<ConciergePendingItem>> {
   const res = await apiFetch("/api/concierge/actions/pending");
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  const data = (await res.json()) as ConciergeActionListResponse<ConciergePendingItem>;
-  return data.items ?? [];
+  return normalizeConciergeActionEnvelope<ConciergePendingItem>(await res.json());
 }
 
-async function fetchCompletedConciergeSessions(): Promise<ConciergeCompletedSession[]> {
+async function fetchCompletedConciergeSessions(): Promise<ConciergeActionListEnvelope<ConciergeCompletedSession>> {
   const res = await apiFetch("/api/concierge/actions/sessions");
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  const data = (await res.json()) as ConciergeActionListResponse<ConciergeCompletedSession>;
-  return data.items ?? [];
+  return normalizeConciergeActionEnvelope<ConciergeCompletedSession>(await res.json());
 }
 
 async function createAppointmentRequest(params: {
@@ -10327,6 +10328,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
     queryFn: fetchPendingActions,
+    select: normalizeConciergeActionItems<ConciergePendingItem>,
     refetchInterval: 8000,
   });
 
@@ -10352,6 +10354,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const { data: completedSessions = [], isLoading: completedSessionsLoading } = useQuery({
     queryKey: ["/api/concierge/actions/sessions"],
     queryFn: fetchCompletedConciergeSessions,
+    select: normalizeConciergeActionItems<ConciergeCompletedSession>,
     staleTime: 30 * 1000,
   });
 

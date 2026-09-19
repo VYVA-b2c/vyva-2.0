@@ -14,14 +14,19 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  normalizeConciergeActionEnvelope,
+  normalizeConciergeActionItems,
+  type ConciergeActionListEnvelope,
+} from "@/lib/conciergeActionLists";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import {
   buildConciergeTaskInbox,
-  fetchConciergeTaskCompletedSessions,
-  fetchConciergeTaskPendingItems,
   findConciergeTaskInboxItem,
+  type ConciergeTaskCompletedSession,
   type ConciergeTaskInboxGroup,
   type ConciergeTaskInboxItem,
+  type ConciergeTaskPendingItem,
 } from "@/lib/conciergeTaskInbox";
 import { readLocalConciergeCanvasTaskItems } from "@/lib/conciergeLocalCanvasTasks";
 import {
@@ -37,6 +42,12 @@ import {
 } from "../../shared/conciergeProviderReplyResolution";
 
 const ACTIVE_GROUPS: ConciergeTaskInboxGroup[] = ["needs_you", "waiting"];
+
+async function fetchConciergeActionEnvelope<T>(path: string, label: string): Promise<ConciergeActionListEnvelope<T>> {
+  const response = await apiFetch(path);
+  if (!response.ok) throw new Error(`Concierge ${label} request failed: ${response.status}`);
+  return normalizeConciergeActionEnvelope<T>(await response.json());
+}
 
 function payloadText(payload: Record<string, unknown> | null, keys: string[]): string {
   if (!payload) return "";
@@ -758,12 +769,14 @@ export default function ConciergeTaskInboxPage() {
   });
   const pendingQuery = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
-    queryFn: fetchConciergeTaskPendingItems,
+    queryFn: () => fetchConciergeActionEnvelope<ConciergeTaskPendingItem>("/api/concierge/actions/pending", "pending tasks"),
+    select: normalizeConciergeActionItems<ConciergeTaskPendingItem>,
     refetchInterval: 8_000,
   });
   const completedQuery = useQuery({
     queryKey: ["/api/concierge/actions/sessions"],
-    queryFn: fetchConciergeTaskCompletedSessions,
+    queryFn: () => fetchConciergeActionEnvelope<ConciergeTaskCompletedSession>("/api/concierge/actions/sessions", "completed tasks"),
+    select: normalizeConciergeActionItems<ConciergeTaskCompletedSession>,
     staleTime: 30_000,
   });
   const inbox = useMemo(() => buildConciergeTaskInbox({
