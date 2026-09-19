@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   initialPrototypeCheckInFlowState,
@@ -52,12 +53,16 @@ vi.mock("@/contexts/ProfileContext", () => ({
   }),
 }));
 
-function renderScreen(ui: React.ReactElement) {
+function renderScreen(ui: React.ReactElement, queryClient = new QueryClient({
+  defaultOptions: { queries: { queryFn: async () => null, retry: false } },
+})) {
   navigateMock.mockClear();
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      {ui}
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        {ui}
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -292,10 +297,13 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("Readings and trends")).toBeInTheDocument();
     expect(screen.getByText("Medication")).toBeInTheDocument();
     expect(screen.getByText("Doses and reminders")).toBeInTheDocument();
-    expect(screen.getByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("Start")).toBeInTheDocument();
-    expect(screen.getByText("72 bpm")).toBeInTheDocument();
-    expect(screen.getByText("2:00 PM")).toBeInTheDocument();
+    expect(screen.getByText("Telehealth")).toBeInTheDocument();
+    expect(screen.getByText("Plan")).toBeInTheDocument();
+    expect(screen.getByText("Add")).toBeInTheDocument();
+    expect(screen.getByText("Set up")).toBeInTheDocument();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+    expect(screen.queryByText("72 bpm")).not.toBeInTheDocument();
+    expect(screen.queryByText("2:00 PM")).not.toBeInTheDocument();
     expect(screen.getByTestId("health-action-grid")).toHaveClass("grid-cols-1", "md:grid-cols-2");
     for (const testId of ["button-health-plan", "button-health-symptom-report", "button-health-vitals", "button-health-medicines"]) {
       expect(screen.getByTestId(testId)).toHaveClass("bg-[#2A2034]");
@@ -318,6 +326,27 @@ describe("Home/Nav prototype screens", () => {
 
     fireEvent.click(screen.getByTestId("button-prototype-back"));
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/menu");
+  });
+
+  it("uses Health engine data for the canonical status badges", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { queryFn: async () => null, retry: false } },
+    });
+    queryClient.setQueryData(["/api/health/prevention"], { focus: "Heart" });
+    queryClient.setQueryData(["/api/vitals-engine/latest"], {
+      recent_readings: [{ signal_type: "resting_hr_bpm", value: 68 }],
+    });
+    queryClient.setQueryData(["/api/meds/adherence-report"], {
+      nextDue: { scheduled_time: "14:00" },
+      todaySummary: { scheduled: 2, remaining: 1 },
+    });
+
+    renderScreen(<PrototypeHealthScreen />, queryClient);
+
+    expect(screen.getByTestId("button-health-symptom-report-status")).toHaveTextContent("Telehealth");
+    expect(screen.getByTestId("button-health-plan-status")).toHaveTextContent("Heart");
+    expect(screen.getByTestId("button-health-vitals-status")).toHaveTextContent("68 bpm");
+    expect(screen.getByTestId("button-health-medicines-status")).not.toHaveTextContent("Set up");
   });
 
   it("switches from Health back to the voice Home surface when compact mic is tapped", () => {
