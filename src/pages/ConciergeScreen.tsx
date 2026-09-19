@@ -17316,7 +17316,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           </button>
 
           <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
-            {t("concierge.master.heroTitle", "Concierge")}
+            {t("concierge.master.topbarTitle", "Concierge")}
           </h1>
 
           <div className="flex justify-end">
