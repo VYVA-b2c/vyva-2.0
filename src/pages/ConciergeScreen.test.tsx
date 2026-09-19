@@ -194,8 +194,9 @@ function liveReadyExecutionTask(
 function renderScreen(
   initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"],
   mode: ConciergeScreenMode | "route" = "legacy",
+  providedQueryClient?: QueryClient,
 ) {
-  const queryClient = new QueryClient({
+  const queryClient = providedQueryClient ?? new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
@@ -219,7 +220,7 @@ function renderScreen(
     </QueryClientProvider>
   );
   const result = render(renderTree());
-  return Object.assign(result, { rerenderScreen: () => result.rerender(renderTree()) });
+  return Object.assign(result, { queryClient, rerenderScreen: () => result.rerender(renderTree()) });
 }
 
 afterEach(() => {
@@ -300,6 +301,18 @@ describe("ConciergeScreen task navigation", () => {
 
     fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
+  });
+
+  it("opens after Home has populated the shared action cache with API envelopes", async () => {
+    mockConciergeLists();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["/api/concierge/actions/pending"], { items: [pendingTask] });
+    queryClient.setQueryData(["/api/concierge/actions/sessions"], { items: [] });
+
+    renderScreen(["/concierge"], "home", queryClient);
+
+    expect(await screen.findByTestId("concierge-home-task-overview")).toBeInTheDocument();
+    expect(await screen.findByTestId("button-concierge-continue-task")).toBeInTheDocument();
   });
 
   it("shows only the provider task that needs the user's next action", async () => {
