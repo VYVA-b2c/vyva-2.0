@@ -45,7 +45,7 @@ describe("MenuScreen", () => {
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
-      "/social-rooms",
+      "/social-rooms/experts",
       "/concierge",
     ]);
     expect(screen.getByTestId("menu-tile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
@@ -60,6 +60,14 @@ describe("MenuScreen", () => {
     fireEvent.click(screen.getByTestId("menu-tile-brain"));
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
+  });
+
+  it("routes Community to the current expert-led Community hub", () => {
+    renderMenu();
+
+    fireEvent.click(screen.getByTestId("menu-tile-community"));
+
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/social-rooms/experts");
   });
 
   it("can override tile paths for the isolated Home/Nav design preview", () => {
