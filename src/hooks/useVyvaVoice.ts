@@ -1043,6 +1043,7 @@ function useVyvaVoiceController() {
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
   const userVoiceUtteranceSequenceRef = useRef(0);
   const userVoiceUtteranceCorrelationsRef = useRef<Map<string, UserVoiceUtteranceCorrelation>>(new Map());
+  const conciergeMemoryRefreshedRef = useRef(false);
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -1489,6 +1490,7 @@ function useVyvaVoiceController() {
       streamingVyvaTranscriptRef.current = "";
       streamingVyvaTranscriptShouldAppendRef.current = false;
       userVoiceUtteranceCorrelationsRef.current.clear();
+      conciergeMemoryRefreshedRef.current = false;
       setLastError(null);
       setLastErrorCode(null);
       if (isOnboardingVoiceStart(options)) {
@@ -2174,6 +2176,31 @@ function useVyvaVoiceController() {
                 canvasProvenance: correlation?.canvasProvenance ?? null,
                 allowCanvasProvenanceFallback: false,
               });
+              if (resolvedDomain === "concierge" && !conciergeMemoryRefreshedRef.current) {
+                conciergeMemoryRefreshedRef.current = true;
+                void apiFetch("/api/voice-context", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    domain: "concierge",
+                    session_id: voiceSessionId,
+                    conversation_id: voiceSessionId,
+                    memory_query: message,
+                    memory_refresh: true,
+                    ...(resolvedAppEntrypoint ? { app_entrypoint: resolvedAppEntrypoint } : {}),
+                    ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
+                  }),
+                }).then(async (response) => {
+                  if (!response.ok || !isCurrentSession()) return;
+                  const context = await response.json() as VoiceContextResponse;
+                  const memoryBlock = dynamicString(context.dynamic_variables, "memory_block");
+                  if (!memoryBlock || memoryBlock === "(no memory retrieved)") return;
+                  conversationRef.current?.sendContextualUpdate(
+                    `Relevant saved VYVA memory for the user's current request:\n${memoryBlock}`,
+                  );
+                }).catch((error) => {
+                  console.warn("[VYVA] Concierge memory refresh unavailable:", error);
+                });
+              }
               return;
             }
             streamingVyvaTranscriptRef.current = "";

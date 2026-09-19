@@ -91,6 +91,7 @@ export async function voiceContextHandler(req: Request, res: Response) {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const domain = resolveVoiceContextDomain(body);
     const memoryQuery = typeof body.memory_query === "string" ? body.memory_query : "";
+    const memoryRefresh = body.memory_refresh === true;
     const appEntrypoint = typeof body.app_entrypoint === "string" ? body.app_entrypoint : "";
     const conversationId =
       (typeof body.conversation_id === "string" && body.conversation_id.trim()) ||
@@ -115,6 +116,14 @@ export async function voiceContextHandler(req: Request, res: Response) {
           }
         : {}),
     });
+    if (memoryRefresh) {
+      return res.json({
+        domain,
+        dynamic_variables: {
+          memory_block: dynamicVariables.memory_block,
+        },
+      });
+    }
     const feedbackToken = await signVoiceRecommendationFeedbackToolToken(userId, conversationId);
     dynamicVariables.conversation_id = conversationId;
     dynamicVariables.voice_recommendation_feedback_token = feedbackToken;
