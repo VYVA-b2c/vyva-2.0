@@ -12289,7 +12289,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       const matchingOption = appointmentOptions.find((option) => option.id === conciergeVoiceProviderOptionId);
       if (conciergeVoiceProviderCommand === "refine_provider_search") {
         lastAppliedConciergeVoiceActionRef.current = actionKey;
-        handleDiscoverAppointmentOptions();
+        discoverAppointmentOptionsMutation.mutate({ requestId: activeRequestId });
         return;
       }
       if (!matchingOption) {
@@ -12483,12 +12483,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     conciergeVoiceProviderCommand,
     conciergeVoiceProviderOptionId,
     conciergeVoiceProviderRequestId,
+    discoverAppointmentOptionsMutation,
     appointmentOptions,
     appointmentRequest?.id,
     homeServiceCanvasEnabled,
     homeServiceCanvasRolloutQuery.isLoading,
     rideCanvasMode,
     homeServiceCanvasMode,
+    isSpanish,
     mode,
     navigate,
     savedTransportPickupLabel,
