@@ -21,6 +21,7 @@ import {
   cognitiveSessionIndex,
   cognitiveDailyPlans,
   cognitiveDailyPlanItems,
+  scamChecks,
 } from "../../shared/schema.js";
 import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
@@ -189,6 +190,14 @@ function formatTriageReport(report: typeof triageReports.$inferSelect) {
     report.triage_reasons?.length ? `why ${report.triage_reasons.join("; ")}` : null,
     report.symptoms?.length ? `symptoms ${report.symptoms.join(", ")}` : null,
   ], "");
+}
+
+function formatScamCheck(check: typeof scamChecks.$inferSelect) {
+  return valueList([
+    check.risk_level ? `${check.risk_level}` : null,
+    check.result_title,
+    formatRelativeTime(check.checked_at),
+  ], " — ");
 }
 
 function formatVital(vital: typeof vitalsReadings.$inferSelect) {
@@ -1263,6 +1272,7 @@ export async function buildVoiceContext(
     voiceExchangeCountRows,
     recommendationFeedbackRows,
     brainCoachSessionRows,
+    recentScamCheckRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -1320,6 +1330,18 @@ export async function buildVoiceContext(
           .where(eq(cognitiveSessionIndex.userId, userId))
           .orderBy(desc(cognitiveSessionIndex.playedAt))
           .limit(300)
+      : Promise.resolve([]),
+    domainAllows(domain, "safety")
+      ? db
+          .select()
+          .from(scamChecks)
+          .where(eq(scamChecks.user_id, userId))
+          .orderBy(desc(scamChecks.checked_at))
+          .limit(5)
+          .catch((err) => {
+            console.warn("[voiceContext] scam checks unavailable", err);
+            return [];
+          })
       : Promise.resolve([]),
   ]);
 
@@ -1764,6 +1786,10 @@ export async function buildVoiceContext(
       emergencyContact,
       careTeam,
     });
+    variables.recent_scam_checks = joinList(
+      recentScamCheckRows.map(formatScamCheck),
+      "No recent scam or fraud checks on file.",
+    );
   }
 
   return variables;

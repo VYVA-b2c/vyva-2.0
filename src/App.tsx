@@ -265,6 +265,7 @@ const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
 const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
 const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
+const SharedSeniorHomeReport = lazy(() => import("./pages/SharedSeniorHomeReport"));
 const VitalsScreen = lazy(() => import("./pages/VitalsScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
 const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
@@ -1105,6 +1106,7 @@ const App = () => (
                 <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
+                <Route path="/shared/senior-home/:token" element={<SharedSeniorHomeReport />} />
                 <Route path="/vyva-demo" element={<VyvaDemoEntry />} />
                 <Route path="/vyva-demo/senior/:seniorKey" element={<VyvaSeniorHome />} />
                 <Route path="/vyva-demo/senior/:seniorKey/daily" element={<VyvaSeniorDailyCheckIn />} />

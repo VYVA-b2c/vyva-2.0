@@ -9,7 +9,15 @@ import {
   advisorMessages,
   advisorSessions,
   advisorUserAgentState,
+  profiles,
 } from "../../shared/schema.js";
+import {
+  formatMemoryBlock,
+  getMem0ApiKey,
+  scheduleMem0Add,
+  searchMemories,
+  type Mem0Memory,
+} from "../lib/mem0.js";
 import {
   ADVISOR_CATALOG,
   getAdvisorCatalogItem,
@@ -62,6 +70,22 @@ function memorySessionKey(userId: string, slug: AdvisorSlug) {
 
 function resolveUserId(req: Request): string | null {
   return req.user?.id ?? null;
+}
+
+// All eight advisors share one mem0 identity per user: they're one team, not
+// eight separate memories.
+async function resolveAdvisorMem0UserId(userId: string): Promise<string> {
+  try {
+    const rows = await db
+      .select({ mem0_user_id: profiles.mem0_user_id })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    return rows[0]?.mem0_user_id?.trim() || userId;
+  } catch (error) {
+    console.warn("[advisors] profile lookup for mem0 failed; using userId", error);
+    return userId;
+  }
 }
 
 function dateToIso(value: Date | string | null | undefined): string | null {
@@ -385,6 +409,7 @@ async function touchAdvisorConversation(userId: string, slug: AdvisorSlug, sessi
 }
 
 async function generateAdvisorReply(input: {
+  userId: string;
   slug: AdvisorSlug;
   language: string;
   prompt: string;
@@ -393,6 +418,14 @@ async function generateAdvisorReply(input: {
   const copy = getAdvisorCopy(input.slug, input.language);
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) return { text: copy.fallbackResponse, source: "fallback" };
+
+  const mem0Key = getMem0ApiKey();
+  const mem0UserId = mem0Key ? await resolveAdvisorMem0UserId(input.userId) : "";
+  let memories: Mem0Memory[] = [];
+  if (mem0Key && mem0UserId) {
+    memories = await searchMemories(input.prompt, mem0UserId, mem0Key).catch(() => []);
+  }
+  const memoryBlock = formatMemoryBlock(memories);
 
   const validHistory = input.history
     .filter((message) => message.role === "user" || message.role === "assistant")
@@ -404,20 +437,30 @@ async function generateAdvisorReply(input: {
 
   try {
     const client = new OpenAI({ apiKey });
+    const systemContent = [
+      copy.systemPrompt,
+      memoryBlock
+        ? `${memoryBlock} This may come from the user's talks with other VYVA experts. Use it only if it's relevant here, and never volunteer it unprompted just because you have access to it.`
+        : "",
+      `Respond entirely in ${languageInstruction(input.language)}. Keep the tone warm, direct, and senior-friendly. You are an AI specialist, not a human expert.`,
+    ].filter(Boolean).join("\n\n");
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_ADVISOR_MODEL || "gpt-4o-mini",
       temperature: 0.55,
       max_tokens: 360,
       messages: [
-        {
-          role: "system",
-          content: `${copy.systemPrompt}\n\nRespond entirely in ${languageInstruction(input.language)}. Keep the tone warm, direct, and senior-friendly. You are an AI specialist, not a human expert.`,
-        },
+        { role: "system", content: systemContent },
         ...validHistory,
         { role: "user", content: input.prompt },
       ],
     });
     const text = completion.choices[0]?.message?.content?.trim();
+    if (mem0Key && mem0UserId && text) {
+      scheduleMem0Add(mem0UserId, [
+        { role: "user", content: input.prompt },
+        { role: "assistant", content: text },
+      ], mem0Key);
+    }
     return { text: text || copy.fallbackResponse, source: text ? "text" : "fallback" };
   } catch (error) {
     console.error("[advisors] OpenAI reply failed", error);
@@ -504,6 +547,7 @@ router.post("/:slug/messages", async (req: Request, res: Response) => {
     source: parsed.data.source,
   });
   const assistant = await generateAdvisorReply({
+    userId,
     slug,
     language,
     prompt: parsed.data.prompt,

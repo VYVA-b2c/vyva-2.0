@@ -1396,6 +1396,27 @@ export const insertBenefitsScreeningResponseSchema = createInsertSchema(benefits
 export type InsertBenefitsScreeningResponse = z.infer<typeof insertBenefitsScreeningResponseSchema>;
 export type BenefitsScreeningResponseRow = typeof benefitsScreeningResponses.$inferSelect;
 
+// Findings surfaced by the conversational Benefits Finder's live search
+// (Inés). Deliberately separate from the orphaned benefits_programs /
+// benefits_screening_responses schema above.
+export const benefitsFinderFindings = pgTable("benefits_finder_findings", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  country:         text("country"),
+  category:        text("category").notNull(),
+  finding_summary: text("finding_summary").notNull(),
+  source_name:     text("source_name"),
+  source_url:      text("source_url"),
+  accessed_at:     timestamp("accessed_at", { withTimezone: true }),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("benefits_finder_findings_user_created_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertBenefitsFinderFindingSchema = createInsertSchema(benefitsFinderFindings).omit({ id: true, created_at: true });
+export type InsertBenefitsFinderFinding = z.infer<typeof insertBenefitsFinderFindingSchema>;
+export type BenefitsFinderFindingRow = typeof benefitsFinderFindings.$inferSelect;
+
 export const socialConnections = pgTable("social_connections", {
   id:               uuid("id").primaryKey().defaultRandom(),
   user_id_a:        text("user_id_a").notNull().references(() => profiles.id, { onDelete: "cascade" }),

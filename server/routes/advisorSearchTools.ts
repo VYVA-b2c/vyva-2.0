@@ -4,6 +4,7 @@ import { z } from "zod";
 import { buildParticipationPulse } from "../lib/participation.js";
 import { advisorUsesLiveSearch } from "../lib/advisorVoice.js";
 import { verifyAdvisorSearchToolToken } from "../lib/jwt.js";
+import { classifyBenefitsCategory, extractPrimarySource, recordBenefitsFinderFinding } from "../lib/benefitsFinderFindings.js";
 
 const toolSchema = z.object({
   user_id: z.string().min(1),
@@ -112,7 +113,22 @@ export async function advisorLiveSearchToolHandler(req: Request, res: Response) 
     if (input.advisor_slug === "ines") {
       const country = input.country_code?.toUpperCase() ?? "";
       const domains = OFFICIAL_BENEFITS_DOMAINS[country] ?? DEFAULT_BENEFITS_DOMAINS;
-      return res.json(await webSearch({ query: input.query, domains, purpose: "Benefits Finder" }));
+      const result = await webSearch({ query: input.query, domains, purpose: "Benefits Finder" });
+      if (result.ok && result.results) {
+        // The result is what Inés is about to tell the user, not a raw hit —
+        // this is the "meaningfully engaged with" moment we can see server-side.
+        const { sourceName, sourceUrl } = extractPrimarySource(result.results);
+        recordBenefitsFinderFinding({
+          userId: input.user_id,
+          country: country || null,
+          category: classifyBenefitsCategory(input.query),
+          findingSummary: result.results.slice(0, 500),
+          sourceName,
+          sourceUrl,
+          accessedAt: result.accessed_at ?? null,
+        }).catch((error) => console.warn("[advisor search tool] could not record benefits finding", error));
+      }
+      return res.json(result);
     }
     return res.json(await webSearch({
       query: input.query,

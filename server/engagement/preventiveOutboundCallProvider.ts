@@ -20,6 +20,10 @@ export const PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT = Object.freeze({
   confirmationTokenHeaderName: "X-VYVA-Preventive-Call-Token",
   callAttemptIdVariable: "preventive_call_attempt_id",
   confirmationUrlVariable: "preventive_call_confirmation_url",
+  // Named the honest reason for the call (e.g. "your Wellness Coach noticed
+  // you've been quiet"), so the shared Proactive Outreach identity can open
+  // with it instead of a generic line.
+  reasonSummaryVariable: "preventive_call_reason_summary",
 } as const);
 
 export type PreventiveOutboundCallProviderConfig = Readonly<{
@@ -36,6 +40,7 @@ export type PreventiveOutboundCallProviderStartInput = Readonly<{
   phoneE164: string;
   confirmationToken: string;
   callbackUrl: string;
+  reasonSummary?: string;
 }>;
 
 export type PreventiveOutboundCallProviderStartResult =
@@ -148,6 +153,9 @@ export function createPreventiveOutboundCallProvider(input: {
                 [PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.callAttemptIdVariable]: startInput.callAttemptId,
                 [PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.secretConfirmationTokenVariable]: startInput.confirmationToken,
                 [PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.confirmationUrlVariable]: startInput.callbackUrl,
+                ...(startInput.reasonSummary
+                  ? { [PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.reasonSummaryVariable]: startInput.reasonSummary }
+                  : {}),
               },
             },
           }),
