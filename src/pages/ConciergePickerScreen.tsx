@@ -511,6 +511,7 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
       shellContract={shellContract}
       onBack={() => navigate("/concierge")}
       appearance="light"
+      frameClassName="!px-4 sm:!px-5"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
@@ -522,7 +523,7 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
         />
       }
     >
-      <div className="flex flex-col gap-2.5" data-testid="concierge-picker-options">
+      <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
           const label = t(option.labelKey, option.labelFallback);
@@ -535,23 +536,23 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
               onClick={() => handleOptionSelect(option)}
               disabled={profileLoading}
               aria-label={`${label}. ${detail}`}
-              className="vyva-tap flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border border-[#EFE7F7] bg-white px-4 py-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.05)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
+              className="vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border border-[#EFE7F7] bg-white px-4 py-3.5 text-left shadow-[0_12px_28px_rgba(63,45,35,0.065)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5"
             >
               <CanonicalFlowIcon
                 icon={Icon}
                 tone="purple"
                 goldAccent={canonicalAccentForIcon(Icon)}
-                className="!h-11 !w-11 !rounded-[16px]"
+                className="!h-14 !w-14 !rounded-[20px]"
               />
               <span className="min-w-0 flex-1">
-                <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[19px] sm:text-[20px]">
                   {label}
                 </span>
-                <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-snug text-vyva-text-3">
+                <span className="mt-1 block truncate font-body text-[14px] font-bold leading-snug text-vyva-text-3 sm:text-[15px]">
                   {detail}
                 </span>
               </span>
-              <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+              <ChevronRight size={20} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
             </button>
           );
         })}
