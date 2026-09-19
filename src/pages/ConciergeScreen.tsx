@@ -100,6 +100,8 @@ import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollow
 import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
+import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
+import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
@@ -17083,6 +17085,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "get-help",
       icon: LifeBuoy,
+      iconAccent: "signal",
       title: t("concierge.master.cards.getHelp", "Get Help"),
       detail: t("concierge.master.cards.getHelpDetail", "Home repair, healthcare, admin, home care"),
       chips: [
@@ -17097,6 +17100,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "order-in",
       icon: PackageCheck,
+      iconAccent: "check",
       title: t("concierge.master.cards.orderIn", "Order In"),
       detail: t("concierge.master.cards.orderInDetail", "A ride, food, shopping"),
       chips: [
@@ -17117,6 +17121,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "book-appointments",
       icon: Calendar,
+      iconAccent: "calendar",
       title: t("concierge.master.cards.bookAppointments", "Book Appointments"),
       detail: t("concierge.master.cards.bookAppointmentsDetail", "Medical, admin, personal care"),
       chips: [
@@ -17131,6 +17136,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "discover",
       icon: Compass,
+      iconAccent: "pin",
       title: t("concierge.master.cards.discover", "Discover"),
       detail: t("concierge.master.cards.discoverDetail", "Local services and offers"),
       chips: [
@@ -17295,6 +17301,36 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       cardLayoutVariant="canonicalActionGrid"
       cardChevronVariant="plain"
       showFastHelp={false}
+      showHero={false}
+      modeSwitcher={mode !== "task" ? (
+        <HomeMasterTopbar
+          className="mt-3 min-[390px]:mt-4 sm:mt-6"
+          testId="concierge-master-hero"
+          compact
+        >
+          <HomeMasterProfileControl
+            isDark={false}
+            ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
+            onClick={() => navigate("/menu")}
+            testId="button-concierge-back"
+            compact
+          />
+
+          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+            {t("concierge.master.topbarTitle", "Concierge")}
+          </h1>
+
+          <div className="flex justify-end">
+            <CanonicalVoiceButton
+              label={t("concierge.master.heroAction", "Talk to VYVA")}
+              contextHint={t("concierge.master.voiceContext", "Concierge support. Ask what the user needs, compare options, and do not book or submit anything without confirmation.")}
+              agentSlug="concierge"
+              dynamicVariables={{ app_entrypoint: "concierge_canonical_topbar" }}
+              testId="button-concierge-hero-talk"
+            />
+          </div>
+        </HomeMasterTopbar>
+      ) : null}
       hero={{
         icon: ConciergeBell,
         eyebrow: t("concierge.master.heroEyebrow", "Concierge"),

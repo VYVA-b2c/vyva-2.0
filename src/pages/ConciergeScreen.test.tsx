@@ -1264,7 +1264,11 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("concierge-master-layout")).toBeVisible();
     expect(await screen.findByTestId("concierge-guided-hub")).toBeVisible();
     expect(screen.queryByTestId("concierge-fast-help")).not.toBeInTheDocument();
-    expect(screen.getByTestId("concierge-master-hero")).toHaveTextContent("Concierge ready");
+    expect(screen.getByTestId("concierge-master-hero")).toHaveTextContent("Concierge");
+    expect(screen.getByTestId("concierge-master-hero")).not.toHaveTextContent("Concierge ready");
+    expect(screen.getByTestId("concierge-master-hero")).toHaveClass("grid");
+    expect(screen.getByTestId("button-concierge-back")).toHaveAccessibleName("Back to menu");
+    expect(screen.getByTestId("button-concierge-hero-talk")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(voiceHeroMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("Shop");
@@ -1290,6 +1294,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
     expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
     expect(screen.getByTestId("button-concierge-card-service-title")).toHaveTextContent("Get Help");
+    expect(screen.getByTestId("button-concierge-card-service").querySelector('[data-vyva-icon-tile="signal"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-delivery").querySelector('[data-vyva-icon-tile="check"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-appointment").querySelector('[data-vyva-icon-tile="calendar"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-discover").querySelector('[data-vyva-icon-tile="pin"]')).toBeInTheDocument();
   });
 
   it("opens Trusted Help setup from Concierge", async () => {
