@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   Send,
   Loader2,
   ConciergeBell,
@@ -102,7 +101,7 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
+import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
@@ -17304,20 +17303,18 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       showFastHelp={false}
       showHero={false}
       modeSwitcher={mode !== "task" ? (
-        <header
-          className="mt-3 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3 min-[390px]:mt-4 sm:mt-6"
-          data-testid="concierge-master-hero"
-          data-hero-layout="canonical-topbar"
+        <HomeMasterTopbar
+          className="mt-3 min-[390px]:mt-4 sm:mt-6"
+          testId="concierge-master-hero"
+          compact
         >
-          <button
-            type="button"
-            aria-label={t("common.back", "Back")}
-            data-testid="button-concierge-back"
+          <HomeMasterProfileControl
+            isDark={false}
+            ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
             onClick={() => navigate("/menu")}
-            className="vyva-tap grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05] transition-colors duration-150"
-          >
-            <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
-          </button>
+            testId="button-concierge-back"
+            compact
+          />
 
           <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
             {t("concierge.master.topbarTitle", "Concierge")}
@@ -17332,7 +17329,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               testId="button-concierge-hero-talk"
             />
           </div>
-        </header>
+        </HomeMasterTopbar>
       ) : null}
       hero={{
         icon: ConciergeBell,

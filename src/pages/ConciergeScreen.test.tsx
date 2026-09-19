@@ -1266,8 +1266,8 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("concierge-fast-help")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-hero")).toHaveTextContent("Concierge");
     expect(screen.getByTestId("concierge-master-hero")).not.toHaveTextContent("Concierge ready");
-    expect(screen.getByTestId("concierge-master-hero")).toHaveAttribute("data-hero-layout", "canonical-topbar");
-    expect(screen.getByTestId("button-concierge-back")).toBeInTheDocument();
+    expect(screen.getByTestId("concierge-master-hero")).toHaveClass("grid");
+    expect(screen.getByTestId("button-concierge-back")).toHaveAccessibleName("Back to menu");
     expect(screen.getByTestId("button-concierge-hero-talk")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(voiceHeroMock).not.toHaveBeenCalled();

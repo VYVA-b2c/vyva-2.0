@@ -394,11 +394,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
   const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
     ? homeMasterPrototypeSurfaceClass
+    : isConciergeExperienceRoute
+      ? "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"
     : usesDarkCompactSurface
       ? "bg-[#080715]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
     ? homeMasterPrototypeSurfaceClass
+    : isConciergeExperienceRoute
+      ? "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"
     : usesDarkCompactSurface
       ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
@@ -792,14 +796,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-vyva-text-size={readableTextSize}
         className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
-        {!isFullScreen && !ownsPrototypeTopbar && (
+        {!isFullScreen && !ownsPrototypeTopbar && !isConciergeExperienceRoute && (
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
             variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : isConciergeExperienceRoute ? "pt-0 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
