@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   Send,
   Loader2,
   ConciergeBell,
@@ -100,6 +101,8 @@ import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollow
 import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
+import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
@@ -17295,6 +17298,38 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       cardLayoutVariant="canonicalActionGrid"
       cardChevronVariant="plain"
       showFastHelp={false}
+      showHero={false}
+      modeSwitcher={mode !== "task" ? (
+        <header
+          className="mt-3 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-3 min-[390px]:mt-4 sm:mt-6"
+          data-testid="concierge-master-hero"
+          data-hero-layout="canonical-topbar"
+        >
+          <button
+            type="button"
+            aria-label={t("common.back", "Back")}
+            data-testid="button-concierge-back"
+            onClick={() => navigate("/menu")}
+            className="vyva-tap grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05] transition-colors duration-150"
+          >
+            <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
+          </button>
+
+          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+            {t("concierge.master.heroTitle", "Concierge")}
+          </h1>
+
+          <div className="flex justify-end">
+            <CanonicalVoiceButton
+              label={t("concierge.master.heroAction", "Talk to VYVA")}
+              contextHint={t("concierge.master.voiceContext", "Concierge support. Ask what the user needs, compare options, and do not book or submit anything without confirmation.")}
+              agentSlug="concierge"
+              dynamicVariables={{ app_entrypoint: "concierge_canonical_topbar" }}
+              testId="button-concierge-hero-talk"
+            />
+          </div>
+        </header>
+      ) : null}
       hero={{
         icon: ConciergeBell,
         eyebrow: t("concierge.master.heroEyebrow", "Concierge"),
