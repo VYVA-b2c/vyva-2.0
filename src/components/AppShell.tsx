@@ -364,7 +364,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     isVitalsRoute ||
     isSymptomCheckRoute ||
     isDevSymptomAssessmentRoute;
-  const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const isConciergeExperienceRoute =
+    location.pathname === "/concierge" ||
+    location.pathname.startsWith("/concierge/") ||
+    location.pathname === "/dev/concierge-canonical-preview";
   const isBenefitsRoute = location.pathname === "/benefits" || location.pathname === "/dev/benefits";
   const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute || location.pathname === "/health";
   const ownsPrototypeTopbar = isBrainCoachRoute || isHomeNavPrototypeTopbarRoute(location.pathname);
