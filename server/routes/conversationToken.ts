@@ -212,7 +212,14 @@ const DEFAULT_AGENT_ENV_KEYS = [
   "VITE_ELEVENLABS_AGENT_ID",
 ];
 
-const DEDICATED_AGENT_SLUGS = new Set(["dr-ai", "ask-dr-ai", "breathing-meditation", "meditation", "breathing"]);
+const DEDICATED_AGENT_SLUGS = new Set([
+  "dr-ai",
+  "ask-dr-ai",
+  "breathing-meditation",
+  "meditation",
+  "breathing",
+  "concierge",
+]);
 
 function readFirstEnv(keys: string[]) {
   for (const key of [...new Set(keys)]) {

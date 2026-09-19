@@ -390,6 +390,24 @@ describe("voice navigation actions", () => {
     expect(action?.payload?.medication_name).toBe("ibuprofen");
   });
 
+  it("keeps stable provider command ids in ElevenLabs app actions", () => {
+    const action = actionForVoiceToolCall({
+      action_type: "concierge.home_service",
+      provider_command: "select_provider_option",
+      provider_request_id: "request-123",
+      provider_option_id: "option-2",
+      service_type: "electrician",
+    });
+
+    expect(action?.payload).toMatchObject({
+      provider_command: "select_provider_option",
+      provider_request_id: "request-123",
+      provider_option_id: "option-2",
+      service_type: "electrician",
+    });
+    expect(action?.requiresConfirmation).toBe(true);
+  });
+
   it("infers ride actions from ambiguous Concierge tool calls", () => {
     const action = actionForVoiceToolCall({
       route: "/concierge",

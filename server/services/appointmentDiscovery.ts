@@ -1,5 +1,6 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import type { AppointmentChannel } from "./providerSync.js";
+import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
 
 type AppointmentSource = "google_places";
 
@@ -131,13 +132,25 @@ export function buildAppointmentSearchQueries(input: {
   detail: string;
   location: string;
   language: string;
+  serviceType?: string | null;
+  urgency?: string | null;
+  constraints?: string[];
 }): string[] {
   const detail = usefulDetail(input.detail);
   const typeLabel = appointmentTypeLabel(input.appointmentType, input.language);
-  const templates = detail
+  const serviceType = input.appointmentType === "home-service" && input.serviceType
+    ? normalizeHomeServiceType(input.serviceType)
+    : null;
+  const serviceLabel = serviceType
+    ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
+    : "";
+  const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
+  const constraints = (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
+  const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
+  const templates = focusedDetail
     ? [
-        `${detail} ${input.location}`,
-        `${detail} ${typeLabel} ${input.location}`,
+        `${focusedDetail} ${input.location}`,
+        `${focusedDetail} ${typeLabel} ${input.location}`,
         `${typeLabel} ${input.location}`,
       ]
     : [
@@ -267,6 +280,9 @@ export async function discoverAppointmentProviderOptions(input: {
   location?: AppointmentSearchLocation | null;
   language?: string | null;
   maxResults?: number;
+  serviceType?: string | null;
+  urgency?: string | null;
+  constraints?: string[];
 }): Promise<AppointmentDiscoveryResult> {
   const language = cleanText(input.language) || "es";
   const location = appointmentLocationText(input.location);
@@ -295,6 +311,9 @@ export async function discoverAppointmentProviderOptions(input: {
       detail: input.detail,
       location,
       language,
+      serviceType: input.serviceType,
+      urgency: input.urgency,
+      constraints: input.constraints,
     })) {
       const results = await fetchGoogleTextSearch(query, key, language, countryCode);
       for (const place of results) {
@@ -354,10 +373,12 @@ export async function discoverAppointmentProviderOptions(input: {
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
           place_types: place.types ?? [],
+          requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,
           discovery: {
             provider: "google_places",
-            parser_version: "appointment-discovery-v1",
+            parser_version: "appointment-discovery-v2",
+            searched_at: new Date().toISOString(),
           },
         };
 

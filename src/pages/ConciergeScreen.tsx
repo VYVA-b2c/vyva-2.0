@@ -104,6 +104,7 @@ import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { recordAgentContextUpdate } from "@/lib/agentAppContext";
 import {
   getTrustedHelpMissionPresentation,
   getTrustedHelpMissionStatusLabel,
@@ -1013,9 +1014,14 @@ interface AppointmentAttemptResponse {
 }
 
 interface AppointmentDiscoveryMeta {
+  search_id?: string;
   source?: string;
   fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
   inserted_count?: number;
+  eligible_count?: number;
+  exclusion_summary?: Record<string, number>;
+  criteria_used?: string[];
+  result_confidence?: "high" | "medium" | "low";
   reservation_systems?: Array<{ name: string; category: string; url: string }>;
 }
 
@@ -3486,6 +3492,34 @@ function appointmentOptionAvailability(option: AppointmentProviderOption | null 
     if (value) return value;
   }
   return "";
+}
+
+type AppointmentProviderDecision = {
+  code?: string;
+  score?: number;
+  reasons?: string[];
+  uncertainties?: string[];
+  category?: string;
+  exact_subservice_match?: boolean;
+};
+
+function appointmentProviderDecision(option: AppointmentProviderOption | null | undefined): AppointmentProviderDecision {
+  const value = option?.provider_snapshot?.provider_decision;
+  return value && typeof value === "object" && !Array.isArray(value) ? value as AppointmentProviderDecision : {};
+}
+
+function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isSpanish: boolean): string {
+  const snapshot = option.provider_snapshot;
+  const rating = typeof snapshot.rating === "number" ? snapshot.rating.toFixed(1) : "";
+  const reviews = typeof snapshot.review_count === "number" ? snapshot.review_count : null;
+  const opening = appointmentSnapshotText(option, "opening_status");
+  const decision = appointmentProviderDecision(option);
+  const parts = [
+    rating ? `${rating}${reviews !== null ? ` (${reviews} ${isSpanish ? "resenas" : "reviews"})` : ""}` : "",
+    opening,
+    ...(decision.uncertainties ?? []).slice(0, 1),
+  ].filter(Boolean);
+  return parts.join(" · ") || (isSpanish ? "Disponibilidad y precio por confirmar" : "Availability and price to be confirmed");
 }
 
 function homeServiceCanvasOptionDescription(option: AppointmentProviderOption, isSpanish: boolean): string {
@@ -10166,6 +10200,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     || conciergeVoiceProvider;
   const conciergeVoiceUrgency = conciergePayloadValue("urgency");
   const conciergeVoiceCriteria = conciergePayloadValue("criteria");
+  const conciergeVoiceProviderCommand = conciergePayloadValue("provider_command");
+  const conciergeVoiceProviderRequestId = conciergePayloadValue("provider_request_id");
+  const conciergeVoiceProviderOptionId = conciergePayloadValue("provider_option_id");
   const conciergeVoiceDraft = useMemo(() => {
     if (!conciergeVoiceAction) return "";
     const details = [
@@ -10401,13 +10438,44 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     return appointmentOptions[0] ?? null;
   }, [appointmentOptions, selectedAppointmentOptionId]);
 
+  useEffect(() => {
+    if (!appointmentRequest?.id || appointmentOptions.length === 0) return;
+    const options = appointmentOptions.slice(0, 3).map((option, index) => {
+      const decision = appointmentProviderDecision(option);
+      const unknowns = (decision.uncertainties ?? []).slice(0, 2).join("; ") || "none stated";
+      return `${index + 1}. id=${option.id}; ${appointmentOptionName(option, false)}; ${option.match_reason ?? "match under review"}; unknowns: ${unknowns}`;
+    });
+    recordAgentContextUpdate({
+      path: "/concierge",
+      summary: [
+        `Provider shortlist ready. Active request id=${appointmentRequest.id}.`,
+        `Confidence=${appointmentDiscovery?.result_confidence ?? "unknown"}.`,
+        ...options,
+        "Only discuss these visible options. Preserve unknowns. Use stable request and option ids for selection, refinement, or contact preparation. Contact still requires visible user confirmation.",
+      ].join(" "),
+    });
+  }, [appointmentDiscovery?.result_confidence, appointmentOptions, appointmentRequest?.id]);
+
+  useEffect(() => {
+    if (!appointmentRequest?.id || !selectedAppointmentOption) return;
+    recordAgentContextUpdate({
+      path: "/concierge",
+      summary: `User is reviewing provider option id=${selectedAppointmentOption.id}, ${appointmentOptionName(selectedAppointmentOption, false)}, for request id=${appointmentRequest.id}. Selection is not authorization to contact or book.`,
+    });
+  }, [appointmentRequest?.id, selectedAppointmentOption]);
+
   const appointmentProviderName = appointmentOptionName(selectedAppointmentOption, isSpanish);
   const appointmentProviderAddress = appointmentSnapshotText(selectedAppointmentOption, "address");
   const appointmentProviderTrustNote = selectedAppointmentOption?.provider_source === "saved"
-    ? (isSpanish ? "Guardado en tu perfil" : "Saved in your profile")
+    ? (isSpanish ? "Guardado y relevante para esta solicitud" : "Saved and relevant to this request")
     : selectedAppointmentOption?.provider_source === "external"
       ? (isSpanish ? "Encontrado en fuentes verificables" : "Found from verifiable sources")
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
+  const appointmentRecommendationLabel = appointmentDiscovery?.result_confidence === "high"
+    ? (isSpanish ? "Mejor coincidencia" : "Best fit")
+    : appointmentDiscovery?.result_confidence === "medium"
+      ? (isSpanish ? "Coincidencias mas cercanas" : "Closest matches")
+      : (isSpanish ? "Opciones para revisar" : "Options to review");
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
@@ -12209,6 +12277,40 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     const actionKey = `${conciergeVoiceAction.id}:${conciergeVoiceAction.sourceText}`;
     if (lastAppliedConciergeVoiceActionRef.current === actionKey) return;
 
+    if (conciergeVoiceProviderCommand) {
+      const activeRequestId = appointmentRequest?.id ?? "";
+      if (!activeRequestId || (conciergeVoiceProviderRequestId && conciergeVoiceProviderRequestId !== activeRequestId)) {
+        setAppointmentError(isSpanish
+          ? "La seleccion por voz ya no corresponde a esta busqueda. Revisa las opciones actuales."
+          : "That voice selection no longer matches this search. Please review the current options.");
+        lastAppliedConciergeVoiceActionRef.current = actionKey;
+        return;
+      }
+      const matchingOption = appointmentOptions.find((option) => option.id === conciergeVoiceProviderOptionId);
+      if (conciergeVoiceProviderCommand === "refine_provider_search") {
+        lastAppliedConciergeVoiceActionRef.current = actionKey;
+        handleDiscoverAppointmentOptions();
+        return;
+      }
+      if (!matchingOption) {
+        setAppointmentError(isSpanish
+          ? "Esa opcion ya no esta disponible. Revisa la lista actual."
+          : "That option is no longer available. Please review the current list.");
+        lastAppliedConciergeVoiceActionRef.current = actionKey;
+        return;
+      }
+      if (["select_provider_option", "prepare_provider_contact"].includes(conciergeVoiceProviderCommand)) {
+        setSelectedAppointmentOptionId(matchingOption.id);
+        setAppointmentError(null);
+        setAppointmentNotice(conciergeVoiceProviderCommand === "prepare_provider_contact"
+          ? (isSpanish ? "Opcion preparada. Confirma en pantalla antes de contactar." : "Option prepared. Confirm on screen before any contact.")
+          : (isSpanish ? "Opcion seleccionada para revisar." : "Option selected for review."));
+        lastAppliedConciergeVoiceActionRef.current = actionKey;
+        window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+        return;
+      }
+    }
+
     const voiceText = [
       conciergeVoiceAction.sourceText,
       conciergeVoiceTaskType,
@@ -12378,6 +12480,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     conciergeVoiceTime,
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
+    conciergeVoiceProviderCommand,
+    conciergeVoiceProviderOptionId,
+    conciergeVoiceProviderRequestId,
+    appointmentOptions,
+    appointmentRequest?.id,
     homeServiceCanvasEnabled,
     homeServiceCanvasRolloutQuery.isLoading,
     rideCanvasMode,
@@ -20319,7 +20426,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-                      {isSpanish ? "Opcion recomendada" : "Recommended option"}
+                      {appointmentRecommendationLabel}
                     </p>
                     <h3 className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {appointmentProviderName}
@@ -20327,6 +20434,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                     <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                       {selectedAppointmentOption?.match_reason || appointmentProviderTrustNote}
                     </p>
+                    {selectedAppointmentOption && (
+                      <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
+                        {appointmentProviderTrustNote} · {appointmentOptionEvidenceSummary(selectedAppointmentOption, isSpanish)}
+                      </p>
+                    )}
                     {appointmentProviderAddress && (
                       <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
                         {appointmentProviderAddress}
@@ -20389,6 +20501,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                             </span>
                             <span className="mt-0.5 block text-[11px] font-semibold text-vyva-text-2">
                               {option.match_reason || (isSpanish ? "Fuente revisable" : "Reviewable source")}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] leading-snug text-vyva-text-3">
+                              {appointmentOptionEvidenceSummary(option, isSpanish)}
                             </span>
                           </button>
                         );
