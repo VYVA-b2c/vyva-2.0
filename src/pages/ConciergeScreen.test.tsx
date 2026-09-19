@@ -1294,6 +1294,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
     expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
     expect(screen.getByTestId("button-concierge-card-service-title")).toHaveTextContent("Get Help");
+    expect(screen.getByTestId("button-concierge-card-service").querySelector('[data-vyva-icon-tile="signal"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-delivery").querySelector('[data-vyva-icon-tile="check"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-appointment").querySelector('[data-vyva-icon-tile="calendar"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-card-discover").querySelector('[data-vyva-icon-tile="pin"]')).toBeInTheDocument();
   });
 
   it("opens Trusted Help setup from Concierge", async () => {

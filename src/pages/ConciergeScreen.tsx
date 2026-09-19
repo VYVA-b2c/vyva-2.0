@@ -17086,6 +17086,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "get-help",
       icon: LifeBuoy,
+      iconAccent: "signal",
       title: t("concierge.master.cards.getHelp", "Get Help"),
       detail: t("concierge.master.cards.getHelpDetail", "Home repair, healthcare, admin, home care"),
       chips: [
@@ -17100,6 +17101,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "order-in",
       icon: PackageCheck,
+      iconAccent: "check",
       title: t("concierge.master.cards.orderIn", "Order In"),
       detail: t("concierge.master.cards.orderInDetail", "A ride, food, shopping"),
       chips: [
@@ -17120,6 +17122,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "book-appointments",
       icon: Calendar,
+      iconAccent: "calendar",
       title: t("concierge.master.cards.bookAppointments", "Book Appointments"),
       detail: t("concierge.master.cards.bookAppointmentsDetail", "Medical, admin, personal care"),
       chips: [
@@ -17134,6 +17137,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     {
       id: "discover",
       icon: Compass,
+      iconAccent: "pin",
       title: t("concierge.master.cards.discover", "Discover"),
       detail: t("concierge.master.cards.discoverDetail", "Local services and offers"),
       chips: [
