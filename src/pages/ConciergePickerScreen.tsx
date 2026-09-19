@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   CanonicalDetailFlowShell,
+  CanonicalFlowIcon,
   CanonicalVoiceButton,
   type CanonicalDetailFlowShellContract,
 } from "@/components/CanonicalDetailFlowShell";
@@ -64,6 +65,20 @@ type ConciergeProfile = {
 };
 
 type SetupRequirement = "home_address" | "trusted_provider";
+
+type ConciergeIconAccent = "pill" | "document" | "cart" | "link" | "plus" | "status" | "check" | "target" | "spark";
+
+function canonicalAccentForIcon(icon: LucideIcon): ConciergeIconAccent {
+  if (icon === Stethoscope) return "plus";
+  if (icon === FileText || icon === Building2) return "document";
+  if (icon === HeartHandshake) return "link";
+  if (icon === Calendar || icon === PackageCheck || icon === ShieldCheck) return "check";
+  if (icon === Car) return "target";
+  if (icon === ShoppingBasket) return "cart";
+  if (icon === AlertTriangle) return "status";
+  if (icon === Pill) return "pill";
+  return "spark";
+}
 
 function hasHomeAddress(profile: ConciergeProfile | null): boolean {
   return Boolean(profile?.street?.trim() || profile?.cityState?.trim());
@@ -495,6 +510,7 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
     <CanonicalDetailFlowShell
       shellContract={shellContract}
       onBack={() => navigate("/concierge")}
+      appearance="light"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
@@ -521,12 +537,12 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
               aria-label={`${label}. ${detail}`}
               className="vyva-tap flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border border-[#EFE7F7] bg-white px-4 py-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.05)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
             >
-              <span
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
-                style={{ background: option.iconBg, color: option.iconColor }}
-              >
-                <Icon size={22} strokeWidth={2.5} aria-hidden="true" />
-              </span>
+              <CanonicalFlowIcon
+                icon={Icon}
+                tone="purple"
+                goldAccent={canonicalAccentForIcon(Icon)}
+                className="!h-11 !w-11 !rounded-[16px]"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
                   {label}
