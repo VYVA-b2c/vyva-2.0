@@ -141,6 +141,7 @@ type CanonicalDetailFlowShellProps = {
   shellTestId?: string;
   contentTestId?: string;
   backTestId?: string;
+  frameClassName?: string;
 };
 
 const shellSurface = {
@@ -165,6 +166,7 @@ export function CanonicalDetailFlowShell({
   shellTestId = "canonical-detail-flow-screen",
   contentTestId = "canonical-detail-flow-content",
   backTestId = "button-prototype-back",
+  frameClassName = "",
 }: CanonicalDetailFlowShellProps) {
   const { isDark: prefersDark } = useHomeMasterTheme();
   const isDark = appearance === "adaptive" && prefersDark;
@@ -183,7 +185,7 @@ export function CanonicalDetailFlowShell({
       className={`prototype-shell relative min-h-[calc(100svh-136px)] w-full overflow-x-clip ${isDark ? shellSurface.dark : shellSurface.light}`}
     >
       <div
-        className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4"
+        className={`vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4 ${frameClassName}`}
         data-testid={`${shellTestId}-frame`}
       >
         <div
