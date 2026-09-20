@@ -160,6 +160,8 @@ describe("MenuScreen", () => {
     expect(grid).toHaveClass("grid", "grid-cols-1", "gap-4", "md:grid-cols-2", "md:gap-5");
     expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]", "w-full", "rounded-[26px]");
     expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("menu-tile-health-title")).not.toHaveClass("truncate");
+    expect(screen.getByTestId("menu-tile-health-title").parentElement).toHaveClass("vyva-home-master-fixed-type");
     expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveTextContent("Check-ins & medicines");
     expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveClass("sr-only");
     expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("sr-only");

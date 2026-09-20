@@ -363,8 +363,8 @@ export default function MenuScreen({
                   >
                     <VyvaIcon icon={Icon} accent={tile.iconAccent} size={29} strokeWidth={2.55} tone="brand" />
                   </span>
-                  <span className="min-w-0 self-center md:self-start">
-                    <span data-testid={`menu-tile-${tile.id}-title`} className="block truncate font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px]">
+                  <span className="vyva-home-master-fixed-type min-w-0 self-center md:self-start">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className="block whitespace-normal break-words font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px]">
                       {title}
                     </span>
                     <span
