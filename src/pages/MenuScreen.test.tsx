@@ -39,13 +39,13 @@ describe("MenuScreen", () => {
     expect(grid).toHaveTextContent("Concierge");
     expect(grid).toHaveTextContent("Check-ins & medicines");
     expect(grid).toHaveTextContent("Memory, focus & calm");
-    expect(grid).toHaveTextContent("Rooms & support");
+    expect(grid).toHaveTextContent("Experts & support");
     expect(grid).toHaveTextContent("Everyday help");
     expect(screen.getByTestId("menu-shell")).toHaveClass("lg:max-w-[900px]");
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
-      "/social-rooms",
+      "/social-rooms/experts",
       "/concierge",
     ]);
     expect(screen.getByTestId("menu-tile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe("MenuScreen", () => {
       tilePathOverrides: {
         health: "/dev/home-master/health",
         brain: "/dev/home-master/brain",
-        community: "/dev/home-master/community",
+        community: "/dev/home-master/community-team",
         concierge: "/dev/home-master/concierge",
       },
     });

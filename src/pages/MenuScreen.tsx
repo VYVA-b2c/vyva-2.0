@@ -52,8 +52,8 @@ const MENU_TILES: MenuTile[] = [
   {
     id: "community",
     title: "Community",
-    detail: "Rooms & support",
-    path: "/social-rooms",
+    detail: "Experts & support",
+    path: "/social-rooms/experts",
     icon: Users,
     iconAccent: "link",
   },
