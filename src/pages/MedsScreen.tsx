@@ -1779,7 +1779,7 @@ const MedsScreen = () => {
                     }}
                     className="vyva-tap min-h-[50px] rounded-[17px] border border-[#DED3E2] bg-white px-3 font-body text-[15px] font-black text-vyva-purple"
                   >
-                    {t("meds.dashboard.notNow", "Not now")}
+                    {t("meds.dashboard.notNow", "Leave for later")}
                   </button>
                   <button
                     type="button"
@@ -1839,49 +1839,6 @@ const MedsScreen = () => {
           </section>
         ) : null}
 
-        <section
-          className="mt-5 rounded-[28px] border border-[#E6DCEB] bg-white p-[22px] shadow-[0_16px_36px_rgba(63,45,35,0.10)]"
-          data-testid="section-meds-primary-actions"
-          data-canon-accent="ask-dr-ai-action-stack"
-        >
-          <h2 className="px-1 font-body text-[22px] font-black text-vyva-text-1">
-            {t("meds.master.manageTitle", "Manage your medicines")}
-          </h2>
-          <div className="mt-3 grid grid-cols-1 gap-2">
-            {medicationMasterCards.slice(0, 4).map((card) => {
-              const Icon = card.icon;
-              return (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={card.onClick}
-                  data-testid={card.testId}
-                  aria-label={card.detail ? `${card.title}. ${card.detail}` : card.title}
-                  className="vyva-tap flex min-h-[60px] items-center gap-3 rounded-[18px] border px-4 py-3 text-left shadow-[0_6px_16px_rgba(63,45,35,0.04)] transition hover:border-[#B99BCE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2"
-                  style={{ borderColor: card.tone.border, backgroundColor: card.tone.surface }}
-                >
-                  <CanonicalFlowIcon
-                    icon={Icon}
-                    tone="purple"
-                    goldAccent={
-                      card.id === "my-medicines"
-                        ? "pill"
-                        : card.id === "adherence"
-                          ? "document"
-                          : card.id === "refills"
-                            ? "cart"
-                            : "link"
-                    }
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">{card.title}</span>
-                  </span>
-                  <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-[#9A83AD]" aria-hidden="true" />
-                </button>
-              );
-            })}
-          </div>
-        </section>
       </div>
       </CanonicalDetailFlowShell>
 
