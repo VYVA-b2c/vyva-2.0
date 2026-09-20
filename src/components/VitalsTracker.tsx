@@ -804,16 +804,17 @@ const DASHBOARD_LABELS: Record<Language, {
   more: string;
   risk: string;
   lower: string;
+  unavailable: string;
   nearBaseline: string;
   aboveBaseline: string;
   belowBaseline: string;
 }> = {
-  en: { latest: "Latest readings", latestSingle: "Latest reading", more: "More vitals", risk: "Risk score", lower: "Lower is better", nearBaseline: "Near your baseline", aboveBaseline: "above your baseline", belowBaseline: "below your baseline" },
-  es: { latest: "Últimas mediciones", latestSingle: "Última medición", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor", nearBaseline: "Cerca de tu referencia", aboveBaseline: "por encima de tu referencia", belowBaseline: "por debajo de tu referencia" },
-  de: { latest: "Letzte Messwerte", latestSingle: "Letzter Messwert", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser", nearBaseline: "Nahe deinem Basiswert", aboveBaseline: "über deinem Basiswert", belowBaseline: "unter deinem Basiswert" },
-  fr: { latest: "Dernières mesures", latestSingle: "Dernière mesure", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux", nearBaseline: "Proche de votre référence", aboveBaseline: "au-dessus de votre référence", belowBaseline: "en dessous de votre référence" },
-  it: { latest: "Ultime letture", latestSingle: "Ultima lettura", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio", nearBaseline: "Vicino al tuo valore base", aboveBaseline: "sopra il tuo valore base", belowBaseline: "sotto il tuo valore base" },
-  pt: { latest: "Leituras recentes", latestSingle: "Leitura mais recente", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor", nearBaseline: "Perto da sua referência", aboveBaseline: "acima da sua referência", belowBaseline: "abaixo da sua referência" },
+  en: { latest: "Latest readings", latestSingle: "Latest reading", more: "More vitals", risk: "Risk score", lower: "Lower is better", unavailable: "Not assessed yet", nearBaseline: "Near your baseline", aboveBaseline: "above your baseline", belowBaseline: "below your baseline" },
+  es: { latest: "Últimas mediciones", latestSingle: "Última medición", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor", unavailable: "Aún no evaluado", nearBaseline: "Cerca de tu referencia", aboveBaseline: "por encima de tu referencia", belowBaseline: "por debajo de tu referencia" },
+  de: { latest: "Letzte Messwerte", latestSingle: "Letzter Messwert", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser", unavailable: "Noch nicht bewertet", nearBaseline: "Nahe deinem Basiswert", aboveBaseline: "über deinem Basiswert", belowBaseline: "unter deinem Basiswert" },
+  fr: { latest: "Dernières mesures", latestSingle: "Dernière mesure", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux", unavailable: "Pas encore évalué", nearBaseline: "Proche de votre référence", aboveBaseline: "au-dessus de votre référence", belowBaseline: "en dessous de votre référence" },
+  it: { latest: "Ultime letture", latestSingle: "Ultima lettura", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio", unavailable: "Non ancora valutato", nearBaseline: "Vicino al tuo valore base", aboveBaseline: "sopra il tuo valore base", belowBaseline: "sotto il tuo valore base" },
+  pt: { latest: "Leituras recentes", latestSingle: "Leitura mais recente", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor", unavailable: "Ainda não avaliado", nearBaseline: "Perto da sua referência", aboveBaseline: "acima da sua referência", belowBaseline: "abaixo da sua referência" },
 };
 
 function heroMarkerMessage(deviation: number | null, language: Language) {
@@ -1169,7 +1170,8 @@ export default function VitalsTracker({
     }).slice(0, 4);
   }, [recentReadings]);
   const heroMetricCount = heroMarkers.length + 1;
-  const riskScore = analysis?.risk_score ?? 0;
+  const riskScoreValue = analysis?.risk_score ?? null;
+  const riskScore = riskScoreValue ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
   const addSource = searchParams.get("source");
@@ -1680,9 +1682,9 @@ export default function VitalsTracker({
 
   return (
     <section className="mx-auto w-full max-w-[1080px] pb-5" data-testid="vitals-engine-dashboard">
-      <div
+      {!loading ? <div
         className={`relative mb-5 flex min-h-[124px] items-center rounded-[30px] border py-5 pl-7 pr-[92px] shadow-[0_16px_36px_rgba(63,45,75,0.08)] sm:mb-7 sm:min-h-[142px] sm:pl-8 sm:pr-[112px] ${isDark ? "border-white/[0.14] bg-[#2B2035]" : "border-[#E7DDED] bg-white"}`}
-        style={{ borderLeft: `7px solid ${riskColor}` }}
+        style={{ borderLeft: `7px solid ${riskScoreValue == null ? "#A89EAD" : riskColor}` }}
         data-testid="vitals-risk-score"
       >
         <div className="min-w-0">
@@ -1690,12 +1692,12 @@ export default function VitalsTracker({
             {dashboardLabels.risk}
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-1">
-            <span className="font-body text-[48px] font-black leading-none tracking-[-0.05em] sm:text-[58px]" style={{ color: riskColor }}>
-              {riskScore}
+            <span className="font-body text-[48px] font-black leading-none tracking-[-0.05em] sm:text-[58px]" style={{ color: riskScoreValue == null ? "#A89EAD" : riskColor }}>
+              {riskScoreValue ?? "—"}
             </span>
-            <span className={`mb-1 font-body text-[17px] font-black sm:text-[19px] ${isDark ? "text-[#CFC2D8]" : "text-[#756879]"}`}>/100</span>
+            {riskScoreValue != null ? <span className={`mb-1 font-body text-[17px] font-black sm:text-[19px] ${isDark ? "text-[#CFC2D8]" : "text-[#756879]"}`}>/100</span> : null}
             <span className={`mb-1 border-l pl-4 font-body text-[16px] font-black sm:text-[19px] ${isDark ? "border-white/15 text-[#D8CDE4]" : "border-[#E7DDED] text-[#67596B]"}`}>
-              {getRiskLabel(riskScore, language)} · {dashboardLabels.lower}
+              {riskScoreValue == null ? dashboardLabels.unavailable : `${getRiskLabel(riskScore, language)} · ${dashboardLabels.lower}`}
             </span>
           </div>
         </div>
@@ -1708,7 +1710,7 @@ export default function VitalsTracker({
         >
           <Plus className="h-8 w-8 sm:h-9 sm:w-9" strokeWidth={2.7} aria-hidden="true" />
         </button>
-      </div>
+      </div> : null}
 
       {loading ? (
         <div className={`flex min-h-[300px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>

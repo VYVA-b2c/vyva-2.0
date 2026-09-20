@@ -115,4 +115,17 @@ describe("Vitals safety service actions", () => {
     expect(screen.queryByTestId("daily-safety-check")).not.toBeInTheDocument();
     expect(screen.getByTestId("vitals-risk-score")).toBeInTheDocument();
   });
+
+  it("does not report a default zero risk score while the assessment is loading", () => {
+    apiFetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VitalsTracker userId="user-1" userConditions={[]} language="en" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
 });
