@@ -804,7 +804,7 @@ export function PrototypeHomeScreen() {
     },
     {
       text: <>Elena replied in your <b>Book Club room</b>.</>,
-      path: "/dev/home-master/community",
+      path: "/dev/home-master/community-team",
     },
   ], []);
   const [momentIndex, setMomentIndex] = useState(0);
@@ -902,8 +902,8 @@ export function PrototypeMenuScreen({
   const items: RowItem[] = [
     { icon: Heart, iconAccent: "pulse", title: "My Health", subtitle: "Check-ins & medicines", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
     { icon: Brain, iconAccent: "bridge", title: t("home.master.cards.mindMemoryShortTitle", "Brain Power"), subtitle: "Memory, focus & calm", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
-    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms & support", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
-    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
+    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Experts & support", tone: "community", path: "/dev/home-master/community-team", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/concierge-canonical-preview", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (

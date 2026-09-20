@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, ChevronRight, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
-import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
+import { VITALS_SIGNAL_CATALOG, promptSignalsForProfile, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 import type { VitalsVoiceFlowState, VitalsVoiceReading, VitalsVoiceUiState } from "@/lib/vitalsVoiceContext";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
@@ -804,16 +804,17 @@ const DASHBOARD_LABELS: Record<Language, {
   more: string;
   risk: string;
   lower: string;
+  unavailable: string;
   nearBaseline: string;
   aboveBaseline: string;
   belowBaseline: string;
 }> = {
-  en: { latest: "Latest readings", latestSingle: "Latest reading", more: "More vitals", risk: "Risk score", lower: "Lower is better", nearBaseline: "Near your baseline", aboveBaseline: "above your baseline", belowBaseline: "below your baseline" },
-  es: { latest: "Últimas mediciones", latestSingle: "Última medición", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor", nearBaseline: "Cerca de tu referencia", aboveBaseline: "por encima de tu referencia", belowBaseline: "por debajo de tu referencia" },
-  de: { latest: "Letzte Messwerte", latestSingle: "Letzter Messwert", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser", nearBaseline: "Nahe deinem Basiswert", aboveBaseline: "über deinem Basiswert", belowBaseline: "unter deinem Basiswert" },
-  fr: { latest: "Dernières mesures", latestSingle: "Dernière mesure", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux", nearBaseline: "Proche de votre référence", aboveBaseline: "au-dessus de votre référence", belowBaseline: "en dessous de votre référence" },
-  it: { latest: "Ultime letture", latestSingle: "Ultima lettura", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio", nearBaseline: "Vicino al tuo valore base", aboveBaseline: "sopra il tuo valore base", belowBaseline: "sotto il tuo valore base" },
-  pt: { latest: "Leituras recentes", latestSingle: "Leitura mais recente", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor", nearBaseline: "Perto da sua referência", aboveBaseline: "acima da sua referência", belowBaseline: "abaixo da sua referência" },
+  en: { latest: "Latest readings", latestSingle: "Latest reading", more: "More vitals", risk: "Risk score", lower: "Lower is better", unavailable: "Not assessed yet", nearBaseline: "Near your baseline", aboveBaseline: "above your baseline", belowBaseline: "below your baseline" },
+  es: { latest: "Últimas mediciones", latestSingle: "Última medición", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor", unavailable: "Aún no evaluado", nearBaseline: "Cerca de tu referencia", aboveBaseline: "por encima de tu referencia", belowBaseline: "por debajo de tu referencia" },
+  de: { latest: "Letzte Messwerte", latestSingle: "Letzter Messwert", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser", unavailable: "Noch nicht bewertet", nearBaseline: "Nahe deinem Basiswert", aboveBaseline: "über deinem Basiswert", belowBaseline: "unter deinem Basiswert" },
+  fr: { latest: "Dernières mesures", latestSingle: "Dernière mesure", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux", unavailable: "Pas encore évalué", nearBaseline: "Proche de votre référence", aboveBaseline: "au-dessus de votre référence", belowBaseline: "en dessous de votre référence" },
+  it: { latest: "Ultime letture", latestSingle: "Ultima lettura", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio", unavailable: "Non ancora valutato", nearBaseline: "Vicino al tuo valore base", aboveBaseline: "sopra il tuo valore base", belowBaseline: "sotto il tuo valore base" },
+  pt: { latest: "Leituras recentes", latestSingle: "Leitura mais recente", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor", unavailable: "Ainda não avaliado", nearBaseline: "Perto da sua referência", aboveBaseline: "acima da sua referência", belowBaseline: "abaixo da sua referência" },
 };
 
 function heroMarkerMessage(deviation: number | null, language: Language) {
@@ -1132,14 +1133,32 @@ export default function VitalsTracker({
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [heroMarkerIndex, setHeroMarkerIndex] = useState(0);
+  const [selectedAddSignal, setSelectedAddSignal] = useState<SignalKey | null>(null);
 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
   const showDashboard = useCallback(() => setScreen("dashboard"), []);
   const showAddReading = useCallback(() => setScreen("add"), []);
+  const captureSignal = useCallback((signal: SignalKey) => {
+    setSelectedAddSignal(signal);
+    setScreen("add");
+  }, []);
 
   const copy = useMemo(() => copyFor(language), [language]);
   const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
+  const personalizedDashboardSignals = useMemo(() => {
+    const available = new Set<SignalKey>();
+    for (const reading of recentReadings) {
+      if (reading.signal_type in SIGNAL_CONFIG) available.add(reading.signal_type as SignalKey);
+    }
+    const profileSignals = promptSignalsForProfile(userConditions)
+      .filter((key): key is SignalKey => key in SIGNAL_CONFIG && !VITALS_SIGNAL_CATALOG[key].futureReady);
+    const diabetesProfile = /diabet|insulin|metformin|glucose|blood sugar|cgm/i.test(userConditions.join(" "));
+    const ordered: SignalKey[] = [];
+    if (diabetesProfile || available.has("glucose_mgdl")) ordered.push("glucose_mgdl");
+    ordered.push(...profileSignals, ...available);
+    return [...new Set(ordered)].slice(0, 5);
+  }, [recentReadings, userConditions]);
   const heroMarkers = useMemo(() => {
     const seen = new Set<SignalKey>();
     return recentReadings.filter((reading) => {
@@ -1151,7 +1170,8 @@ export default function VitalsTracker({
     }).slice(0, 4);
   }, [recentReadings]);
   const heroMetricCount = heroMarkers.length + 1;
-  const riskScore = analysis?.risk_score ?? 0;
+  const riskScoreValue = analysis?.risk_score ?? null;
+  const riskScore = riskScoreValue ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
   const addSource = searchParams.get("source");
@@ -1558,12 +1578,13 @@ export default function VitalsTracker({
       <VitalsAddReadingFlow
         previewMode={Boolean(previewData)}
         previewContext={previewData ? previewAcquisitionContext(previewData.recent_readings) : undefined}
-        initialSignal={initialAddSignal}
+        initialSignal={selectedAddSignal ?? initialAddSignal}
         language={language}
         onBack={showDashboard}
         onBackActionChange={onBackActionChange}
         onVoiceStateChange={reportAddVoiceState}
         onSaved={async () => {
+          setSelectedAddSignal(null);
           showDashboard();
           await loadDashboard();
         }}
@@ -1621,258 +1642,169 @@ export default function VitalsTracker({
   const groupDivider = isDark ? "border-white/[0.12]" : "border-[#E1D6E7]";
   const rowDivider = isDark ? "divide-white/[0.1]" : "divide-[#EFE7F3]";
 
+  const dashboardCopy = personalizedVitalsCopy(language);
+  const diabetesPriority = /diabet|insulin|metformin|glucose|blood sugar|cgm/i.test(userConditions.join(" "));
+  const dashboardLatest = latestReadingMap(recentReadings);
+  const moodReading = dashboardLatest.mood_score;
+  const conversationChannel = typeof moodReading?.source_ref?.conversation_channel === "string"
+    ? moodReading.source_ref.conversation_channel
+    : null;
+  const conversationSentiment = conversationChannel === "voice" || conversationChannel === "chat"
+    ? moodReading
+    : undefined;
+  const signalTiles = personalizedDashboardSignals.filter((signalKey) => signalKey !== "mood_score").map((signalKey) => (
+    <PersonalizedVitalCard
+      key={signalKey}
+      signalKey={signalKey}
+      reading={dashboardLatest[signalKey]}
+      language={language}
+      isDark={isDark}
+      emptyLabel={dashboardCopy.noReading}
+      onClick={() => captureSignal(signalKey)}
+    />
+  ));
+  const moodTile = (
+    <PersonalizedVitalCard
+      key="mood_score"
+      signalKey="mood_score"
+      reading={conversationSentiment}
+      language={language}
+      isDark={isDark}
+      label={dashboardCopy.sentiment}
+      emptyLabel={dashboardCopy.noConversationInsight}
+      emptyDetail={dashboardCopy.talkToVyva}
+      onClick={() => navigate("/social-rooms/experts")}
+    />
+  );
+  const dashboardTiles = diabetesPriority && signalTiles.length > 0
+    ? [signalTiles[0], moodTile, ...signalTiles.slice(1)]
+    : [moodTile, ...signalTiles];
+
   return (
-    <section className="-mx-2 w-[calc(100%+1rem)] max-w-[760px] space-y-3 sm:mx-auto sm:w-full sm:space-y-4" data-testid="vitals-engine-dashboard">
+    <section className="mx-auto w-full max-w-[1080px] pb-5" data-testid="vitals-engine-dashboard">
+      {!loading ? <div
+        className={`relative mb-5 flex min-h-[124px] items-center rounded-[30px] border py-5 pl-7 pr-[92px] shadow-[0_16px_36px_rgba(63,45,75,0.08)] sm:mb-7 sm:min-h-[142px] sm:pl-8 sm:pr-[112px] ${isDark ? "border-white/[0.14] bg-[#2B2035]" : "border-[#E7DDED] bg-white"}`}
+        style={{ borderLeft: `7px solid ${riskScoreValue == null ? "#A89EAD" : riskColor}` }}
+        data-testid="vitals-risk-score"
+      >
+        <div className="min-w-0">
+          <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#7024C4] sm:text-[15px]">
+            {dashboardLabels.risk}
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-1">
+            <span className="font-body text-[48px] font-black leading-none tracking-[-0.05em] sm:text-[58px]" style={{ color: riskScoreValue == null ? "#A89EAD" : riskColor }}>
+              {riskScoreValue ?? "—"}
+            </span>
+            {riskScoreValue != null ? <span className={`mb-1 font-body text-[17px] font-black sm:text-[19px] ${isDark ? "text-[#CFC2D8]" : "text-[#756879]"}`}>/100</span> : null}
+            <span className={`mb-1 border-l pl-4 font-body text-[16px] font-black sm:text-[19px] ${isDark ? "border-white/15 text-[#D8CDE4]" : "border-[#E7DDED] text-[#67596B]"}`}>
+              {riskScoreValue == null ? dashboardLabels.unavailable : `${getRiskLabel(riskScore, language)} · ${dashboardLabels.lower}`}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={showAddReading}
+          aria-label={dashboardCopy.capture}
+          className="vyva-tap absolute right-5 top-1/2 grid h-14 !min-h-14 w-14 -translate-y-1/2 place-items-center rounded-full bg-[#7024C4] text-[#F8AE1B] ring-2 ring-white/80 shadow-[0_14px_30px_rgba(112,36,196,0.28)] sm:right-7 sm:h-16 sm:!min-h-16 sm:w-16"
+          data-testid="button-vitals-hero-add"
+        >
+          <Plus className="h-8 w-8 sm:h-9 sm:w-9" strokeWidth={2.7} aria-hidden="true" />
+        </button>
+      </div> : null}
+
       {loading ? (
-        <div className={`flex min-h-[260px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>
-          <div className={`text-center font-body text-[20px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>
-            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#6B21A8]" />
+        <div className={`flex min-h-[300px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>
+          <div className={`text-center font-body text-[18px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>
+            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#7024C4]" />
             {copy.loading}
           </div>
         </div>
       ) : (
         <>
-          <div className="-mx-2 sm:-mx-4 lg:-mx-14" data-testid="vitals-hero">
-            <section
-              aria-label={safetyLabel(safetyStatus, language)}
-              className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 pr-[76px] sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 sm:pr-[88px] ${dashboardPanel} ${safetyHeroAccent}`}
-            >
-              <div data-testid="vitals-hero-metric">
-                {activeHeroMetricIndex === 0 ? (
-                  <div
-                    className="min-h-[68px] max-w-[520px]"
-                    data-testid="vitals-risk-score"
-                    aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className={`font-body text-[13px] font-black uppercase tracking-[0.08em] sm:text-[14px] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
-                      <div className="mt-0.5 flex min-w-0 items-center gap-2.5">
-                        <span className="flex shrink-0 items-baseline gap-1">
-                          <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.05em] sm:text-[46px]" style={{ color: riskColor }}>{riskScore}</span>
-                          <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
-                        </span>
-                        <span className={`min-w-0 border-l pl-2.5 font-body text-[17px] font-bold leading-[1.25] sm:text-[18px] ${isDark ? "border-white/[0.14] text-[#D8CDE4]" : "border-[#E1D6E7] text-[#6B5B72]"}`} data-testid="vitals-hero-message">
-                          {getRiskLabel(riskScore, language)} · {dashboardLabels.lower}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
-                  <div className="min-h-[68px] min-w-0 max-w-[520px]" data-testid="vitals-hero-marker">
-                    <div className="min-w-0">
-                      <div className="min-w-0 flex-1">
-                        <p className={`truncate font-body text-[13px] font-black uppercase tracking-[0.08em] sm:text-[14px] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
-                          {signalLabel(activeHeroSignal, activeHeroConfig, language)}
-                        </p>
-                        <div className="mt-0.5 flex min-w-0 items-center gap-2.5">
-                          <span
-                            className={`shrink-0 whitespace-nowrap font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}
-                            data-testid="vitals-hero-value"
-                          >
-                            {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
-                          </span>
-                          <span className={`min-w-0 border-l pl-2.5 font-body text-[17px] font-bold leading-[1.25] sm:text-[18px] ${isDark ? "border-white/[0.14] text-[#D8CDE4]" : "border-[#E1D6E7] text-[#6B5B72]"}`} data-testid="vitals-hero-message">
-                            {heroMarkerMessage(activeHeroDeviation, language)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-                {heroMetricCount > 1 ? (
-                  <div className="mt-2 flex items-center gap-1" aria-label={dashboardLabels.latest}>
-                    {["risk", ...heroMarkers.map((marker) => marker.signal_type)].map((metricKey, index) => (
-                      <button
-                        key={metricKey}
-                        type="button"
-                        aria-label={index === 0 ? dashboardLabels.risk : `${dashboardLabels.latest} ${index}`}
-                        aria-current={index === activeHeroMetricIndex ? "true" : undefined}
-                        onClick={() => setHeroMarkerIndex(index)}
-                        className="vyva-tap grid h-5 !min-h-5 w-5 place-items-center rounded-full"
-                      >
-                        <span className={`h-1.5 rounded-full transition-all ${index === activeHeroMetricIndex ? "w-4 bg-[#F8AE1B]" : isDark ? "w-1.5 bg-white/30" : "w-1.5 bg-[#C9BDD6]"}`} />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                aria-label={copy.add}
-                onClick={showAddReading}
-                className="vyva-tap absolute right-6 top-[26px] grid h-[52px] !min-h-[52px] w-[52px] place-items-center rounded-full bg-[#7024C4] text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.96] sm:right-8"
-                data-testid="button-vitals-hero-add"
-              >
-                <Plus className="h-7 w-7 text-[#F8AE1B]" strokeWidth={2.7} aria-hidden="true" />
-              </button>
-            </section>
-          </div>
-
-          {hasOpenSafetyNotice ? (
-          <div className={`mt-3 rounded-[24px] border p-4 sm:mt-4 sm:rounded-[28px] sm:p-5 ${safetyPanel}`} data-testid="daily-safety-check">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] sm:h-14 sm:w-14 sm:rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
-                <SafetyIcon className="h-6 w-6 sm:h-7 sm:w-7" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className={`font-body text-[11px] font-bold uppercase tracking-[0.11em] sm:text-[13px] sm:tracking-[0.12em] ${safetyMutedText}`}>{copy.safetyTitle}</p>
-                  <span className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold sm:px-3 sm:text-[12px]" style={{ background: safety.bg, color: safety.color }}>
-                    {safetyLabel(safetyStatus, language)}
-                  </span>
-                  {safetyAcknowledged && (
-                    <span className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold text-[#047857]">
-                      {copy.safetyAck}
-                    </span>
-                  )}
-                </div>
-                <p className={`mt-2 font-body text-[17px] font-bold leading-[1.45] sm:mt-3 sm:text-[20px] sm:leading-relaxed ${safetyBodyText}`}>
-                  {seniorMessage}
-                </p>
-                {latestAlert && !latestAlert.resolved_at && (
-                  <p className={`mt-3 rounded-[16px] p-3 font-body text-[14px] font-bold leading-relaxed sm:rounded-[18px] sm:text-[15px] ${safetyAlertPanel}`}>
-                    {alertMessageForDisplay(latestAlert, safetyStatus, language)}
-                  </p>
-                )}
-              </div>
+          {error ? (
+            <div className={`mb-4 rounded-[20px] border px-4 py-3 font-body text-[14px] font-bold ${isDark ? "border-[#F8AE1B]/30 bg-[#F8AE1B]/10 text-[#FFD99A]" : "border-[#F6C177] bg-[#FFF8E7] text-[#7A4A00]"}`} role="status">
+              {error}
             </div>
-
-            {!safetyAcknowledged && (
-              <div className="mt-4 grid gap-2.5 sm:mt-5">
-                {primarySafetyAction ? renderSafetyAction(primarySafetyAction) : null}
-                <details className={`group overflow-hidden rounded-[17px] border ${isDark ? "border-white/[0.14] bg-white/[0.04]" : "border-[#E8DED4] bg-[#FAF9F6]"}`}>
-                  <summary className={`vyva-tap flex min-h-[48px] cursor-pointer list-none items-center justify-center gap-2 px-3 font-body text-[14px] font-bold [&::-webkit-details-marker]:hidden ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B72]"}`}>
-                    {copy.moreOptions}
-                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-                  </summary>
-                  <div className={`grid gap-2.5 border-t p-2.5 sm:grid-cols-2 ${isDark ? "border-white/[0.12]" : "border-[#E8DED4]"}`}>
-                    {secondarySafetyActions.map(renderSafetyAction)}
-                    <button
-                      type="button"
-                      onClick={() => acknowledgeSafety("dismissed")}
-                      disabled={acknowledging !== null}
-                      className={`min-h-[54px] rounded-[17px] border px-3 font-body text-[15px] font-bold disabled:opacity-60 sm:min-h-[58px] sm:rounded-[18px] sm:px-4 sm:text-[17px] ${safetyDismissButton}`}
-                      data-testid="button-safety-dismiss"
-                    >
-                      {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
-                    </button>
-                  </div>
-                </details>
-              </div>
-            )}
-          </div>
           ) : null}
-
-          {trackedReadingGroups.length ? (
-            <section className="mt-5 sm:mt-7" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
-              <h2 id="vitals-latest-readings" className={`mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
-                {dashboardLabels.latest}
-              </h2>
-              <div className={`overflow-hidden rounded-[24px] border sm:rounded-[30px] ${dashboardPanel}`}>
-                {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
-                  <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
-                    <h3 id={`vitals-group-${group}`} className={`px-4 pb-0 pt-2 font-body text-[9px] font-black uppercase tracking-[0.14em] sm:px-5 sm:pb-1 sm:pt-3 sm:text-[11px] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
-                      {DISPLAY_GROUP_LABELS[group][language]}
-                    </h3>
-                    <div className={`divide-y ${rowDivider}`}>
-                      {signals.map(([key]) => (
-                        <SignalCard
-                          key={key}
-                          signalKey={key}
-                          reading={latestBySignal[key]}
-                          language={language}
-                          normalLabel={copy.normal}
-                          todayLabel={copy.today}
-                          isDark={isDark}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {untrackedReadingGroups.length ? (
-            <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-more-readings">
-              <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
-                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
-                  <VyvaIcon icon={Activity} accent="signal" size={21} />
-                </span>
-                <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
-                <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
-              </summary>
-              <div className={`border-t ${groupDivider}`}>
-                {untrackedReadingGroups.map(({ group, signals }, groupIndex) => (
-                  <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
-                    <h3 id={`vitals-more-group-${group}`} className={`px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
-                      {DISPLAY_GROUP_LABELS[group][language]}
-                    </h3>
-                    <div className={`divide-y ${rowDivider}`}>
-                      {signals.map(([key]) => (
-                        <SignalCard
-                          key={key}
-                          signalKey={key}
-                          language={language}
-                          normalLabel={copy.normal}
-                          todayLabel={copy.today}
-                          isDark={isDark}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </details>
-          ) : null}
-
-          <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
-            <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
-              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
-                <VyvaIcon icon={ShieldCheck} accent="check" size={21} />
-              </span>
-              <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
-              <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
-            </summary>
-            <div className={`border-t px-4 pb-4 pt-3 ${groupDivider}`}>
-              <p className={`font-body text-[16px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#5D4D64]"}`}>{copy.evidenceBody}</p>
-              <div className="mt-3 grid gap-2">
-                {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
-                  <div key={item} className={`flex min-h-[48px] items-center gap-3 border-b px-1 py-2 last:border-b-0 font-body text-[14px] font-bold ${isDark ? "border-white/[0.1] text-[#D8CDE4]" : "border-[#F0E7F4] text-[#6B5B52]"}`}>
-                    <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </details>
-
-          {!analysis?.senior_message && recentReadings.length === 0 && (
-            <div className={`mt-5 rounded-[26px] border p-5 ${dashboardPanel}`}>
-              <p className={`font-body text-[20px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{copy.messageFallback}</p>
-            </div>
-          )}
-
-          {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
-
-          <div className={`mt-2 flex flex-col items-stretch justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center ${isDark ? "border-white/[0.12]" : "border-[#E7DDF0]"}`}>
-            <p className={`font-body text-[15px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>
-              {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
-            </p>
-            <button
-              type="button"
-              onClick={triggerAnalysis}
-              disabled={analysing}
-              className={`vyva-tap flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border px-5 font-body text-[15px] font-black disabled:opacity-60 sm:w-auto ${isDark ? "border-white/[0.14] bg-white/[0.07] text-[#C4A7FF]" : "border-[#DDD6FE] bg-white text-[#6B21A8]"}`}
-            >
-              {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {analysing ? copy.analysing : copy.analyse}
-            </button>
+          <div className="grid gap-4 md:grid-cols-2" data-testid="personalized-vitals-grid">
+            {dashboardTiles}
           </div>
         </>
       )}
     </section>
+  );
+}
+
+function personalizedVitalsCopy(language: Language) {
+  const labels = {
+    en: { capture: "Capture latest vitals", connect: "Connect a device", noReading: "No recent reading", sentiment: "Sentiment", noConversationInsight: "No recent insight", talkToVyva: "Based on your latest VYVA voice or chat conversation" },
+    es: { capture: "Capturar signos actuales", connect: "Conectar un dispositivo", noReading: "Sin medición reciente", sentiment: "Estado de ánimo", noConversationInsight: "Sin información reciente", talkToVyva: "Basado en tu última conversación de voz o chat con VYVA" },
+    de: { capture: "Aktuelle Vitalwerte erfassen", connect: "Gerät verbinden", noReading: "Keine aktuelle Messung", sentiment: "Stimmung", noConversationInsight: "Keine aktuelle Einschätzung", talkToVyva: "Basierend auf Ihrem letzten VYVA-Sprach- oder Textgespräch" },
+    fr: { capture: "Relever les constantes", connect: "Connecter un appareil", noReading: "Aucune mesure récente", sentiment: "Humeur", noConversationInsight: "Aucun aperçu récent", talkToVyva: "Basé sur votre dernière conversation vocale ou écrite avec VYVA" },
+    it: { capture: "Rileva i parametri", connect: "Collega un dispositivo", noReading: "Nessuna lettura recente", sentiment: "Stato d'animo", noConversationInsight: "Nessuna indicazione recente", talkToVyva: "Basato sull'ultima conversazione vocale o chat con VYVA" },
+    pt: { capture: "Capturar sinais atuais", connect: "Ligar um dispositivo", noReading: "Sem leitura recente", sentiment: "Estado emocional", noConversationInsight: "Sem indicação recente", talkToVyva: "Com base na sua última conversa de voz ou chat com a VYVA" },
+  } as const;
+  return labels[language];
+}
+
+function readingSourceDescription(reading: RecentReading | undefined, language: Language): string | null {
+  if (!reading) return null;
+  const explicit = reading.source_display_label?.trim();
+  if (explicit) return explicit;
+  const deviceName = typeof reading.source_ref?.device_name === "string" ? reading.source_ref.device_name.trim() : "";
+  if (deviceName) return deviceName;
+  const provider = typeof reading.source_ref?.provider === "string" ? reading.source_ref.provider.trim() : "";
+  if (provider) return provider.replaceAll("_", " ");
+  const labels: Record<Language, Record<string, string>> = {
+    en: { connected_device: "Connected device", clinical: "Clinical record", phone_estimate: "Phone capture", manual_entry: "Manual entry", imported: "Imported reading" },
+    es: { connected_device: "Dispositivo conectado", clinical: "Registro clínico", phone_estimate: "Captura del teléfono", manual_entry: "Entrada manual", imported: "Dato importado" },
+    de: { connected_device: "Verbundenes Gerät", clinical: "Klinischer Eintrag", phone_estimate: "Telefonmessung", manual_entry: "Manuelle Eingabe", imported: "Importierter Wert" },
+    fr: { connected_device: "Appareil connecté", clinical: "Dossier clinique", phone_estimate: "Mesure du téléphone", manual_entry: "Saisie manuelle", imported: "Mesure importée" },
+    it: { connected_device: "Dispositivo collegato", clinical: "Dati clinici", phone_estimate: "Rilevamento telefono", manual_entry: "Inserimento manuale", imported: "Lettura importata" },
+    pt: { connected_device: "Dispositivo ligado", clinical: "Registo clínico", phone_estimate: "Captura do telefone", manual_entry: "Entrada manual", imported: "Leitura importada" },
+  };
+  return labels[language][reading.source] ?? labels[language].manual_entry;
+}
+
+function PersonalizedVitalCard({ signalKey, reading, language, isDark, label, emptyLabel, emptyDetail, onClick }: {
+  signalKey: SignalKey;
+  reading?: RecentReading;
+  language: Language;
+  isDark: boolean;
+  label?: string;
+  emptyLabel: string;
+  emptyDetail?: string;
+  onClick: () => void;
+}) {
+  const cfg = SIGNAL_CONFIG[signalKey];
+  const meta = VITALS_SIGNAL_CATALOG[signalKey];
+  const value = numberValue(reading?.value);
+  const display = signalKey === "medication_confirmed"
+    ? value === 1 ? "✓" : value === 0 ? "—" : emptyLabel
+    : value == null ? emptyLabel : `${value.toLocaleString()}${meta.unit ? ` ${meta.unit}` : ""}`;
+  const source = readingSourceDescription(reading, language);
+  const detail = reading
+    ? [relativeTime(reading.recorded_at, language), source].filter(Boolean).join(" · ")
+    : emptyDetail ?? (language === "es" ? "Toca para añadir" : language === "de" ? "Zum Hinzufügen tippen" : language === "fr" ? "Touchez pour ajouter" : language === "it" ? "Tocca per aggiungere" : language === "pt" ? "Toque para adicionar" : "Tap to add");
+  const displayLabel = label ?? signalLabel(signalKey, cfg, language);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`vyva-tap group flex min-h-[168px] w-full items-start gap-4 rounded-[28px] border p-5 text-left shadow-[0_16px_36px_rgba(63,45,75,0.08)] transition hover:-translate-y-0.5 sm:min-h-[190px] sm:p-6 ${isDark ? "border-white/[0.14] bg-[#2B2035]" : "border-[#E7DDED] bg-white"}`}
+      data-testid={`vitals-dashboard-card-${signalKey}`}
+      aria-label={`${displayLabel}: ${display}`}
+    >
+      <span className={`flex h-[64px] w-[64px] shrink-0 items-center justify-center rounded-[22px] sm:h-[72px] sm:w-[72px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F0E4FF]"}`}>
+        <SignalIcon type={cfg.icon} className="h-8 w-8 sm:h-9 sm:w-9" />
+      </span>
+      <span className="min-w-0 flex-1 pt-1">
+        <span className={`block font-body text-[17px] font-black sm:text-[20px] ${isDark ? "text-[#D8CDE4]" : "text-[#5F5265]"}`}>{displayLabel}</span>
+        <span className={`mt-2 block font-body font-black tracking-[-0.03em] ${value == null ? "text-[20px] sm:text-[23px]" : "text-[30px] sm:text-[36px]"} ${isDark ? "text-white" : "text-[#21142F]"}`}>{display}</span>
+        <span className={`mt-2 block truncate font-body text-[13px] font-bold sm:text-[14px] ${isDark ? "text-[#BDAFC8]" : "text-[#827586]"}`}>{detail}</span>
+      </span>
+      <ChevronRight className="mt-2 h-6 w-6 shrink-0 text-[#7024C4] transition group-hover:translate-x-0.5" aria-hidden="true" />
+    </button>
   );
 }
 

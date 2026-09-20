@@ -107,84 +107,25 @@ describe("Vitals safety service actions", () => {
     })).toEqual(["call_gp", "email_gp", "doctor_help", "schedule_appointment", "book_ride"]);
   });
 
-  it("renders call and email actions for doctor safety advice", async () => {
-    renderTracker("contact_doctor", {
-      gpName: "Dr. Garcia",
-      gpPhone: "+34 612 345 678",
-      gpEmail: "gp@example.com",
-    });
-
-    await screen.findByTestId("daily-safety-check");
-
-    expect(screen.getByTestId("button-safety-call-gp")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Call Dr. Garcia");
-    expect(screen.getByTestId("button-safety-email-gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
-    expect(screen.getByTestId("button-safety-doctor-help")).toBeInTheDocument();
-    expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Find specialised transport");
-  });
-
-  it("does not keep an acknowledged safety notice in the main Vitals flow", async () => {
-    renderTracker("contact_doctor", {}, "2026-06-01T10:05:00.000Z");
+  it("keeps the compact risk summary while omitting the detailed safety panel", async () => {
+    renderTracker("urgent_help", { country: "US" });
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/vitals-engine/latest"));
+    expect(screen.getByTestId("personalized-vitals-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("daily-safety-check")).not.toBeInTheDocument();
+    expect(screen.getByTestId("vitals-risk-score")).toBeInTheDocument();
   });
 
-  it("offers doctor setup when GP contact is missing", async () => {
-    renderTracker("contact_doctor");
+  it("does not report a default zero risk score while the assessment is loading", () => {
+    apiFetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
 
-    await screen.findByTestId("daily-safety-check");
-    fireEvent.click(screen.getByTestId("button-safety-add-doctor"));
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VitalsTracker userId="user-1" userConditions={[]} language="en" />
+      </MemoryRouter>,
+    );
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/gp"));
-  });
-
-  it("turns urgent vitals advice into an emergency call action", async () => {
-    renderTracker("urgent_help", { country: "US" });
-
-    await screen.findByTestId("daily-safety-check");
-
-    expect(screen.getByTestId("button-safety-call-emergency")).toHaveAttribute("href", "tel:911");
-    expect(screen.getByTestId("button-safety-call-emergency")).toHaveTextContent("Call 911");
-    expect(screen.getByTestId("button-safety-book-ride")).toBeInTheDocument();
-  });
-
-  it("uses the doctor voice route with vitals context", async () => {
-    renderTracker("contact_doctor");
-
-    await screen.findByTestId("daily-safety-check");
-    fireEvent.click(screen.getByTestId("button-safety-doctor-help"));
-
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/health/doctor"));
-    expect(apiFetchMock).toHaveBeenCalledWith("/api/vitals-engine/acknowledge", expect.objectContaining({
-      method: "POST",
-    }));
-  });
-
-  it("opens appointment booking with vitals context", async () => {
-    renderTracker("contact_doctor");
-
-    await screen.findByTestId("daily-safety-check");
-    fireEvent.click(screen.getByTestId("button-safety-schedule-appointment"));
-
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"appointment\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"vitals_safety\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Please help me schedule a doctor appointment");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("VYVA vitals summary");
-  });
-
-  it("opens ride booking with urgent vitals context", async () => {
-    renderTracker("urgent_help", { country: "US" });
-
-    await screen.findByTestId("daily-safety-check");
-    fireEvent.click(screen.getByTestId("button-safety-book-ride"));
-
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"ride\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"vitals_safety\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Please help me find safe transport options");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Your readings need urgent support");
+    expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
