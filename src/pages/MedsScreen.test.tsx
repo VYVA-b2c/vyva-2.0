@@ -283,59 +283,17 @@ describe("MedsScreen medication home and detail screens", () => {
     renderMedsScreen();
 
     expect(await screen.findByTestId("meds-master-hero")).toHaveTextContent("Your medicines today");
-    expect(screen.getByTestId("section-meds-primary-actions")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-meds-primary-actions")).not.toBeInTheDocument();
     expect(screen.getByTestId("section-meds-dashboard")).toBeInTheDocument();
     expect(await screen.findByText("No medicine plan yet")).toBeInTheDocument();
     expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Add medicines to start tracking today.");
     expect(screen.getByTestId("button-meds-dashboard-add-empty")).toHaveTextContent("Add your first medicine");
-
-    expect(screen.getByTestId("button-meds-primary-my-medicines")).toHaveTextContent("My Medicines");
-    expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("History & progress");
-    expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
-    expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Drug combinations");
-    expect(
-      within(screen.getByTestId("section-meds-primary-actions"))
-        .getAllByRole("button")
-        .map((button) => button.getAttribute("data-testid")),
-    ).toEqual([
-      "button-meds-primary-my-medicines",
-      "button-meds-primary-interactions",
-      "button-meds-primary-refills",
-      "button-meds-primary-adherence",
-    ]);
 
     expect(screen.queryByTestId("section-my-medicines")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-check-interactions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-meds-can-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-meds-pharmacy")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-meds-dashboard-tips")).not.toBeInTheDocument();
-  });
-
-  it("routes primary cards to dedicated screens including the refill inventory tracker", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Metformin",
-        dosage: "500mg",
-        frequency: "twice_daily",
-        scheduled_times: ["08:00", "20:00"],
-        takenToday: false,
-        takenCountToday: 1,
-        scheduledCountToday: 2,
-      },
-    ]);
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-my-medicines"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/my-medicines");
-
-    fireEvent.click(screen.getByTestId("button-meds-primary-adherence"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
-
-    fireEvent.click(screen.getByTestId("button-meds-primary-interactions"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/interactions");
-
-    fireEvent.click(screen.getByTestId("button-meds-primary-refills"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/refills");
   });
 
   it("shows My Medicines as its own screen and keeps add choices separate from the list", async () => {
@@ -496,6 +454,7 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Next: Metformin at 08:00.");
     expect(screen.getByTestId("button-confirm-next-med")).toHaveTextContent("Mark as taken");
 
+    expect(screen.getByTestId("button-meds-dashboard-not-now")).toHaveTextContent("Leave for later");
     fireEvent.click(screen.getByTestId("button-meds-dashboard-not-now"));
     expect(screen.getByTestId("status-dose-deferred")).toHaveTextContent("No dose was recorded or changed");
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/meds/adherence-report/confirm", expect.anything());
