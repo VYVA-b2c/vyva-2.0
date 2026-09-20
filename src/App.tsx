@@ -1133,10 +1133,10 @@ const App = () => (
                     <Route path="/dev/brain/activity/:activityId" element={<BrainCoachActivityRoute />} />
                     <Route path="/dev/brain/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                     <Route path="/dev/brain/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/brain-coach/focus" /></AppShell>} />
-                    <Route path="/dev/home-master/community" element={<Navigate to="/dev/home-master/community-team" replace />} />
+                    <Route path="/dev/home-master/community" element={<AppShell><AdvisorHub preview /></AppShell>} />
                     <Route path="/dev/home-master/community-team" element={<AppShell><AdvisorHub preview /></AppShell>} />
                     <Route path="/dev/home-master/community-team/chat" element={<AppShell><AdvisorChat preview /></AppShell>} />
-                    <Route path="/dev/home-master/concierge" element={<Navigate to="/dev/concierge-canonical-preview" replace />} />
+                    <Route path="/dev/home-master/concierge" element={<AppShell><ConciergeScreen mode="home" /></AppShell>} />
                     <Route path="/dev/concierge-canonical-preview" element={<AppShell><ConciergeScreen mode="home" /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
@@ -1244,7 +1244,7 @@ const App = () => (
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
-                  <Route path="/social-rooms" element={<Navigate to="/social-rooms/experts" replace />} />
+                  <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />
