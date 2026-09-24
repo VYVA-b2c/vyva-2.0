@@ -394,7 +394,7 @@ export default function CuriousMinds({
       sceneLayout={screen === "close" ? "modal_actions" : screen === "wonder" ? "idea_prompt" : "activity_panel"}
       state={screen === "close" ? "complete" : "default"}
     >
-      <div className="mx-auto w-full max-w-[780px]" style={{ color: BRAND.ink }}>
+      <div className="mx-auto w-full max-w-[720px] pb-[calc(7rem+env(safe-area-inset-bottom))]" style={{ color: BRAND.ink }}>
         {screen === "tutorial" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
             <h2 className="font-display text-[36px] leading-tight sm:text-[42px]">{t("games.curiousMinds.tutorialTitle", "How it works")}</h2>
@@ -446,22 +446,23 @@ export default function CuriousMinds({
         ) : null}
 
         {screen === "hook" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <Sparkles size={52} aria-hidden="true" />
+          <section className="mt-3 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[22px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+              <Sparkles size={40} aria-hidden="true" />
             </div>
-            <p className="mt-5 text-[26px] font-black" style={{ color: BRAND.purple }}>
+            <p className="mt-3 text-[20px] font-black sm:text-[22px]" style={{ color: BRAND.purple }}>
               {t("games.curiousMinds.hookIntro", "Here's something curious...")}
             </p>
 
             {!hookRevealed ? (
               <>
-                <h1 className="mt-5 font-display text-[40px] leading-tight">{hook?.fact_prompt}</h1>
-                <p className="mt-4 text-[24px] font-bold" style={{ color: BRAND.muted }}>
+                <h1 className="mx-auto mt-4 max-w-[23ch] font-display text-[30px] leading-[1.12] sm:text-[34px]">{hook?.fact_prompt}</h1>
+                <p className="mt-3 text-[18px] font-bold sm:text-[20px]" style={{ color: BRAND.muted }}>
                   {t("games.curiousMinds.guessFirst", "Try to guess before I tell you")}
                 </p>
-                <div className="mt-6">
+                <div className="mt-4">
                   <DualInput
+                    compact
                     value={hookGuessText}
                     onChange={setHookGuessText}
                     onSubmit={handleHookSubmit}
@@ -479,11 +480,11 @@ export default function CuriousMinds({
             ) : (
               <>
                 {hookGuessText ? (
-                  <p className="mt-5 text-[26px] font-black" style={{ color: BRAND.teal }}>
+                  <p className="mt-4 text-[22px] font-black" style={{ color: BRAND.teal }}>
                     {t("games.curiousMinds.niceGuess", "Nice guess!")}
                   </p>
                 ) : null}
-                <p className="mx-auto mt-5 max-w-[680px] text-[30px] font-black leading-snug">{hook?.fact_answer}</p>
+                <p className="mx-auto mt-4 max-w-[620px] text-[26px] font-black leading-snug">{hook?.fact_answer}</p>
                 <button
                   type="button"
                   onClick={() => setScreen("wonder")}
@@ -498,11 +499,11 @@ export default function CuriousMinds({
         ) : null}
 
         {screen === "wonder" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: "#FFF7ED", color: "#B45309" }}>
-              <BrainCircuit size={52} aria-hidden="true" />
+          <section className="mt-3 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[22px]" style={{ background: "#FFF7ED", color: "#B45309" }}>
+              <BrainCircuit size={40} aria-hidden="true" />
             </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{prompt?.prompt_text}</h1>
+            <h1 className="mx-auto mt-4 max-w-[25ch] font-display text-[30px] leading-[1.12] sm:text-[34px]">{prompt?.prompt_text}</h1>
 
             {ideas.length > 0 ? (
               <div className="mt-6 flex flex-wrap justify-center gap-3" aria-live="polite">
@@ -522,6 +523,7 @@ export default function CuriousMinds({
 
             <div className="mt-6">
               <DualInput
+                compact
                 value={ideaText}
                 onChange={setIdeaText}
                 onSubmit={handleIdeaSubmit}
@@ -545,18 +547,19 @@ export default function CuriousMinds({
         ) : null}
 
         {screen === "callback" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
-              <RefreshCw size={52} aria-hidden="true" />
+          <section className="mt-3 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[22px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
+              <RefreshCw size={40} aria-hidden="true" />
             </div>
 
             {!callbackRevealed ? (
               <>
-                <h1 className="mt-6 font-display text-[40px] leading-tight">
+                <h1 className="mx-auto mt-4 max-w-[25ch] font-display text-[30px] leading-[1.12] sm:text-[34px]">
                   {t("games.curiousMinds.callbackPrompt", "Earlier I told you something curious. Do you remember what it was?")}
                 </h1>
                 <div className="mt-6">
                   <DualInput
+                    compact
                     value={callbackText}
                     onChange={setCallbackText}
                     onSubmit={handleCallbackSubmit}
