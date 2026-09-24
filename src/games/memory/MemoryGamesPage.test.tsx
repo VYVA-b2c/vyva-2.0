@@ -60,6 +60,9 @@ describe("MemoryGamesPage", () => {
     expect(screen.getByTestId("memory-games-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.memory");
     expect(screen.queryByText("More exercises")).not.toBeInTheDocument();
 
+    expect(screen.queryByRole("button", { name: "Remember Later" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More", exact: true })).not.toBeInTheDocument();
+
     resolveRecommendation({
       gameType: "memory_match",
       level: 1,
@@ -79,14 +82,26 @@ describe("MemoryGamesPage", () => {
     expect(screen.queryByText("Recall people, places, words, numbers, and future cues.")).not.toBeInTheDocument();
     expect(screen.queryByText("Find matching pairs. Each round changes the set.")).not.toBeInTheDocument();
 
-    expect(within(choices as HTMLElement).queryByText("Visual memory")).not.toBeInTheDocument();
+    expect(within(choices as HTMLElement).getAllByText("Visual memory")).toHaveLength(1);
     expect(within(choices as HTMLElement).queryByText("Curious Minds")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Remember Later")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByRole("button", { name: /Remember Later/i }).querySelector('[data-vyva-accent="calendar"]')).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Connections")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Word Recall")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).queryByText("Story Recall")).not.toBeInTheDocument();
+    expect(within(choices as HTMLElement).queryByText("Number Memory")).not.toBeInTheDocument();
+    expect(within(choices as HTMLElement).getAllByRole("button")).toHaveLength(5);
+
+    const more = screen.getByRole("button", { name: "More", exact: true });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
     expect(within(choices as HTMLElement).getByText("Story Recall")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Number Memory")).toBeInTheDocument();
+    const less = screen.getByRole("button", { name: "Show less" });
+    expect(less).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(less);
+    expect(within(choices as HTMLElement).getAllByRole("button")).toHaveLength(5);
+    expect(within(choices as HTMLElement).queryByText("Story Recall")).not.toBeInTheDocument();
   });
 
   it("keeps the activity page heading-only", async () => {
@@ -130,7 +145,8 @@ describe("MemoryGamesPage", () => {
 
     renderPage();
 
-    fireEvent.click(await screen.findByTestId("brain-coach-activity-spatial-navigator"));
+    fireEvent.click(await screen.findByRole("button", { name: "More", exact: true }));
+    fireEvent.click(screen.getByTestId("brain-coach-activity-spatial-navigator"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/brain-coach/activity/spatial_navigator");
   });
