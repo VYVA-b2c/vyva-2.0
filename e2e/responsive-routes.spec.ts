@@ -1183,16 +1183,7 @@ async function runRoutes(page: Page, routes: ResponsiveRoute[], signedIn: boolea
   await installApi(page, session);
   const consoleRecorder = attachConsoleRecorder(page);
 
-  const requestedRoute = process.env.RESPONSIVE_ROUTE;
-  const startAtRoute = process.env.RESPONSIVE_START_AT;
-  const startAtIndex = startAtRoute ? routes.findIndex((route) => route.path === startAtRoute) : -1;
-  const selectedRoutes = requestedRoute
-    ? routes.filter((route) => route.path === requestedRoute)
-    : startAtIndex >= 0
-      ? routes.slice(startAtIndex)
-      : routes;
-
-  for (const route of selectedRoutes) {
+  for (const route of routes) {
     session.role = route.role ?? "user";
     session.signedIn = signedIn || session.role === "admin";
     session.onboardingStage = route.onboardingStage ?? "complete";
@@ -1453,40 +1444,33 @@ const remainingStaticRoutes: ResponsiveRoute[] = [
 ];
 
 test.describe("responsive route smoke", () => {
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: "parallel" });
 
-  test("public and auth routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(900_000);
-    await runRoutes(page, publicRoutes, false);
-  });
+  const groups = [
+    { name: "public and auth", routes: publicRoutes, signedIn: false },
+    { name: "protected app", routes: protectedRoutes, signedIn: true },
+    { name: "secondary app", routes: protectedSecondaryRoutes, signedIn: true },
+    { name: "onboarding and profile setup", routes: onboardingRoutes, signedIn: true },
+    { name: "social rooms and focused games", routes: socialAndGameRoutes, signedIn: true },
+    { name: "admin workspace", routes: adminRoutes, signedIn: true },
+    { name: "remaining static and preview", routes: remainingStaticRoutes, signedIn: true },
+  ];
 
-  test("protected app routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(900_000);
-    await runRoutes(page, protectedRoutes, true);
-  });
+  for (const group of groups) {
+    const requestedRoute = process.env.RESPONSIVE_ROUTE;
+    const startAtRoute = process.env.RESPONSIVE_START_AT;
+    const startAtIndex = startAtRoute ? group.routes.findIndex((route) => route.path === startAtRoute) : -1;
+    const routes = requestedRoute
+      ? group.routes.filter((route) => route.path === requestedRoute)
+      : startAtIndex >= 0 ? group.routes.slice(startAtIndex) : group.routes;
 
-  test("secondary app routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(1_200_000);
-    await runRoutes(page, protectedSecondaryRoutes, true);
-  });
-
-  test("onboarding and profile setup routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(900_000);
-    await runRoutes(page, onboardingRoutes, true);
-  });
-
-  test("social rooms and focused game routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(480_000);
-    await runRoutes(page, socialAndGameRoutes, true);
-  });
-
-  test("admin workspace has basic responsive smoke coverage", async ({ page }) => {
-    test.setTimeout(900_000);
-    await runRoutes(page, adminRoutes, true);
-  });
-
-  test("remaining static and preview routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(1_800_000);
-    await runRoutes(page, remainingStaticRoutes, true);
-  });
+    // Small independent batches let CI shard all routes without dropping viewports.
+    for (let offset = 0; offset < routes.length; offset += 5) {
+      const batch = routes.slice(offset, offset + 5);
+      test(`${group.name} routes ${offset + 1}-${offset + batch.length} adapt across responsive viewports`, async ({ page }) => {
+        test.setTimeout(300_000);
+        await runRoutes(page, batch, group.signedIn);
+      });
+    }
+  }
 });
