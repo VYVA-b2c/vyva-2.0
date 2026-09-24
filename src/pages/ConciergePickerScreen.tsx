@@ -38,6 +38,7 @@ import {
   type ConciergeFlowReference,
 } from "../../shared/conciergeFlowRegistry";
 import { apiFetch } from "@/lib/queryClient";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 
 export type ConciergePickerCategory = "get-help" | "order-in" | "book-appointments" | "discover";
 
@@ -433,6 +434,7 @@ type ConciergePickerScreenProps = {
 export default function ConciergePickerScreen({ category, backPath = "/concierge" }: ConciergePickerScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -536,7 +538,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
               onClick={() => handleOptionSelect(option)}
               disabled={profileLoading}
               aria-label={`${label}. ${detail}`}
-              className="vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border border-[#EFE7F7] bg-white px-4 py-3.5 text-left shadow-[0_12px_28px_rgba(63,45,35,0.065)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5"
+              className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}
             >
               <CanonicalFlowIcon
                 icon={Icon}
@@ -545,27 +547,27 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
                 className="!h-14 !w-14 !rounded-[20px]"
               />
               <span className="min-w-0 flex-1">
-                <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[19px] sm:text-[20px]">
+                <span className={`block font-body text-[18px] font-black leading-tight min-[390px]:text-[19px] sm:text-[20px] ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
                   {label}
                 </span>
-                <span className="mt-1 block truncate font-body text-[14px] font-bold leading-snug text-vyva-text-3 sm:text-[15px]">
+                <span className={`mt-1 block truncate font-body text-[14px] font-bold leading-snug sm:text-[15px] ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-3"}`}>
                   {detail}
                 </span>
               </span>
-              <ChevronRight size={20} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+              <ChevronRight size={20} strokeWidth={2.6} className={`flex-shrink-0 ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`} aria-hidden="true" />
             </button>
           );
         })}
       </div>
       {blockedOption ? (
-        <section className="mt-5 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4" data-testid="panel-concierge-service-setup">
+        <section className={`mt-5 rounded-[24px] border p-4 ${isDark ? "border-[#4B8F85] bg-[#102B29]" : "border-[#99F6E4] bg-[#F0FDFA]"}`} data-testid="panel-concierge-service-setup">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
             {isSpanish ? "Configuracion necesaria" : "Setup needed"}
           </p>
-          <h2 className="mt-1 font-body text-[20px] font-black text-vyva-text-1">
+          <h2 className={`mt-1 font-body text-[20px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
             {isSpanish ? `Prepara ${blockedOption.labelFallback} primero` : `Set up ${blockedOption.labelFallback} first`}
           </h2>
-          <p className="mt-2 font-body text-[14px] font-bold text-vyva-text-2">
+          <p className={`mt-2 font-body text-[14px] font-bold ${isDark ? "text-[#D7CDD9]" : "text-vyva-text-2"}`}>
             {isSpanish ? "VYVA solo pide los datos necesarios para este servicio." : "VYVA only asks for the details this service needs."}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -579,7 +581,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
                 {isSpanish ? "Anadir proveedor" : "Add trusted provider"}
               </button>
             ) : null}
-            <button type="button" onClick={() => setBlockedOption(null)} className="vyva-tap min-h-[44px] rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[14px] font-black text-[#0F766E]">
+            <button type="button" onClick={() => setBlockedOption(null)} className={`vyva-tap min-h-[44px] rounded-full border px-4 font-body text-[14px] font-black ${isDark ? "border-[#4B8F85] bg-white/[0.08] text-[#A7F3D0]" : "border-[#99F6E4] bg-white text-[#0F766E]"}`}>
               {isSpanish ? "Ahora no" : "Not now"}
             </button>
           </div>

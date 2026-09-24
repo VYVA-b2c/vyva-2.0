@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ConciergePickerScreen from "./ConciergePickerScreen";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
@@ -75,11 +75,24 @@ async function waitForPickerReady(testId: string) {
 }
 
 describe("ConciergePickerScreen", () => {
+  beforeEach(() => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
+  });
+
   it("inherits the persisted dark theme", () => {
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
     renderPicker("get-help");
 
     expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "dark");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-white/[0.075]");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).not.toHaveClass("bg-white");
+  });
+
+  it("keeps light cards on the light theme", () => {
+    renderPicker("get-help");
+
+    expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-white");
   });
 
   it("shows the four Get Help options and routes to the home-service task", async () => {
