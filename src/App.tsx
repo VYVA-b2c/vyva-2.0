@@ -793,6 +793,27 @@ function primeHomeMasterPreviewData() {
       },
     ],
   });
+  queryClient.setQueryData(["/api/games/progress"], {
+    summary: {
+      totalSessions: 4,
+      completedSessions: 4,
+      streakDays: 2,
+      bestStreakDays: 2,
+      lastPlayedAt: "2026-09-24T09:45:00.000Z",
+      totalDurationSeconds: 720,
+    },
+    today: {
+      completedCount: 2,
+      activityTypes: ["word_recall", "sequence_memory"],
+      domains: ["memory", "attention"],
+    },
+    history: [
+      { activityType: "word_recall", domain: "memory", completed: true, score: 840, difficulty: 6, playedAt: "2026-09-24T09:45:00.000Z" },
+      { activityType: "sequence_memory", domain: "attention", completed: true, score: 610, difficulty: 3, playedAt: "2026-09-24T09:20:00.000Z" },
+      { activityType: "number_trails", domain: "executive_function", completed: true, score: 760, difficulty: 4, playedAt: "2026-09-23T10:30:00.000Z" },
+      { activityType: "breath_garden", domain: "sensory", completed: true, score: 420, difficulty: 2, playedAt: "2026-09-22T18:10:00.000Z" },
+    ],
+  });
 }
 
 function HomeMasterPreviewRoute() {
