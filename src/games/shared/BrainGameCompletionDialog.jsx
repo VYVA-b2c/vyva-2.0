@@ -154,8 +154,8 @@ export default function BrainGameCompletionDialog({
 
         {visibleMetrics.length > 0 && (
           <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), usesDarkSurface ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
-            {visibleMetrics.map((item) => (
-              <div key={item.label} className={cn("px-3 py-4", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
+            {visibleMetrics.map((item, index) => (
+              <div key={item.label} className={cn("px-3 py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
                 <dt className={cn("text-[12px] font-semibold uppercase", usesDarkSurface ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
                 <dd className="mt-1 text-[24px] font-extrabold leading-none text-inherit">{item.value}</dd>
               </div>
