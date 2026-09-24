@@ -1096,6 +1096,17 @@ async function expectResponsiveRoute(
     .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
     .catch(() => undefined);
 
+  if (route.path === "/memory-games") {
+    const choices = page.locator("#memory-game-choices");
+    const more = choices.getByRole("button", { name: "More", exact: true });
+    await expect(more).toBeVisible();
+    await expect(choices.getByRole("button")).toHaveCount(5);
+    await more.click();
+    await expect(choices.getByRole("button", { name: "Story Recall", exact: true })).toBeVisible();
+    await choices.getByRole("button", { name: "Show less", exact: true }).click();
+    await expect(choices.getByRole("button")).toHaveCount(5);
+  }
+
   const audit = await page.evaluate(() => {
     const root = document.documentElement;
     const bodyText = document.body.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -1297,7 +1308,7 @@ const protectedGameIndexRoutes: ResponsiveRoute[] = [
   { name: "learn something new", path: "/learn", expectedLayout: "wide" },
   { name: "attention boosters", path: "/attention-boosters", expectedLayout: "wide" },
   { name: "executive function", path: "/executive-function", expectedLayout: "wide" },
-  { name: "memory games", path: "/memory-games", expectedLayout: "wide" },
+  { name: "memory games", path: "/memory-games", expectedLayout: "wide", minTextLength: 50 },
 ];
 
 const protectedSecondaryRoutes: ResponsiveRoute[] = [
