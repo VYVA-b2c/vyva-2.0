@@ -129,6 +129,7 @@ function useLatestRef(value) {
 export default function CuriousMinds({
   userId,
   onExit,
+  previewData = null,
   assessmentPractice = null,
   onAssessmentPracticeComplete,
   onAssessmentPracticeReturn,
@@ -181,6 +182,12 @@ export default function CuriousMinds({
     : t("brainCoach.progression.monthlyPracticeHeld", "Monthly practice held");
 
   const loadTodaysContent = useCallback(async () => {
+    if (previewData) {
+      setHook(previewData.hook);
+      setPrompt(previewData.prompt);
+      setUserState(previewData.state ?? getDefaultCuriousMindsUserState(userId || "preview-user"));
+      return;
+    }
     if (!userId) throw new Error("Curious Minds needs a signed-in user.");
 
     const response = await apiFetch(`/api/games/curious-minds/content?language=${encodeURIComponent(gameLanguage)}`);
@@ -193,7 +200,7 @@ export default function CuriousMinds({
     setHook(payload.hook);
     setPrompt(payload.prompt);
     setUserState(payload.state ?? getDefaultCuriousMindsUserState(userId));
-  }, [gameLanguage, t, userId]);
+  }, [gameLanguage, previewData, t, userId]);
 
   const loadGame = useCallback(async () => {
     setScreen("loading");
@@ -220,6 +227,8 @@ export default function CuriousMinds({
   const saveSession = useCallback(async ({ completed, abandoned }) => {
     if (sessionSavedRef.current || !userId) return null;
     sessionSavedRef.current = true;
+
+    if (previewData) return null;
 
     const currentHook = hookRef.current;
     const currentPrompt = promptRef.current;
@@ -264,6 +273,7 @@ export default function CuriousMinds({
     hookRef,
     ideasRef,
     promptRef,
+    previewData,
     userId,
   ]);
 

@@ -363,7 +363,7 @@ function SectionRouter() {
   );
 }
 
-function BrainCoachActivityRoute() {
+function BrainCoachActivityRoute({ preview = false }: { preview?: boolean }) {
   const { activityId } = useParams<{ activityId: string }>();
   const activity = activityId ? getBrainCoachActivity(activityId) : undefined;
 
@@ -387,7 +387,7 @@ function BrainCoachActivityRoute() {
     case "face-name-match":
       return <AppShell><FaceNameMatchRoute /></AppShell>;
     case "curious-minds":
-      return <AppShell><CuriousMindsRoute /></AppShell>;
+      return <AppShell>{preview ? <CuriousMindsPreviewRoute /> : <CuriousMindsRoute />}</AppShell>;
     case "dual-task-walk":
       return <DualTaskWalkRoute />;
     case "number-trails":
@@ -475,8 +475,33 @@ function CuriousMindsPreviewRoute() {
 
   return (
     <CuriousMinds
-      userId="dev-user"
-      onExit={() => navigate("/login")}
+      userId="preview-user"
+      previewData={{
+        state: {
+          user_id: "preview-user",
+          current_level: 2,
+          streak_days: 3,
+          last_streak_date: "2026-09-24",
+          updated_at: "2026-09-24T09:45:00.000Z",
+        },
+        hook: {
+          id: "preview-hook",
+          fact_prompt: "Why do flamingos often stand on one leg?",
+          fact_answer: "It helps them rest while using less energy.",
+          category: "animals",
+          language: "en",
+          is_active: true,
+        },
+        prompt: {
+          id: "preview-prompt",
+          prompt_type: "alternate_uses",
+          prompt_text: "How many different uses can you think of for an umbrella, besides rain?",
+          topic: "umbrella",
+          language: "en",
+          is_active: true,
+        },
+      }}
+      onExit={() => navigate("/dev/home-master/brain")}
     />
   );
 }
@@ -1173,7 +1198,7 @@ const App = () => (
                     <Route path="/dev/brain/focus" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                     <Route path="/dev/brain/think" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                     <Route path="/dev/brain/calm" element={<AppShell><SensesPage /></AppShell>} />
-                    <Route path="/dev/brain/activity/:activityId" element={<BrainCoachActivityRoute />} />
+                    <Route path="/dev/brain/activity/:activityId" element={<BrainCoachActivityRoute preview />} />
                     <Route path="/dev/brain/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                     <Route path="/dev/brain/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/brain-coach/focus" /></AppShell>} />
                     <Route path="/dev/home-master/community" element={<AppShell><AdvisorHub preview /></AppShell>} />
