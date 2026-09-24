@@ -45,6 +45,10 @@ import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
 import { useLanguage } from "@/i18n";
 import { CanonicalDetailFlowShell } from "@/components/CanonicalDetailFlowShell";
+import {
+  CANONICAL_MENU_HEADER_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -422,10 +426,10 @@ function PrototypeTopbar({
       <div>{left}</div>
       <div className="min-w-0 text-center">
         {title ? (
-          <h1 className={`truncate text-[24px] leading-tight text-inherit ${
+          <h1 className={`truncate text-inherit ${
             titleTypography === "body"
               ? "font-body font-extrabold tracking-[-0.025em]"
-              : "font-display font-semibold tracking-[-0.03em]"
+              : CANONICAL_MENU_HEADER_CLASS
           }`}>{title}</h1>
         ) : null}
       </div>
@@ -554,7 +558,6 @@ function RowCard({ item }: { item: RowItem }) {
   const Icon = item.icon;
   const palette = rowTonePalettes[item.tone ?? "neutral"];
   const isAlert = item.emphasis === "alert";
-  const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
   const subtitleSize = isLarge ? 15 : 13.5;
   const metaSize = isLarge ? 12 : 11;
 
@@ -587,7 +590,7 @@ function RowCard({ item }: { item: RowItem }) {
         <VyvaIcon icon={Icon} glyph={item.brandIcon} accent={item.iconAccent} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone="brand" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-display font-semibold leading-[1.03] tracking-[-0.025em]" style={{ fontSize: titleSize }}>
+        <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
           {item.title}
         </span>
         <span
@@ -631,13 +634,6 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
   const { isLarge } = useReadableTextSize();
   const Icon = item.icon;
   const palette = rowTonePalettes[item.tone ?? "neutral"];
-  const titleSize = item.compactTitle
-    ? isLarge
-      ? "text-[20px] md:text-[22px]"
-      : "text-[18px] md:text-[22px]"
-    : isLarge
-      ? "text-[22px] md:text-[25px]"
-      : "text-[20px] md:text-[24px]";
   const subtitleSize = isLarge ? "text-[15px] md:text-[16px]" : "text-[13.5px] md:text-[14px]";
   const metaSize = isLarge ? "text-[12px] md:text-[13px]" : "text-[11px] md:text-[12px]";
 
@@ -677,7 +673,7 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
         />
       </span>
       <span className="min-w-0 self-center md:self-start">
-        <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
+        <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
           {item.title}
         </span>
         <span

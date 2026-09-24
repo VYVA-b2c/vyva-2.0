@@ -15,6 +15,7 @@ import { BRAIN_COACH_MODULES, getBrainCoachActivitiesForModule } from "@/games/b
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { cn } from "@/lib/utils";
+import { CANONICAL_MENU_HEADER_CLASS } from "@/design/canonicalMenuTypography";
 
 const MODULE_CHIPS = {
   memory: { background: "#F1EAFF", color: "#7C3AED" },
@@ -75,7 +76,7 @@ export default function MindMemoryScreen() {
             <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
           </button>
 
-          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+          <h1 className={`truncate text-center text-inherit ${CANONICAL_MENU_HEADER_CLASS}`}>
             {t("home.master.cards.mindMemoryShortTitle", "Brain Power")}
           </h1>
 

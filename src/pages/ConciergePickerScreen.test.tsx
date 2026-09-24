@@ -100,6 +100,8 @@ describe("ConciergePickerScreen", () => {
 
     expect(screen.getByText("Get Help")).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveTextContent("Home Repair");
+    expect(screen.getByText("Home Repair")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
+    expect(screen.getByText("Plumber, electrician, cleaning")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
     expect(screen.getByTestId("button-concierge-picker-healthcare")).toHaveTextContent("Healthcare");
     expect(screen.getByTestId("button-concierge-picker-admin-service")).toHaveTextContent("Admin Service");
     expect(screen.getByTestId("button-concierge-picker-home-care")).toHaveTextContent("Home Care");
