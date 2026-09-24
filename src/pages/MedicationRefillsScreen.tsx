@@ -218,7 +218,7 @@ export default function MedicationRefillsScreen() {
 
   const queryUrl = `/api/meds/refills/${encodeURIComponent(profileId)}`;
   const refillQuery = useQuery<RefillResponse>({ queryKey: [queryUrl] });
-  const canManageInventory = refillQuery.data?.permissions.manage_inventory !== false;
+  const canManageInventory = refillQuery.data?.permissions?.manage_inventory !== false;
   const medicines = useMemo(
     () => [...(refillQuery.data?.medicines ?? [])].sort((left, right) => priority(left) - priority(right)),
     [refillQuery.data?.medicines],

@@ -62,12 +62,16 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
-  it("routes Community to the current expert-led Community hub", () => {
-    renderMenu();
+  it("routes Community and Concierge to their canonical destinations", () => {
+    const community = renderMenu();
 
     fireEvent.click(screen.getByTestId("menu-tile-community"));
-
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/social-rooms/experts");
+    community.unmount();
+
+    renderMenu();
+    fireEvent.click(screen.getByTestId("menu-tile-concierge"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/concierge");
   });
 
   it("can override tile paths for the isolated Home/Nav design preview", () => {

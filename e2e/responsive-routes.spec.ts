@@ -826,7 +826,15 @@ async function expectResponsiveRoute(
 
   const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
   if (expectedShell) {
-    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
+    try {
+      await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
+    } catch (error) {
+      const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      throw new Error(
+        `${route.path} did not mount its app shell (url: ${page.url()}, body: ${bodyText.slice(0, 500) || "empty"}, console: ${relevantConsoleMessages().join(" | ") || "none"})`,
+        { cause: error },
+      );
+    }
   }
 
   await page
@@ -866,7 +874,9 @@ async function expectResponsiveRoute(
 
     if (viewport.width >= 1024 && route.expectedLayout === "wide") {
       expect(shellBox!.width).toBeGreaterThan(700);
-      expect(shellBox!.width).toBeLessThanOrEqual(922);
+      // Wide routes use either the 920px desktop shell or the responsive
+      // 430/720/960px canonical shell used by Health and related surfaces.
+      expect(shellBox!.width).toBeLessThanOrEqual(962);
     }
 
     if (viewport.width >= 768 && route.expectedLayout === "compact") {
@@ -880,10 +890,13 @@ async function expectResponsiveRoute(
   }
 
   if (route.requiresInteractive ?? true) {
-    const interactive = page.locator(
+    const dialogInteractive = page.locator(
+      "[role='dialog'] button:visible:not(:disabled),[role='dialog'] a[href]:visible,[role='dialog'] input:visible:not(:disabled),[role='dialog'] textarea:visible:not(:disabled),[role='dialog'] select:visible:not(:disabled),[role='dialog'] [role='button']:visible:not([aria-disabled='true'])",
+    );
+    const pageInteractive = page.locator(
       "button:visible,a[href]:visible,input:visible,textarea:visible,select:visible,[role='button']:visible",
     );
-    const firstControl = interactive.first();
+    const firstControl = (await dialogInteractive.count()) > 0 ? dialogInteractive.first() : pageInteractive.first();
     await firstControl.waitFor({ state: "visible", timeout: 5000 });
     await firstControl.scrollIntoViewIfNeeded();
     await expect(firstControl).toBeVisible();
@@ -915,7 +928,10 @@ async function runRoutes(page: Page, routes: ResponsiveRoute[], signedIn: boolea
   await installApi(page, session);
   const consoleRecorder = attachConsoleRecorder(page);
 
-  for (const route of routes) {
+  const requestedRoute = process.env.RESPONSIVE_ROUTE;
+  const selectedRoutes = requestedRoute ? routes.filter((route) => route.path === requestedRoute) : routes;
+
+  for (const route of selectedRoutes) {
     session.role = route.role ?? "user";
     session.signedIn = signedIn || session.role === "admin";
     session.onboardingStage = route.onboardingStage ?? "complete";
@@ -947,21 +963,40 @@ const protectedCoreRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
+  { name: "health hub", path: "/health", expectedLayout: "wide" },
+  { name: "health dashboard", path: "/health/dashboard", expectedLayout: "wide" },
+  { name: "prevention", path: "/health/prevention", expectedLayout: "wide" },
+  { name: "prevention plan", path: "/health/prevention-plan", expectedLayout: "wide" },
+  { name: "daily check-in", path: "/health/check-in", expectedLayout: "wide" },
+  { name: "check-in history", path: "/health/check-ins", expectedLayout: "wide" },
+  { name: "symptom check", path: "/health/symptom-check", expectedLayout: "wide" },
   { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
+  { name: "my medicines", path: "/meds/my-medicines", expectedLayout: "wide" },
+  { name: "medicine interactions", path: "/meds/interactions", expectedLayout: "wide" },
+  { name: "medicine refills", path: "/meds/refills", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },
   { name: "reports", path: "/informes", expectedLayout: "wide" },
   { name: "report detail", path: "/informes/triage-smoke", expectedLayout: "wide" },
 ];
 
 const protectedUtilityRoutes: ResponsiveRoute[] = [
+  { name: "menu", path: "/menu", expectedLayout: "wide" },
   { name: "mind memory", path: "/mind-memory", expectedLayout: "wide" },
   { name: "activity", path: "/activity", expectedLayout: "wide" },
   { name: "concierge", path: "/concierge", expectedLayout: "wide" },
+  { name: "concierge get help", path: "/concierge/get-help", expectedLayout: "wide" },
+  { name: "concierge order in", path: "/concierge/order-in", expectedLayout: "wide" },
+  { name: "concierge appointments", path: "/concierge/book-appointments", expectedLayout: "wide" },
+  { name: "concierge discover", path: "/concierge/discover", expectedLayout: "wide" },
   { name: "shopping helper", path: "/concierge/shopping", expectedLayout: "wide" },
   { name: "settings", path: "/settings", expectedLayout: "wide" },
   { name: "account settings", path: "/settings/account", expectedLayout: "wide" },
+  { name: "health devices settings", path: "/settings/health-devices", expectedLayout: "wide" },
   { name: "notifications settings", path: "/settings/notifications", expectedLayout: "wide" },
+  { name: "scheduled support settings", path: "/settings/scheduled-support", expectedLayout: "wide" },
+  { name: "subscription settings", path: "/settings/subscription", expectedLayout: "wide" },
+  { name: "trusted help settings", path: "/settings/trusted-help", expectedLayout: "wide" },
   { name: "history", path: "/history", expectedLayout: "wide" },
   { name: "companions", path: "/companions", expectedLayout: "wide" },
   { name: "caregiver", path: "/caregiver" },
@@ -985,6 +1020,10 @@ const protectedRoutes = [
 
 const socialAndGameRoutes: ResponsiveRoute[] = [
   { name: "social hub", path: "/social-rooms", expectedLayout: "wide" },
+  { name: "community experts", path: "/social-rooms/experts", expectedLayout: "wide" },
+  { name: "community activities", path: "/social-rooms/activities", expectedLayout: "wide" },
+  { name: "community rooms", path: "/social-rooms/join-in", expectedLayout: "wide" },
+  { name: "share a story", path: "/social-rooms/share", expectedLayout: "wide" },
   { name: "games room", path: "/social-rooms/games-room", expectedLayout: "wide", minTextLength: 60 },
   { name: "music room", path: "/social-rooms/music-room", expectedLayout: "wide" },
   { name: "reading room", path: "/social-rooms/reading-room", expectedLayout: "wide" },
@@ -1015,12 +1054,12 @@ test.describe("responsive route smoke", () => {
   });
 
   test("protected app routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(540_000);
+    test.setTimeout(900_000);
     await runRoutes(page, protectedRoutes, true);
   });
 
   test("social rooms and focused game routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(260_000);
+    test.setTimeout(480_000);
     await runRoutes(page, socialAndGameRoutes, true);
   });
 

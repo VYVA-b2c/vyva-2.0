@@ -116,6 +116,14 @@ describe("AdvisorHub", () => {
     );
   });
 
+  it("renders the empty state safely for an incomplete transitional response", () => {
+    queryMock.mockReturnValue({ data: {}, isLoading: false, isError: false });
+    renderHub();
+
+    expect(screen.getByText("Your experts are not available right now.")).toBeInTheDocument();
+    expect(screen.getByTestId("advisor-hub-screen")).toBeInTheDocument();
+  });
+
   it("paginates four expert cards at a time on mobile", () => {
     renderHub();
 

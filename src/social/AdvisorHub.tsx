@@ -158,10 +158,10 @@ export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
           <div className="advisor-team-grid" data-testid="advisor-list">
             {!preview && query.isLoading ? (
               <div className="rounded-[24px] border border-[#E8E2F0] bg-white px-5 py-6 font-body text-[16px] font-bold text-vyva-text-2">
-                {query.data?.ui.loading ?? "Preparing your experts..."}
+                {query.data?.ui?.loading ?? "Preparing your experts..."}
               </div>
             ) : !orderedAdvisors.length ? (
-              <EmptyState title={query.data?.ui.empty ?? "Your experts are not available right now."} />
+              <EmptyState title={query.data?.ui?.empty ?? "Your experts are not available right now."} />
             ) : (
               orderedAdvisors.map((advisor) => (
                 <AdvisorCard
