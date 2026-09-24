@@ -13,6 +13,8 @@ import {
 } from "./shared/brainCoachProgression";
 import {
   clampFaceNameTier,
+  FACE_NAME_ADVANCE_ACCURACY,
+  selectFreshFaceNameGroup,
   computeFaceNameScore,
   getFaceNameDistractorCount,
   getFaceNameFaceCount,
@@ -333,7 +335,7 @@ function practiceSet(language, tier = 1) {
       face_count: faceCount,
       difficulty_tier: currentTier,
       recall_modes: getFaceNameRecallModes(currentTier),
-      study_seconds: getFaceNameStudySeconds(currentTier),
+      study_seconds: getFaceNameStudySeconds(),
       language: normalizeFaceLanguage(language),
       is_active: true,
     },
@@ -414,6 +416,8 @@ export default function FaceNameMatch({ userId, onExit }) {
   const feedbackTimerRef = useRef(null);
   const sessionSavedRef = useRef(false);
   const startedAtRef = useRef(Date.now());
+  const previousPeopleRef = useRef([]);
+  const practiceStateRef = useRef(null);
 
   const recallModes = useMemo(() => {
     const modes = asArray(selectedSet?.recall_modes);
@@ -428,7 +432,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   const questionNumber = recallModeIndex * Math.max(1, faceCount) + recallIndex + 1;
 
   const loadUserState = useCallback(async () => {
-    if (!userId) return defaultUserState(userId);
+    if (!userId) return practiceStateRef.current ?? defaultUserState(userId);
 
     const { data, error } = await gameData
       .table("face_name_user_state")
@@ -531,7 +535,23 @@ export default function FaceNameMatch({ userId, onExit }) {
     };
   }, [faceLanguage]);
 
-  const loadGame = useCallback(async () => {
+  const loadGame = useCallback(async (skipIntro = false) => {
+    const freshRound = (data) => {
+      const selected = previousPeopleRef.current.length ? selectFreshFaceNameGroup(
+        shuffle([...data.selectedPersonas, ...data.distractorPersonas]),
+        data.selectedPersonas.length,
+        previousPeopleRef.current,
+      ) : data.selectedPersonas;
+      const ids = new Set(selected.map((person) => person.id));
+      const changed = data.selectedPersonas.some((person) => !ids.has(person.id));
+      previousPeopleRef.current = [...ids];
+      return {
+        ...data,
+        selectedSet: { ...data.selectedSet, id: changed ? null : data.selectedSet.id, isPractice: data.note === "practice", persona_ids: [...ids] },
+        selectedPersonas: selected,
+        distractorPersonas: [...data.selectedPersonas, ...data.distractorPersonas].filter((person) => !ids.has(person.id)),
+      };
+    };
     setScreen("loading");
     setLoadNote("");
     setRecallLog([]);
@@ -545,22 +565,26 @@ export default function FaceNameMatch({ userId, onExit }) {
 
     try {
       const state = await loadUserState();
-      const data = await loadSet(state);
+      const data = freshRound(await loadSet(state));
       setUserState(state);
       setSelectedSet(data.selectedSet);
       setPersonas(data.selectedPersonas);
       setDistractors(data.distractorPersonas);
       setLoadNote(data.note === "practice" ? text.practiceNote : "");
-      setScreen("intro");
+      setStudyCountdown(getFaceNameStudySeconds());
+      startedAtRef.current = Date.now();
+      setScreen(skipIntro ? "study" : "intro");
     } catch {
       const fallbackState = defaultUserState(userId);
-      const data = practiceSet(faceLanguage, fallbackState.current_tier);
+      const data = freshRound(practiceSet(faceLanguage, fallbackState.current_tier));
       setUserState(fallbackState);
       setSelectedSet(data.selectedSet);
       setPersonas(data.selectedPersonas);
       setDistractors(data.distractorPersonas);
       setLoadNote(text.practiceNote);
-      setScreen("intro");
+      setStudyCountdown(getFaceNameStudySeconds());
+      startedAtRef.current = Date.now();
+      setScreen(skipIntro ? "study" : "intro");
     }
   }, [faceLanguage, loadSet, loadUserState, text.practiceNote, userId]);
 
@@ -585,7 +609,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   useEffect(() => {
     if (screen !== "study" || !selectedSet) return undefined;
 
-    const seconds = Number(selectedSet.study_seconds ?? getFaceNameStudySeconds(currentTier));
+    const seconds = getFaceNameStudySeconds();
     const startedAt = Date.now();
     const durationMs = seconds * 1000;
     setStudyCountdown(seconds);
@@ -670,7 +694,7 @@ export default function FaceNameMatch({ userId, onExit }) {
     let consecutiveWins = 0;
     let consecutiveLosses = 0;
 
-    if (result.overallAccuracyPct >= 80) {
+    if (result.overallAccuracyPct >= FACE_NAME_ADVANCE_ACCURACY) {
       consecutiveWins = Number(previous.consecutive_wins ?? 0) + 1;
       consecutiveLosses = 0;
     } else if (result.overallAccuracyPct < 50) {
@@ -688,7 +712,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       sessionsAtTier = 0;
       consecutiveWins = 0;
       consecutiveLosses = 0;
-    } else if (result.overallAccuracyPct >= 50 && result.overallAccuracyPct < 80) {
+    } else if (result.overallAccuracyPct >= 50 && result.overallAccuracyPct < FACE_NAME_ADVANCE_ACCURACY) {
       consecutiveWins = 0;
       consecutiveLosses = 0;
     }
@@ -709,11 +733,12 @@ export default function FaceNameMatch({ userId, onExit }) {
     };
 
     setUserState(next);
-    if (userId && selectedSet?.id) {
+    practiceStateRef.current = next;
+    if (userId && !selectedSet?.isPractice) {
       await gameData.table("face_name_user_state").upsert(next, { onConflict: "user_id" });
     }
     return next;
-  }, [selectedSet?.id, userId, userState]);
+  }, [selectedSet?.isPractice, userId, userState]);
 
   const completeSession = useCallback(async (nextLog) => {
     const result = computeFaceNameScore(nextLog, faceCount, recallModes);
@@ -772,11 +797,11 @@ export default function FaceNameMatch({ userId, onExit }) {
   };
 
   const handleReplay = () => {
-    void loadGame();
+    void loadGame(true);
   };
 
   const handleContinue = () => {
-    void loadGame();
+    void loadGame(true);
   };
 
   const faceOptions = useMemo(() => {
@@ -857,7 +882,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   }
 
   if (screen === "study") {
-    const progress = Math.max(0, Math.min(100, (studyCountdown / Number(selectedSet.study_seconds ?? 45)) * 100));
+    const progress = Math.max(0, Math.min(100, (studyCountdown / getFaceNameStudySeconds()) * 100));
     const pulse = studyCountdown <= 5;
     const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
@@ -995,6 +1020,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   const resultBand = getBrainCoachLevelBand(resultTier);
   const progressWidth = Math.min(100, Math.max(0, ((userState?.consecutive_wins ?? 0) / 3) * 100));
   const promoted = Boolean(result.currentTier && result.currentTier > currentTier);
+  const canContinue = result.overallAccuracyPct >= FACE_NAME_ADVANCE_ACCURACY;
   const continueLabel = promoted
     ? text.continueToLevel.replace("{level}", String(result.currentTier))
     : text.continueAction;
@@ -1016,12 +1042,9 @@ export default function FaceNameMatch({ userId, onExit }) {
           { label: text.score, value: result.score },
           { label: text.streak, value: new Intl.NumberFormat(language, { style: "unit", unit: "day", unitDisplay: "long" }).format(result.streakDays ?? userState?.streak_days ?? 1) },
         ]}
-        continueLabel={continueLabel}
-        continueHint={text.nextRecommended}
-        replayLabel={text.playAgain}
+        continueLabel={canContinue ? continueLabel : text.playAgain}
         anotherLabel={text.playAnotherGame}
-        onContinue={handleContinue}
-        onReplay={handleReplay}
+        onContinue={canContinue ? handleContinue : handleReplay}
         onAnother={handleExit}
         details={
           <div className="grid gap-3">
