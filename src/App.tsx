@@ -779,6 +779,20 @@ function primeHomeMasterPreviewData() {
       minutesUntil: 25,
     },
   });
+  queryClient.setQueryData(["/api/meds/adherence-report/today"], {
+    medications: [
+      {
+        id: "preview-monoprost",
+        medication_name: "Monoprost",
+        dosage: "1 drop",
+        frequency: "once_daily",
+        scheduled_times: ["20:00"],
+        takenToday: false,
+        takenCountToday: 0,
+        scheduledCountToday: 1,
+      },
+    ],
+  });
 }
 
 function HomeMasterPreviewRoute() {
@@ -962,6 +976,14 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
           previewConditions={["hypertension"]}
           backPath="/dev/home-master/health"
         />
+      </AppShell>
+    );
+  }
+
+  if (kind === "medicines") {
+    return (
+      <AppShell>
+        <MedsScreen />
       </AppShell>
     );
   }
