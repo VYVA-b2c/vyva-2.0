@@ -2032,7 +2032,7 @@ const en = {
       drawHint: "Slide your finger along the path you remember",
       done: "Done",
       resultGreat: "Great work, explorer!",
-      resultTry: "Nearly there! Try again tomorrow.",
+      resultTry: "Try again",
       accuracy: "Accuracy",
       streak: "Streak",
       score: "Score",

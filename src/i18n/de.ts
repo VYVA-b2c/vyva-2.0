@@ -1568,7 +1568,7 @@ const de = {
       drawHint: "Ziehe den Finger uber den Weg, an den du dich erinnerst",
       done: "Fertig",
       resultGreat: "Sehr gut gemacht, Entdecker!",
-      resultTry: "Fast geschafft! Versuche es morgen wieder.",
+      resultTry: "Versuche es noch einmal",
       accuracy: "Genauigkeit",
       streak: "Serie",
       score: "Punkte",
