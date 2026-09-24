@@ -1136,8 +1136,14 @@ export default function VitalsTracker({
   const [selectedAddSignal, setSelectedAddSignal] = useState<SignalKey | null>(null);
 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
-  const showDashboard = useCallback(() => setScreen("dashboard"), []);
-  const showAddReading = useCallback(() => setScreen("add"), []);
+  const showDashboard = useCallback(() => {
+    setSelectedAddSignal(null);
+    setScreen("dashboard");
+  }, []);
+  const showAddReading = useCallback(() => {
+    setSelectedAddSignal(null);
+    setScreen("add");
+  }, []);
   const captureSignal = useCallback((signal: SignalKey) => {
     setSelectedAddSignal(signal);
     setScreen("add");
