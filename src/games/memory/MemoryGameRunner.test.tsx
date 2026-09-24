@@ -343,6 +343,7 @@ describe("MemoryGameRunner word recall", () => {
     renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
+    expect(screen.queryByText("Turn over two cards at a time.")).not.toBeInTheDocument();
     expect(screen.queryByText("Different pictures? Both cards turn back. Try another pair.")).not.toBeInTheDocument();
     expect(screen.getByText("Find all 3 pairs to finish. There is no timer.")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();

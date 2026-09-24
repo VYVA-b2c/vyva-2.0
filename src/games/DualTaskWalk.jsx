@@ -229,7 +229,7 @@ function NumberPicker({ value, min, max, onChange, ariaLabel, increaseLabel, dec
 
   return (
     <div
-      className="grid h-16 w-[156px] grid-cols-[48px_60px_48px] overflow-hidden rounded-full border bg-white sm:h-[72px] sm:w-[184px] sm:grid-cols-[56px_72px_56px]"
+      className="grid h-14 w-full min-w-0 max-w-[184px] grid-cols-[44px_minmax(0,1fr)_44px] overflow-hidden rounded-full border bg-white sm:h-[72px] sm:grid-cols-[56px_minmax(0,1fr)_56px]"
       style={{ borderColor: BRAND.border }}
       onWheel={(event) => {
         event.preventDefault();
@@ -1022,8 +1022,8 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
                   <span>{text.mathTask}</span>
                 </div>
               ) : (
-                <div className="mx-auto grid w-full max-w-[680px] grid-cols-[auto_156px_64px] items-center justify-center gap-3 sm:grid-cols-[auto_184px_72px] sm:gap-5">
-                  <p className="whitespace-nowrap text-[30px] font-bold leading-none sm:text-[42px]">
+                <div data-testid="dual-task-math-controls" className="mx-auto grid w-full min-w-0 max-w-[680px] grid-cols-[minmax(0,184px)_56px] items-center justify-center gap-3 sm:grid-cols-[minmax(0,1fr)_184px_72px] sm:gap-5">
+                  <p className="col-span-2 text-center text-[28px] font-bold leading-tight sm:col-span-1 sm:text-[36px]">
                     {currentMinuend} − 7 =
                   </p>
                     <NumberPicker
@@ -1044,7 +1044,7 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
                     disabled={!pickerTouched}
                     aria-label={text.confirm}
                     title={text.confirm}
-                    className="inline-flex size-16 items-center justify-center rounded-full text-white transition-opacity disabled:opacity-45 sm:size-[72px]"
+                    className="inline-flex size-14 items-center justify-center rounded-full text-white transition-opacity disabled:opacity-45 sm:size-[72px]"
                     style={{ background: pickerTouched ? BRAND.purple : "#9CA3AF" }}
                   >
                     <Check size={32} strokeWidth={3} />
@@ -1059,16 +1059,16 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
               }`}
               style={{ borderColor: lastTapResult === "hit" ? "#16A34A" : lastTapResult === "fp" ? "#DC2626" : BRAND.border }}
             >
-              <div className="flex min-h-[126px] flex-1 items-center justify-center gap-4 py-2 sm:min-h-[150px] sm:gap-6">
+              <div className="flex min-h-[126px] min-w-0 flex-1 items-center justify-center gap-3 py-2 sm:min-h-[150px] sm:gap-6">
                 {symbolsComplete ? (
                   <p className="text-center text-[24px] font-bold sm:text-[32px]" style={{ color: BRAND.purple }}>{text.visualDone}</p>
                 ) : (
                   <>
-                    <div className="flex size-[92px] items-center justify-center rounded-[24px] bg-[#F5F1F7] text-[46px] font-bold leading-none text-[#756680] sm:size-[112px] sm:text-[58px]" aria-label={`${text.previousSymbol}: ${previousSymbol}`}>
+                    <div className="flex size-[72px] shrink-0 items-center justify-center rounded-[24px] bg-[#F5F1F7] text-[40px] font-bold leading-none text-[#756680] sm:size-[112px] sm:text-[58px]" aria-label={`${text.previousSymbol}: ${previousSymbol}`}>
                       {previousSymbol}
                     </div>
                     <span className="text-[32px] font-bold text-[#A899B2]" aria-hidden="true">=</span>
-                    <div className="flex size-[112px] items-center justify-center rounded-[28px] border-2 bg-white text-[64px] font-bold leading-none shadow-sm sm:size-[132px] sm:text-[76px]" style={{ borderColor: BRAND.border }}>
+                    <div className="flex size-[88px] shrink-0 items-center justify-center rounded-[28px] border-2 bg-white text-[52px] font-bold leading-none shadow-sm sm:size-[132px] sm:text-[76px]" style={{ borderColor: BRAND.border }}>
                       {currentSymbol}
                     </div>
                   </>

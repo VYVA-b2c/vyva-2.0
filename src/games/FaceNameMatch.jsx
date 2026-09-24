@@ -61,9 +61,9 @@ function FaceNameScreen({
   );
 }
 
-function GameHeader({ title, meta, timer, pulse = false }) {
+function GameHeader({ title, meta, timer, pulse = false, progress }) {
   return (
-    <header className="rounded-[24px] border bg-white/90 px-4 py-3 shadow-vyva-card backdrop-blur" style={{ borderColor: BORDER }}>
+    <div data-testid="face-name-round-header" className="relative shrink-0 overflow-hidden rounded-[24px] border bg-white px-4 py-3" style={{ borderColor: BORDER }}>
       <div className="flex min-h-[56px] items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h2>
@@ -75,7 +75,12 @@ function GameHeader({ title, meta, timer, pulse = false }) {
           </div>
         )}
       </div>
-    </header>
+      {progress != null && (
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EDE6F4]" aria-hidden="true">
+          <div className={`h-full ${pulse ? "animate-pulse" : ""}`} style={{ width: `${progress}%`, background: pulse ? GOLD : PURPLE }} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -863,15 +868,10 @@ export default function FaceNameMatch({ userId, onExit }) {
           meta={`${faceCount} ${text.people}`}
           timer={`${Math.ceil(studyCountdown)}s`}
           pulse={pulse}
+          progress={progress}
         />
-            <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#EDE6F4]">
-              <div
-                className={`h-full ${pulse ? "animate-pulse" : ""}`}
-                style={{ width: `${progress}%`, background: pulse ? GOLD : PURPLE }}
-              />
-            </div>
 
-          <main className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
+          <main className="min-w-0 flex-1 pt-4 pb-3">
             <div className={`grid gap-3 ${studyGridCols}`}>
               {personas.map((persona) => (
                 <div key={persona.id} className="rounded-[22px] border bg-white p-3 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
@@ -907,16 +907,7 @@ export default function FaceNameMatch({ userId, onExit }) {
           meta={isNameToFace ? text.whichFace : text.faceQuestion}
         />
 
-          <main className="relative flex min-h-0 flex-1 flex-col py-3">
-            {feedback && (
-              <div
-                className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-full px-5 py-3 text-[22px] font-extrabold text-white shadow-vyva-card"
-                style={{ background: feedback.correct ? GREEN : GOLD }}
-              >
-                {feedback.correct ? text.correct : text.answerShown}
-              </div>
-            )}
-
+          <main className="flex min-h-0 flex-1 flex-col py-3">
             {isNameToFace ? (
               <>
                 <section className="rounded-[24px] border bg-white p-4 text-center shadow-vyva-card" style={{ borderColor: BORDER }}>
@@ -978,6 +969,17 @@ export default function FaceNameMatch({ userId, onExit }) {
                 </section>
               </>
             )}
+            <div role="status" aria-live="polite" aria-atomic="true" className="mt-4 min-h-[64px] shrink-0">
+              {feedback && (
+                <p
+                  data-testid="face-name-answer-feedback"
+                  className="rounded-[16px] px-4 py-3 text-center text-[20px] font-bold leading-snug"
+                  style={{ background: feedback.correct ? "#ECFDF3" : "#FEF3C7", color: feedback.correct ? "#166534" : "#92400E" }}
+                >
+                  {feedback.correct ? text.correct : text.answerShown}
+                </p>
+              )}
+            </div>
           </main>
       </FaceNameScreen>
     );
@@ -1003,15 +1005,16 @@ export default function FaceNameMatch({ userId, onExit }) {
       : getBrainCoachSupportiveProgressCopy({ advanced: false, level: currentTier });
 
   return (
-    <FaceNameScreen title={text.title} onExit={handleExit} showHeader={false} sceneKey="result" sceneKind="completion" sceneLayout="modal_actions" state="complete">
+    <FaceNameScreen title={text.title} onExit={handleExit} sceneKey="result" sceneKind="completion" sceneLayout="modal_actions" state="complete">
       <BrainGameCompletionDialog
+        embedded
         title={resultToneGreat ? text.resultGreat : text.resultTry}
         summary={resultSummary}
         metrics={[
           { label: text.n2f, value: pct(result.n2fAccuracyPct) },
           hasFaceToName ? { label: text.f2n, value: pct(result.f2nAccuracyPct) } : null,
           { label: text.score, value: result.score },
-          { label: text.streak, value: `${result.streakDays ?? userState?.streak_days ?? 1} ${text.days}` },
+          { label: text.streak, value: new Intl.NumberFormat(language, { style: "unit", unit: "day", unitDisplay: "long" }).format(result.streakDays ?? userState?.streak_days ?? 1) },
         ]}
         continueLabel={continueLabel}
         continueHint={text.nextRecommended}
