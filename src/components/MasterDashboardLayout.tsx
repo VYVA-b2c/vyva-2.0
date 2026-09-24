@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 
 type MasterTone = {
   iconBg: string;
@@ -160,24 +161,26 @@ export default function MasterDashboardLayout({
   cardChevronVariant = "circle",
   fastHelpLayoutVariant = "dashboard",
   modeSwitcher,
-  isDarkMode = false,
+  isDarkMode,
   presentationAttributes,
   presentationClassName,
   children,
 }: MasterDashboardLayoutProps) {
+  const { isDark: persistedDarkMode } = useHomeMasterTheme();
+  const resolvedDarkMode = isDarkMode ?? persistedDarkMode;
   const heroTone = hero.tone ?? defaultHeroTone;
   const isVoiceAction = hero.action.kind === "voice";
   const isHomeMaster = launcherVariant === "homeMaster";
-  const isHomeMasterDark = isHomeMaster && isDarkMode;
+  const isHomeMasterDark = isHomeMaster && resolvedDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
   const isHomeMasterTopLevelCards = isHomeMaster && !isHomeMasterIntentLayer;
   const isHomeMasterSingleSurface = isHomeMaster && showHero && !showCards;
   const usesCanonicalMenuHero = !isHomeMaster && heroLayoutVariant === "canonicalMenu";
   const usesCanonicalCardGrid = !isHomeMaster && cardLayoutVariant === "canonicalActionGrid";
   const usesCanonicalFastHelp = !isHomeMaster && fastHelpLayoutVariant === "canonicalActionGrid";
-  const usesDarkCanonicalHero = isDarkMode && usesCanonicalMenuHero;
-  const usesDarkCanonicalCards = isDarkMode && usesCanonicalCardGrid;
-  const usesDarkCanonicalFastHelp = isDarkMode && usesCanonicalFastHelp;
+  const usesDarkCanonicalHero = resolvedDarkMode && usesCanonicalMenuHero;
+  const usesDarkCanonicalCards = resolvedDarkMode && usesCanonicalCardGrid;
+  const usesDarkCanonicalFastHelp = resolvedDarkMode && usesCanonicalFastHelp;
   const allowMessageControls = !(isHomeMaster && isVoiceAction);
   const hasMessageAction = allowMessageControls && Boolean(hero.messageActionLabel && hero.onMessageAction);
   const hasMessageDismiss = allowMessageControls && Boolean(hero.onMessageDismiss);
@@ -253,7 +256,7 @@ export default function MasterDashboardLayout({
       ].join(" ")}
       {...(presentationAttributes ?? {})}
       data-testid={testId}
-      data-home-master-theme={isHomeMasterDark ? "dark" : "light"}
+      data-home-master-theme={resolvedDarkMode ? "dark" : "light"}
       data-home-master-intent-layer={isHomeMasterIntentLayer ? "true" : "false"}
     >
       {modeSwitcher}

@@ -140,7 +140,6 @@ export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
       <SocialStyles />
       <CanonicalDetailFlowShell
         shellContract={shellContract}
-        appearance="light"
         onBack={() => navigate("/social-rooms")}
         shellTestId="advisor-hub-screen"
         contentTestId="advisor-hub-content"

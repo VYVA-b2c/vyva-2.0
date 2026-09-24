@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ConciergePickerScreen from "./ConciergePickerScreen";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.fn();
 
@@ -70,6 +71,13 @@ async function waitForPickerReady(testId: string) {
 }
 
 describe("ConciergePickerScreen", () => {
+  it("inherits the persisted dark theme", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderPicker("get-help");
+
+    expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "dark");
+  });
+
   it("shows the four Get Help options and routes to the home-service task", async () => {
     renderPicker("get-help");
 

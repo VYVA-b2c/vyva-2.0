@@ -100,6 +100,7 @@ import MasterDashboardLayout, {
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
@@ -9562,6 +9563,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const { taskId } = useParams<{ taskId: string }>();
   const taskEntry = useMemo(
     () => coerceConciergeTaskEntry((location.state as ConciergeLocationState)?.conciergeTaskEntry),
@@ -17413,6 +17415,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   ));
   return (
     <MasterDashboardLayout
+      isDarkMode={isDark}
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
@@ -17426,14 +17429,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           compact
         >
           <HomeMasterProfileControl
-            isDark={false}
+            isDark={isDark}
             ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
             onClick={() => navigate("/menu")}
             testId="button-concierge-back"
             compact
           />
 
-          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+          <h1 className={`truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] ${isDark ? "text-[#FFF8FF]" : "text-[#241C30]"}`}>
             {t("concierge.master.topbarTitle", "Concierge")}
           </h1>
 

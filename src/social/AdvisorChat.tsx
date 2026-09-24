@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import type {
   AdvisorMessage,
   AdvisorMessageResponse,
@@ -203,6 +204,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const isMovementCoach = isMovementCoachSlug(agentSlug);
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const [searchParams] = useSearchParams();
   const starterPrompt = (searchParams.get("starter") ?? "").trim().slice(0, 2000);
   const handoffState = location.state as AdvisorHandoffState | null;
@@ -399,7 +401,10 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return (
       <>
         <SocialStyles />
-        <main className="vyva-page pb-[120px]">
+        <main
+          className="advisor-chat-theme vyva-page pb-[120px]"
+          data-home-master-theme={isDark ? "dark" : "light"}
+        >
           <button
             type="button"
             onClick={() => navigate("/social-rooms/experts")}
@@ -419,7 +424,11 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   return (
     <>
       <SocialStyles />
-      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] ${showIntro ? "pb-[120px]" : "pb-[200px]"}`} data-testid="advisor-chat-screen">
+      <main
+        className={`advisor-chat-theme vyva-page flex min-h-[calc(100vh-90px)] flex-col ${isDark ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]" : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"} ${showIntro ? "pb-[120px]" : "pb-[200px]"}`}
+        data-testid="advisor-chat-screen"
+        data-home-master-theme={isDark ? "dark" : "light"}
+      >
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
           <div className="flex items-center gap-3">
             <button

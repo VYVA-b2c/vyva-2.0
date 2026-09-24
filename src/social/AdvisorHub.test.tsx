@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdvisorHub from "./AdvisorHub";
 import type { AdvisorHubResponse, AdvisorSlug, AdvisorSummary } from "../../shared/advisors";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const queryMock = vi.hoisted(() => vi.fn());
 
@@ -81,6 +82,7 @@ function renderHub() {
 describe("AdvisorHub", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
     window.scrollTo = vi.fn();
     queryMock.mockReset();
     queryMock.mockReturnValue({ data: advisorResponse, isLoading: false, isError: false });
@@ -114,6 +116,13 @@ describe("AdvisorHub", () => {
     expect(screen.getByTestId("button-advisor-amara")).toHaveAccessibleName(
       "Wellness Coach. Movement, energy and balance",
     );
+  });
+
+  it("inherits the persisted dark theme", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderHub();
+
+    expect(screen.getByTestId("advisor-hub-screen")).toHaveAttribute("data-home-master-theme", "dark");
   });
 
   it("renders the empty state safely for an incomplete transitional response", () => {

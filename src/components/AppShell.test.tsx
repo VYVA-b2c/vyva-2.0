@@ -198,6 +198,10 @@ describe("SOS service actions", () => {
 });
 
 describe("app shell route layout", () => {
+  beforeEach(() => {
+    window.localStorage.removeItem("vyva:home-master-theme:v1");
+  });
+
   it.each([
     ["/", "wide"],
     ["/menu", "wide"],
@@ -282,7 +286,9 @@ describe("app shell route layout", () => {
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 
-  it("gives Benefits its own topbar and keeps its B2C surface light", () => {
+  it("gives Benefits its own topbar and inherits the persisted dark theme", () => {
+    window.localStorage.setItem("vyva:home-master-theme:v1", "dark");
+
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/benefits"]}>
         <AppShell>
@@ -292,7 +298,10 @@ describe("app shell route layout", () => {
     );
 
     expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "dark");
+    expect(screen.getByTestId("app-shell").className).toContain(
+      "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]",
+    );
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 
