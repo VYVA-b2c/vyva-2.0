@@ -1159,7 +1159,11 @@ const App = () => (
                     <Route path="/dev/home-master/community-team" element={<AppShell><AdvisorHub preview /></AppShell>} />
                     <Route path="/dev/home-master/community-team/chat" element={<AppShell><AdvisorChat preview /></AppShell>} />
                     <Route path="/dev/home-master/concierge" element={<AppShell><ConciergeScreen mode="home" /></AppShell>} />
-                    <Route path="/dev/concierge-canonical-preview" element={<AppShell><ConciergeScreen mode="home" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview" element={<AppShell><ConciergeScreen mode="home" previewBasePath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/get-help" element={<AppShell><ConciergePickerScreen category="get-help" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/order-in" element={<AppShell><ConciergePickerScreen category="order-in" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/book-appointments" element={<AppShell><ConciergePickerScreen category="book-appointments" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />

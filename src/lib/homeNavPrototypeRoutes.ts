@@ -108,7 +108,10 @@ function isCommunityExpertChatRoute(pathname: string) {
 }
 
 function isConciergeExperienceRoute(pathname: string) {
-  return pathname === "/concierge" || pathname.startsWith("/concierge/") || pathname === "/dev/concierge-canonical-preview";
+  return pathname === "/concierge" ||
+    pathname.startsWith("/concierge/") ||
+    pathname === "/dev/concierge-canonical-preview" ||
+    pathname.startsWith("/dev/concierge-canonical-preview/");
 }
 
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {

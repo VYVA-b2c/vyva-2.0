@@ -427,9 +427,10 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
 
 type ConciergePickerScreenProps = {
   category: ConciergePickerCategory;
+  backPath?: string;
 };
 
-export default function ConciergePickerScreen({ category }: ConciergePickerScreenProps) {
+export default function ConciergePickerScreen({ category, backPath = "/concierge" }: ConciergePickerScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -509,7 +510,7 @@ export default function ConciergePickerScreen({ category }: ConciergePickerScree
   return (
     <CanonicalDetailFlowShell
       shellContract={shellContract}
-      onBack={() => navigate("/concierge")}
+      onBack={() => navigate(backPath)}
       frameClassName="!px-4 sm:!px-5"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"

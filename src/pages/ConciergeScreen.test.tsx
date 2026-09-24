@@ -195,6 +195,7 @@ function renderScreen(
   initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"],
   mode: ConciergeScreenMode | "route" = "legacy",
   providedQueryClient?: QueryClient,
+  previewBasePath?: string,
 ) {
   const queryClient = providedQueryClient ?? new QueryClient({
     defaultOptions: {
@@ -215,7 +216,7 @@ function renderScreen(
                   <Route path="/concierge/task/:taskId" element={<ConciergeScreen mode="task" />} />
                 </Routes>
               )
-            : <ConciergeScreen mode={mode} />}
+            : <ConciergeScreen mode={mode} previewBasePath={previewBasePath} />}
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -1288,6 +1289,17 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("route-state")).toHaveTextContent("\"delivery\"");
       expect(screen.getByTestId("route-state")).toHaveTextContent("\"simplicity\"");
       expect(screen.getByTestId("route-state")).toHaveTextContent("\"safety\"");
+    });
+  });
+
+  it("keeps preview card navigation inside the unprotected preview routes", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen(["/dev/concierge-canonical-preview"], "home", undefined, "/dev/concierge-canonical-preview");
+    fireEvent.click(await screen.findByTestId("button-concierge-card-delivery"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/dev/concierge-canonical-preview/order-in");
     });
   });
 

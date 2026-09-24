@@ -50,7 +50,11 @@ const configuredProfile = {
   ],
 };
 
-function renderPicker(category: "get-help" | "order-in" | "book-appointments" | "discover", profile = configuredProfile) {
+function renderPicker(
+  category: "get-help" | "order-in" | "book-appointments" | "discover",
+  profile = configuredProfile,
+  backPath = "/concierge",
+) {
   apiFetchMock.mockResolvedValue(jsonResponse(profile));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -58,7 +62,7 @@ function renderPicker(category: "get-help" | "order-in" | "book-appointments" | 
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[`/concierge/${category}`]}>
         <LocationProbe />
         <Routes>
-          <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} />} />
+          <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} backPath={backPath} />} />
           <Route path="*" element={null} />
         </Routes>
       </MemoryRouter>
@@ -131,6 +135,14 @@ describe("ConciergePickerScreen", () => {
     fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+  });
+
+  it("returns preview pickers to the unprotected preview hub", () => {
+    renderPicker("get-help", configuredProfile, "/dev/concierge-canonical-preview");
+
+    fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/dev/concierge-canonical-preview");
   });
 
   it("shows only the missing ride setup and routes to address onboarding", async () => {
