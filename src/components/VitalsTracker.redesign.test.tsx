@@ -87,8 +87,27 @@ describe("VitalsTracker redesign", () => {
     expect(cards[0]).toHaveTextContent("136 mg/dL");
     expect(cards[0]).toHaveTextContent("Libre 3");
     expect(cards[1]).toHaveAttribute("data-testid", "vitals-dashboard-card-mood_score");
-    expect(cards[1]).toHaveTextContent("No recent insight");
-    expect(cards[1]).toHaveTextContent("latest VYVA voice or chat conversation");
+    expect(cards[1]).toHaveTextContent("No recent reading");
+    expect(cards[1]).not.toHaveTextContent("latest VYVA voice or chat conversation");
+  });
+
+  it.each([undefined, null, {}, { provider: "checkin" }])("shows production mood without conversation metadata (%j)", (sourceRef) => {
+    const data: VitalsTrackerPreviewData = {
+      ...previewData,
+      recent_readings: [{
+        signal_type: "mood_score", value: 7, recorded_at: "2026-09-24T08:00:00.000Z",
+        source: "manual_entry", source_confidence: "medium", deviation_pct: 0,
+        context_tag: "general", source_ref: sourceRef,
+      }],
+    };
+    render(<MemoryRouter><VitalsTracker userId="preview-user" userConditions={[]} language="en" previewData={data} /></MemoryRouter>);
+    const card = screen.getByTestId("vitals-dashboard-card-mood_score");
+    expect(card).toHaveTextContent("7 /10");
+    expect(card).not.toHaveTextContent("Sentiment");
+    expect(card).not.toHaveTextContent("conversation");
+    expect(card).toHaveTextContent(sourceRef && "provider" in sourceRef ? "checkin" : "Manual entry");
+    fireEvent.click(card);
+    expect(screen.getByTestId("vitals-method-picker")).toBeVisible();
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {
