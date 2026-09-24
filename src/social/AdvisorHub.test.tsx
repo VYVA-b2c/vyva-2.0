@@ -136,6 +136,8 @@ describe("AdvisorHub", () => {
   it("paginates four expert cards at a time on mobile", () => {
     renderHub();
 
+    expect(screen.getByText("Wellness Coach")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
+    expect(screen.getByText("Movement, energy and balance")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
     expect(screen.getByTestId("button-advisor-amara")).not.toHaveClass("hidden");
     expect(screen.getByTestId("button-advisor-diego")).toHaveClass("advisor-team-card--other-page");

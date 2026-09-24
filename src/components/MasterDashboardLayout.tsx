@@ -3,6 +3,7 @@ import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { CANONICAL_MENU_ITEM_TITLE_CLASS } from "@/design/canonicalMenuTypography";
 
 type MasterTone = {
   iconBg: string;
@@ -572,7 +573,7 @@ export default function MasterDashboardLayout({
                     <span
                       className={[
                         "block font-body text-[17px] font-black leading-tight min-[390px]:text-[18px]",
-                        usesCanonicalCardGrid ? "truncate font-display text-[20px] font-semibold leading-[1.03] min-[390px]:text-[21px] md:text-[24px]" : "",
+                        usesCanonicalCardGrid ? `truncate ${CANONICAL_MENU_ITEM_TITLE_CLASS}` : "",
                         usesDarkCanonicalCards ? "text-[#F9F4FF]" : "text-vyva-text-1",
                       ].join(" ")}
                       data-testid={card.testId ? `${card.testId}-title` : undefined}

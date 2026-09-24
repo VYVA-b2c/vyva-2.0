@@ -39,6 +39,10 @@ import {
 } from "../../shared/conciergeFlowRegistry";
 import { apiFetch } from "@/lib/queryClient";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import {
+  CANONICAL_MENU_ITEM_SUBTITLE_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 export type ConciergePickerCategory = "get-help" | "order-in" | "book-appointments" | "discover";
 
@@ -547,10 +551,10 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
                 className="!h-14 !w-14 !rounded-[20px]"
               />
               <span className="min-w-0 flex-1">
-                <span className={`block font-body text-[18px] font-black leading-tight min-[390px]:text-[19px] sm:text-[20px] ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
+                <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS} ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
                   {label}
                 </span>
-                <span className={`mt-1 block truncate font-body text-[14px] font-bold leading-snug sm:text-[15px] ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-3"}`}>
+                <span className={`mt-1 block truncate ${CANONICAL_MENU_ITEM_SUBTITLE_CLASS} ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-3"}`}>
                   {detail}
                 </span>
               </span>

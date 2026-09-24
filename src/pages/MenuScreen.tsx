@@ -23,6 +23,10 @@ import { HomeMasterActionControl, HomeMasterProfileControl, HomeMasterTopbar } f
 import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
+import {
+  CANONICAL_MENU_HEADER_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 type MenuTile = {
   id: "health" | "brain" | "community" | "concierge";
@@ -183,7 +187,7 @@ export default function MenuScreen({
             compact
           />
           <div className="flex h-9 items-center justify-center sm:h-10">
-            <h1 className={["sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold", isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
+            <h1 className={["sr-only md:not-sr-only", CANONICAL_MENU_HEADER_CLASS, isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
               Menu
             </h1>
           </div>
@@ -364,7 +368,7 @@ export default function MenuScreen({
                     <VyvaIcon icon={Icon} accent={tile.iconAccent} size={29} strokeWidth={2.55} tone="brand" />
                   </span>
                   <span className="vyva-home-master-fixed-type min-w-0 self-center md:self-start">
-                    <span data-testid={`menu-tile-${tile.id}-title`} className="block whitespace-normal break-words font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px]">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className={`block whitespace-normal break-words ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
                       {title}
                     </span>
                     <span
