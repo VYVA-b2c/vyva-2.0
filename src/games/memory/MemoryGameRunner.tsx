@@ -1358,8 +1358,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       const score = getScore(plan.level, accuracy, sequenceTotalMistakes, durationSeconds);
       setCompletionMetrics({ score, accuracy, mistakes: sequenceTotalMistakes, durationSeconds });
       setCompletionDetails(null);
-
-      let active = true;
+      setFinished(true);
       async function completeGame() {
         setSaving(true);
         try {
@@ -1377,16 +1376,13 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             language,
           });
         } finally {
-          if (active) {
+          if (isMountedRef.current) {
             setSaving(false);
-            setFinished(true);
           }
         }
       }
       void completeGame();
-      return () => {
-        active = false;
-      };
+      return;
     }
 
     if (plan.gameType === "word_recall" && completionMetrics && !finished) {
