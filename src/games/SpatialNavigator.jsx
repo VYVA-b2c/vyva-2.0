@@ -843,6 +843,9 @@ export default function SpatialNavigator({ userId, onExit }) {
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
+  const canProgress = resultAccuracy >= 60;
+  const primaryResultLabel = canProgress ? continueLabel : text.playAgain;
+  const primaryResultAction = canProgress ? loadGame : loadSameLevelGame;
   const winProgress = Math.min(3, Number(userState?.consecutive_wins ?? 0));
 
   if (screen === "loading") {
@@ -943,11 +946,9 @@ export default function SpatialNavigator({ userId, onExit }) {
             { label: text.score, value: sessionResult?.score ?? 0 },
             { label: text.level, value: `${text.level} ${resultTier}` },
           ]}
-          continueLabel={continueLabel}
-          replayLabel={text.playAgain}
+          continueLabel={primaryResultLabel}
           anotherLabel={text.playAnotherGame}
-          onContinue={loadGame}
-          onReplay={loadSameLevelGame}
+          onContinue={primaryResultAction}
           onAnother={handleExit}
           details={
             <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
