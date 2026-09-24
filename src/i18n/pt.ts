@@ -6,6 +6,8 @@ const pt = {
     more: "Mais",
   },
   common: {
+    showMoreGames: "Mais",
+    showFewerGames: "Mostrar menos",
     back: "Voltar",
     continue: "Continuar",
     start: "Comecar",

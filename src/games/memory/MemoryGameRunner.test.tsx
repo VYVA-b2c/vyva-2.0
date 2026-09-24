@@ -228,6 +228,7 @@ describe("MemoryGameRunner word recall", () => {
     expect(screen.queryByRole("button", { name: "New theme" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play another game" })).not.toBeDisabled();
     expect(screen.queryByText("Themes explored")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Play again" })).not.toBeInTheDocument();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
