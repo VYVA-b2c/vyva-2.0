@@ -295,6 +295,7 @@ type LoginCopy = {
     try: string;
   };
   setupIntentLabel: string;
+  caregiverAccessLabel: string;
   setupIntent: Record<SetupIntent, { title: string; subtitle: string }>;
   caregiverHint: string;
   checkInbox: string;
@@ -378,6 +379,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "Try VYVA",
     },
     setupIntentLabel: "I am using VYVA",
+    caregiverAccessLabel: "Login as Caregiver",
     setupIntent: {
       self: {
         title: "For myself",
@@ -468,6 +470,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "Probar VYVA",
     },
     setupIntentLabel: "Uso VYVA",
+    caregiverAccessLabel: "Iniciar sesión como cuidador/a",
     setupIntent: {
       self: {
         title: "Para mí",
@@ -560,6 +563,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "Essayer VYVA",
     },
     setupIntentLabel: "J'utilise VYVA",
+    caregiverAccessLabel: "Se connecter comme aidant",
     setupIntent: {
       self: {
         title: "Pour moi",
@@ -652,6 +656,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "VYVA testen",
     },
     setupIntentLabel: "Ich nutze VYVA",
+    caregiverAccessLabel: "Als Betreuungsperson anmelden",
     setupIntent: {
       self: {
         title: "Für mich",
@@ -744,6 +749,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "Prova VYVA",
     },
     setupIntentLabel: "Uso VYVA",
+    caregiverAccessLabel: "Accedi come caregiver",
     setupIntent: {
       self: {
         title: "Per me",
@@ -836,6 +842,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       try: "Experimentar VYVA",
     },
     setupIntentLabel: "Uso a VYVA",
+    caregiverAccessLabel: "Entrar como cuidador(a)",
     setupIntent: {
       self: {
         title: "Para mim",
@@ -2300,7 +2307,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 className="hidden min-h-[44px] items-center rounded-full px-3 font-body text-[13px] font-extrabold text-vyva-purple transition hover:bg-white/70 sm:inline-flex"
                 data-testid="button-caregiver-access"
               >
-                {copy.setupIntent.caregiver.title}
+                {copy.caregiverAccessLabel}
               </button>
             )}
             <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
