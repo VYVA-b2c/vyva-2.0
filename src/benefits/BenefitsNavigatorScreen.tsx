@@ -167,7 +167,6 @@ export default function BenefitsNavigatorScreen() {
     <CanonicalDetailFlowShell
       shellContract={benefitsShellContract(t("benefits.title", "My benefits"))}
       onBack={() => navigate("/social-rooms")}
-      appearance="light"
       headerAction={(
         <CanonicalVoiceButton
           contextHint={voiceContext}

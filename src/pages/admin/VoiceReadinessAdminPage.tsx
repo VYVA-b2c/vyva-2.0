@@ -531,8 +531,8 @@ export default function VoiceReadinessAdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#f7f2eb] px-3 py-6 text-[#2f2135] sm:px-6 sm:py-8">
+      <section className="mx-auto min-w-0 max-w-7xl">
         <AdminPageHeader
           title="Voice readiness"
           subtitle="Inspect agent contracts, selected plans, live voice state, context keys, and simulator shortcuts before configuring ElevenLabs prompts."

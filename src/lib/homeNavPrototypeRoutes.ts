@@ -16,6 +16,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/brain",
   "/dev/home-master/community",
   "/dev/home-master/concierge",
+  "/dev/concierge-canonical-preview",
   "/dev/home-master/reports",
   "/dev/home-master/ask-dr-ai",
   "/dev/home-master/ask-dr-ai-checking",
@@ -106,15 +107,26 @@ function isCommunityExpertChatRoute(pathname: string) {
   return pathname.startsWith("/social-rooms/experts/") || pathname === "/dev/home-master/community-team/chat";
 }
 
+function isConciergeExperienceRoute(pathname: string) {
+  return pathname === "/concierge" ||
+    pathname.startsWith("/concierge/") ||
+    pathname === "/dev/concierge-canonical-preview" ||
+    pathname.startsWith("/dev/concierge-canonical-preview/");
+}
+
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {
   return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname) ||
     isBrainCoachOwnedTopbarRoute(pathname) ||
     isCommunityExpertChatRoute(pathname) ||
+    isConciergeExperienceRoute(pathname) ||
     isSymptomReportDetailRoute(pathname);
 }
 
 export function isHomeNavPrototypeDockRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) || isCommunityExpertChatRoute(pathname) || isSymptomReportDetailRoute(pathname);
+  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) ||
+    isCommunityExpertChatRoute(pathname) ||
+    isConciergeExperienceRoute(pathname) ||
+    isSymptomReportDetailRoute(pathname);
 }
 
 function isSymptomReportDetailRoute(pathname: string) {

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ConditionsSection from "./ConditionsSection";
-import MedicationsSection from "./MedicationsSection";
+import MedicationsSection, { normalizeSavedMedication } from "./MedicationsSection";
 import AllergiesSection from "./AllergiesSection";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
@@ -327,6 +327,21 @@ describe("profile section reviewed-empty choices", () => {
     expect(lastPostedBody()).toMatchObject({
       medications: [],
       no_known_medications: true,
+    });
+  });
+
+  it("normalizes legacy medication records with missing optional fields", async () => {
+    expect(normalizeSavedMedication(
+      { medication_name: "Amlodipine", dosage: "5mg", frequency: "daily" },
+      "med-1",
+    )).toEqual({
+      id: "med-1",
+      name: "Amlodipine",
+      dosage: "5mg",
+      frequency: "daily",
+      times: "",
+      with_food: "",
+      prescribed_by: "",
     });
   });
 

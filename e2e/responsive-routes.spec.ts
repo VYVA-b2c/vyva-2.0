@@ -30,6 +30,7 @@ type ResponsiveRoute = {
   minTextLength?: number;
   role?: "user" | "admin";
   onboardingStage?: string;
+  wideMaxWidth?: number;
 };
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
@@ -672,8 +673,112 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (/^\/api\/vyva-demo\/senior\/[^/]+\/home$/.test(path)) {
+      await fulfillJson(route, 200, {
+        senior: {
+          id: "demo-senior",
+          key: "demo-senior",
+          name: "Rosa Martinez",
+          firstName: "Rosa",
+          caregiverName: "Ana",
+          consentCaregiverAlerts: true,
+          consentShareDetails: true,
+        },
+        today: "Today",
+        overview: {
+          lastCheckIn: "Today",
+          latestInsight: null,
+          latestRecommendation: null,
+          openAlertCount: 0,
+          moodStatus: "Steady",
+          socialStatus: "Steady",
+          routineStatus: "Steady",
+          medicationStatus: "Steady",
+          routineSummary: "Daily routine is on track",
+        },
+      });
+      return;
+    }
+
+    if (/^\/api\/vyva-demo\/senior\/[^/]+\/weekly\/start$/.test(path)) {
+      await fulfillJson(route, 200, {
+        weekNumber: 1,
+        questions: [{
+          id: "weekly-wellbeing",
+          domain: "wellbeing",
+          questionText: "How has this week felt overall?",
+          answerType: "SINGLE_CHOICE",
+          options: ["Steady", "A little different", "Difficult"],
+          reason: "Weekly wellbeing check",
+        }],
+      });
+      return;
+    }
+
+    if (/^\/api\/vyva-demo\/senior\/[^/]+\/my-week$/.test(path)) {
+      await fulfillJson(route, 200, {
+        steady: [],
+        changed: [],
+        recommendations: [],
+        shareEnabled: true,
+      });
+      return;
+    }
+
+    if (/^\/api\/vyva-demo\/caregiver\/[^/]+\/dashboard$/.test(path)) {
+      await fulfillJson(route, 200, {
+        caregiver: { id: "demo-caregiver", key: "demo-caregiver", name: "Ana Martinez" },
+        summary: { seniorsMonitored: 1, checkInsThisWeek: 3, openAlerts: 0, medicationConfirmations: "Steady" },
+        seniors: [{
+          id: "demo-senior",
+          name: "Rosa Martinez",
+          firstName: "Rosa",
+          lastCheckIn: "Today",
+          moodStatus: "Steady",
+          socialStatus: "Steady",
+          routineStatus: "Steady",
+          medicationStatus: "Steady",
+          openAlertCount: 0,
+          consentCaregiverAlerts: true,
+          consentShareDetails: true,
+        }],
+      });
+      return;
+    }
+
+    if (/^\/api\/vyva-demo\/caregiver\/[^/]+\/seniors\/[^/]+$/.test(path)) {
+      await fulfillJson(route, 200, {
+        senior: {
+          id: "demo-senior",
+          name: "Rosa Martinez",
+          firstName: "Rosa",
+          consentCaregiverAlerts: true,
+          consentShareDetails: true,
+          canViewPrivateDetails: true,
+        },
+        overview: {
+          lastCheckIn: "Today",
+          latestInsight: null,
+          latestRecommendation: null,
+          openAlertCount: 0,
+          moodStatus: "Steady",
+          socialStatus: "Steady",
+          routineStatus: "Steady",
+          medicationStatus: "Steady",
+          routineSummary: "Daily routine is on track",
+        },
+        insights: [], recommendations: [], checkIns: [], medications: [], routineEvents: [], alerts: [], notes: [], consentMessage: null,
+      });
+      return;
+    }
+
     if (path === "/api/concierge/actions/pending") {
-      await fulfillJson(route, 200, { actions: [] });
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+
+    if (path === "/api/concierge/actions/sessions" || path === "/api/concierge/tasks") {
+      await fulfillJson(route, 200, { items: [] });
       return;
     }
 
@@ -766,6 +871,155 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (path === "/api/admin/home/fast-help-outcomes") {
+      await fulfillJson(route, 200, {
+        generatedAt: new Date().toISOString(),
+        windowDays: 30,
+        totals: {
+          shown: 0,
+          attributedOpened: 0,
+          attributedCompleted: 0,
+          attributedBlocked: 0,
+          opened: 0,
+          completed: 0,
+          dismissed: 0,
+          abandoned: 0,
+          blocked: 0,
+          resumed: 0,
+          recovered: 0,
+        },
+        actions: [],
+        rankingVersions: [],
+      });
+      return;
+    }
+
+    if (path === "/api/admin/cross-pillar/tool-readiness") {
+      await fulfillJson(route, 200, {
+        generated_at: new Date().toISOString(),
+        certification_window_days: 30,
+        tools: [],
+        certifications: [],
+        pillar_certifications: [],
+      });
+      return;
+    }
+
+    if (path === "/api/admin/cross-pillar/executions/summary") {
+      await fulfillJson(route, 200, {
+        generatedAt: new Date().toISOString(),
+        windowHours: 24,
+        totalAttempts: 0,
+        successful: 0,
+        failed: 0,
+        duplicatesPrevented: 0,
+        recentFailures: [],
+        failuresByAction: [],
+        toolHealth: [],
+        recovery: {
+          total: 0,
+          recovered: 0,
+          stillBlocked: 0,
+          inProgress: 0,
+          recoveryRatePct: 0,
+        },
+      });
+      return;
+    }
+
+    if (path === "/api/admin/cognitive-assessment/readiness") {
+      await fulfillJson(route, 200, {
+        ready: false,
+        generatedAt: new Date().toISOString(),
+        taskDefinitions: {
+          ready: false,
+          activeCount: 0,
+          expectedCount: 12,
+          blockers: ["No assessment tasks are available in this responsive fixture."],
+        },
+        languages: [],
+        blockers: ["Assessment content has not been loaded in this responsive fixture."],
+      });
+      return;
+    }
+
+    if (path === "/api/admin/content-index") {
+      await fulfillJson(route, 200, {
+        generatedAt: new Date().toISOString(),
+        items: [],
+        summary: {
+          total: 0,
+          published: 0,
+          needsAttention: 0,
+          routeIssues: 0,
+          languageGaps: 0,
+          unavailableSources: 0,
+          byType: {
+            home_card: 0,
+            curated_activity: 0,
+            lesson: 0,
+            room_prompt: 0,
+          },
+        },
+        sources: [],
+      });
+      return;
+    }
+
+    if (path === "/api/admin/marketing/summary") {
+      await fulfillJson(route, 200, {
+        totals: { campaigns: 0, journeys: 0, content: 0, mediaAssets: 0, contacts: 0, audiences: 0, journeyEnrollments: 0, thisWeek: 0, scheduled: 0, published: 0 },
+        analyticsTotals: { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 },
+        byChannel: [],
+        byAudience: [],
+        socialPublishing: { manualPublishingEnabled: true, directPublishingEnabled: false, providers: [] },
+        lockedSendCapabilities: [],
+        emailScheduler: { enabled: false, intervalMinutes: 5, initialDelaySeconds: 30, actor: "responsive-audit" },
+        latestSyncRun: null,
+      });
+      return;
+    }
+
+    const marketingLists: Record<string, string> = {
+      "/api/admin/marketing/campaigns": "campaigns",
+      "/api/admin/marketing/journeys": "journeys",
+      "/api/admin/marketing/journey-enrollments": "enrollments",
+      "/api/admin/marketing/content": "content",
+      "/api/admin/marketing/media": "mediaAssets",
+      "/api/admin/marketing/contacts": "contacts",
+      "/api/admin/marketing/audiences": "audiences",
+    };
+    if (marketingLists[path]) {
+      await fulfillJson(route, 200, { [marketingLists[path]]: [] });
+      return;
+    }
+
+    if (path === "/api/admin/marketing/analytics") {
+      await fulfillJson(route, 200, {
+        totals: { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 },
+        metrics: [],
+      });
+      return;
+    }
+
+    if (path === "/api/admin/marketing/sync/source") {
+      await fulfillJson(route, 200, {
+        provider: "lovable",
+        configured: false,
+        canRunSync: false,
+        requiredRunnerEmail: null,
+        apiUrl: null,
+        mode: "one_way_into_vyva",
+        realSendingLocked: false,
+        lockedSendCapabilities: [],
+        socialPublishing: { manualPublishingEnabled: true, directPublishingEnabled: false, providers: [] },
+        emailScheduler: { enabled: false, intervalMinutes: 5, initialDelaySeconds: 30, actor: "responsive-audit" },
+        latestSyncRun: null,
+        runs: [],
+      });
+      return;
+    }
+
     if (method === "GET") {
       await fulfillJson(route, 200, {});
       return;
@@ -810,6 +1064,7 @@ function isIgnoredConsoleMessage(message: string) {
     "[VYVA] Failed to start session",
     "no URL or token",
     "[VYVA Admin] Could not load lifecycle",
+    "Category Sort is using the practice deck because levels could not load.",
   ].some((ignored) => message.includes(ignored));
 }
 
@@ -826,7 +1081,15 @@ async function expectResponsiveRoute(
 
   const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
   if (expectedShell) {
-    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
+    try {
+      await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
+    } catch (error) {
+      const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      throw new Error(
+        `${route.path} did not mount its app shell (url: ${page.url()}, body: ${bodyText.slice(0, 500) || "empty"}, console: ${relevantConsoleMessages().join(" | ") || "none"})`,
+        { cause: error },
+      );
+    }
   }
 
   await page
@@ -866,7 +1129,9 @@ async function expectResponsiveRoute(
 
     if (viewport.width >= 1024 && route.expectedLayout === "wide") {
       expect(shellBox!.width).toBeGreaterThan(700);
-      expect(shellBox!.width).toBeLessThanOrEqual(922);
+      // Wide routes use either the 920px desktop shell or the responsive
+      // 430/720/960px canonical shell used by Health and related surfaces.
+      expect(shellBox!.width).toBeLessThanOrEqual(route.wideMaxWidth ?? 962);
     }
 
     if (viewport.width >= 768 && route.expectedLayout === "compact") {
@@ -880,10 +1145,13 @@ async function expectResponsiveRoute(
   }
 
   if (route.requiresInteractive ?? true) {
-    const interactive = page.locator(
+    const dialogInteractive = page.locator(
+      "[role='dialog'] button:visible:not(:disabled),[role='dialog'] a[href]:visible,[role='dialog'] input:visible:not(:disabled),[role='dialog'] textarea:visible:not(:disabled),[role='dialog'] select:visible:not(:disabled),[role='dialog'] [role='button']:visible:not([aria-disabled='true'])",
+    );
+    const pageInteractive = page.locator(
       "button:visible,a[href]:visible,input:visible,textarea:visible,select:visible,[role='button']:visible",
     );
-    const firstControl = interactive.first();
+    const firstControl = (await dialogInteractive.count()) > 0 ? dialogInteractive.first() : pageInteractive.first();
     await firstControl.waitFor({ state: "visible", timeout: 5000 });
     await firstControl.scrollIntoViewIfNeeded();
     await expect(firstControl).toBeVisible();
@@ -940,6 +1208,43 @@ const publicRoutes: ResponsiveRoute[] = [
   { name: "care team invite", path: "/care-team/invite/test-token" },
   { name: "elder confirm", path: "/confirm/test-token" },
   { name: "shared check-in", path: "/shared/check-in/test-token", requiresInteractive: false },
+  { name: "shared senior home", path: "/shared/senior-home/test-token", requiresInteractive: false, minTextLength: 60 },
+  { name: "caregiver login", path: "/caregiver/login" },
+  { name: "caregiver register", path: "/caregiver/register" },
+  { name: "VYVA demo entry", path: "/vyva-demo" },
+  { name: "VYVA demo senior home", path: "/vyva-demo/senior/demo-senior" },
+  { name: "VYVA demo daily check-in", path: "/vyva-demo/senior/demo-senior/daily" },
+  { name: "VYVA demo weekly check-in", path: "/vyva-demo/senior/demo-senior/weekly" },
+  { name: "VYVA demo my week", path: "/vyva-demo/senior/demo-senior/my-week" },
+  { name: "VYVA demo caregiver", path: "/vyva-demo/caregiver/demo-caregiver" },
+  { name: "VYVA demo caregiver senior", path: "/vyva-demo/caregiver/demo-caregiver/senior/demo-senior" },
+];
+
+const onboardingRoutes: ResponsiveRoute[] = [
+  { name: "onboarding welcome", path: "/onboarding", onboardingStage: "welcome" },
+  { name: "onboarding who for", path: "/onboarding/who-for", onboardingStage: "who_for" },
+  { name: "onboarding basics", path: "/onboarding/basics", onboardingStage: "basics" },
+  { name: "onboarding channel", path: "/onboarding/channel", onboardingStage: "channel" },
+  { name: "onboarding proxy setup", path: "/onboarding/proxy-setup", onboardingStage: "proxy_setup" },
+  { name: "onboarding elder confirm", path: "/onboarding/elder-confirm", onboardingStage: "elder_confirm", minTextLength: 60 },
+  { name: "onboarding consent", path: "/onboarding/consent", onboardingStage: "consent" },
+  { name: "onboarding activation", path: "/onboarding/activation", onboardingStage: "activation" },
+  { name: "profile overview", path: "/onboarding/profile" },
+  { name: "profile basics", path: "/onboarding/profile/basics" },
+  { name: "profile address", path: "/onboarding/profile/address" },
+  { name: "profile health", path: "/onboarding/profile/health" },
+  { name: "profile medications", path: "/onboarding/profile/medications" },
+  { name: "profile allergies", path: "/onboarding/profile/allergies" },
+  { name: "profile GP", path: "/onboarding/profile/gp" },
+  { name: "profile providers", path: "/onboarding/profile/providers" },
+  { name: "profile care team", path: "/onboarding/profile/care-team" },
+  { name: "profile devices", path: "/onboarding/profile/devices" },
+  { name: "profile diet", path: "/onboarding/profile/diet" },
+  { name: "profile hobbies", path: "/onboarding/profile/hobbies" },
+  { name: "profile cognitive", path: "/onboarding/profile/cognitive" },
+  { name: "profile emergency", path: "/onboarding/profile/emergency" },
+  { name: "profile section complete", path: "/onboarding/complete/basics", minTextLength: 70 },
+  { name: "care team flow", path: "/onboarding/careteam" },
 ];
 
 const protectedCoreRoutes: ResponsiveRoute[] = [
@@ -947,21 +1252,40 @@ const protectedCoreRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
+  { name: "health hub", path: "/health", expectedLayout: "wide" },
+  { name: "health dashboard", path: "/health/dashboard", expectedLayout: "wide" },
+  { name: "prevention", path: "/health/prevention", expectedLayout: "wide" },
+  { name: "prevention plan", path: "/health/prevention-plan", expectedLayout: "wide" },
+  { name: "daily check-in", path: "/health/check-in", expectedLayout: "wide" },
+  { name: "check-in history", path: "/health/check-ins", expectedLayout: "wide" },
+  { name: "symptom check", path: "/health/symptom-check", expectedLayout: "wide" },
   { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
+  { name: "my medicines", path: "/meds/my-medicines", expectedLayout: "wide" },
+  { name: "medicine interactions", path: "/meds/interactions", expectedLayout: "wide" },
+  { name: "medicine refills", path: "/meds/refills", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },
   { name: "reports", path: "/informes", expectedLayout: "wide" },
   { name: "report detail", path: "/informes/triage-smoke", expectedLayout: "wide" },
 ];
 
 const protectedUtilityRoutes: ResponsiveRoute[] = [
+  { name: "menu", path: "/menu", expectedLayout: "wide" },
   { name: "mind memory", path: "/mind-memory", expectedLayout: "wide" },
   { name: "activity", path: "/activity", expectedLayout: "wide" },
   { name: "concierge", path: "/concierge", expectedLayout: "wide" },
+  { name: "concierge get help", path: "/concierge/get-help", expectedLayout: "wide" },
+  { name: "concierge order in", path: "/concierge/order-in", expectedLayout: "wide" },
+  { name: "concierge appointments", path: "/concierge/book-appointments", expectedLayout: "wide" },
+  { name: "concierge discover", path: "/concierge/discover", expectedLayout: "wide" },
   { name: "shopping helper", path: "/concierge/shopping", expectedLayout: "wide" },
   { name: "settings", path: "/settings", expectedLayout: "wide" },
   { name: "account settings", path: "/settings/account", expectedLayout: "wide" },
+  { name: "health devices settings", path: "/settings/health-devices", expectedLayout: "wide" },
   { name: "notifications settings", path: "/settings/notifications", expectedLayout: "wide" },
+  { name: "scheduled support settings", path: "/settings/scheduled-support", expectedLayout: "wide" },
+  { name: "subscription settings", path: "/settings/subscription", expectedLayout: "wide" },
+  { name: "trusted help settings", path: "/settings/trusted-help", expectedLayout: "wide" },
   { name: "history", path: "/history", expectedLayout: "wide" },
   { name: "companions", path: "/companions", expectedLayout: "wide" },
   { name: "caregiver", path: "/caregiver" },
@@ -976,6 +1300,34 @@ const protectedGameIndexRoutes: ResponsiveRoute[] = [
   { name: "memory games", path: "/memory-games", expectedLayout: "wide" },
 ];
 
+const protectedSecondaryRoutes: ResponsiveRoute[] = [
+  { name: "doctor choice", path: "/health/doctor", expectedLayout: "wide" },
+  { name: "brain coach report", path: "/informes/brain-coach", expectedLayout: "wide" },
+  { name: "benefits navigator", path: "/benefits", expectedLayout: "wide" },
+  { name: "remember hub", path: "/brain-coach/remember", expectedLayout: "wide" },
+  { name: "focus hub", path: "/brain-coach/focus", expectedLayout: "wide" },
+  { name: "think hub", path: "/brain-coach/think", expectedLayout: "wide" },
+  { name: "calm hub", path: "/brain-coach/calm", expectedLayout: "wide" },
+  { name: "cognitive assessment hub", path: "/mind-memory/cognitive-assessment", expectedLayout: "wide", wideMaxWidth: 1182 },
+  { name: "cognitive assessment start", path: "/mind-memory/cognitive-assessment/start", expectedLayout: "wide", wideMaxWidth: 1182 },
+  { name: "cognitive assessment report", path: "/mind-memory/cognitive-assessment/report", expectedLayout: "wide", wideMaxWidth: 1182 },
+  { name: "cognitive assessment history", path: "/mind-memory/cognitive-assessment/history", expectedLayout: "wide", wideMaxWidth: 1182 },
+  { name: "relax and breathe", path: "/activities/relax-breathe", expectedLayout: "fullscreen" },
+  { name: "senses hub", path: "/senses", expectedLayout: "wide" },
+  { name: "scent memory", path: "/senses/scent-memory", minTextLength: 40 },
+  { name: "listen closely", path: "/senses/listen-closely", minTextLength: 40 },
+  { name: "breath garden", path: "/senses/breath-garden", minTextLength: 40 },
+  { name: "category sort", path: "/executive-function/category-sort", minTextLength: 40 },
+  { name: "number trails", path: "/executive-function/number-trails", minTextLength: 40 },
+  { name: "remember later", path: "/memory-games/remember-later", expectedLayout: "fullscreen", minTextLength: 40 },
+  { name: "curious minds", path: "/memory-games/curious-minds", expectedLayout: "fullscreen", minTextLength: 40 },
+  { name: "dual task walk", path: "/dual-task-walk", minTextLength: 40 },
+  { name: "concierge task inbox", path: "/concierge/tasks", expectedLayout: "wide" },
+  { name: "concierge task detail", path: "/concierge/tasks/demo-task", expectedLayout: "wide", minTextLength: 50 },
+  { name: "concierge legacy task", path: "/concierge/task/demo-task", expectedLayout: "wide" },
+  { name: "caregiver dashboard alias", path: "/caregiver-dashboard" },
+];
+
 const protectedRoutes = [
   ...protectedCoreRoutes,
   ...protectedHealthRoutes,
@@ -985,6 +1337,10 @@ const protectedRoutes = [
 
 const socialAndGameRoutes: ResponsiveRoute[] = [
   { name: "social hub", path: "/social-rooms", expectedLayout: "wide" },
+  { name: "community experts", path: "/social-rooms/experts", expectedLayout: "wide" },
+  { name: "community activities", path: "/social-rooms/activities", expectedLayout: "wide" },
+  { name: "community rooms", path: "/social-rooms/join-in", expectedLayout: "wide" },
+  { name: "share a story", path: "/social-rooms/share", expectedLayout: "wide" },
   { name: "games room", path: "/social-rooms/games-room", expectedLayout: "wide", minTextLength: 60 },
   { name: "music room", path: "/social-rooms/music-room", expectedLayout: "wide" },
   { name: "reading room", path: "/social-rooms/reading-room", expectedLayout: "wide" },
@@ -1002,30 +1358,119 @@ const socialAndGameRoutes: ResponsiveRoute[] = [
 ];
 
 const adminRoutes: ResponsiveRoute[] = [
+  { name: "admin modules", path: "/admin", role: "admin", minTextLength: 50 },
+  { name: "admin proxy pending", path: "/admin/proxy-pending", role: "admin", minTextLength: 50 },
   { name: "admin lifecycle", path: "/admin/lifecycle", role: "admin", requiresInteractive: false, minTextLength: 50 },
+  { name: "admin activity", path: "/admin/activity", role: "admin", minTextLength: 50 },
+  { name: "admin users", path: "/admin/users", role: "admin", minTextLength: 50 },
+  { name: "admin phone onboarding", path: "/admin/phone-onboarding", role: "admin", minTextLength: 50 },
+  { name: "admin home cards", path: "/admin/home-cards", role: "admin", minTextLength: 50 },
+  { name: "admin hero messages", path: "/admin/hero-messages", role: "admin", minTextLength: 50 },
+  { name: "admin marketing", path: "/admin/marketing", role: "admin", minTextLength: 50 },
+  { name: "admin marketing tab", path: "/admin/marketing/home", role: "admin", minTextLength: 50 },
+  { name: "admin workflows", path: "/admin/workflows", role: "admin", minTextLength: 50 },
+  { name: "admin voice readiness", path: "/admin/voice-readiness", role: "admin", minTextLength: 50 },
   { name: "admin concierge readiness", path: "/admin/concierge-readiness", role: "admin", requiresInteractive: false, minTextLength: 80 },
+  { name: "admin concierge supplies", path: "/admin/concierge-supplies", role: "admin", minTextLength: 50 },
+  { name: "admin trusted help partners", path: "/admin/trusted-help-partners", role: "admin", minTextLength: 50 },
+  { name: "admin concierge queue", path: "/admin/concierge-queue", role: "admin", minTextLength: 50 },
+  { name: "admin concierge email replies", path: "/admin/concierge-email-replies", role: "admin", minTextLength: 50 },
+  { name: "admin providers", path: "/admin/providers", role: "admin", minTextLength: 50 },
+  { name: "admin content review", path: "/admin/content-review", role: "admin", minTextLength: 50 },
+  { name: "admin curious minds", path: "/admin/curious-minds", role: "admin", minTextLength: 50 },
+  { name: "admin cognitive assessment", path: "/admin/cognitive-assessment", role: "admin", minTextLength: 50 },
+  { name: "admin learning library", path: "/admin/learning-library", role: "admin", minTextLength: 50 },
+  { name: "admin curated activities", path: "/admin/curated-activities", role: "admin", minTextLength: 50 },
+  { name: "admin content index", path: "/admin/content-index", role: "admin", minTextLength: 50 },
+  { name: "admin room prompts", path: "/admin/room-prompts", role: "admin", minTextLength: 50 },
+];
+
+const remainingStaticRoutes: ResponsiveRoute[] = [
+  { name: "activities alias", path: "/activities" },
+  { name: "admin modules preview", path: "/dev/admin-modules" },
+  { name: "rhythm tap preview", path: "/dev/brain/attention-boosters/rhythm-tap" },
+  { name: "calm preview", path: "/dev/brain/calm" },
+  { name: "focus preview", path: "/dev/brain/focus" },
+  { name: "remember preview", path: "/dev/brain/remember" },
+  { name: "think preview", path: "/dev/brain/think" },
+  { name: "breath garden preview", path: "/dev/breath-garden" },
+  { name: "concierge canonical preview", path: "/dev/concierge-canonical-preview" },
+  { name: "connections preview", path: "/dev/connections" },
+  { name: "curious minds preview", path: "/dev/curious-minds" },
+  { name: "dual task result preview", path: "/dev/dual-task-result", requiresInteractive: false },
+  { name: "home master", path: "/dev/home-master" },
+  { name: "home master doctor", path: "/dev/home-master/ask-dr-ai" },
+  { name: "home master doctor checking", path: "/dev/home-master/ask-dr-ai-checking", minTextLength: 50 },
+  { name: "home master doctor next", path: "/dev/home-master/ask-dr-ai-next" },
+  { name: "home master brain", path: "/dev/home-master/brain" },
+  { name: "home master check in", path: "/dev/home-master/check-in" },
+  { name: "home master legacy community", path: "/dev/home-master/community" },
+  { name: "home master community team", path: "/dev/home-master/community-team" },
+  { name: "home master community chat", path: "/dev/home-master/community-team/chat" },
+  { name: "home master concierge", path: "/dev/home-master/concierge" },
+  { name: "home master health", path: "/dev/home-master/health" },
+  { name: "home master health plan", path: "/dev/home-master/health-plan" },
+  { name: "home master medicines", path: "/dev/home-master/medicines", minTextLength: 50 },
+  { name: "home master menu", path: "/dev/home-master/menu" },
+  { name: "home master profile", path: "/dev/home-master/profile" },
+  { name: "home master accessibility", path: "/dev/home-master/profile/accessibility" },
+  { name: "home master account", path: "/dev/home-master/profile/account" },
+  { name: "home master care team", path: "/dev/home-master/profile/care-team" },
+  { name: "home master emergency", path: "/dev/home-master/profile/emergency" },
+  { name: "home master profile health", path: "/dev/home-master/profile/health" },
+  { name: "home master profile medicines", path: "/dev/home-master/profile/medicines" },
+  { name: "home master preferences", path: "/dev/home-master/profile/preferences" },
+  { name: "home master providers", path: "/dev/home-master/profile/providers" },
+  { name: "home master reports", path: "/dev/home-master/reports" },
+  { name: "home master symptom report", path: "/dev/home-master/symptom-report" },
+  { name: "home master symptom warning", path: "/dev/home-master/symptom-warning" },
+  { name: "home master vitals", path: "/dev/home-master/vitals" },
+  { name: "listen closely preview", path: "/dev/listen-closely" },
+  { name: "profile conditions preview", path: "/dev/profile-conditions" },
+  { name: "profile overview preview", path: "/dev/profile-overview" },
+  { name: "remember later preview", path: "/dev/remember-later" },
+  { name: "scent memory preview", path: "/dev/scent-memory" },
+  { name: "screen contact sheet", path: "/dev/screen-contact-sheet" },
+  { name: "trusted help preview", path: "/dev/trusted-help" },
+  { name: "trusted help partners preview", path: "/dev/trusted-help-partners" },
+  { name: "breath garden game alias", path: "/games/breath-garden" },
+  { name: "gentle walk exercise", path: "/health/exercises/gentle-walk" },
+  { name: "health medications alias", path: "/health/medications" },
+  { name: "language settings", path: "/language" },
+  { name: "mind alias", path: "/mind" },
+  { name: "senses association", path: "/senses/association" },
+  { name: "privacy settings", path: "/settings/privacy" },
+  { name: "participate alias", path: "/social-rooms/participate" },
 ];
 
 test.describe("responsive route smoke", () => {
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: "parallel" });
 
-  test("public and auth routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(240_000);
-    await runRoutes(page, publicRoutes, false);
-  });
+  const groups = [
+    { name: "public and auth", routes: publicRoutes, signedIn: false },
+    { name: "protected app", routes: protectedRoutes, signedIn: true },
+    { name: "secondary app", routes: protectedSecondaryRoutes, signedIn: true },
+    { name: "onboarding and profile setup", routes: onboardingRoutes, signedIn: true },
+    { name: "social rooms and focused games", routes: socialAndGameRoutes, signedIn: true },
+    { name: "admin workspace", routes: adminRoutes, signedIn: true },
+    { name: "remaining static and preview", routes: remainingStaticRoutes, signedIn: true },
+  ];
 
-  test("protected app routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(540_000);
-    await runRoutes(page, protectedRoutes, true);
-  });
+  for (const group of groups) {
+    const requestedRoute = process.env.RESPONSIVE_ROUTE;
+    const startAtRoute = process.env.RESPONSIVE_START_AT;
+    const startAtIndex = startAtRoute ? group.routes.findIndex((route) => route.path === startAtRoute) : -1;
+    const routes = requestedRoute
+      ? group.routes.filter((route) => route.path === requestedRoute)
+      : startAtIndex >= 0 ? group.routes.slice(startAtIndex) : group.routes;
 
-  test("social rooms and focused game routes adapt across responsive viewports", async ({ page }) => {
-    test.setTimeout(260_000);
-    await runRoutes(page, socialAndGameRoutes, true);
-  });
-
-  test("admin workspace has basic responsive smoke coverage", async ({ page }) => {
-    test.setTimeout(90_000);
-    await runRoutes(page, adminRoutes, true);
-  });
+    // Small independent batches let CI shard all routes without dropping viewports.
+    for (let offset = 0; offset < routes.length; offset += 5) {
+      const batch = routes.slice(offset, offset + 5);
+      test(`${group.name} routes ${offset + 1}-${offset + batch.length} adapt across responsive viewports`, async ({ page }) => {
+        test.setTimeout(300_000);
+        await runRoutes(page, batch, group.signedIn);
+      });
+    }
+  }
 });

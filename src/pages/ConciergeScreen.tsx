@@ -100,6 +100,7 @@ import MasterDashboardLayout, {
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
@@ -9555,13 +9556,15 @@ export type ConciergeScreenMode = "legacy" | "home" | "task";
 
 type ConciergeScreenProps = {
   mode?: ConciergeScreenMode;
+  previewBasePath?: string;
 };
 
-const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
+const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenProps) => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const { taskId } = useParams<{ taskId: string }>();
   const taskEntry = useMemo(
     () => coerceConciergeTaskEntry((location.state as ConciergeLocationState)?.conciergeTaskEntry),
@@ -17200,7 +17203,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         t("concierge.master.cards.getHelpChipAdminService", "Admin Service"),
       ],
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => launchConciergeCategoryPicker("/concierge/get-help", { kind: "home_service" }, openHomeServiceAssistant),
+      onClick: () => launchConciergeCategoryPicker(`${previewBasePath ?? "/concierge"}/get-help`, { kind: "home_service" }, openHomeServiceAssistant),
       testId: "button-concierge-card-service",
     },
     {
@@ -17217,7 +17220,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => {
         if (mode === "home") {
-          navigate("/concierge/order-in");
+          navigate(`${previewBasePath ?? "/concierge"}/order-in`);
           return;
         }
         openShoppingHelp("groceries");
@@ -17236,7 +17239,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         t("concierge.master.cards.bookAppointmentsChipPersonalCare", "Personal Care"),
       ],
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => launchConciergeCategoryPicker("/concierge/book-appointments", { kind: "appointment" }, () => openScheduleAssistant()),
+      onClick: () => launchConciergeCategoryPicker(`${previewBasePath ?? "/concierge"}/book-appointments`, { kind: "appointment" }, () => openScheduleAssistant()),
       testId: "button-concierge-card-appointment",
     },
     {
@@ -17251,7 +17254,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         t("concierge.master.cards.discoverChipOtcPharmacy", "OTC Pharmacy"),
       ],
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
-      onClick: () => navigate("/concierge/discover"),
+      onClick: () => navigate(`${previewBasePath ?? "/concierge"}/discover`),
       testId: "button-concierge-card-discover",
     },
   ];
@@ -17413,6 +17416,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   ));
   return (
     <MasterDashboardLayout
+      isDarkMode={isDark}
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
@@ -17426,14 +17430,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           compact
         >
           <HomeMasterProfileControl
-            isDark={false}
+            isDark={isDark}
             ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
-            onClick={() => navigate("/menu")}
+            onClick={() => navigate(previewBasePath ? "/dev/home-master/menu" : "/menu")}
             testId="button-concierge-back"
             compact
           />
 
-          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+          <h1 className={`truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] ${isDark ? "text-[#FFF8FF]" : "text-[#241C30]"}`}>
             {t("concierge.master.topbarTitle", "Concierge")}
           </h1>
 

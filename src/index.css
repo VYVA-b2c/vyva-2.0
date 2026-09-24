@@ -953,6 +953,31 @@
   color: #fff8ff;
 }
 
+[data-home-master-theme="dark"].advisor-chat-theme {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(88, 52, 112, 0.34), transparent 42%),
+    linear-gradient(180deg, #180f20 0%, #140c18 52%, #100812 100%);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].advisor-chat-theme :is(
+  [class*="bg-white"],
+  [class*="bg-[#FBF7F0]"],
+  [class*="bg-[#F3EEFA]"]
+) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].advisor-chat-theme :is(
+  [class*="text-vyva-text-1"],
+  [class*="text-vyva-text-2"],
+  [class*="text-vyva-text-3"]
+) {
+  color: rgba(247, 240, 255, 0.88);
+}
+
 [data-home-master-theme="dark"] .prototype-section-title {
   color: #fff8ff;
 }

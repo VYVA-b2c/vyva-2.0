@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BenefitsNavigatorScreen from "./BenefitsNavigatorScreen";
+import { HOME_MASTER_THEME_STORAGE_KEY, writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
 const canonicalVoiceButtonMock = vi.hoisted(() => vi.fn());
@@ -65,6 +66,7 @@ function renderScreen() {
 
 describe("BenefitsNavigatorScreen", () => {
   beforeEach(() => {
+    window.localStorage.removeItem(HOME_MASTER_THEME_STORAGE_KEY);
     apiFetchMock.mockReset();
     canonicalVoiceButtonMock.mockReset();
     profileState.profile = {
@@ -78,13 +80,14 @@ describe("BenefitsNavigatorScreen", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.removeItem(HOME_MASTER_THEME_STORAGE_KEY);
     vi.clearAllMocks();
   });
 
   it("uses Inés for the permanent voice and chat entry point", () => {
     renderScreen();
 
-    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", "dark");
     expect(canonicalVoiceButtonMock).toHaveBeenCalledWith(expect.objectContaining({
       agentSlug: "ines",
       dynamicVariables: expect.objectContaining({ app_entrypoint: "benefits_navigator" }),
@@ -93,6 +96,20 @@ describe("BenefitsNavigatorScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-benefits-chat"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/ines");
+  });
+
+  it.each(["light", "dark"] as const)("respects the saved %s theme", (theme) => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, theme);
+    renderScreen();
+    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", theme);
+  });
+
+  it("updates the theme without remounting the screen", () => {
+    renderScreen();
+    act(() => writeHomeMasterTheme("light"));
+    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", "light");
+    act(() => writeHomeMasterTheme("dark"));
+    expect(screen.getByTestId("benefits-navigator-screen")).toHaveAttribute("data-home-master-theme", "dark");
   });
 
   it("uses known profile facts and submits only the remaining confirmation", async () => {

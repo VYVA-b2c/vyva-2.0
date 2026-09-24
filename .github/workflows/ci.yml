@@ -7,8 +7,9 @@ on:
   pull_request:
 
 jobs:
-  checks:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,14 +35,62 @@ jobs:
           VITEST_CHUNK_SIZE: 10
         run: npm test
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Browser smoke test
-        run: npm run test:e2e
-
       - name: Build
         run: npm run build
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: responsive-1
+            args: e2e/responsive-routes.spec.ts --shard=1/4
+          - shard: responsive-2
+            args: e2e/responsive-routes.spec.ts --shard=2/4
+          - shard: responsive-3
+            args: e2e/responsive-routes.spec.ts --shard=3/4
+          - shard: responsive-4
+            args: e2e/responsive-routes.spec.ts --shard=4/4
+          - shard: other
+            args: --grep-invert='responsive route smoke'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npm run test:e2e -- ${{ matrix.args }}
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 7
+
+  # Keep the existing required check name, and fail closed for every dependency.
+  checks:
+    if: ${{ always() }}
+    needs: [quality, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require quality and all browser shards
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$BROWSER_RESULT" = success
 
   task10-postgres-freeze-proof:
     runs-on: ubuntu-latest

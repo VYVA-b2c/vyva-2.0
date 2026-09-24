@@ -62,12 +62,16 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
-  it("routes Community to the current expert-led Community hub", () => {
-    renderMenu();
+  it("routes Community and Concierge to their canonical destinations", () => {
+    const community = renderMenu();
 
     fireEvent.click(screen.getByTestId("menu-tile-community"));
-
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/social-rooms/experts");
+    community.unmount();
+
+    renderMenu();
+    fireEvent.click(screen.getByTestId("menu-tile-concierge"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/concierge");
   });
 
   it("can override tile paths for the isolated Home/Nav design preview", () => {
@@ -160,6 +164,7 @@ describe("MenuScreen", () => {
     expect(grid).toHaveClass("grid", "grid-cols-1", "gap-4", "md:grid-cols-2", "md:gap-5");
     expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]", "w-full", "rounded-[26px]");
     expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("menu-tile-health-title")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
     expect(screen.getByTestId("menu-tile-health-title")).not.toHaveClass("truncate");
     expect(screen.getByTestId("menu-tile-health-title").parentElement).toHaveClass("vyva-home-master-fixed-type");
     expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveTextContent("Check-ins & medicines");

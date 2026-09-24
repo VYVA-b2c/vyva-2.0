@@ -213,8 +213,8 @@ export default function TrustedHelpPartnersAdminPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f9f4ee] px-4 py-5 text-[#2f2135] sm:px-6 lg:px-8" data-testid="trusted-help-partners-admin">
-      <div className="mx-auto grid max-w-6xl gap-4">
+    <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#f9f4ee] px-4 py-5 text-[#2f2135] sm:px-6 lg:px-8" data-testid="trusted-help-partners-admin">
+      <div className="mx-auto grid min-w-0 max-w-6xl gap-4">
         <AdminPageHeader
           title="Trusted Help Partners"
           subtitle="Add, edit, disable, or remove the VYVA partners that appear in the Concierge trusted-help setup."
@@ -251,13 +251,14 @@ export default function TrustedHelpPartnersAdminPage() {
         </AdminPageHeader>
         <AdminMenu />
 
-        <section className="grid gap-3 rounded-[16px] border border-[#eadfd5] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+        <section className="grid min-w-0 gap-3 rounded-[16px] border border-[#eadfd5] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
           {partnerCounts.map((service) => (
             <button
               key={service.id}
               type="button"
               onClick={() => setServiceFilter(service.id)}
               aria-pressed={serviceFilter === service.id}
+              aria-label={`${service.label}: ${service.count}. ${service.detail}`}
               className={`min-h-[90px] rounded-[14px] border p-3 text-left transition ${
                 serviceFilter === service.id ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"
               }`}
@@ -265,12 +266,11 @@ export default function TrustedHelpPartnersAdminPage() {
             >
               <span className="text-2xl font-black text-[#2f2135]">{service.count}</span>
               <span className="mt-2 block text-sm font-black">{service.label}</span>
-              <span className="sr-only">{service.detail}</span>
             </button>
           ))}
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="rounded-[16px] border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>

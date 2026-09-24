@@ -89,6 +89,27 @@ describe("MedicationRefillsScreen", () => {
     });
   });
 
+  it("renders safely while refill permissions are absent from a transitional response", async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          queryFn: async () => ({}),
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/meds/refills"]}>
+          <MedicationRefillsScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Add a medicine to start tracking")).toBeInTheDocument();
+  });
+
   it("shows the forecast, confidence, attribution, and reminder-only boundary", async () => {
     renderScreen();
     expect(await screen.findByText("You have about 18 days left")).toBeInTheDocument();

@@ -1136,8 +1136,14 @@ export default function VitalsTracker({
   const [selectedAddSignal, setSelectedAddSignal] = useState<SignalKey | null>(null);
 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
-  const showDashboard = useCallback(() => setScreen("dashboard"), []);
-  const showAddReading = useCallback(() => setScreen("add"), []);
+  const showDashboard = useCallback(() => {
+    setSelectedAddSignal(null);
+    setScreen("dashboard");
+  }, []);
+  const showAddReading = useCallback(() => {
+    setSelectedAddSignal(null);
+    setScreen("add");
+  }, []);
   const captureSignal = useCallback((signal: SignalKey) => {
     setSelectedAddSignal(signal);
     setScreen("add");
@@ -1649,9 +1655,7 @@ export default function VitalsTracker({
   const conversationChannel = typeof moodReading?.source_ref?.conversation_channel === "string"
     ? moodReading.source_ref.conversation_channel
     : null;
-  const conversationSentiment = conversationChannel === "voice" || conversationChannel === "chat"
-    ? moodReading
-    : undefined;
+  const isConversationSentiment = conversationChannel === "voice" || conversationChannel === "chat";
   const signalTiles = personalizedDashboardSignals.filter((signalKey) => signalKey !== "mood_score").map((signalKey) => (
     <PersonalizedVitalCard
       key={signalKey}
@@ -1667,13 +1671,12 @@ export default function VitalsTracker({
     <PersonalizedVitalCard
       key="mood_score"
       signalKey="mood_score"
-      reading={conversationSentiment}
+      reading={moodReading}
       language={language}
       isDark={isDark}
-      label={dashboardCopy.sentiment}
-      emptyLabel={dashboardCopy.noConversationInsight}
-      emptyDetail={dashboardCopy.talkToVyva}
-      onClick={() => navigate("/social-rooms/experts")}
+      label={isConversationSentiment ? dashboardCopy.sentiment : undefined}
+      emptyLabel={dashboardCopy.noReading}
+      onClick={() => isConversationSentiment ? navigate("/social-rooms/experts") : captureSignal("mood_score")}
     />
   );
   const dashboardTiles = diabetesPriority && signalTiles.length > 0

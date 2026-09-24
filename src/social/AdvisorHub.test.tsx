@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdvisorHub from "./AdvisorHub";
 import type { AdvisorHubResponse, AdvisorSlug, AdvisorSummary } from "../../shared/advisors";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const queryMock = vi.hoisted(() => vi.fn());
 
@@ -81,6 +82,7 @@ function renderHub() {
 describe("AdvisorHub", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
     window.scrollTo = vi.fn();
     queryMock.mockReset();
     queryMock.mockReturnValue({ data: advisorResponse, isLoading: false, isError: false });
@@ -116,9 +118,26 @@ describe("AdvisorHub", () => {
     );
   });
 
+  it("inherits the persisted dark theme", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderHub();
+
+    expect(screen.getByTestId("advisor-hub-screen")).toHaveAttribute("data-home-master-theme", "dark");
+  });
+
+  it("renders the empty state safely for an incomplete transitional response", () => {
+    queryMock.mockReturnValue({ data: {}, isLoading: false, isError: false });
+    renderHub();
+
+    expect(screen.getByText("Your experts are not available right now.")).toBeInTheDocument();
+    expect(screen.getByTestId("advisor-hub-screen")).toBeInTheDocument();
+  });
+
   it("paginates four expert cards at a time on mobile", () => {
     renderHub();
 
+    expect(screen.getByText("Wellness Coach")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
+    expect(screen.getByText("Movement, energy and balance")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
     expect(screen.getByTestId("button-advisor-amara")).not.toHaveClass("hidden");
     expect(screen.getByTestId("button-advisor-diego")).toHaveClass("advisor-team-card--other-page");

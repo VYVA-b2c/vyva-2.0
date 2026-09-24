@@ -69,6 +69,7 @@ describe("MindMemoryScreen", () => {
       expect(screen.getByTestId(testId)).toHaveTextContent(title);
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
       expect(screen.getByTestId(testId).querySelector(`[data-vyva-icon-tile="${iconAccent}"]`)).toBeInTheDocument();
+      expect(screen.getByText(title)).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
     }
 
     expect(screen.queryByText("Memory and recall")).not.toBeInTheDocument();

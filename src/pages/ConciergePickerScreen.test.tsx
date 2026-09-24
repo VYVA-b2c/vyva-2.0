@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ConciergePickerScreen from "./ConciergePickerScreen";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.fn();
 
@@ -49,7 +50,11 @@ const configuredProfile = {
   ],
 };
 
-function renderPicker(category: "get-help" | "order-in" | "book-appointments" | "discover", profile = configuredProfile) {
+function renderPicker(
+  category: "get-help" | "order-in" | "book-appointments" | "discover",
+  profile = configuredProfile,
+  backPath = "/concierge",
+) {
   apiFetchMock.mockResolvedValue(jsonResponse(profile));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -57,7 +62,7 @@ function renderPicker(category: "get-help" | "order-in" | "book-appointments" | 
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[`/concierge/${category}`]}>
         <LocationProbe />
         <Routes>
-          <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} />} />
+          <Route path={`/concierge/${category}`} element={<ConciergePickerScreen category={category} backPath={backPath} />} />
           <Route path="*" element={null} />
         </Routes>
       </MemoryRouter>
@@ -70,11 +75,33 @@ async function waitForPickerReady(testId: string) {
 }
 
 describe("ConciergePickerScreen", () => {
+  beforeEach(() => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
+  });
+
+  it("inherits the persisted dark theme", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderPicker("get-help");
+
+    expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "dark");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-white/[0.075]");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).not.toHaveClass("bg-white");
+  });
+
+  it("keeps light cards on the light theme", () => {
+    renderPicker("get-help");
+
+    expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-white");
+  });
+
   it("shows the four Get Help options and routes to the home-service task", async () => {
     renderPicker("get-help");
 
     expect(screen.getByText("Get Help")).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveTextContent("Home Repair");
+    expect(screen.getByText("Home Repair")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
+    expect(screen.getByText("Plumber, electrician, cleaning")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
     expect(screen.getByTestId("button-concierge-picker-healthcare")).toHaveTextContent("Healthcare");
     expect(screen.getByTestId("button-concierge-picker-admin-service")).toHaveTextContent("Admin Service");
     expect(screen.getByTestId("button-concierge-picker-home-care")).toHaveTextContent("Home Care");
@@ -123,6 +150,14 @@ describe("ConciergePickerScreen", () => {
     fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+  });
+
+  it("returns preview pickers to the unprotected preview hub", () => {
+    renderPicker("get-help", configuredProfile, "/dev/concierge-canonical-preview");
+
+    fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/dev/concierge-canonical-preview");
   });
 
   it("shows only the missing ride setup and routes to address onboarding", async () => {

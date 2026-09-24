@@ -38,9 +38,33 @@ interface Medication {
   prescribed_by: string;
 }
 
+type SavedMedication = Partial<Omit<Medication, "id">> & {
+  medication_name?: unknown;
+  scheduled_times?: unknown;
+};
+
 const emptyMed = (id: string): Medication => ({
   id, name: "", dosage: "", frequency: "", times: "", with_food: "", prescribed_by: "",
 });
+
+function savedMedicationValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function normalizeSavedMedication(medication: SavedMedication, id: string): Medication {
+  const scheduledTimes = Array.isArray(medication.scheduled_times)
+    ? medication.scheduled_times.filter((value): value is string => typeof value === "string").join(", ")
+    : "";
+  return {
+    id,
+    name: savedMedicationValue(medication.name) || savedMedicationValue(medication.medication_name),
+    dosage: savedMedicationValue(medication.dosage),
+    frequency: savedMedicationValue(medication.frequency),
+    times: savedMedicationValue(medication.times) || scheduledTimes,
+    with_food: savedMedicationValue(medication.with_food),
+    prescribed_by: savedMedicationValue(medication.prescribed_by),
+  };
+}
 
 const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily", "as_needed"];
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -260,11 +284,11 @@ export default function MedicationsSection() {
 
   useEffect(() => {
     if (loadedRef.current) return;
-    const saved = (data?.profile as { medications?: Omit<Medication, "id">[] } | null)?.medications;
+    const saved = (data?.profile as { medications?: SavedMedication[] } | null)?.medications;
     if (saved && saved.length > 0) {
       loadedRef.current = true;
       counterRef.current = saved.length;
-      const withIds = saved.map((m, i) => ({ ...m, id: `med-${i + 1}` }));
+      const withIds = saved.map((medication, index) => normalizeSavedMedication(medication, `med-${index + 1}`));
       setMeds(withIds);
       setSavedMeds(withIds);
       setNoKnownMedications(false);

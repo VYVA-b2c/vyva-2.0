@@ -18,6 +18,10 @@ import {
 } from "./advisorPresentation";
 import SocialStyles from "./SocialStyles";
 import "./AdvisorHub.css";
+import {
+  CANONICAL_MENU_ITEM_SUBTITLE_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 const MOBILE_PAGE_SIZE = 4;
 const PAGE_STORAGE_KEY = "vyva:community-expert-page";
@@ -83,10 +87,10 @@ function AdvisorCard({
         size={34}
       />
       <span className="min-w-0 flex-1">
-        <span className="advisor-team-title block font-display text-[20px] font-semibold leading-[1.08] tracking-[-0.025em] text-vyva-text-1">
+        <span className={`advisor-team-title block text-vyva-text-1 ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
           {presentation.title}
         </span>
-        <span className="advisor-team-detail mt-1.5 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+        <span className={`advisor-team-detail mt-1.5 block text-vyva-text-2 ${CANONICAL_MENU_ITEM_SUBTITLE_CLASS}`}>
           {presentation.detail}
         </span>
       </span>
@@ -140,7 +144,6 @@ export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
       <SocialStyles />
       <CanonicalDetailFlowShell
         shellContract={shellContract}
-        appearance="light"
         onBack={() => navigate("/social-rooms")}
         shellTestId="advisor-hub-screen"
         contentTestId="advisor-hub-content"
@@ -158,10 +161,10 @@ export default function AdvisorHub({ preview = false }: { preview?: boolean }) {
           <div className="advisor-team-grid" data-testid="advisor-list">
             {!preview && query.isLoading ? (
               <div className="rounded-[24px] border border-[#E8E2F0] bg-white px-5 py-6 font-body text-[16px] font-bold text-vyva-text-2">
-                {query.data?.ui.loading ?? "Preparing your experts..."}
+                {query.data?.ui?.loading ?? "Preparing your experts..."}
               </div>
             ) : !orderedAdvisors.length ? (
-              <EmptyState title={query.data?.ui.empty ?? "Your experts are not available right now."} />
+              <EmptyState title={query.data?.ui?.empty ?? "Your experts are not available right now."} />
             ) : (
               orderedAdvisors.map((advisor) => (
                 <AdvisorCard

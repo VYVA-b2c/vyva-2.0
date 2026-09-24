@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import { Brain, Heart, Mic, ShieldCheck, Users } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MasterDashboardLayout, { type MasterFastHelpAction } from "./MasterDashboardLayout";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 vi.mock("@/components/VyvaSessionCta", () => ({
   default: ({ testId }: { testId?: string }) => (
@@ -48,6 +49,14 @@ describe("MasterDashboardLayout Fast help rotation", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("inherits the persisted theme when a caller does not override it", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderLayout([]);
+
+    expect(screen.getByTestId("fast-help").closest("[data-home-master-theme]"))
+      .toHaveAttribute("data-home-master-theme", "dark");
   });
 
   it("shows three actions and keeps urgent pinned while rotating", () => {
