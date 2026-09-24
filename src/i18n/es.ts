@@ -1705,7 +1705,7 @@ const es = {
       drawHint: "Desliza el dedo por el camino que recuerdas",
       done: "Listo",
       resultGreat: "Buen trabajo, explorador!",
-      resultTry: "Casi lo tienes! Intentalo manana.",
+      resultTry: "Intentalo de nuevo",
       accuracy: "Precision",
       streak: "Racha",
       score: "Puntuacion",

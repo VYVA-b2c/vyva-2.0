@@ -1478,7 +1478,7 @@ const pt = {
       drawHint: "Deslize o dedo pelo caminho de que se lembra",
       done: "Pronto",
       resultGreat: "Otimo trabalho, explorador!",
-      resultTry: "Quase la! Tente de novo amanha.",
+      resultTry: "Tente de novo",
       accuracy: "Precisao",
       streak: "Sequencia",
       score: "Pontuacao",

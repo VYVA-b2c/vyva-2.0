@@ -1773,7 +1773,7 @@ const fr = {
       drawHint: "Glissez le doigt sur le chemin dont vous vous souvenez",
       done: "Termine",
       resultGreat: "Beau travail, explorateur!",
-      resultTry: "Vous y etes presque! Reessayez demain.",
+      resultTry: "Reessayez",
       accuracy: "Precision",
       streak: "Serie",
       score: "Score",

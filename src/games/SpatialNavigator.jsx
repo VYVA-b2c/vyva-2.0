@@ -73,7 +73,7 @@ function practiceMap(language, routeIndex = 0) {
     difficulty_tier: 1,
     blocked_cells: [],
     landmark_cells: [],
-    memorise_seconds: 15,
+    memorise_seconds: 5,
     language,
     is_active: true,
   };
@@ -224,7 +224,7 @@ export default function SpatialNavigator({ userId, onExit }) {
   const [savingResult, setSavingResult] = useState(false);
 
   const route = useMemo(() => routeFor(map), [map]);
-  const memoriseSeconds = Math.max(1, Number(map?.memorise_seconds ?? 5));
+  const memoriseSeconds = Math.min(5, Math.max(1, Number(map?.memorise_seconds ?? 5)));
   const countdownRatio = screen === "memorise" ? Math.max(0, Math.min(1, countdown / memoriseSeconds)) : 1;
 
   useEffect(() => {
@@ -408,7 +408,7 @@ export default function SpatialNavigator({ userId, onExit }) {
       const width = container.getBoundingClientRect().width || 360;
       const compactResult = screen === "result" && window.innerWidth <= 520;
       const maxSize = screen === "result" ? (compactResult ? 220 : 300) : 480;
-      const minSize = screen === "result" ? (compactResult ? 200 : 240) : 320;
+      const minSize = screen === "result" ? (compactResult ? 200 : 240) : 220;
       setCanvasSize(Math.max(minSize, Math.min(width, maxSize)));
     };
 
@@ -556,8 +556,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     setSessionResult(null);
     sessionSavedRef.current = false;
     setScreen("memorise");
-    startCountdown(Number(map.memorise_seconds ?? 5));
-  }, [map, startCountdown]);
+    startCountdown(memoriseSeconds);
+  }, [map, memoriseSeconds, startCountdown]);
 
   function getCellFromTouch(touch, canvasRect, cellSize) {
     if (!map) return null;
@@ -843,6 +843,9 @@ export default function SpatialNavigator({ userId, onExit }) {
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
+  const canProgress = resultAccuracy >= 60;
+  const primaryResultLabel = canProgress ? continueLabel : text.playAgain;
+  const primaryResultAction = canProgress ? loadGame : loadSameLevelGame;
   const winProgress = Math.min(3, Number(userState?.consecutive_wins ?? 0));
 
   if (screen === "loading") {
@@ -943,11 +946,9 @@ export default function SpatialNavigator({ userId, onExit }) {
             { label: text.score, value: sessionResult?.score ?? 0 },
             { label: text.level, value: `${text.level} ${resultTier}` },
           ]}
-          continueLabel={continueLabel}
-          replayLabel={text.playAgain}
+          continueLabel={primaryResultLabel}
           anotherLabel={text.playAnotherGame}
-          onContinue={loadGame}
-          onReplay={loadSameLevelGame}
+          onContinue={primaryResultAction}
           onAnother={handleExit}
           details={
             <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
@@ -1107,7 +1108,7 @@ const spatialStyles = `
   .spatial-canvas-wrap {
     width: 100%;
     max-width: 480px;
-    min-width: 320px;
+    min-width: 0;
     margin: 20px auto 0;
     display: flex;
     justify-content: center;
@@ -1124,6 +1125,7 @@ const spatialStyles = `
 
   .spatial-canvas {
     display: block;
+    box-sizing: border-box;
     border-radius: 20px;
     border: 3px solid #E5E3DF;
     background: ${BACKGROUND};
