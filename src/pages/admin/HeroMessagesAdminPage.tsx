@@ -760,7 +760,7 @@ export default function HeroMessagesAdminPage() {
   }, [metricsDays]);
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
+    <main className="min-h-screen min-w-0 bg-[#f7f2eb] px-3 py-6 text-[#2f2135] sm:px-6 sm:py-8">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Hero messages"
@@ -772,7 +772,7 @@ export default function HeroMessagesAdminPage() {
           {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
-        <nav className="mt-5 flex gap-2 rounded-lg border border-[#eadfd5] bg-white p-2 shadow-sm" aria-label="Hero message workspace">
+        <nav className="mt-5 flex min-w-0 flex-wrap gap-2 rounded-lg border border-[#eadfd5] bg-white p-2 shadow-sm" aria-label="Hero message workspace" data-testid="hero-workspace-tabs">
           <button
             type="button"
             className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "messages" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
@@ -959,7 +959,7 @@ export default function HeroMessagesAdminPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid min-h-[280px] gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid min-h-[280px] min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredMessages.length === 0 ? (
                 <p className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-bold text-[#7d6b65]">No messages match this filter.</p>
               ) : filteredMessages.map((item) => {
@@ -974,7 +974,7 @@ export default function HeroMessagesAdminPage() {
                       setSelectedMessageId(item.message_id);
                       setEditorView("editor");
                     }}
-                    className={`w-full rounded-lg border p-3 text-left transition ${
+                    className={`min-w-0 w-full rounded-lg border p-3 text-left transition ${
                       active
                         ? "border-purple-400 bg-purple-50 shadow-sm"
                         : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"

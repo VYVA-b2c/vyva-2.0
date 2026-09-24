@@ -97,6 +97,7 @@ describe("HeroMessagesAdminPage", () => {
     renderPage();
 
     expect(await screen.findByRole("link", { name: "Admin home" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByTestId("hero-workspace-tabs")).toHaveClass("flex-wrap", "min-w-0");
   });
 
   it("shows the live overview with source, warnings, and aggregate metrics", async () => {
