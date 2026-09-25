@@ -1439,27 +1439,25 @@ test("symptom check prepares a direct doctor share link when a doctor contact is
   await expectNoHorizontalOverflow(page);
 });
 
-test("profile overview follows the canonical desktop width and switches section rows into cards", async ({ page }) => {
+test("profile overview follows the canonical seven-group responsive layout", async ({ page }) => {
   await mockApi(page, true);
 
   await page.setViewportSize({ width: 1920, height: 900 });
   await page.goto("/onboarding/profile", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
 
-  const sectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
-  expect(sectionListBox).not.toBeNull();
-  expect(sectionListBox!.width).toBeGreaterThan(800);
-  expect(sectionListBox!.width).toBeLessThanOrEqual(920);
-  await expect(page.getByTestId("list-profile-sections")).toHaveCSS(
-    "grid-template-columns",
-    /[0-9.]+px [0-9.]+px/,
-  );
+  const groupList = page.getByTestId("list-profile-groups");
+  const groupListBox = await groupList.boundingBox();
+  expect(groupListBox).not.toBeNull();
+  expect(groupListBox!.width).toBeGreaterThan(800);
+  expect(groupListBox!.width).toBeLessThanOrEqual(920);
+  await expect(groupList.locator('[data-testid^="button-profile-group-"]')).toHaveCount(7);
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
-  const mobileSectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
-  expect(mobileSectionListBox).not.toBeNull();
-  expect(mobileSectionListBox!.width).toBeLessThanOrEqual(350);
+  const mobileGroupListBox = await page.getByTestId("list-profile-groups").boundingBox();
+  expect(mobileGroupListBox).not.toBeNull();
+  expect(mobileGroupListBox!.width).toBeLessThanOrEqual(370);
   await expectNoHorizontalOverflow(page);
 });

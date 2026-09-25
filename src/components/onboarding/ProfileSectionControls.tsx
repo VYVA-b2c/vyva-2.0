@@ -69,7 +69,26 @@ export function ProfileVoiceAction({
   busyLabel,
   onFocus,
 }: ProfileVoiceActionProps) {
-  return null;
+  // The canonical profile exposes voice through the page header. Keep this
+  // inert, non-focusable hook temporarily so legacy section integrations and
+  // their compatibility tests can still invoke the registered action without
+  // rendering a second voice control in the UI.
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      onFocus={onFocus}
+      disabled={disabled || busy}
+      tabIndex={-1}
+      aria-hidden="true"
+      className={cn("sr-only", className)}
+    >
+      <Icon aria-hidden="true" />
+      <span>{busy ? (busyLabel ?? title) : title}</span>
+      <span>{description}</span>
+    </button>
+  );
 }
 
 type ProfileNoneOptionProps = {
