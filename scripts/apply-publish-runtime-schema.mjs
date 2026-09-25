@@ -14,6 +14,8 @@ if (!process.env.DATABASE_URL) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const migrationPaths = [
+  "0019_scheduled_support.sql",
+  "0060_cognitive_assessment_program_enrollments.sql",
   "0076_marketing_social_studio.sql",
   "0077_marketing_social_connections.sql",
   "0081_health_semantic_memory_outbox.sql",
@@ -24,6 +26,10 @@ const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
   .join("\n\n");
 const requiredTables = [
+  "scheduled_interactions",
+  "interaction_logs",
+  "consent_audit_logs",
+  "cc_program_enrollments",
   "marketing_media_files",
   "marketing_social_connections",
   "health_semantic_memory_outbox",
@@ -33,6 +39,15 @@ const requiredTables = [
   "cross_pillar_execution_attempts",
 ];
 const requiredColumns = [
+  "cc_program_enrollments.user_id",
+  "cc_program_enrollments.status",
+  "cc_program_enrollments.start_date",
+  "cc_program_enrollments.frequency",
+  "cc_program_enrollments.reminder_time",
+  "cc_program_enrollments.timezone",
+  "cc_program_enrollments.scheduled_interaction_id",
+  "cc_program_enrollments.joined_at",
+  "cc_program_enrollments.updated_at",
   "user_providers.is_trusted",
   "user_channel_preferences.preventive_web_push_enabled",
   "user_channel_preferences.preventive_web_push_consent_revision",
@@ -63,7 +78,6 @@ try {
   await client.query("select pg_advisory_lock($1)", [83920083]);
   await client.query("begin");
   await client.query(migrationSql);
-  await client.query("commit");
 
   const tablesVerification = await client.query(
     `select table_name
@@ -92,6 +106,7 @@ try {
     );
   }
 
+  await client.query("commit");
   console.log("Publish runtime schema ready.");
 } catch (error) {
   try {
