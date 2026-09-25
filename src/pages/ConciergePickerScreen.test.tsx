@@ -6,6 +6,13 @@ import ConciergePickerScreen from "./ConciergePickerScreen";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.fn();
+const nudgeInbox = vi.hoisted(() => ({ needs_you: [] as unknown[], waiting: [], completed: [] }));
+vi.mock("@/lib/conciergeTaskDrafts", () => ({ listConciergeTaskDrafts: async () => [] }));
+vi.mock("@/lib/conciergeTaskInbox", () => ({
+  fetchConciergeTaskPendingItems: async () => [],
+  fetchConciergeTaskCompletedSessions: async () => [],
+  buildConciergeTaskInbox: () => nudgeInbox,
+}));
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
@@ -76,7 +83,29 @@ async function waitForPickerReady(testId: string) {
 
 describe("ConciergePickerScreen", () => {
   beforeEach(() => {
+    sessionStorage.clear();
+    nudgeInbox.needs_you = [];
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
+  });
+
+  it("prioritises attention over a draft and dismisses the nudge for this session", async () => {
+    nudgeInbox.needs_you = [
+      { continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" },
+      { continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" },
+    ];
+    renderPicker("get-help");
+    expect(await screen.findByRole("button", { name: "Your request needs attention" })).toBeInTheDocument();
+    expect(screen.queryByText("Continue your request")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByTestId("get-help-nudge")).not.toBeInTheDocument();
+    expect(sessionStorage.getItem("concierge:get-help:nudge-dismissed")).toBe("true");
+  });
+
+  it("resumes a home-service draft through its existing route", async () => {
+    nudgeInbox.needs_you = [{ continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" }];
+    renderPicker("get-help");
+    fireEvent.click(await screen.findByRole("button", { name: "Continue your request" }));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/draft");
   });
 
   it("inherits the persisted dark theme", () => {
@@ -111,6 +140,27 @@ describe("ConciergePickerScreen", () => {
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"home_service\"");
+  });
+
+  it("replaces choices with setup and restores them on back", async () => {
+    renderPicker("get-help", { ...configuredProfile, savedProviders: [] });
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
+    expect(screen.getByTestId("panel-concierge-service-setup")).toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-picker-options")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA only asks for the details this service needs.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-picker-back"));
+    expect(screen.getByTestId("concierge-picker-options")).toBeInTheDocument();
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/get-help");
+  });
+
+  it("offers provider setup without an unrelated discovery action", async () => {
+    renderPicker("get-help", { ...configuredProfile, savedProviders: [] });
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
+    expect(screen.queryByRole("button", { name: "Find me another one" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-setup-provider"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
   });
 
   it("shows the four Book Appointments options and routes each appointment kind", async () => {

@@ -953,6 +953,18 @@
   color: #fff8ff;
 }
 
+[data-home-master-theme="dark"].prototype-shell:has(> .concierge-picker-frame) {
+  background: radial-gradient(circle at 50% -10%, #21162a 0%, #160d1c 46%, #110914 100%);
+}
+
+[data-home-master-theme="dark"] > .concierge-picker-frame > header {
+  background: rgba(33, 22, 42, 0.95);
+}
+
+[data-home-master-theme="dark"] .concierge-picker-frame [data-testid="concierge-picker-options"] > button {
+  background: linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, var(--picker-accent-tint) 100%);
+}
+
 [data-home-master-theme="dark"].advisor-chat-theme {
   background:
     radial-gradient(circle at 50% 0%, rgba(88, 52, 112, 0.34), transparent 42%),
