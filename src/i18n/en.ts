@@ -1,5 +1,7 @@
 const en = {
   common: {
+    showMoreGames: "More",
+    showFewerGames: "Show less",
     back: "Back",
     continue: "Continue",
     start: "Start",

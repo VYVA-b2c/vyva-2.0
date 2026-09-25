@@ -6,6 +6,8 @@ const de = {
     more: "Mehr",
   },
   common: {
+    showMoreGames: "Mehr",
+    showFewerGames: "Weniger anzeigen",
     back: "Zuruck",
     continue: "Weiter",
     start: "Starten",

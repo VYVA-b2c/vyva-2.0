@@ -6,6 +6,8 @@ const es = {
     more: "Más",
   },
   common: {
+    showMoreGames: "Más",
+    showFewerGames: "Mostrar menos",
     back: "Volver",
     continue: "Continuar",
     start: "Empezar",
