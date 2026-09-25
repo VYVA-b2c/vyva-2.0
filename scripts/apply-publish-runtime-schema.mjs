@@ -21,11 +21,13 @@ const migrationPaths = [
   "0081_health_semantic_memory_outbox.sql",
   "0083_replit_publish_runtime_schema.sql",
   "0084_replit_publish_schema_parity.sql",
+  "0085_publish_triage_report_columns.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
   .join("\n\n");
 const requiredTables = [
+  "triage_reports",
   "scheduled_interactions",
   "interaction_logs",
   "consent_audit_logs",
@@ -39,6 +41,14 @@ const requiredTables = [
   "cross_pillar_execution_attempts",
 ];
 const requiredColumns = [
+  ...[
+    "id", "user_id", "chief_complaint", "urgency", "symptoms",
+    "recommendations", "disclaimer", "ai_summary", "next_step_label",
+    "next_step_level", "triage_reasons", "watch_signs", "profile_considerations",
+    "vitals_notes", "vitals_snapshot", "scan_results", "scan_notes", "interpretation",
+    "possible_patterns", "uncertainty", "reassessment_window", "change_plan_triggers",
+    "clinical_handoff", "bpm", "respiratory_rate", "duration_seconds", "created_at",
+  ].map((column) => `triage_reports.${column}`),
   "cc_program_enrollments.user_id",
   "cc_program_enrollments.status",
   "cc_program_enrollments.start_date",
