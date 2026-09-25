@@ -1,9 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Wrench,
+  MapPin,
   Stethoscope,
   FileText,
   HeartHandshake,
@@ -18,6 +19,7 @@ import {
   AlertTriangle,
   Pill,
   ChevronRight,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -38,6 +40,8 @@ import {
   type ConciergeFlowReference,
 } from "../../shared/conciergeFlowRegistry";
 import { apiFetch } from "@/lib/queryClient";
+import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
+import { buildConciergeTaskInbox, fetchConciergeTaskPendingItems, fetchConciergeTaskCompletedSessions } from "@/lib/conciergeTaskInbox";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import {
   CANONICAL_MENU_ITEM_SUBTITLE_CLASS,
@@ -445,6 +449,22 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   const isSpanish = language.split("-")[0].toLowerCase() === "es";
   const config = buildCategoryConfigs(isSpanish)[category];
   const [blockedOption, setBlockedOption] = useState<PickerOptionConfig | null>(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    try { return sessionStorage.getItem("concierge:get-help:nudge-dismissed") === "true"; } catch { return false; }
+  });
+  const taskNudgeQuery = useQuery({
+    queryKey: ["concierge-get-help-nudge", language],
+    enabled: category === "get-help" && !backPath.startsWith("/dev/") && !nudgeDismissed,
+    queryFn: async () => {
+      const [drafts, pending, completed] = await Promise.all([
+        listConciergeTaskDrafts(), fetchConciergeTaskPendingItems(), fetchConciergeTaskCompletedSessions(),
+      ]);
+      return buildConciergeTaskInbox({ drafts, pending, completed, isSpanish });
+    },
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
   const { data: conciergeProfile = null, isLoading: profileLoading } = useQuery<ConciergeProfile | null>({
     queryKey: ["/api/profile"],
     queryFn: async () => {
@@ -513,11 +533,27 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     });
   }
 
+  const homeTasks = taskNudgeQuery.data?.needs_you.filter((item) => item.continuation.flow === "home_service") ?? [];
+  const attentionTask = homeTasks.find((item) => ["needs_info", "ready_to_confirm", "blocked"].includes(item.continuation.state));
+  const draftTask = homeTasks.find((item) => item.continuation.state === "draft");
+  const providerOption = config.options.find((option) => setupRequirementsForOption(option, conciergeProfile).includes("trusted_provider"));
+  const nudgeKind = attentionTask ? 0 : draftTask ? 1 : conciergeProfile && providerOption ? 2 : null;
+  const nudgeCopy: Record<string, string[]> = {
+    en: ["Your request needs attention", "Continue your request", "Add a trusted provider", "Dismiss"],
+    es: ["Tu solicitud necesita atención", "Continúa tu solicitud", "Añade un proveedor de confianza", "Cerrar"],
+    de: ["Deine Anfrage braucht Aufmerksamkeit", "Anfrage fortsetzen", "Vertrauenswürdigen Anbieter hinzufügen", "Schließen"],
+    fr: ["Votre demande nécessite votre attention", "Continuer votre demande", "Ajouter un prestataire de confiance", "Fermer"],
+    it: ["La tua richiesta richiede attenzione", "Continua la tua richiesta", "Aggiungi un fornitore di fiducia", "Chiudi"],
+    pt: ["O seu pedido precisa de atenção", "Continuar o seu pedido", "Adicionar um prestador de confiança", "Fechar"],
+  };
+  const nudgeLabels = nudgeCopy[language.split("-")[0]] ?? nudgeCopy.en;
+  const showNudge = category === "get-help" && !nudgeDismissed && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
+
   return (
     <CanonicalDetailFlowShell
       shellContract={shellContract}
-      onBack={() => navigate(backPath)}
-      frameClassName="!px-4 sm:!px-5"
+      onBack={() => blockedOption ? setBlockedOption(null) : navigate(backPath)}
+      frameClassName="concierge-picker-frame !px-4 sm:!px-5"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
@@ -529,7 +565,24 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
         />
       }
     >
-      <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
+      {showNudge && (
+        <aside className={`mb-4 flex items-center gap-2 rounded-lg border p-3 ${isDark ? "border-[#4B8F85] bg-[#102B29] text-white" : "border-[#99F6E4] bg-[#F0FDFA] text-[#134E4A]"}`} data-testid="get-help-nudge">
+          <button type="button" className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left font-semibold" onClick={() => {
+            const task = attentionTask ?? draftTask;
+            if (task) navigate(attentionTask ? task.detailPath : task.resumePath);
+            else if (providerOption) setBlockedOption(providerOption);
+          }}>
+            <HeartHandshake size={24} className="shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{nudgeLabels[nudgeKind!]}</span>
+            <ChevronRight size={20} className="shrink-0" aria-hidden="true" />
+          </button>
+          <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center" aria-label={nudgeLabels[3]} title={nudgeLabels[3]} onClick={() => {
+            setNudgeDismissed(true);
+            try { sessionStorage.setItem("concierge:get-help:nudge-dismissed", "true"); } catch { /* Dismiss still works for this visit. */ }
+          }}><X size={20} aria-hidden="true" /></button>
+        </aside>
+      )}
+      {!blockedOption && <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
           const label = t(option.labelKey, option.labelFallback);
@@ -542,14 +595,12 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
               onClick={() => handleOptionSelect(option)}
               disabled={profileLoading}
               aria-label={`${label}. ${detail}`}
+              style={{ "--picker-accent-tint": `${option.iconColor}18`, ...(!isDark ? { background: `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${option.iconBg} 100%)` } : {}) } as CSSProperties}
               className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}
             >
-              <CanonicalFlowIcon
-                icon={Icon}
-                tone="purple"
-                goldAccent={canonicalAccentForIcon(Icon)}
-                className="!h-14 !w-14 !rounded-[20px]"
-              />
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px]" style={{ background: option.iconBg, color: option.iconColor }}>
+                <Icon size={24} strokeWidth={2.6} aria-hidden="true" />
+              </span>
               <span className="min-w-0 flex-1">
                 <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS} ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
                   {label}
@@ -562,32 +613,30 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
             </button>
           );
         })}
-      </div>
+      </div>}
       {blockedOption ? (
-        <section className={`mt-5 rounded-[24px] border p-4 ${isDark ? "border-[#4B8F85] bg-[#102B29]" : "border-[#99F6E4] bg-[#F0FDFA]"}`} data-testid="panel-concierge-service-setup">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+        <section className="py-5" data-testid="panel-concierge-service-setup">
+          <p className={`font-body text-[12px] font-black uppercase ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`}>
             {isSpanish ? "Configuracion necesaria" : "Setup needed"}
           </p>
-          <h2 className={`mt-1 font-body text-[20px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
+          <h2 className={`mt-2 font-display text-[24px] font-semibold ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
             {isSpanish ? `Prepara ${blockedOption.labelFallback} primero` : `Set up ${blockedOption.labelFallback} first`}
           </h2>
-          <p className={`mt-2 font-body text-[14px] font-bold ${isDark ? "text-[#D7CDD9]" : "text-vyva-text-2"}`}>
-            {isSpanish ? "VYVA solo pide los datos necesarios para este servicio." : "VYVA only asks for the details this service needs."}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className={`mt-6 divide-y border-y ${isDark ? "divide-white/15 border-white/15" : "divide-[#E9DDF5] border-[#E9DDF5]"}`}>
             {blockedRequirements.includes("home_address") ? (
-              <button type="button" onClick={openAddressSetup} className="vyva-primary-action min-h-[44px] px-4" data-testid="button-concierge-setup-address">
-                {isSpanish ? "Anadir direccion" : "Add home address"}
+              <button type="button" onClick={openAddressSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-address">
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><MapPin size={24} aria-hidden="true" /></span>
+                <span className="min-w-0 flex-1">{isSpanish ? "Anadir direccion" : "Add home address"}</span>
+                <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}
             {blockedRequirements.includes("trusted_provider") ? (
-              <button type="button" onClick={openProviderSetup} className="vyva-primary-action min-h-[44px] px-4" data-testid="button-concierge-setup-provider">
-                {isSpanish ? "Anadir proveedor" : "Add trusted provider"}
+              <button type="button" onClick={openProviderSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-provider">
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><ShieldCheck size={24} aria-hidden="true" /></span>
+                <span className="min-w-0 flex-1">{isSpanish ? "Anadir proveedor" : "Add trusted provider"}</span>
+                <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}
-            <button type="button" onClick={() => setBlockedOption(null)} className={`vyva-tap min-h-[44px] rounded-full border px-4 font-body text-[14px] font-black ${isDark ? "border-[#4B8F85] bg-white/[0.08] text-[#A7F3D0]" : "border-[#99F6E4] bg-white text-[#0F766E]"}`}>
-              {isSpanish ? "Ahora no" : "Not now"}
-            </button>
           </div>
         </section>
       ) : null}

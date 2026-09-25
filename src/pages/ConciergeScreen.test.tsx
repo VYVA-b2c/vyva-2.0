@@ -388,6 +388,29 @@ describe("ConciergeScreen task navigation", () => {
     expect(await screen.findByTestId(expectedPanel)).toBeInTheDocument();
   });
 
+  it("does not restore a cached home-service draft over Healthcare", async () => {
+    mockConciergeLists([]);
+    localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["/api/appointments/requests/active-home-service"], {
+      request: {
+        id: "cached-electrician", appointment_type: "home-service", status: "draft",
+        preferences: { service_intake: {
+          version: "home-service-intake-v1", origin: "app", service_type: "electrician",
+          urgency: "today", criteria: ["trusted"], answers: { problem_summary: "Broken socket" },
+        } },
+      },
+      options: [],
+    });
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" } },
+    }], "task", client);
+    expect(await screen.findByTestId("panel-offers-search")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
+    expect(screen.getByTestId("input-offers-query")).toHaveValue("find a specialist");
+  });
+
   it("uses the confirmation stage for an unconfirmed active task", async () => {
     mockConciergeLists();
     renderScreen(["/concierge/task/task-1"], "task");

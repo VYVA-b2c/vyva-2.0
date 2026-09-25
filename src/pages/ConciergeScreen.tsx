@@ -12914,6 +12914,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   useEffect(() => {
+    // Disabled queries can still expose cached hub drafts; task routes restore only their own task.
+    if (mode === "task") return;
     const draft = activeHomeServiceDraftQuery.data;
     if (!draft?.request || homeServiceDraftRestoreAppliedRef.current || homeServiceCanvasMode || conciergeVoiceAction) return;
     if (!isRestorableHomeServiceRequestStatus(draft.request.status)) return;
@@ -12968,6 +12970,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setHomeServiceCanvasMode(true);
     advanceHomeServiceCanvas(nextStep);
   }, [
+    mode,
     activeHomeServiceDraftQuery.data,
     advanceHomeServiceCanvas,
     conciergeVoiceAction,

@@ -396,7 +396,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const homeMasterPrototypeSurfaceClass = isHomeMasterDark
     ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
-  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
+  const usesHomePickerSurface = /\/(?:concierge|concierge-canonical-preview)\/(?:get-help|order-in|book-appointments|discover)$/.test(location.pathname);
+  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface || usesHomePickerSurface
     ? homeMasterPrototypeSurfaceClass
     : isConciergeExperienceRoute
       ? isHomeMasterDark
@@ -405,7 +406,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : usesDarkCompactSurface
       ? "bg-[#080715]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
-  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
+  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface || usesHomePickerSurface
     ? homeMasterPrototypeSurfaceClass
     : isConciergeExperienceRoute
       ? isHomeMasterDark
