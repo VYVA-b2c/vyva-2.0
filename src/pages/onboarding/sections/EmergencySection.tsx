@@ -263,7 +263,7 @@ export default function EmergencySection() {
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="Emergency contact" showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Emergency contact" showBack onBack={() => navigate("/onboarding/profile/group/emergency")} homeMasterBackPath="/dev/home-master/profile">
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
           icon={ShieldAlert}
@@ -361,7 +361,6 @@ export default function EmergencySection() {
             {saving ? "Saving..." : "Save emergency contact"}
           </Button>
           </OnboardingCompanionTarget>
-          <button data-testid="button-emergency-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
       {speakItOpen ? (

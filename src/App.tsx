@@ -243,6 +243,7 @@ const ChannelStep = lazy(() => import("./pages/onboarding/ChannelStep"));
 const DataConsentStep = lazy(() => import("./pages/onboarding/DataConsentStep"));
 const ActivationStep = lazy(() => import("./pages/onboarding/ActivationStep"));
 const ProfileOverview = lazy(() => import("./pages/onboarding/ProfileOverview"));
+const ProfileGroupPage = lazy(() => import("./pages/onboarding/ProfileGroupPage"));
 const SectionCompleteScreen = lazy(() => import("./pages/onboarding/SectionCompleteScreen"));
 const ProxySetupStep = lazy(() => import("./pages/onboarding/ProxySetupStep"));
 const ElderConfirmStep = lazy(() => import("./pages/onboarding/ElderConfirmStep"));
@@ -1213,6 +1214,8 @@ const App = () => (
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />
+                    <Route path="/dev/profile-overview/group/:groupId" element={<ProfileGroupPage preview />} />
+                    <Route path="/dev/profile-overview/section/:id" element={<SectionRouter />} />
                     <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
                     <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
                     <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
@@ -1284,6 +1287,8 @@ const App = () => (
                   </Route>
                   <Route path="/onboarding/activation" element={<ActivationStep />} />
                   <Route path="/onboarding/profile" element={<ProfileOverview />} />
+                  <Route path="/onboarding/profile/group/:groupId" element={<ProfileGroupPage />} />
+                  <Route path="/onboarding/profile/preferences" element={<PrototypeProfileActionPreviewScreen kind="accessibility" backPath="/onboarding/profile/group/preferences" />} />
                   <Route path="/onboarding/complete/:section" element={<SectionCompleteScreen />} />
                   <Route path="/onboarding/profile/:id" element={<SectionRouter />} />
                   <Route path="/onboarding/careteam" element={<CareTeamFlow />} />

@@ -54,47 +54,17 @@ export function ProfileSectionHero({
   return (
     <section
       className={cn(
-        "border border-[#EFE4D5] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#F5ECFF_100%)] shadow-[0_14px_34px_rgba(53,28,87,0.06)]",
-        compact ? "rounded-[20px] p-3.5 sm:p-4" : "rounded-[24px] p-4 sm:p-5",
+        "border-b border-vyva-border pb-4",
+        compact ? "px-0" : "px-0",
         className,
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 gap-3.5">
-          <div
-            className={cn(
-              "shrink-0 items-center justify-center shadow-[0_10px_20px_rgba(125,43,232,0.18)]",
-              compact
-                ? "flex h-10 w-10 rounded-[13px]"
-                : "hidden h-12 w-12 rounded-[15px] min-[520px]:flex",
-              iconBgClassName,
-            )}
-          >
-            <Icon size={compact ? 20 : 23} className={iconClassName} />
-          </div>
+          <span className="sr-only"><Icon />{kicker}: {title}</span>
           <div className="min-w-0">
-            {!compact ? (
-              <p className="mb-1.5 inline-flex rounded-full bg-[#FFF1B8] px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
-                {kicker}
-              </p>
-            ) : null}
-            <h2
-              className={cn(
-                "font-display leading-[1.08] text-vyva-text-1",
-                compact
-                  ? "text-[24px] sm:text-[26px]"
-                  : "text-[30px] sm:text-[34px]",
-              )}
-            >
-              {title}
-            </h2>
             <p
-              className={cn(
-                "max-w-2xl text-vyva-text-2",
-                compact
-                  ? "mt-1 text-[14px] leading-snug sm:text-[15px]"
-                  : "mt-1.5 text-[16px] leading-relaxed",
-              )}
+              className="max-w-2xl text-[15px] leading-relaxed text-vyva-text-2"
             >
               {description}
             </p>
@@ -110,21 +80,6 @@ export function ProfileSectionHero({
           />
         ) : null}
       </div>
-      {!compact && badges.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {badges.map((badge) => (
-            <span
-              key={badge.label}
-              className={cn(
-                "inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-[13px] font-extrabold",
-                badgeClass[badge.color ?? "purple"],
-              )}
-            >
-              {badge.label}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

@@ -1,7 +1,20 @@
 import type { FocusEventHandler } from "react";
 import type { LucideIcon } from "lucide-react";
-import { CheckCircle2, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronRight, Loader2, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+
+export function ProfileStandaloneHeader({ title, onBack, backTestId }: { title: string; onBack: () => void; backTestId?: string }) {
+  const { primaryVoiceActionId, runPrimaryVoiceAction } = useOnboardingAgent();
+  return (
+    <header className="mx-auto grid w-full max-w-[760px] grid-cols-[44px_1fr_44px] items-center gap-3 px-5 pb-4 pt-7">
+      <button type="button" data-testid={backTestId} onClick={onBack} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full border border-vyva-border bg-white text-vyva-purple shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/20"><ArrowLeft size={20} /></button>
+      <h1 className="truncate text-center font-body text-[20px] font-extrabold text-vyva-text-1">{title}</h1>
+      {primaryVoiceActionId ? <button type="button" onClick={runPrimaryVoiceAction} aria-label="Add information by voice" className="grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-vyva-purple text-white shadow-[0_12px_28px_rgba(107,33,168,0.24)]"><VyvaIcon icon={Mic} size={18} tone="inverse" /></button> : <a href="/" aria-label="Return to VYVA voice mode" className="grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-vyva-purple text-white shadow-[0_12px_28px_rgba(107,33,168,0.24)]"><VyvaIcon icon={Mic} size={18} tone="inverse" /></a>}
+    </header>
+  );
+}
 
 type ControlTone = "purple" | "amber" | "green";
 
@@ -56,48 +69,7 @@ export function ProfileVoiceAction({
   busyLabel,
   onFocus,
 }: ProfileVoiceActionProps) {
-  const colors = toneClasses[tone];
-
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      onClick={onClick}
-      onFocus={onFocus}
-      disabled={disabled || busy}
-      className={cn(
-        "group flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left shadow-[0_10px_24px_rgba(53,28,87,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(53,28,87,0.1)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15 disabled:pointer-events-none disabled:opacity-60",
-        colors.action,
-        className,
-      )}
-    >
-      <span
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] shadow-sm",
-          colors.icon,
-        )}
-      >
-        {busy ? (
-          <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Icon size={20} aria-hidden="true" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <strong className="block text-[17px] leading-tight">
-          {busy && busyLabel ? busyLabel : title}
-        </strong>
-        <span className="sr-only">
-          {description}
-        </span>
-      </span>
-      <ChevronRight
-        size={20}
-        className="shrink-0 opacity-55 transition group-hover:translate-x-0.5"
-        aria-hidden="true"
-      />
-    </button>
-  );
+  return null;
 }
 
 type ProfileNoneOptionProps = {
@@ -177,21 +149,11 @@ export function ProfileCompletionBar({
   testId = "button-save-profile-section",
 }: ProfileCompletionBarProps) {
   return (
-    <div className="sticky bottom-3 z-20 mt-5 rounded-[20px] border border-[#E8D9F7] bg-white/95 p-3 shadow-[0_16px_40px_rgba(42,20,66,0.14)] backdrop-blur-md sm:flex sm:items-center sm:gap-4">
+    <div className="mt-6 border-t border-vyva-border pt-4 sm:flex sm:items-center sm:gap-4">
       <p className="mb-2 flex-1 text-[13px] font-semibold leading-snug text-vyva-text-2 sm:mb-0 sm:text-[14px]">
         {helper}
       </p>
       <div className="flex items-center gap-2">
-        {skipLabel && onSkip ? (
-          <button
-            type="button"
-            onClick={onSkip}
-            disabled={saving}
-            className="min-h-11 px-3 text-[14px] font-extrabold text-vyva-purple hover:underline disabled:opacity-50"
-          >
-            {skipLabel}
-          </button>
-        ) : null}
         <button
           type="button"
           data-testid={testId}

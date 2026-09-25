@@ -344,7 +344,7 @@ export default function CognitiveSection() {
   const SelectSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="Cognitive profile" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Interaction preferences" showBack onBack={() => navigate("/onboarding/profile/group/preferences")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
           icon={Brain}
@@ -485,7 +485,6 @@ export default function CognitiveSection() {
             {saving ? "Saving..." : "Save cognitive profile"}
           </Button>
           </OnboardingCompanionTarget>
-          <button data-testid="button-cognitive-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
       {speakItOpen ? (

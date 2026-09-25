@@ -340,7 +340,7 @@ export default function AllergiesSection() {
     <PhoneFrame
       subtitle={t("onboarding.allergies.title", "Allergies")}
       showBack
-      onBack={() => navigate("/onboarding/profile")}
+      onBack={() => navigate("/onboarding/profile/group/health")}
       showAllSections
       onAllSections={() => navigate("/onboarding/profile")}
     >
@@ -521,11 +521,9 @@ export default function AllergiesSection() {
             saving={saving}
             onSave={handleSave}
             disabled={isLoading || !hasAllergySectionContent}
-            saveLabel={t("onboarding.allergies.saveContinue", "Save and continue")}
+            saveLabel="Save changes"
             savingLabel={t("onboarding.allergies.saving", "Saving...")}
             helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-            skipLabel={t("onboarding.allergies.skip", "Skip for now")}
-            onSkip={() => navigate("/onboarding/profile")}
             testId="button-allergies-save"
           />
         </OnboardingCompanionTarget>
