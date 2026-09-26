@@ -348,7 +348,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
         <div className="flex shrink-0 items-center gap-1">
           <ConciergeTaskNotificationBell />
           <button
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/onboarding/profile")}
             className="vyva-tap flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1.5 hover:bg-vyva-warm min-[390px]:gap-2 min-[390px]:px-3"
             data-testid="button-my-profile"
             aria-label={t("nav.myProfile")}
