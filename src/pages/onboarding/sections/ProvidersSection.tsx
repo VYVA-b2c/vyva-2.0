@@ -934,6 +934,7 @@ const ProvidersSection = () => {
           />
         ) : null}
         <ProfileSectionHero
+          hideTitle
           icon={Building2}
           title={t("onboarding.providers.title", "Trusted providers")}
           description={t(

@@ -629,6 +629,7 @@ export default function ConditionsSection() {
     <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile/group/health")} homeMasterBackPath="/dev/home-master/profile">
       <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           compact
           icon={HeartPulse}
           title={t("onboarding.conditions.title", "Tell us about your health")}

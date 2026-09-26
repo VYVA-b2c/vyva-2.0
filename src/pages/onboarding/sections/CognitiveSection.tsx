@@ -347,6 +347,7 @@ export default function CognitiveSection() {
     <PhoneFrame subtitle="Interaction preferences" showBack onBack={() => navigate("/onboarding/profile/group/preferences")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={Brain}
           title="Brain coach"
           kicker="Personal pace"

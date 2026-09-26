@@ -15,6 +15,7 @@ type ProfileSectionHeroProps = {
   kicker?: string;
   description: ReactNode;
   compact?: boolean;
+  hideTitle?: boolean;
   badges?: ProfileSectionHeroBadge[];
   iconClassName?: string;
   iconBgClassName?: string;
@@ -45,6 +46,7 @@ export function ProfileSectionHero({
   kicker = "Profile setup",
   description,
   compact = false,
+  hideTitle = false,
   badges = [],
   iconClassName = "text-white",
   iconBgClassName = "bg-[#7D2BE8]",
@@ -61,10 +63,18 @@ export function ProfileSectionHero({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 gap-3.5">
-          <span className="sr-only"><Icon />{kicker}: {title}</span>
+          <span className="sr-only"><Icon />{kicker}</span>
           <div className="min-w-0">
+            {!hideTitle ? (
+              <h2 className="font-display text-[28px] leading-tight text-vyva-text-1 sm:text-[32px]">
+                {title}
+              </h2>
+            ) : null}
             <p
-              className="max-w-2xl text-[15px] leading-relaxed text-vyva-text-2"
+              className={cn(
+                "max-w-2xl text-[15px] leading-relaxed text-vyva-text-2",
+                !hideTitle && "mt-1.5",
+              )}
             >
               {description}
             </p>

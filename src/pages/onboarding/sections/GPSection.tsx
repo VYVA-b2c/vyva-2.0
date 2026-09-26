@@ -366,6 +366,7 @@ const GPSection = () => {
         />
 
         <ProfileSectionHero
+          hideTitle
           icon={Stethoscope}
           title="Doctor details"
           kicker="One click away"

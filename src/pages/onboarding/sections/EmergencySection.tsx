@@ -266,6 +266,7 @@ export default function EmergencySection() {
     <PhoneFrame subtitle="Emergency contact" showBack onBack={() => navigate("/onboarding/profile/group/emergency")} homeMasterBackPath="/dev/home-master/profile">
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={ShieldAlert}
           title="Emergency contact"
           kicker="Safety net"

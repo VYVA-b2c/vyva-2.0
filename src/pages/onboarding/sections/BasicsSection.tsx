@@ -505,6 +505,7 @@ export default function BasicsSection() {
           }}
         />
         <ProfileSectionHero
+          hideTitle
           icon={User}
           title="About you"
           kicker="Personal setup"

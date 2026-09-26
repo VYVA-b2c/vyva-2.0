@@ -410,6 +410,7 @@ export default function AddressSection() {
     <PhoneFrame subtitle="Home address" showBack onBack={() => navigate("/onboarding/profile/group/account")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={MapPin}
           title="Home address"
           kicker="Local help"

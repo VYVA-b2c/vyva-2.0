@@ -292,6 +292,7 @@ export default function DevicesSection() {
     <PhoneFrame subtitle="Devices & sensors" showBack onBack={() => navigate("/onboarding/profile/group/health")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={Activity}
           title="Devices & sensors"
           kicker="Health signals"
