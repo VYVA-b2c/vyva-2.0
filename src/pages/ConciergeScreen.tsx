@@ -12200,7 +12200,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       answers: homeServiceIntakeAnswers,
       language: locale,
     }).safety_flags;
-  }, [homeServiceIntakeAnswers, homeServiceIntakeOrigin, homeServiceType, locale]);
+  }, [homeServiceIntakeAnswers, homeServiceIntakeOrigin, homeServiceType, locale, usingSavedHomeProvider]);
   const { data: homeServiceEmergencyState, isLoading: homeServiceEmergencyContactLoading } = useQuery<ConciergeOnboardingState>({
     queryKey: ["/api/onboarding/state", "home-service-emergency"],
     queryFn: async () => {
