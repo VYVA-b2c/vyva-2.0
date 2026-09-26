@@ -4,6 +4,7 @@ import {
   buildAppointmentSearchQueries,
   discoverAppointmentProviderOptions,
   reservationSystemLinksFor,
+  normalizeSearchAddress,
 } from "./appointmentDiscovery.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -26,13 +27,30 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("cleans the reported conversational address without inventing a country", () => {
+    expect(normalizeSearchAddress("my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other"))
+      .toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");
+  });
+
+  it.each([
+    [{ status: "ZERO_RESULTS", results: [] }, "address_unresolved"],
+    [{ status: "OK", results: [{ partial_match: true }] }, "address_unresolved"],
+    [{ status: "REQUEST_DENIED" }, "geocoding_unavailable"],
+  ])("distinguishes address and geocoding failures", async (body, reason) => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(body));
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", detail: "plumber", location: { address: "Tarifa, Spain" } });
+    expect(result.fallback_reason).toBe(reason);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("rejects Denver and unknown coordinates for a confirmed Tarifa address", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
     vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const url = new URL(String(input));
       if (url.pathname.includes("geocode")) {
-        expect(url.searchParams.get("address")).toBe("Tarifa, Spain");
+        expect(url.searchParams.get("address")).toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");
         return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
       }
       if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [
@@ -43,7 +61,7 @@ describe("appointment discovery", () => {
       expect(url.searchParams.get("place_id")).toBe("tarifa");
       return jsonResponse({ status: "OK", result: {} });
     });
-    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "fast help", location: { address: "Tarifa, Spain" } });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "fast help", location: { address: "my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other" } });
     expect(result.options.map(option => option.provider_snapshot.place_id)).toEqual(["tarifa"]);
   });
 

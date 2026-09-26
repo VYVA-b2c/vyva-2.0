@@ -1026,7 +1026,7 @@ interface AppointmentAttemptResponse {
 interface AppointmentDiscoveryMeta {
   search_id?: string;
   source?: string;
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
   inserted_count?: number;
   eligible_count?: number;
   exclusion_summary?: Record<string, number>;
@@ -10987,6 +10987,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setAppointmentNotice(isSpanish
           ? "He encontrado opciones. Elige una antes de contactar."
           : "I found options. Choose one before contacting.");
+        return;
+      }
+      if (result.discovery?.fallback_reason === "address_unresolved") {
+        setAppointmentError(isSpanish
+          ? "No hemos podido localizar esta direccion. Revisa la ciudad, el codigo postal y el pais antes de volver a buscar."
+          : "We couldn't locate this address. Check the city, postal code and country before searching again.");
+        return;
+      }
+      if (result.discovery?.fallback_reason === "geocoding_unavailable" || result.discovery?.fallback_reason === "google_places_unavailable") {
+        setAppointmentError(isSpanish
+          ? "El servicio de busqueda no esta disponible. No hemos podido completar la busqueda; esto no significa que no haya proveedores."
+          : "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers.");
         return;
       }
       if (result.discovery?.fallback_reason === "google_places_not_configured") {

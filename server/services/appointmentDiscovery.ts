@@ -30,7 +30,7 @@ export interface AppointmentDiscoveryResult {
   source: AppointmentSource;
   options: AppointmentDiscoveredOption[];
   reservation_systems: ReservationSystemLink[];
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
 }
 
 type GooglePlaceSearchResult = {
@@ -227,13 +227,27 @@ function distanceMeters(a: Coordinates, b: Coordinates): number {
     + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
   return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
 }
+export function normalizeSearchAddress(address: string): string {
+  return cleanText(address).replace(/^my address is\s+/i, "")
+    .split(",").map(part => part.trim()).filter(part => part && !/^other$/i.test(part)).join(", ");
+}
+
+class DiscoveryFailure extends Error {
+  constructor(public reason: "address_unresolved" | "geocoding_unavailable" | "google_places_unavailable", public stage: string, public status: string) {
+    super(reason);
+  }
+}
+
 async function resolveSearchAddress(address: string, key: string): Promise<Coordinates | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
   url.searchParams.set("address", address);
   url.searchParams.set("key", key);
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) return null;
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) }).catch(() => {
+    throw new DiscoveryFailure("geocoding_unavailable", "geocode", "NETWORK_OR_TIMEOUT");
+  });
+  if (!response.ok) throw new DiscoveryFailure("geocoding_unavailable", "geocode", String(response.status));
   const data = await response.json() as { status?: string; results?: Array<{ partial_match?: boolean; geometry?: { location?: Coordinates } }> };
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") throw new DiscoveryFailure("geocoding_unavailable", "geocode", data.status ?? "INVALID_RESPONSE");
   if (data.status !== "OK" || data.results?.length !== 1 || data.results[0].partial_match) return null;
   const point = data.results[0].geometry?.location;
   return validCoordinates(point) ? point : null;
@@ -249,13 +263,13 @@ async function fetchGoogleTextSearch(query: string, key: string, language: strin
     url.searchParams.set("radius", "50000");
   }
 
-  const response = await fetch(url);
-  if (!response.ok) return [];
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new DiscoveryFailure("google_places_unavailable", "textsearch", String(response.status));
   const data = await response.json() as {
     status?: string;
     results?: GooglePlaceSearchResult[];
   };
-  if (data.status && !["OK", "ZERO_RESULTS"].includes(data.status)) return [];
+  if (!data.status || !["OK", "ZERO_RESULTS"].includes(data.status)) throw new DiscoveryFailure("google_places_unavailable", "textsearch", data.status ?? "INVALID_RESPONSE");
   return data.results ?? [];
 }
 
@@ -266,7 +280,7 @@ async function fetchGooglePlaceDetails(placeId: string, key: string, language: s
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) return null;
   const data = await response.json() as {
     status?: string;
@@ -315,7 +329,9 @@ export async function discoverAppointmentProviderOptions(input: {
   constraints?: string[];
 }): Promise<AppointmentDiscoveryResult> {
   const language = cleanText(input.language) || "es";
-  const location = appointmentLocationText(input.location);
+  const location = input.appointmentType === "home-service"
+    ? normalizeSearchAddress(appointmentLocationText(input.location))
+    : appointmentLocationText(input.location);
   const countryCode = countryRegion(input.location?.countryCode);
   const reservationSystems = reservationSystemLinksFor({
     appointmentType: input.appointmentType,
@@ -338,7 +354,7 @@ export async function discoverAppointmentProviderOptions(input: {
     const hasLocation = input.location && Object.values(input.location).some(value => cleanText(value));
     const center = homeSearch && hasLocation ? await resolveSearchAddress(location, key) : null;
     if (homeSearch && !center) {
-      return { source: "google_places", options: [], reservation_systems: [], fallback_reason: "google_places_unavailable" };
+      throw new DiscoveryFailure("address_unresolved", "geocode", "NO_UNAMBIGUOUS_MATCH");
     }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
@@ -433,12 +449,18 @@ export async function discoverAppointmentProviderOptions(input: {
         };
       }),
     };
-  } catch {
+  } catch (error) {
+    // Never log request URLs, API keys, or the user's address.
+    console.warn("[appointment-discovery]", {
+      stage: error instanceof DiscoveryFailure ? error.stage : "discovery",
+      status: error instanceof DiscoveryFailure ? error.status : "NETWORK_OR_INVALID_RESPONSE",
+      reason: error instanceof DiscoveryFailure ? error.reason : "google_places_unavailable",
+    });
     return {
       source: "google_places",
       options: [],
       reservation_systems: reservationSystems,
-      fallback_reason: "google_places_unavailable",
+      fallback_reason: error instanceof DiscoveryFailure ? error.reason : "google_places_unavailable",
     };
   }
 }

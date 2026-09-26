@@ -59,20 +59,30 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     void Promise.all(ids.filter(id => !next[id]).map(async id => {
       try {
         const response = await apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
-        if (!response.ok) return;
+        if (!response.ok) throw new Error("Verification unavailable");
         const data = await response.json();
         const result = currentVerification(data.verification);
-        if (!result || disposed || controller.signal.aborted) return;
+        if (disposed || controller.signal.aborted) return;
+        if (!result) throw new Error("Invalid verification response");
         resultsRef.current = { ...resultsRef.current, [id]: result };
         if (Number.isFinite(data.ranking?.score) && Array.isArray(data.ranking?.priority_notes)) rankingRef.current[id] = data.ranking;
         setResults(resultsRef.current);
-      } catch { /* Failed checks stay incomplete; never award verification. */ }
+      } catch {
+        if (disposed || controller.signal.aborted) return;
+        resultsRef.current = { ...resultsRef.current, [id]: {
+          version: 1, status: "incomplete", checkedAt: new Date().toISOString(),
+          reviewCount: 0, recentReviewCount: 0, sources: [], concerns: [], retryable: true,
+          gaps: [es ? "El servicio de comprobacion no esta disponible. Este proveedor no esta verificado." : "The verification service is unavailable. This provider is not verified."],
+        } };
+        setResults(resultsRef.current);
+      }
     })).then(() => {
       if (disposed || controller.signal.aborted) return;
       clearTimeout(deadline);
       clearInterval(interval);
-      if (ids.some(id => !resultsRef.current[id] || resultsRef.current[id].retryable)) setPhase("choice");
-      else { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }
+      onRanked?.(rankingRef.current);
+      setPhase("results");
+      onResultsVisible(true);
     });
     return () => { disposed = true; controller.abort(); clearTimeout(deadline); clearInterval(interval); };
   }, [requestId, optionIds, round, onResultsVisible, onRanked, es]);
@@ -107,6 +117,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     "Price information is unavailable; your job needs a quote.": "No hay informacion de precios; tu trabajo necesita un presupuesto.",
   };
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
+    {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{es ? "Reintentar comprobaciones" : "Retry checks"}</button>}
     <p className="font-semibold text-vyva-text-1">{result?.status === "verified" ? (es ? "Verificado" : "Verified") : result?.status === "concerns" ? (es ? "Aspectos a revisar" : "Concerns found") : (es ? "Comprobaciones incompletas" : "Checks incomplete")}</p>
     <details className="mt-2">
       <summary className="cursor-pointer py-2 text-vyva-purple">{es ? "Que hemos comprobado" : "What we checked"}</summary>

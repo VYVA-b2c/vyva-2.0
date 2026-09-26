@@ -6,6 +6,15 @@ vi.mock("@/lib/queryClient", () => ({ apiFetch: vi.fn() }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 const options = [{ id: "one", provider_snapshot: {} }];
 describe("provider verification wait", () => {
+  it("reveals results on service failure instead of pretending checks are running", async () => {
+    vi.mocked(apiFetch).mockRejectedValue(new Error("Unavailable"));
+    const visible = vi.fn();
+    render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={visible} />);
+    expect(await screen.findByText("Checks incomplete")).toBeInTheDocument();
+    expect(visible).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText("Keep checking")).not.toBeInTheDocument();
+    expect(screen.getByText("Retry checks")).toBeInTheDocument();
+  });
   it("preserves completed provider checks when the user extends the window", async () => {
     vi.useFakeTimers();
     vi.mocked(apiFetch).mockImplementation(async url => {
