@@ -444,6 +444,7 @@ export async function discoverAppointmentProviderOptions(input: {
           price_level: detail?.price_level ?? place.price_level ?? null,
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
+          opening_hours_text: detail?.opening_hours?.weekday_text ?? [],
           open_now: detail?.opening_hours?.open_now ?? null,
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,

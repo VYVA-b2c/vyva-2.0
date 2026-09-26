@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
+import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -13197,7 +13198,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   const homeSearchStarted = useRef(false);
-  const [homeVerifiedResultsVisible, setHomeVerifiedResultsVisible] = useState(false);
+  const [, setHomeVerifiedResultsVisible] = useState(false);
   const applyHomeServiceVerificationRanking = useCallback((ranking: Record<string, VerificationRanking>) => {
     if (Object.keys(ranking).length === 0) return;
     setAppointmentOptions(current => current.map(option => ({
@@ -20320,7 +20321,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 onRanked={applyHomeServiceVerificationRanking}
               />
             )}
-            {appointmentRequest && appointmentOptions.length > 0 && !homeSearchBusy && (!isHomeServiceAppointment || homeSavedProvidersFirst || homeVerifiedResultsVisible) && (
+            {appointmentRequest && appointmentOptions.length > 0 && !homeSearchBusy && (
               <div className={isHomeServiceAppointment ? "home-repair-results mt-2 pt-2" : "mt-3 rounded-[24px] border border-[#D8B4FE] bg-white p-4 shadow-[0_16px_36px_rgba(49,18,94,0.10)] sm:p-5"} data-testid="panel-appointment-provider-options">
                 <div className="flex items-start gap-4">
                   <span className={isHomeServiceAppointment ? "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple/10 text-vyva-purple" : "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple"}>
@@ -20333,9 +20334,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     <h3 className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {appointmentProviderName}
                     </h3>
-                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                    {!isHomeServiceAppointment && <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                       {selectedAppointmentOption?.match_reason || appointmentProviderTrustNote}
-                    </p>
+                    </p>}
                     {selectedAppointmentOption && (
                       <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
                         {!isHomeServiceAppointment && `${appointmentProviderTrustNote} · `}{appointmentOptionEvidenceSummary(selectedAppointmentOption, isSpanish)}
@@ -20346,6 +20347,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         {appointmentProviderAddress}
                       </p>
                     )}
+                    {isHomeServiceAppointment && selectedAppointmentOption && <HomeProviderDetails snapshot={selectedAppointmentOption.provider_snapshot} isSpanish={isSpanish} />}
                   </div>
                 </div>
 
@@ -20450,7 +20452,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {appointmentRequest && appointmentOptions.length === 0 && (
+            {appointmentRequest && appointmentOptions.length === 0 && !homeSearchBusy && (!isHomeServiceAppointment || Boolean(appointmentDiscovery) || Boolean(appointmentError)) && (
               <div className="mt-3">
                 <MissingProviderChoicePanel
                   title={noSavedProviderTitle}

@@ -87,16 +87,15 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     return () => { disposed = true; controller.abort(); clearTimeout(deadline); clearInterval(interval); };
   }, [requestId, optionIds, round, onResultsVisible, onRanked, es]);
 
-  if (phase === "checking") return <section className="py-10 text-center text-vyva-text-1" aria-live="polite" data-testid="provider-verification-loading">
+  if (phase === "checking") return <section className="flex items-center gap-3 py-3 text-sm text-vyva-text-2" aria-live="polite" data-testid="provider-verification-loading">
     <Loader2 className="mx-auto mb-4 animate-spin text-vyva-purple motion-reduce:animate-none" size={28} aria-hidden="true" />
-    <h3 className="text-xl font-semibold">{es ? "Comprobando proveedores" : "Checking providers"}</h3>
-    <p className="mx-auto mt-3 min-h-12 max-w-md text-sm text-vyva-text-2">{(es
+    <p className="text-sm">{(es
       ? ["Contrastamos la identidad y los servicios con fuentes publicas.", "Buscamos opiniones recientes y posibles problemas recurrentes.", "Solo verificamos lo que podemos respaldar con pruebas."]
       : ["Cross-checking business identity and services against public sources.", "Looking for recent reviews and recurring concerns.", "Only evidence-backed checks count toward verification."])[message]}</p>
   </section>;
-  if (phase === "choice") return <section className="py-8 text-vyva-text-1" aria-live="polite">
+  if (phase === "choice") return <section className="border-b border-current/10 py-3 text-vyva-text-1" aria-live="polite">
     <h3 className="text-lg font-semibold">{es ? "Algunas comprobaciones siguen incompletas" : "Some checks are still incomplete"}</h3>
-    <p className="mt-2 text-sm text-vyva-text-2">{es ? "Puedes ver las opciones o dedicar hasta dos minutos mas a las comprobaciones." : "See the available options, or allow up to two more minutes for checks."}</p>
+    <p className="mt-2 text-sm text-vyva-text-2">{es ? "Puedes revisar los proveedores de abajo o dedicar dos minutos mas a las comprobaciones." : "Browse the providers below, or allow two more minutes for checks."}</p>
     <div className="mt-5 flex flex-wrap gap-4">
       <button type="button" className="min-h-11 rounded-full bg-vyva-purple px-5 py-2 font-semibold text-white" onClick={() => { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }}>{es ? "Ver resultados ahora" : "Show results now"}</button>
       <button type="button" className="min-h-11 px-2 font-semibold text-vyva-purple" onClick={() => setRound(n => n + 1)}>{es ? "Seguir comprobando" : "Keep checking"}</button>
