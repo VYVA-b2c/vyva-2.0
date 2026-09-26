@@ -3591,9 +3591,9 @@ describe("ConciergeScreen action hub", () => {
     let createdBody: HomeServiceRequestBody | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
-      if (target.endsWith("/options/option-plumber/verify")) {
+      if (target.endsWith("/options/option-plumber/verify") || target.endsWith("/options/option-budget/verify")) {
         expect(init?.body).toBeUndefined();
-        return jsonResponse({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false } });
+        return jsonResponse({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false }, ranking: { score: target.includes("option-budget") ? 190 : 150, priority_notes: ["Comparing published price bands only; your job still needs a quote."] } });
       }
       if (target.includes("/api/appointments/requests/request-home-service/discover-options")) {
         expect(init?.method).toBe("POST");
@@ -3617,10 +3617,19 @@ describe("ConciergeScreen action hub", () => {
               phone: "+34 600 111 222",
               preferred_channel: "phone",
             },
-            match_reason: "Verified local plumbing option",
+            match_reason: "Local plumbing option",
             available_channels: ["phone", "manual"],
             rank: 1,
             status: "recommended",
+          }, {
+            id: "option-budget",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: { name: "Budget Plumbing", address: "Example business address", phone: "+34 600 333 444" },
+            match_reason: "Local plumbing option",
+            available_channels: ["phone", "manual"],
+            rank: 2,
+            status: "suggested",
           }],
           discovery: { source: "google_places", inserted_count: 1 },
         });
@@ -3700,7 +3709,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
 
 
-    expect(await screen.findByText("Marbella Rapid Plumbing")).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Budget Plumbing" })).toBeVisible();
     expect(screen.getByText("Checks incomplete")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
   });

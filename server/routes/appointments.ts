@@ -620,6 +620,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     rating: typeof snapshot.rating === "number" ? snapshot.rating : null,
     reviewCount: typeof snapshot.review_count === "number" ? snapshot.review_count : null,
     openNow: typeof snapshot.open_now === "boolean" ? snapshot.open_now : null,
+    priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
     availability: "unknown",
     evidenceStatus: snapshot.verification_eligible === true && currentVerification(snapshot.verification)?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
     checkedAt: option.updated_at?.toISOString() ?? null,
@@ -646,6 +647,7 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
     score: item.score,
     reasons: item.reasons,
     uncertainties: item.uncertainties,
+    priority_notes: item.priorityNotes ?? [],
     category: item.canonicalCategory,
     exact_subservice_match: item.exactSubserviceMatch,
   };
@@ -1140,7 +1142,12 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
   // Saved/private contacts must not be submitted to external research services.
   if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !snapshotText(snapshot, "place_id")) return res.json({ verification: incompleteVerification("Only newly discovered public businesses can be researched.") });
   const cached = currentVerification(snapshot.verification);
-  if (cached && !cached.retryable) return res.json({ verification: cached });
+  const checkedDecision = (verification: NonNullable<typeof cached>) => {
+    const checkedOption = { ...option, provider_snapshot: { ...snapshot, verification } };
+    const item = decideProviderCandidates([optionCandidate(checkedOption)], providerDecisionRequest(request)).ranked[0];
+    return item ? providerDecisionSnapshot(item) : null;
+  };
+  if (cached && !cached.retryable) return res.json({ verification: cached, ranking: checkedDecision(cached) });
   if (activeProviderChecks.has(option.id)) return res.status(409).json({ error: "Check already in progress" });
   if (activeProviderChecks.size >= 30) return res.status(429).json({ error: "Verification is busy. Try again later." });
   activeProviderChecks.add(option.id);
@@ -1157,12 +1164,13 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
       service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
     }, controller.signal);
     if (controller.signal.aborted) return;
+    const ranking = checkedDecision(verification);
     // Merge into the current snapshot so concurrent preference changes survive.
     await db.update(appointmentProviderOptions).set({
-      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification })}::jsonb`,
+      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
       updated_at: new Date(),
     }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
-    return res.json({ verification });
+    return res.json({ verification, ranking });
   } catch {
     if (!controller.signal.aborted) return res.status(503).json({ error: "Provider checks unavailable" });
   } finally {

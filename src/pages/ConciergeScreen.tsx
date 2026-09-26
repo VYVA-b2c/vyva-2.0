@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { ProviderVerificationPanel } from "@/components/ProviderVerificationPanel";
+import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -3503,6 +3503,7 @@ type AppointmentProviderDecision = {
   score?: number;
   reasons?: string[];
   uncertainties?: string[];
+  priority_notes?: string[];
   category?: string;
   exact_subservice_match?: boolean;
 };
@@ -3518,10 +3519,15 @@ function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isS
   const reviews = typeof snapshot.review_count === "number" ? snapshot.review_count : null;
   const opening = appointmentSnapshotText(option, "opening_status");
   const decision = appointmentProviderDecision(option);
+  const priorityNotes = decision.priority_notes ?? [];
+  const priorityGaps = [
+    priorityNotes.some(note => note.startsWith("Price information is unavailable")) ? (isSpanish ? "Precio por confirmar" : "Price to be confirmed") : "",
+    priorityNotes.some(note => note.includes("job availability is unconfirmed") || note.startsWith("No confirmed timing evidence")) ? (isSpanish ? "Disponibilidad por confirmar" : "Availability unconfirmed") : "",
+  ].filter(Boolean);
   const parts = [
     rating ? `${rating}${reviews !== null ? ` (${reviews} ${isSpanish ? "resenas" : "reviews"})` : ""}` : "",
     opening,
-    ...(decision.uncertainties ?? []).slice(0, 1),
+    ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).slice(0, 1)),
   ].filter(Boolean);
   return parts.join(" · ") || (isSpanish ? "Disponibilidad y precio por confirmar" : "Availability and price to be confirmed");
 }
@@ -13169,6 +13175,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   const homeSearchStarted = useRef(false);
   const [homeVerifiedResultsVisible, setHomeVerifiedResultsVisible] = useState(false);
+  const applyHomeServiceVerificationRanking = useCallback((ranking: Record<string, VerificationRanking>) => {
+    if (Object.keys(ranking).length === 0) return;
+    setAppointmentOptions(current => current.map(option => ({
+      ...option,
+      provider_snapshot: {
+        ...option.provider_snapshot,
+        ...(ranking[option.id] ? { provider_decision: { ...appointmentProviderDecision(option), ...ranking[option.id] } } : {}),
+      },
+    })).sort((a, b) => (appointmentProviderDecision(b).score ?? 0) - (appointmentProviderDecision(a).score ?? 0)));
+    const best = Object.entries(ranking).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
+    if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
+  }, []);
   const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending;
   const [homeSearchMessage, setHomeSearchMessage] = useState(0);
   useEffect(() => {
@@ -20248,12 +20266,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
             {isHomeServiceAppointment && appointmentRequest && appointmentOptions.length > 0 && (
               <ProviderVerificationPanel
-                key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).join(",")}`}
+                key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).sort().join(",")}`}
                 requestId={appointmentRequest.id}
                 options={appointmentOptions}
                 selectedId={selectedAppointmentOption?.id ?? null}
                 isSpanish={isSpanish}
                 onResultsVisible={setHomeVerifiedResultsVisible}
+                onRanked={applyHomeServiceVerificationRanking}
               />
             )}
             {appointmentRequest && appointmentOptions.length > 0 && (!isHomeServiceAppointment || homeVerifiedResultsVisible) && (

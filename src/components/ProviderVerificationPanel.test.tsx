@@ -36,11 +36,27 @@ describe("provider verification wait", () => {
     expect(visible).toHaveBeenLastCalledWith(true);
   });
   it("shows returned checks without a redundant confirmation", async () => {
-    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false } }) } as Response);
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false }, ranking: { score: 123, priority_notes: ["Price information is unavailable; your job needs a quote."] } }) } as Response);
     const visible = vi.fn();
-    render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={visible} />);
+    const ranked = vi.fn();
+    render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={visible} onRanked={ranked} />);
     expect(await screen.findByText("Checks incomplete")).toBeInTheDocument();
     expect(visible).toHaveBeenLastCalledWith(true);
     expect(screen.queryByText("Keep checking")).not.toBeInTheDocument();
+    expect(ranked).toHaveBeenCalledWith({ one: { score: 123, priority_notes: ["Price information is unavailable; your job needs a quote."] } });
+    fireEvent.click(screen.getByText("What we checked"));
+    expect(screen.getByText("Price information is unavailable; your job needs a quote.")).toBeVisible();
+  });
+
+  it("does not restart audits when ranking changes option order", async () => {
+    const verification = { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [], concerns: [], retryable: false };
+    const initial = ["one", "two"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
+    const ranked = vi.fn();
+    const visible = vi.fn();
+    const view = render(<ProviderVerificationPanel requestId="request" options={initial} selectedId="one" isSpanish={false} onResultsVisible={visible} onRanked={ranked} />);
+    await screen.findByText("Checks incomplete");
+    view.rerender(<ProviderVerificationPanel requestId="request" options={[...initial].reverse()} selectedId="two" isSpanish={false} onResultsVisible={visible} onRanked={ranked} />);
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(ranked).toHaveBeenCalledTimes(1);
   });
 });

@@ -16,6 +16,62 @@ function candidate(overrides: Partial<ProviderCandidate>): ProviderCandidate {
 }
 
 describe("provider decision engine", () => {
+  const homeRequest = { appointmentType: "home-service", serviceType: "plumber" };
+  const tradeCandidate = (overrides: Partial<ProviderCandidate>) => candidate({ name: "Example Plumber", category: "home_service", trusted: false, ...overrides });
+
+  it("changes ordering for different priorities on the same shortlist", () => {
+    const candidates = [
+      tradeCandidate({ id: "rated", name: "Rated Plumber", rating: 5, reviewCount: 100 }),
+      tradeCandidate({ id: "saved", name: "Saved Plumber", trusted: true, rating: 3, reviewCount: 100 }),
+    ];
+    expect(decideProviderCandidates(candidates, { ...homeRequest, criteria: ["highest_rated"] }).ranked[0].candidate.id).toBe("rated");
+    expect(decideProviderCandidates(candidates, { ...homeRequest, criteria: ["trusted"] }).ranked[0].candidate.id).toBe("saved");
+  });
+
+  it.each([
+    ["fastest", "trusted"], ["fastest", "lowest_cost"], ["fastest", "highest_rated"],
+    ["trusted", "lowest_cost"], ["trusted", "highest_rated"], ["lowest_cost", "highest_rated"],
+  ])("equally combines %s and %s, independent of selection order", (a, b) => {
+    const candidates = [tradeCandidate({ openNow: true, trusted: true, rating: 4.5, reviewCount: 100, priceLevel: 1 })];
+    const score = (criteria: string[]) => decideProviderCandidates(candidates, { ...homeRequest, criteria }).ranked[0].score;
+    expect(score([a, b])).toBeCloseTo((score([a]) + score([b])) / 2, 1);
+    expect(score([a, b])).toBe(score([b, a]));
+    expect(score([a, a])).toBe(score([a]));
+  });
+
+  it("uses known price bands without treating missing prices as cheap", () => {
+    const options = [tradeCandidate({ id: "unknown", name: "Unknown Plumber" }), tradeCandidate({ id: "low", name: "Low Plumber", priceLevel: 1 }), tradeCandidate({ id: "high", name: "High Plumber", priceLevel: 3 })];
+    const ranked = decideProviderCandidates(options, { ...homeRequest, criteria: ["lowest_cost"] }).ranked;
+    expect(ranked.map(r => r.candidate.id)).toEqual(["low", "high", "unknown"]);
+    expect(ranked[0].priorityNotes?.[0]).toContain("needs a quote");
+    expect(ranked[2].priorityNotes?.[0]).toContain("unavailable");
+    const invalid = decideProviderCandidates([tradeCandidate({ priceLevel: -1 })], { ...homeRequest, criteria: ["lowest_cost"] }).ranked[0];
+    expect(invalid.priorityBonus).toBe(0);
+  });
+
+  it("never turns open hours into confirmed availability", () => {
+    const result = decideProviderCandidates([tradeCandidate({ openNow: true, availability: "unknown" })], { ...homeRequest, criteria: ["fastest"] }).ranked[0];
+    expect(result.priorityBonus).toBe(21);
+    expect(result.priorityNotes?.[0]).toContain("unconfirmed");
+    const unavailable = decideProviderCandidates([tradeCandidate({ openNow: true, availability: "unavailable" })], { ...homeRequest, criteria: ["fastest"] }).ranked[0];
+    expect(unavailable.priorityBonus).toBe(0);
+  });
+
+  it("reranks when verification supplies new trust evidence", () => {
+    const first = tradeCandidate({ id: "a", name: "First Plumber", rating: 5, reviewCount: 100 });
+    const second = tradeCandidate({ id: "b", name: "Second Plumber", rating: 4, reviewCount: 100 });
+    const request = { ...homeRequest, criteria: ["trusted", "highest_rated"] };
+    expect(decideProviderCandidates([first, second], request).ranked[0].candidate.id).toBe("a");
+    expect(decideProviderCandidates([first, { ...second, evidenceStatus: "verified" }], request).ranked[0].candidate.id).toBe("b");
+  });
+
+  it("keeps defaults for Not sure and does not boost confidence from preferences", () => {
+    const options = [tradeCandidate({ priceLevel: 0, evidenceStatus: "unknown" })];
+    const baseline = decideProviderCandidates(options, homeRequest);
+    expect(decideProviderCandidates(options, { ...homeRequest, criteria: ["not_sure"] }).ranked[0].score).toBe(baseline.ranked[0].score);
+    expect(decideProviderCandidates(options, { ...homeRequest, criteria: ["lowest_cost"] }).confidence).toBe(baseline.confidence);
+  });
+
   it("ranks open businesses without claiming job availability", () => {
     const evaluate = (openNow: boolean | null) => decideProviderCandidates([
       candidate({ name: "Local Plumber", category: "home_service", openNow, availability: "unknown" }),

@@ -56,7 +56,7 @@ export interface HomeServiceQuestion {
   en: string;
   es: string;
   kind: HomeServiceQuestionKind;
-  options?: Array<{ key: string; en: string; es: string }>;
+  options?: ReadonlyArray<{ key: string; en: string; es: string }>;
   placeholderEn?: string;
   placeholderEs?: string;
 }

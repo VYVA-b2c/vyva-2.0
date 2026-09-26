@@ -38,12 +38,14 @@ type GooglePlaceSearchResult = {
   formatted_address?: string;
   rating?: number;
   user_ratings_total?: number;
+  price_level?: number;
   place_id?: string;
   types?: string[];
   business_status?: string;
 };
 
 type GooglePlaceDetails = {
+  price_level?: number;
   formatted_phone_number?: string;
   international_phone_number?: string;
   website?: string;
@@ -145,7 +147,8 @@ export function buildAppointmentSearchQueries(input: {
     ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
-  const constraints = (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
+  // Home-service preferences rank evidence; they are not literal trade keywords.
+  const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
   const templates = focusedDetail
     ? [
@@ -229,10 +232,10 @@ async function fetchGoogleTextSearch(query: string, key: string, language: strin
   return data.results ?? [];
 }
 
-async function fetchGooglePlaceDetails(placeId: string, key: string, language: string): Promise<GooglePlaceDetails | null> {
+async function fetchGooglePlaceDetails(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", "formatted_phone_number,international_phone_number,website,url,opening_hours");
+  url.searchParams.set("fields", `formatted_phone_number,international_phone_number,website,url,opening_hours${includePrice ? ",price_level" : ""}`);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
@@ -337,7 +340,7 @@ export async function discoverAppointmentProviderOptions(input: {
 
     const selected = places.slice(0, input.maxResults ?? 5);
     const details = await Promise.all(
-      selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language).catch(() => null) : null),
+      selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language, input.appointmentType === "home-service" && Boolean(input.constraints?.includes("lowest_cost"))).catch(() => null) : null),
     );
 
     return {
@@ -371,6 +374,7 @@ export async function discoverAppointmentProviderOptions(input: {
           maps_url: mapsUrl,
           rating: place.rating ?? null,
           review_count: place.user_ratings_total ?? null,
+          price_level: detail?.price_level ?? place.price_level ?? null,
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
           open_now: detail?.opening_hours?.open_now ?? null,
