@@ -1460,4 +1460,13 @@ test("profile overview follows the canonical seven-group responsive layout", asy
   expect(mobileGroupListBox).not.toBeNull();
   expect(mobileGroupListBox!.width).toBeLessThanOrEqual(370);
   await expectNoHorizontalOverflow(page);
+
+  await page.goto("/dev/profile-overview?theme=light", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".home-master-profile-page")).toHaveAttribute("data-home-master-theme", "light");
+
+  await page.goto("/dev/profile-overview?theme=dark", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".home-master-profile-page")).toHaveAttribute("data-home-master-theme", "dark");
+  await page.getByTestId("button-profile-group-account").click();
+  await expect(page).toHaveURL(/\/dev\/profile-overview\/group\/account\?theme=dark$/);
+  await expect(page.locator(".home-master-profile-page").first()).toHaveAttribute("data-home-master-theme", "dark");
 });
