@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { deriveCompletedSections } from "@/lib/profileCompletion";
@@ -10,7 +10,11 @@ import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 export default function ProfileGroupPage({ preview = false }: { preview?: boolean }) {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDark } = useHomeMasterTheme();
+  const previewTheme = preview ? new URLSearchParams(location.search).get("theme") : null;
+  const resolvedIsDark = previewTheme === "dark" ? true : previewTheme === "light" ? false : isDark;
+  const previewSearch = previewTheme === "dark" || previewTheme === "light" ? `?theme=${previewTheme}` : "";
   const group = getProfileGroup(groupId);
   const { data } = useQuery<{ profile: Record<string, unknown> | null; onboardingState: Record<string, unknown> | null }>({
     queryKey: preview ? ["profile-group-preview", groupId] : ["/api/onboarding/state"],
@@ -24,12 +28,12 @@ export default function ProfileGroupPage({ preview = false }: { preview?: boolea
   const status = deriveProfileGroupStatus(group, completed);
 
   return (
-    <div className="home-master-profile-page min-h-screen bg-vyva-cream px-3 py-3 sm:px-5 sm:py-6" data-home-master-theme={isDark ? "dark" : "light"}>
+    <div className="home-master-profile-page min-h-screen bg-vyva-cream px-3 py-3 sm:px-5 sm:py-6" data-home-master-theme={resolvedIsDark ? "dark" : "light"}>
       <PhoneFrame
         layout="page"
         subtitle={group.title}
         showBack
-        onBack={() => navigate(preview ? "/dev/profile-overview" : "/onboarding/profile")}
+        onBack={() => navigate(preview ? `/dev/profile-overview${previewSearch}` : "/onboarding/profile")}
         showCompanionMode={false}
       >
         <main className="mx-auto w-full max-w-[760px]" data-testid={`profile-group-${group.id}`}>
@@ -49,8 +53,8 @@ export default function ProfileGroupPage({ preview = false }: { preview?: boolea
                   type="button"
                   onClick={() => navigate(preview
                     ? section.id === "accessibility"
-                      ? "/dev/home-master/profile/preferences"
-                      : `/dev/profile-overview/section/${section.id === "contact" ? "address" : section.id}`
+                      ? `/dev/home-master/profile/preferences${previewSearch}`
+                      : `/dev/profile-overview/section/${section.id === "contact" ? "address" : section.id}${previewSearch}`
                     : section.path)}
                   data-testid={`button-profile-subsection-${section.id}`}
                   className={`flex min-h-[84px] w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-vyva-purple/[0.035] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-vyva-purple/20 sm:px-5 ${index ? "border-t border-vyva-border" : ""}`}
