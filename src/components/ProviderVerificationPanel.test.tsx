@@ -50,7 +50,7 @@ describe("provider verification wait", () => {
 
   it("does not restart audits when ranking changes option order", async () => {
     const verification = { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [], concerns: [], retryable: false };
-    const initial = ["one", "two"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
+    const initial = ["one", "two", "three", "four"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
     const ranked = vi.fn();
     const visible = vi.fn();
     const view = render(<ProviderVerificationPanel requestId="request" options={initial} selectedId="one" isSpanish={false} onResultsVisible={visible} onRanked={ranked} />);

@@ -1016,7 +1016,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     });
 
     const existingIdentities = new Set(
-      existingOptions.map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
+      (request.appointment_type === "home-service" ? [] : existingOptions).map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
     );
     const nextRank = existingOptions.reduce((max, option) => Math.max(max, option.rank ?? 0), 0) + 1;
     const candidates = discovery.options
@@ -1054,9 +1054,9 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
     const allCandidates = [...existingOptions, ...insertedOptions];
-    // External Home Repair search means the user chose not to use their saved contacts.
+    // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
     const declinedSaved = request.appointment_type === "home-service"
-      ? allCandidates.filter(option => option.provider_source === "saved") : [];
+      ? existingOptions : [];
     for (const option of declinedSaved) {
       await db.update(appointmentProviderOptions).set({ status: "excluded" })
         .where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));

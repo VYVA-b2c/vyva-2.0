@@ -26,6 +26,35 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("rejects Denver and unknown coordinates for a confirmed Tarifa address", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        expect(url.searchParams.get("address")).toBe("Tarifa, Spain");
+        return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      }
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [
+        { name: "Denver plumber", place_id: "denver", geometry: { location: { lat: 39.72, lng: -104.94 } } },
+        { name: "Unknown plumber", place_id: "unknown" },
+        { name: "Tarifa plumber", place_id: "tarifa", geometry: { location: { lat: 36.015, lng: -5.605 } } },
+      ] });
+      expect(url.searchParams.get("place_id")).toBe("tarifa");
+      return jsonResponse({ status: "OK", result: {} });
+    });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "fast help", location: { address: "Tarifa, Spain" } });
+    expect(result.options.map(option => option.provider_snapshot.place_id)).toEqual(["tarifa"]);
+  });
+
+  it("does not search globally when address resolution fails", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ status: "REQUEST_DENIED" }));
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", detail: "plumber", location: { address: "Tarifa, Spain" } });
+    expect(result.options).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("does not call Google when no server-side Places key is configured", async () => {
     clearPlacesEnv();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -48,11 +77,13 @@ describe("appointment discovery", () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/geocode/")) return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
       if (url.includes("/place/textsearch/")) {
         return jsonResponse({
           status: "OK",
           results: [{
             name: "Clinica Costa",
+            geometry: { location: { lat: 36.51, lng: -4.88 } },
             formatted_address: "Avenida del Mar 10, Marbella",
             rating: 4.7,
             user_ratings_total: 118,
@@ -148,7 +179,7 @@ describe("appointment discovery", () => {
       language: "en",
     });
 
-    expect(queries[0]).toMatch(/^Electrician electrician electrical/i);
+    expect(queries[0]).toMatch(/^Electrician /i);
     expect(queries[0]).toContain("Marbella, Spain");
   });
 });

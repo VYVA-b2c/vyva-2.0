@@ -34,6 +34,7 @@ export interface AppointmentDiscoveryResult {
 }
 
 type GooglePlaceSearchResult = {
+  geometry?: { location?: { lat: number; lng: number } };
   name?: string;
   formatted_address?: string;
   rating?: number;
@@ -147,6 +148,7 @@ export function buildAppointmentSearchQueries(input: {
     ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
+  if (serviceType) return [`${serviceLabel} ${input.location}`, `${searchTerms} ${input.location}`];
   // Home-service preferences rank evidence; they are not literal trade keywords.
   const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
@@ -215,12 +217,37 @@ export function reservationSystemLinksFor(input: {
   }
 }
 
-async function fetchGoogleTextSearch(query: string, key: string, language: string, countryCode: string): Promise<GooglePlaceSearchResult[]> {
+type Coordinates = { lat: number; lng: number };
+function validCoordinates(value?: Coordinates): value is Coordinates {
+  return Boolean(value && Number.isFinite(value.lat) && Number.isFinite(value.lng) && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180);
+}
+function distanceMeters(a: Coordinates, b: Coordinates): number {
+  const rad = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2
+    + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+async function resolveSearchAddress(address: string, key: string): Promise<Coordinates | null> {
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", address);
+  url.searchParams.set("key", key);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) return null;
+  const data = await response.json() as { status?: string; results?: Array<{ partial_match?: boolean; geometry?: { location?: Coordinates } }> };
+  if (data.status !== "OK" || data.results?.length !== 1 || data.results[0].partial_match) return null;
+  const point = data.results[0].geometry?.location;
+  return validCoordinates(point) ? point : null;
+}
+async function fetchGoogleTextSearch(query: string, key: string, language: string, countryCode: string, center?: Coordinates | null): Promise<GooglePlaceSearchResult[]> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
   url.searchParams.set("query", query);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("region", countryCode.toLowerCase());
   url.searchParams.set("key", key);
+  if (center) {
+    url.searchParams.set("location", `${center.lat},${center.lng}`);
+    url.searchParams.set("radius", "50000");
+  }
 
   const response = await fetch(url);
   if (!response.ok) return [];
@@ -307,6 +334,12 @@ export async function discoverAppointmentProviderOptions(input: {
   }
 
   try {
+    const homeSearch = input.appointmentType === "home-service";
+    const hasLocation = input.location && Object.values(input.location).some(value => cleanText(value));
+    const center = homeSearch && hasLocation ? await resolveSearchAddress(location, key) : null;
+    if (homeSearch && !center) {
+      return { source: "google_places", options: [], reservation_systems: [], fallback_reason: "google_places_unavailable" };
+    }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
     for (const query of buildAppointmentSearchQueries({
@@ -318,8 +351,9 @@ export async function discoverAppointmentProviderOptions(input: {
       urgency: input.urgency,
       constraints: input.constraints,
     })) {
-      const results = await fetchGoogleTextSearch(query, key, language, countryCode);
+      const results = await fetchGoogleTextSearch(query, key, language, countryCode, center);
       for (const place of results) {
+        if (center && (!validCoordinates(place.geometry?.location) || distanceMeters(center, place.geometry.location) > 50000)) continue;
         const identity = placeIdentity(place);
         if (!identity || seen.has(identity)) continue;
         seen.add(identity);

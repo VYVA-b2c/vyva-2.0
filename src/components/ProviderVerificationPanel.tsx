@@ -21,7 +21,13 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   const [phase, setPhase] = useState<"checking" | "choice" | "results">("checking");
   const [round, setRound] = useState(0);
   const [message, setMessage] = useState(0);
-  const optionIds = options.slice(0, 3).map(o => o.id).sort().join(",");
+  const shortlistKey = JSON.stringify([requestId, options.map(o => o.id).sort()]);
+  const auditSelection = useRef({ key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") });
+  // Reranking must not change the audit batch and restart a finished wait.
+  if (auditSelection.current.key !== shortlistKey) {
+    auditSelection.current = { key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") };
+  }
+  const optionIds = auditSelection.current.ids;
   const latest = useRef(options);
   latest.current = options;
   useEffect(() => {
