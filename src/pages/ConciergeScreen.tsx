@@ -15242,7 +15242,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     });
   }
 
-  const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const routedTaskActionId = persistedTask?.linked_pending_id
+    ?? (taskId && taskId !== "new" ? taskId : null);
+  const activeAction = mode === "task"
+    ? pendingActions.find(action => action.id === routedTaskActionId)
+    : pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
   const activeActionProviderShortlist = parseProviderShortlistPayload(activeAction?.action_payload);
   const activeActionProviderShortlistNotice = activeProviderShortlistNotice
     ?? (activeActionProviderShortlist && activeAction?.action_payload?.contact_handoff_status === "unavailable"

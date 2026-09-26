@@ -393,6 +393,18 @@ describe("ConciergeScreen task navigation", () => {
     expect(await screen.findByTestId(expectedPanel)).toBeInTheDocument();
   });
 
+  it("does not show an unrelated pending appointment in a new Home Repair task", async () => {
+    mockConciergeLists();
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry: { kind: "home_service" } },
+    }], "task");
+    expect(await screen.findByRole("heading", { name: "Choose a service" })).toBeInTheDocument();
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/pending"));
+    expect(screen.queryByText("Harbour Clinic")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+  });
+
   it("does not restore a cached home-service draft over Healthcare", async () => {
     mockConciergeLists([]);
     localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
