@@ -34,7 +34,6 @@ export const HOME_SERVICE_COMMON_CRITERIA = [
   { key: "trusted", en: "Most trusted", es: "Mas fiable" },
   { key: "lowest_cost", en: "Lower cost", es: "Mejor precio" },
   { key: "highest_rated", en: "Highest rated", es: "Mejor valorado" },
-  { key: "senior_safe", en: "Senior-safe", es: "Seguro para mayores" },
   { key: "not_sure", en: "Not sure", es: "No lo se" },
 ] as const;
 
@@ -75,8 +74,8 @@ const URGENCY_QUESTIONS: HomeServiceQuestion[] = [
 const FINISHING_QUESTIONS: HomeServiceQuestion[] = [
   {
     key: "criteria",
-    en: "What matters most?",
-    es: "Que importa mas?",
+    en: "What matters to you?",
+    es: "Que es importante para ti?",
     kind: "choice",
     options: HOME_SERVICE_COMMON_CRITERIA,
   },

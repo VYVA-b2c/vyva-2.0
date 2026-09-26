@@ -41,6 +41,7 @@ export interface ProviderCandidate {
   reviewCount?: number | null;
   distanceMeters?: number | null;
   availability?: ProviderAvailability | null;
+  openNow?: boolean | null;
   evidenceStatus?: ProviderEvidenceStatus | null;
   checkedAt?: string | null;
   contactable?: boolean | null;
@@ -165,6 +166,10 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   }
   if (candidate.contactable) score += 8;
   else uncertainties.push("Direct contact route is not confirmed");
+  if (candidate.openNow === true) {
+    score += 12;
+    reasons.push("Business is open now");
+  }
   if (candidate.availability === "available") {
     score += 12;
     reasons.push("Reported available now");

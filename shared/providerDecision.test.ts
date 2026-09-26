@@ -16,6 +16,17 @@ function candidate(overrides: Partial<ProviderCandidate>): ProviderCandidate {
 }
 
 describe("provider decision engine", () => {
+  it("ranks open businesses without claiming job availability", () => {
+    const evaluate = (openNow: boolean | null) => decideProviderCandidates([
+      candidate({ name: "Local Plumber", category: "home_service", openNow, availability: "unknown" }),
+    ], { appointmentType: "home-service", serviceType: "plumber" }).ranked[0];
+    const open = evaluate(true);
+    expect(open.score).toBe(evaluate(false).score + 12);
+    expect(open.reasons).toContain("Business is open now");
+    expect(open.reasons).not.toContain("Reported available now");
+    expect(open.uncertainties).toContain("Availability is not confirmed");
+    expect(evaluate(null).score).toBe(evaluate(false).score);
+  });
   it("excludes a primary medical provider from an electrician search", () => {
     const result = decideProviderCandidates([
       candidate({ id: "quiron", name: "Quiron", category: "doctor_clinic", preferred: true }),

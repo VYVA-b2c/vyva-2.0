@@ -3591,6 +3591,10 @@ describe("ConciergeScreen action hub", () => {
     let createdBody: HomeServiceRequestBody | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target.endsWith("/options/option-plumber/verify")) {
+        expect(init?.body).toBeUndefined();
+        return jsonResponse({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false } });
+      }
       if (target.includes("/api/appointments/requests/request-home-service/discover-options")) {
         expect(init?.method).toBe("POST");
         return jsonResponse({
@@ -3633,6 +3637,7 @@ describe("ConciergeScreen action hub", () => {
           version: "home-service-intake-v1",
           origin: "app",
           service_type: "plumber",
+          criteria: ["trusted", "lowest_cost"],
           urgency: "today",
           answers: expect.objectContaining({
             home_address: "Calle Home 10, 29602 Marbella",
@@ -3680,6 +3685,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-kitchen"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-cannot_find"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-lowest_cost"));
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What matters to you?");
+    fireEvent.click(screen.getByTestId("button-home-service-priorities-continue"));
 
     expect(screen.getByTestId("panel-home-service-address")).toHaveTextContent("Where should the provider come?");
     expect(screen.queryByTestId("button-appointment-start-home-service")).not.toBeInTheDocument();
@@ -3693,6 +3701,7 @@ describe("ConciergeScreen action hub", () => {
 
 
     expect(await screen.findByText("Marbella Rapid Plumbing")).toBeVisible();
+    expect(screen.getByText("Checks incomplete")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
   });
 
@@ -3744,7 +3753,7 @@ describe("ConciergeScreen action hub", () => {
 
     fireEvent.click(screen.getByTestId("button-home-service-safe-for-now"));
 
-    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What matters most?");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What matters to you?");
   });
 
   it("asks powered-medical-equipment only for outage-style electrician requests", async () => {
@@ -3806,6 +3815,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.click(screen.getByTestId("button-home-service-priorities-continue"));
     fireEvent.change(screen.getByTestId("input-home-service-address"), {
       target: { value: "Calle Home 10, 29602 Marbella" },
     });
@@ -4026,6 +4036,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
 
 
+    fireEvent.click(await screen.findByTestId("button-home-service-confirm-address"));
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
     expect(screen.queryByTestId("panel-appointment-readiness")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-appointment-confirmation-checkpoint")).not.toBeInTheDocument();

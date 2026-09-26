@@ -373,6 +373,7 @@ export async function discoverAppointmentProviderOptions(input: {
           review_count: place.user_ratings_total ?? null,
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
+          open_now: detail?.opening_hours?.open_now ?? null,
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,

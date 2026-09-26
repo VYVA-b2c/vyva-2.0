@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { ProviderVerificationPanel } from "@/components/ProviderVerificationPanel";
+import { HomeServicePriorities } from "@/components/HomeServicePriorities";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12122,7 +12124,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentError
     || createAppointmentMutation.isPending
     || discoverAppointmentOptionsMutation.isPending
-    || (appointmentNotice && !(isHomeServiceWithoutProvider && !appointmentDiscovery)),
+    || (appointmentNotice && !(isHomeServiceWithoutProvider && !appointmentDiscovery)
+      && !(isHomeServiceAppointment && appointmentOptions.length > 0 && [
+        "I found a trusted option to review.",
+        "He encontrado una opcion fiable para revisar.",
+        "I found options. Choose one before contacting.",
+        "He encontrado opciones. Elige una antes de contactar.",
+      ].includes(appointmentNotice))),
   );
   const homeServiceQuestions = useMemo(
     () => homeServiceType ? homeServiceQuestionsFor(homeServiceType, homeServiceIntakeAnswers) : [],
@@ -12142,7 +12150,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     && homeServiceQuestions.length > 0
     && answeredHomeServiceQuestionCount === homeServiceQuestions.length,
   );
-  const homeServiceNeedsVisitAddress = Boolean(isHomeServiceQuestionSetComplete && !homeServiceVisitAddress.trim());
+  const [homeServiceEditingAddress, setHomeServiceEditingAddress] = useState(false);
+  const [homeServiceSearchAddressConfirmed, setHomeServiceSearchAddressConfirmed] = useState(false);
+  const homeServiceNeedsVisitAddress = Boolean(isHomeServiceQuestionSetComplete && (!homeServiceVisitAddress.trim() || homeServiceEditingAddress));
   const isHomeServiceIntakeComplete = Boolean(isHomeServiceQuestionSetComplete && !homeServiceNeedsVisitAddress);
   const homeServiceCurrentStep = homeServiceQuestions.length > 0
     ? Math.min(answeredHomeServiceQuestionCount + (activeHomeServiceQuestion ? 1 : 0), homeServiceQuestions.length)
@@ -13158,6 +13168,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   const homeSearchStarted = useRef(false);
+  const [homeVerifiedResultsVisible, setHomeVerifiedResultsVisible] = useState(false);
   const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending;
   const [homeSearchMessage, setHomeSearchMessage] = useState(0);
   useEffect(() => {
@@ -13165,7 +13176,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       homeSearchStarted.current = false;
       return;
     }
-    if (!isHomeServiceAppointment || isHomeServiceElectricalDanger || appointmentRequest || homeSearchBusy || chatLoading || homeSearchStarted.current) return;
+    if (!isHomeServiceAppointment || !homeServiceSearchAddressConfirmed || isHomeServiceElectricalDanger || appointmentRequest || homeSearchBusy || chatLoading || homeSearchStarted.current) return;
     homeSearchStarted.current = true;
     startAppointmentFlow(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service")!);
   });
@@ -19786,7 +19797,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         <p className="font-body text-[20px] font-black leading-[1.12] text-vyva-text-1">
                           {homeServiceTextFromQuestion(activeHomeServiceQuestion, isSpanish)}
                         </p>
-                        {activeHomeServiceQuestion.kind === "choice" ? (
+                        {activeHomeServiceQuestion.key === "criteria" ? (
+                          <HomeServicePriorities isSpanish={isSpanish} onContinue={value => setHomeServiceAnswer("criteria", value)} />
+                        ) : activeHomeServiceQuestion.kind === "choice" ? (
                           <div className="mt-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
                             {activeHomeServiceQuestion.options?.map((option) => (
                               <PurpleModalOption
@@ -19925,7 +19938,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                             {isSpanish
                               ? "VYVA usara esta direccion solo cuando confirmes el contacto o la reserva."
-                              : "VYVA uses this address only when you confirm contact or booking."}
+                              : "This address is used for this search only. Your profile stays unchanged."}
                           </p>
                         </div>
                       </div>
@@ -19944,20 +19957,32 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         type="button"
                         onClick={() => {
                           const draft = (homeServiceTextDrafts.home_address ?? "").trim();
-                          if (draft) setHomeServiceAnswer("home_address", draft);
+                          if (draft) {
+                            setHomeServiceAnswer("home_address", draft);
+                            setHomeServiceEditingAddress(false);
+                            setHomeServiceSearchAddressConfirmed(true);
+                          }
                         }}
                         disabled={!(homeServiceTextDrafts.home_address ?? "").trim()}
                         data-testid="button-home-service-address-save"
                         className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(180,83,9,0.18)] disabled:opacity-55"
                       >
                         <CircleCheck size={16} aria-hidden="true" />
-                        {isSpanish ? "Usar esta direccion" : "Use this address"}
+                        {isSpanish ? "Buscar cerca de esta direccion" : "Search near this address"}
                       </button>
                     </div>
                   )}
 
                   {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && isHomeServiceIntakeComplete && (
                     <div className="order-1 mt-4" data-testid="panel-home-service-ready">
+                      <h2 className="font-display text-[22px] font-semibold text-vyva-text-1">{isSpanish ? "Donde necesitas ayuda?" : "Where do you need help?"}</h2>
+                      <p className="mt-3 font-body text-[16px] leading-relaxed text-vyva-text-2">{homeServiceVisitAddress}</p>
+                      <button type="button" data-testid="button-home-service-confirm-address" className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-5`} onClick={() => setHomeServiceSearchAddressConfirmed(true)}>
+                        {isSpanish ? "Buscar cerca de esta direccion" : "Search near this address"}
+                      </button>
+                      <button type="button" className="vyva-tap mt-2 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4" onClick={() => { setHomeServiceSearchAddressConfirmed(false); setHomeServiceEditingAddress(true); }}>
+                        {isSpanish ? "Usar otra direccion" : "Use another address"}
+                      </button>
                       <div className="mt-3">
                         <div className="min-w-0">
                           {homeServiceSafetyFlags.length > 0 && (
@@ -20221,8 +20246,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {appointmentRequest && appointmentOptions.length > 0 && (
-              <div className={isHomeServiceAppointment ? "home-repair-results mt-2 border-t border-current/15 pt-6" : "mt-3 rounded-[24px] border border-[#D8B4FE] bg-white p-4 shadow-[0_16px_36px_rgba(49,18,94,0.10)] sm:p-5"} data-testid="panel-appointment-provider-options">
+            {isHomeServiceAppointment && appointmentRequest && appointmentOptions.length > 0 && (
+              <ProviderVerificationPanel
+                key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).join(",")}`}
+                requestId={appointmentRequest.id}
+                options={appointmentOptions}
+                selectedId={selectedAppointmentOption?.id ?? null}
+                isSpanish={isSpanish}
+                onResultsVisible={setHomeVerifiedResultsVisible}
+              />
+            )}
+            {appointmentRequest && appointmentOptions.length > 0 && (!isHomeServiceAppointment || homeVerifiedResultsVisible) && (
+              <div className={isHomeServiceAppointment ? "home-repair-results mt-2 pt-2" : "mt-3 rounded-[24px] border border-[#D8B4FE] bg-white p-4 shadow-[0_16px_36px_rgba(49,18,94,0.10)] sm:p-5"} data-testid="panel-appointment-provider-options">
                 <div className="flex items-start gap-4">
                   <span className={isHomeServiceAppointment ? "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple/10 text-vyva-purple" : "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple"}>
                     <ShieldCheck size={22} />
@@ -20267,7 +20302,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     {isHomeServiceAppointment ? (
                       <button
                         type="button"
-                        className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-4`}
+                        className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 py-3 font-body text-[16px] font-semibold leading-snug text-white transition-colors hover:bg-vyva-purple/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-vyva-purple disabled:opacity-50"
                         data-testid="button-appointment-handle-provider"
                         disabled={confirmAppointmentMutation.isPending}
                         onClick={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
@@ -20301,7 +20336,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       <span>{isSpanish ? "Ver otras opciones" : "See other options"}</span>
                       <ChevronDown size={15} aria-hidden="true" />
                     </summary>
-                    <div className="grid grid-cols-1 gap-2 border-t border-[#E9D5FF] p-3 sm:grid-cols-2">
+                    <div className={isHomeServiceAppointment ? "home-repair-alternatives flex flex-col" : "grid grid-cols-1 gap-2 border-t border-[#E9D5FF] p-3 sm:grid-cols-2"}>
                       {appointmentOptions.filter((option) => !isHomeServiceAppointment || option.id !== selectedAppointmentOption?.id).map((option) => {
                         const isSelected = option.id === selectedAppointmentOption?.id;
                         return (
@@ -20310,7 +20345,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                             type="button"
                             onClick={() => setSelectedAppointmentOptionId(option.id)}
                             data-testid={`button-appointment-option-${testIdSlug(appointmentOptionName(option, isSpanish))}`}
-                            className={`vyva-tap rounded-[14px] border px-3 py-2 text-left font-body ${
+                            className={isHomeServiceAppointment ? "vyva-tap relative w-full border-t border-current/10 py-4 pr-8 text-left font-body transition-colors hover:bg-vyva-purple/5" : `vyva-tap rounded-[14px] border px-3 py-2 text-left font-body ${
                               isSelected ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#D8B4FE] bg-white"
                             }`}
                           >
