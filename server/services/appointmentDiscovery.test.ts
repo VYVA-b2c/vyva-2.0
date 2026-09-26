@@ -27,6 +27,32 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("falls back to an explicit postcode area without changing the visit address or accepting US results", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const location = { address: "my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other" };
+    const original = location.address;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        if (url.searchParams.get("address")?.startsWith("Calle")) return jsonResponse({ status: "ZERO_RESULTS", results: [] });
+        expect(url.searchParams.get("address")).toBe("11380 Tarifa, Andalucia");
+        return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      }
+      if (url.pathname.includes("textsearch")) {
+        expect(url.searchParams.get("query")).not.toContain("madroneo");
+        return jsonResponse({ status: "OK", results: [
+          { name: "Texas", place_id: "us", geometry: { location: { lat: 29.5, lng: -98.3 } } },
+          { name: "Tarifa", place_id: "local", geometry: { location: { lat: 36.014, lng: -5.604 } } },
+        ] });
+      }
+      return jsonResponse({ status: "OK", result: {} });
+    });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location });
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({ place_id: "local", search_area_fallback: true, search_area: "11380 Tarifa, Andalucia" });
+    expect(location.address).toBe(original);
+  });
   it("cleans the reported conversational address without inventing a country", () => {
     expect(normalizeSearchAddress("my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other"))
       .toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");

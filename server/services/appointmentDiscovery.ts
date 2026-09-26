@@ -329,7 +329,7 @@ export async function discoverAppointmentProviderOptions(input: {
   constraints?: string[];
 }): Promise<AppointmentDiscoveryResult> {
   const language = cleanText(input.language) || "es";
-  const location = input.appointmentType === "home-service"
+  let location = input.appointmentType === "home-service"
     ? normalizeSearchAddress(appointmentLocationText(input.location))
     : appointmentLocationText(input.location);
   const countryCode = countryRegion(input.location?.countryCode);
@@ -352,7 +352,22 @@ export async function discoverAppointmentProviderOptions(input: {
   try {
     const homeSearch = input.appointmentType === "home-service";
     const hasLocation = input.location && Object.values(input.location).some(value => cleanText(value));
-    const center = homeSearch && hasLocation ? await resolveSearchAddress(location, key) : null;
+    let center = homeSearch && hasLocation ? await resolveSearchAddress(location, key) : null;
+    let areaFallback = false;
+    if (homeSearch && hasLocation && !center) {
+      // Only remove the street when an explicit postcode/locality segment exists.
+      // Never substitute a default city or the profile location for an override.
+      const parts = location.split(",").map(part => part.trim());
+      const areaIndex = parts.findIndex((part, index) => index > 0 && /^\d{5}\s+\p{L}/u.test(part));
+      const area = areaIndex > 0 ? parts.slice(areaIndex).join(", ") : "";
+      if (area) {
+        center = await resolveSearchAddress(area, key);
+        if (center) {
+          location = area;
+          areaFallback = true;
+        }
+      }
+    }
     if (homeSearch && !center) {
       throw new DiscoveryFailure("address_unresolved", "geocode", "NO_UNAMBIGUOUS_MATCH");
     }
@@ -413,6 +428,8 @@ export async function discoverAppointmentProviderOptions(input: {
         ].filter(Boolean);
         const snapshot: Record<string, unknown> = {
           source: "google_places",
+          search_area: location,
+          search_area_fallback: areaFallback,
           source_label: website ? "Official website via Google Maps" : "Google Maps",
           source_priority: sourcePriority,
           place_id: place.place_id ?? null,
