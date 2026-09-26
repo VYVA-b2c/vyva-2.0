@@ -965,6 +965,15 @@
   background: linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, var(--picker-accent-tint) 100%);
 }
 
+.home-repair-results > div:first-child { align-items: flex-start; }
+.home-repair-results h3 { font-size: 24px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.home-repair-results > div:first-child p { font-size: 15px; line-height: 1.6; font-weight: 400; }
+.home-repair-results > div:first-child p:first-child { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-bottom: 8px; }
+.home-repair-results details { border-color: rgba(120, 100, 140, 0.22); }
+.home-repair-results summary svg { transition: transform 150ms ease; }
+.home-repair-results details[open] > summary svg { transform: rotate(180deg); }
+.home-repair-alternatives button > span:first-child { font-size: 16px; font-weight: 600; }
+.home-repair-alternatives button > span:not(:first-child) { font-size: 14px; line-height: 1.5; font-weight: 400; }
 .home-repair-page [data-testid="panel-home-service-service-picker"] > div {
   grid-template-columns: minmax(0, 1fr);
 }

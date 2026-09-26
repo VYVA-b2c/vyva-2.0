@@ -29,6 +29,16 @@ function page(url: string, html: string): ProviderSourcePage {
 describe("provider source adapters", () => {
   beforeEach(() => clearProviderSourceAdapterCache());
 
+  it("does not fetch after cancellation and rejects oversized page bodies", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("x".repeat(1_000_001), { headers: { "content-type": "text/html" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(safeFetchProviderPage("https://1.1.1.1/", AbortSignal.abort())).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+      await expect(safeFetchProviderPage("https://1.1.1.1/")).resolves.toBeNull();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("rejects private network source URLs before fetching", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

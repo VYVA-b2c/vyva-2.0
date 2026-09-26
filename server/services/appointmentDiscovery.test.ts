@@ -63,6 +63,7 @@ describe("appointment discovery", () => {
         });
       }
       if (url.includes("/place/details/")) {
+        expect(new URL(url).searchParams.get("fields")?.includes("price_level")).toBe(appointmentType === "home-service");
         return jsonResponse({
           status: "OK",
           result: {
@@ -70,6 +71,7 @@ describe("appointment discovery", () => {
             website: "https://clinic.example/book",
             url: "https://maps.google.com/?cid=123",
             opening_hours: { open_now: true },
+            price_level: 2,
           },
         });
       }
@@ -81,6 +83,7 @@ describe("appointment discovery", () => {
       detail: "dermatology appointment",
       location: { city: "Marbella", region: "Malaga", countryCode: "ES" },
       language: "en",
+      constraints: ["lowest_cost", "fastest"],
     });
 
     expect(fetchMock).toHaveBeenCalled();
@@ -97,6 +100,7 @@ describe("appointment discovery", () => {
       maps_url: "https://maps.google.com/?cid=123",
       rating: 4.7,
       review_count: 118,
+      price_level: 2,
     });
     expect(appointmentOptionIdentity(result.options[0].provider_snapshot)).toBe("place:place-123");
   });

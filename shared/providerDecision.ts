@@ -41,6 +41,8 @@ export interface ProviderCandidate {
   reviewCount?: number | null;
   distanceMeters?: number | null;
   availability?: ProviderAvailability | null;
+  openNow?: boolean | null;
+  priceLevel?: number | null;
   evidenceStatus?: ProviderEvidenceStatus | null;
   checkedAt?: string | null;
   contactable?: boolean | null;
@@ -56,6 +58,8 @@ export interface ProviderDecisionResult {
   uncertainties: string[];
   canonicalCategory: ConciergeProviderCategoryId;
   exactSubserviceMatch: boolean;
+  priorityNotes?: string[];
+  priorityBonus?: number;
 }
 
 export interface ProviderDecisionSummary {
@@ -141,9 +145,54 @@ function identity(candidate: ProviderCandidate): string {
 }
 
 function reputationScore(rating?: number | null, reviewCount?: number | null): number {
-  if (!rating || rating < 1 || rating > 5) return 0;
+  if (!rating || !Number.isFinite(rating) || rating < 1 || rating > 5 || (reviewCount != null && !Number.isFinite(reviewCount))) return 0;
   const confidence = Math.min(1, Math.log10(Math.max(1, reviewCount ?? 1)) / 2);
   return Math.round((rating / 5) * 18 * confidence);
+}
+
+export function homeServiceRankingPriorities(criteria: string[] = []): string[] {
+  return [...new Set(criteria)].filter(key => ["fastest", "trusted", "lowest_cost", "highest_rated"].includes(key)).slice(0, 2);
+}
+
+function preferenceScore(candidate: ProviderCandidate, priorities: string[]) {
+  let bonus = 0;
+  const notes: string[] = [];
+  // Each chosen priority receives the same share of the preference budget.
+  // Unknown evidence earns no bonus, and never means cheap or available.
+  const weight = 60 / Math.max(1, priorities.length);
+  for (const priority of priorities) {
+    if (priority === "fastest") {
+      if (candidate.availability === "available") {
+        bonus += weight;
+        notes.push("Reported job availability supports your fastest-help priority.");
+      } else if (candidate.availability !== "unavailable" && candidate.openNow === true) {
+        bonus += weight * 0.35;
+        notes.push("Open now may be easier to reach; job availability is unconfirmed.");
+      } else notes.push("No confirmed timing evidence for your fastest-help priority.");
+    }
+    if (priority === "trusted") {
+      const verified = candidate.evidenceStatus === "verified";
+      if (verified || candidate.trusted) {
+        bonus += weight * (verified ? 1 : 0.75);
+        notes.push(verified ? "Evidence checks support your trust priority." : "Your saved trusted provider supports your trust priority.");
+      } else notes.push("Trust checks are incomplete for this provider.");
+    }
+    if (priority === "highest_rated") {
+      const reputation = reputationScore(candidate.rating, candidate.reviewCount);
+      if (reputation > 0) {
+        bonus += weight * reputation / 18;
+        notes.push("Rating and review volume support your highest-rated priority.");
+      } else notes.push("Rating evidence is missing or too limited to compare.");
+    }
+    if (priority === "lowest_cost") {
+      const level = candidate.priceLevel;
+      if (typeof level === "number" && Number.isInteger(level) && level >= 0 && level <= 4) {
+        bonus += weight * (4 - level) / 4;
+        notes.push("Comparing published price bands only; your job still needs a quote.");
+      } else notes.push("Price information is unavailable; your job needs a quote.");
+    }
+  }
+  return { bonus: Math.round(bonus * 100) / 100, notes };
 }
 
 function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: string[]): { score: number; reasons: string[]; uncertainties: string[] } {
@@ -165,6 +214,10 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   }
   if (candidate.contactable) score += 8;
   else uncertainties.push("Direct contact route is not confirmed");
+  if (candidate.openNow === true) {
+    score += 12;
+    reasons.push("Business is open now");
+  }
   if (candidate.availability === "available") {
     score += 12;
     reasons.push("Reported available now");
@@ -209,7 +262,8 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
 
   const code: ProviderDecisionCode = exactSubserviceMatch ? "eligible_exact_match" : "eligible_broad_category";
   const scored = scoreEligible(candidate, exactSubserviceMatch, request.criteria ?? []);
-  return { candidate, code, eligible: true, ...scored, canonicalCategory, exactSubserviceMatch };
+  const preference = preferenceScore(candidate, request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : []);
+  return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: preference.notes, canonicalCategory, exactSubserviceMatch };
 }
 
 export function decideProviderCandidates(candidates: ProviderCandidate[], request: ProviderDecisionRequest): ProviderDecisionSummary {
@@ -235,7 +289,7 @@ export function decideProviderCandidates(candidates: ProviderCandidate[], reques
   }, {});
   const confidence = ranked.length === 0
     ? "low"
-    : ranked[0].code === "eligible_exact_match" && ranked[0].score >= 125
+    : ranked[0].code === "eligible_exact_match" && ranked[0].score - (ranked[0].priorityBonus ?? 0) >= 125
       ? "high"
       : "medium";
 
@@ -243,7 +297,7 @@ export function decideProviderCandidates(candidates: ProviderCandidate[], reques
     ranked,
     excluded,
     exclusionSummary,
-    criteriaUsed: request.criteria ?? [],
+    criteriaUsed: request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : request.criteria ?? [],
     confidence,
   };
 }
