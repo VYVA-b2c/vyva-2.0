@@ -1,11 +1,18 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Info, Loader2, MessageCircle, Mic, Send, Share2, Square } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, Info, Loader2, Mic, Send, Share2, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { recordAgentContextUpdate } from "@/lib/agentAppContext";
+import {
+  routineIdFromWellnessToolParameters,
+  subscribeWellnessVoiceTools,
+  type WellnessVoiceToolName,
+  type WellnessVoiceToolResult,
+} from "@/lib/wellnessVoiceBridge";
 import type {
   AdvisorMessage,
   AdvisorMessageResponse,
@@ -31,7 +38,9 @@ const MOVEMENT_COACH_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = [
   "chair-yoga",
   "tai-chi",
   "seated-strength",
+  "calm-breathing",
   "sit-to-stand",
+  "shoulder-release",
 ];
 
 type AdvisorVoiceControls = {
@@ -143,7 +152,7 @@ function MovementCoachRoutineShortcuts({
 }: {
   language: string;
   onOpenLibrary: () => void;
-  onOpenRoutine: (exerciseId: string) => void;
+  onOpenRoutine: (exerciseId: MovementExerciseCardId) => void;
 }) {
   const movementLanguage = getMovementExerciseLanguage(language);
   const copy = getMovementCoachCopy(language);
@@ -158,9 +167,6 @@ function MovementCoachRoutineShortcuts({
       <h2 className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
         {copy.routineTitle}
       </h2>
-      <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-        {copy.routineBody}
-      </p>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
         {cards.map((card) => {
           const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
@@ -177,6 +183,9 @@ function MovementCoachRoutineShortcuts({
               <span className="block px-3 py-2.5">
                 <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
                   {card.title}
+                </span>
+                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-vyva-text-2">
+                  {card.benefit}
                 </span>
                 <span className="sr-only">
                   {card.benefit}
@@ -254,6 +263,65 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const showIntro = Boolean(advisor && advisorData?.introRequired && !introDismissed && messages.length === 0);
   const isSeniorHomeFinder = apiSlug === "sabio";
   const canShareShortlist = isSeniorHomeFinder && !preview && messages.some((message) => message.role === "assistant");
+  const wellnessRoutineCards = useMemo(
+    () => getMovementExerciseCards(getMovementExerciseLanguage(language)),
+    [language],
+  );
+  const wellnessAvailableRoutines = useMemo(
+    () => wellnessRoutineCards.map((card) => `${card.id}:${card.title}`).join(" | "),
+    [wellnessRoutineCards],
+  );
+
+  const openWellnessRoutine = useCallback((exerciseId: MovementExerciseCardId, source: "touch" | "voice") => {
+    const routine = wellnessRoutineCards.find((card) => card.id === exerciseId);
+    recordAgentContextUpdate({
+      summary: `Wellness routine selected by ${source}: ${routine?.title ?? exerciseId} (${exerciseId}). The app should guide this routine visually and VYVA should follow the screen state.`,
+      path: `/social-rooms/morning-movement/exercises/${exerciseId}`,
+    });
+    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, { state: { autoStartVoiceGuide: true } });
+    return routine;
+  }, [navigate, wellnessRoutineCards]);
+
+  const handleWellnessVoiceTool = useCallback((name: WellnessVoiceToolName, parameters: Record<string, unknown>): WellnessVoiceToolResult => {
+    if (!isMovementCoach) {
+      return { ok: false, code: "not_on_wellness_hub", activity: "wellness_routine" };
+    }
+
+    if (name === "pause_wellness_routine" || name === "resume_wellness_routine" || name === "stop_wellness_routine") {
+      return {
+        ok: true,
+        code: "wellness_hub_idle",
+        activity: "wellness_routine",
+        session_state: "routine_picker",
+      };
+    }
+
+    let routineId = routineIdFromWellnessToolParameters(parameters, language);
+    const adaptation = typeof parameters.adaptation === "string" ? parameters.adaptation.trim().toLowerCase() : "";
+    if (!routineId && name === "adapt_wellness_routine") {
+      if (adaptation.includes("calm") || adaptation.includes("breath")) routineId = "calm-breathing";
+      else if (adaptation.includes("seated") || adaptation.includes("easy") || adaptation.includes("easier")) routineId = "chair-yoga";
+    }
+    if (!routineId) {
+      return {
+        ok: false,
+        code: "routine_not_recognized",
+        activity: "wellness_routine",
+        session_state: "routine_picker",
+      };
+    }
+
+    const routine = openWellnessRoutine(routineId, "voice");
+    return {
+      ok: true,
+      code: name === "select_wellness_routine" ? "routine_selected" : "routine_started",
+      activity: "wellness_routine",
+      routine_id: routineId,
+      routine_title: routine?.title ?? routineId,
+      session_state: "routine_opening",
+      ...(adaptation ? { adaptation } : {}),
+    };
+  }, [isMovementCoach, language, openWellnessRoutine]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -267,20 +335,44 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return () => window.clearTimeout(timer);
   }, [shareStatus]);
 
+  useEffect(() => {
+    if (!isMovementCoach) return undefined;
+    return subscribeWellnessVoiceTools(handleWellnessVoiceTool);
+  }, [handleWellnessVoiceTool, isMovementCoach]);
+
   const startVoiceForAdvisor = () => {
     if (!apiSlug || !advisor || preview) return;
+    const isWellness = isMovementCoach;
+    const title = advisorPresentation?.title ?? advisorDisplayName;
+    const role = advisorPresentation?.detail ?? advisor.role;
+    const wellnessContext = isWellness
+      ? [
+          "Wellness Coach hub.",
+          "The user can use touch, voice, or both.",
+          "Visible screen: routine picker.",
+          `Available routines: ${wellnessAvailableRoutines}.`,
+          "If the user asks for a routine by voice, call the matching wellness client tool so the app opens the same routine a tap would open.",
+          "Use select_wellness_routine or start_wellness_routine with routine_id when the user's choice is clear.",
+        ].join(" ")
+      : `${title}. ${role}.`;
     void Promise.resolve(
       voice.startVoice(
-        `${advisorPresentation?.title ?? advisorDisplayName}. ${advisorPresentation?.detail ?? advisor.role}.`,
+        wellnessContext,
         getAdvisorCopy(apiSlug, language).systemPrompt,
         {
-          agentSlug: apiSlug,
+          agentSlug: isWellness ? "wellness" : apiSlug,
           autoStartListening: true,
           dynamicVariables: {
-            app_entrypoint: "ask_an_expert_chat",
+            app_entrypoint: isWellness ? "wellness_coach_hub" : "ask_an_expert_chat",
+            visible_screen: isWellness ? "wellness_routine_picker" : "advisor_chat",
+            session_state: isWellness ? "routine_picker" : "chat",
             advisor_slug: apiSlug,
-            advisor_name: advisorPresentation?.title ?? advisor.name,
-            advisor_role: advisorPresentation?.detail ?? advisor.role,
+            advisor_name: title,
+            advisor_role: role,
+            ...(isWellness ? {
+              wellness_available_routines: wellnessAvailableRoutines,
+              wellness_ui_control_contract: "Touch and voice control the same app state. For clear spoken routine choices, call select_wellness_routine or start_wellness_routine. The app owns navigation, timer, visual steps, pause/resume/stop state, and selected routine context.",
+            } : {}),
           },
         },
       ),
@@ -493,7 +585,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   />
                   <div className="min-w-0 pt-1">
                     <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                      Your expert
+                      {isMovementCoach ? "VYVA wellness" : "Your expert"}
                     </p>
                     <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
                       {advisorPresentation?.title ?? advisorDisplayName}
@@ -503,7 +595,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                 <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
                   {helpStatement}
                 </p>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-3">
                   <button
                     type="button"
                     onClick={() => void handleStartSession("voice")}
@@ -513,27 +605,15 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
                       <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
                     </span>
-                    <span className="mt-4 block font-body text-[21px] font-black leading-tight">Voice chat</span>
+                    <span className="mt-4 block font-body text-[21px] font-black leading-tight">{isMovementCoach ? "Voice guide" : "Voice chat"}</span>
                     <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-white/80">Speak naturally with VYVA</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => composerInputRef.current?.focus()}
-                    className="vyva-tap group min-h-[152px] rounded-[24px] border border-[#E8E2F0] bg-[#FBF7F0] px-5 py-5 text-left shadow-[0_10px_24px_rgba(63,45,35,0.06)] transition-transform hover:-translate-y-0.5 active:scale-[0.985]"
-                    data-testid="button-advisor-start-chat"
-                  >
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1EAFB] text-[#6B21A8] ring-1 ring-[#E7DDF3]">
-                      <MessageCircle size={25} strokeWidth={2.5} aria-hidden="true" />
-                    </span>
-                    <span className="mt-4 block font-body text-[21px] font-black leading-tight text-vyva-text-1">Text chat</span>
-                    <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-vyva-text-2">Write at your own pace</span>
                   </button>
                 </div>
                 {isMovementCoach ? (
                   <MovementCoachRoutineShortcuts
                     language={language}
                     onOpenLibrary={() => navigate("/social-rooms/morning-movement")}
-                    onOpenRoutine={(exerciseId) => navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`)}
+                    onOpenRoutine={(exerciseId) => openWellnessRoutine(exerciseId, "touch")}
                   />
                 ) : null}
                 {sendError ? (

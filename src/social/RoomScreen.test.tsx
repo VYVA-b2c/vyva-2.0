@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MovementExerciseGuideScreen from "./MovementExerciseGuideScreen";
-import { MOVEMENT_EXERCISE_SESSIONS, getMovementStepImage } from "./movementExercises";
+import { MOVEMENT_EXERCISE_SESSIONS, getMovementStepImage, getMovementStepVideo } from "./movementExercises";
 import RoomScreen from "./RoomScreen";
 import type { SocialRoomResponse } from "./types";
 
@@ -61,6 +61,7 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
 }));
 
 beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   Object.values(voiceMock).forEach((value) => {
     if (typeof value === "function" && "mockClear" in value) {
       value.mockClear();
@@ -69,13 +70,52 @@ beforeEach(() => {
   voiceMock.status = "idle";
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+  vi.clearAllMocks();
+});
+
+async function advanceMovementGuideStep() {
+  await act(async () => {
+    vi.advanceTimersByTime(MOVEMENT_GUIDE_STEP_MS);
+    await Promise.resolve();
+  });
+}
+
+async function advanceMovementGuideIntro() {
+  await act(async () => {
+    vi.advanceTimersByTime(MOVEMENT_STEP_INSTRUCTION_INTRO_MS);
+    await Promise.resolve();
+  });
+}
+
+async function advanceMovementGuideVisualStep() {
+  await act(async () => {
+    vi.advanceTimersByTime(MOVEMENT_GUIDE_STEP_MS - MOVEMENT_STEP_INSTRUCTION_INTRO_MS);
+    await Promise.resolve();
+  });
+}
+
+async function flushAsyncEffects() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function completeMovementGuide() {
+  for (let index = 0; index < 4; index += 1) {
+    await advanceMovementGuideStep();
+  }
+}
+
 const movementRoomResponse: SocialRoomResponse = {
   room: {
     slug: "morning-movement",
     name: "Gentle Movement",
     category: "activity",
     agentSlug: "amara-osei",
-    agentFullName: "Amara Osei",
+    agentFullName: "Wellness Coach",
     agentColour: "#0284C7",
     agentCredential: "Movement guide",
     ctaLabel: "Move",
@@ -103,6 +143,8 @@ const movementRoomResponse: SocialRoomResponse = {
   memberChat: [],
 };
 const movementExerciseIds = Object.keys(MOVEMENT_EXERCISE_SESSIONS) as Array<keyof typeof MOVEMENT_EXERCISE_SESSIONS>;
+const MOVEMENT_GUIDE_STEP_MS = 150_000;
+const MOVEMENT_STEP_INSTRUCTION_INTRO_MS = 10_000;
 
 const readingRoomResponse: SocialRoomResponse = {
   room: {
@@ -481,6 +523,9 @@ describe("RoomScreen movement room", () => {
   });
 
   it("surfaces the gentle exercise library from the Movement room", async () => {
+    vi.useFakeTimers();
+    const exerciseLoggedDate = new Date("2026-09-25T12:00:00");
+    vi.setSystemTime(exerciseLoggedDate);
     renderRoom();
 
     expect(screen.queryByText("Amara welcomes you")).not.toBeInTheDocument();
@@ -504,20 +549,26 @@ describe("RoomScreen movement room", () => {
 
     fireEvent.click(screen.getByTestId("movement-room-exercise-card-chair-yoga"));
 
-    await waitFor(() => expect(screen.getByTestId("movement-exercise-guide")).toBeInTheDocument());
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-exercise-guide")).toBeInTheDocument();
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/morning-movement/exercises/chair-yoga");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Chair yoga");
-    expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Live audio guide");
+    expect(screen.getByTestId("movement-guide-status")).toHaveTextContent("Audio guide is live");
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
+    expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
+    expect(screen.queryByTestId("movement-exercise-step-visual")).not.toBeInTheDocument();
+    await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "seated-tall");
-    expect(screen.getByTestId("movement-exercise-guide-safety")).toHaveTextContent("Move gently. Stop if you feel pain, dizzy, or short of breath.");
-    expect(screen.getByTestId("movement-exercise-guide-step-list")).toHaveTextContent("Session steps");
-    expect(screen.getByTestId("movement-exercise-guide-audio-panel")).toHaveTextContent("Audio follows the step you see on screen.");
+    expect(screen.queryByTestId("button-movement-guide-start-audio")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-replay-step")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-next")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-back-step")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("movement-exercise-guide-step-list")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("movement-exercise-guide-audio-panel")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
-    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Change sides slowly.");
-    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "side-change");
-    fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
+    await completeMovementGuide();
+    vi.useRealTimers();
 
     await waitFor(() =>
       expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min."),
@@ -525,7 +576,7 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-room-exercise-card-chair-yoga")).toHaveTextContent("Logged");
     expect(localStorage.getItem("vyva_movement_last_exercise_id")).toBe("chair-yoga");
     expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("1 day moved");
-    expect(JSON.parse(localStorage.getItem("vyva_movement_week_log_dates") ?? "[]")).toContain(localDateKey());
+    expect(JSON.parse(localStorage.getItem("vyva_movement_week_log_dates") ?? "[]")).toContain(localDateKey(exerciseLoggedDate));
 
     const logCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/activity/log");
     expect(logCall).toBeTruthy();
@@ -536,55 +587,142 @@ describe("RoomScreen movement room", () => {
   });
 
   it("steps through a Movement exercise guide page with step-specific photos", async () => {
+    vi.useFakeTimers();
     renderRoom("/social-rooms/morning-movement/exercises/tai-chi");
 
     const taiChiSession = MOVEMENT_EXERCISE_SESSIONS["tai-chi"];
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Tai chi");
-    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand tall with a chair nearby if helpful.");
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.");
+    expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
+    expect(screen.queryByTestId("movement-guide-step-intro-icon")).not.toBeInTheDocument();
+
+    await flushAsyncEffects();
+    expect(voiceMock.startVoice).toHaveBeenCalled();
+    await advanceMovementGuideIntro();
+
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "standing-support");
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-exercise-step-thumb-3")).not.toBeInTheDocument();
-    const firstStepImage = screen.getByTestId("movement-exercise-step-image").getAttribute("src");
-    expect(firstStepImage).toBe(getMovementStepImage("tai-chi", 0, taiChiSession.visuals[0]));
-    expect(screen.getByTestId("movement-exercise-step-image")).toHaveAttribute(
-      "alt",
+    const firstStepVideo = screen.getByTestId("movement-exercise-step-video");
+    expect(firstStepVideo).toHaveAttribute("src", getMovementStepVideo("tai-chi", 0, taiChiSession.visuals[0]));
+    expect(firstStepVideo).toHaveAttribute("poster", getMovementStepImage("tai-chi", 0, taiChiSession.visuals[0]));
+    expect(firstStepVideo).toHaveAttribute(
+      "aria-label",
       "Tai chi: Standing tall with chair nearby",
     );
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-next"));
+    await advanceMovementGuideVisualStep();
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
+    expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
+    await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "soft-knees");
-    const secondStepImage = screen.getByTestId("movement-exercise-step-image").getAttribute("src");
-    expect(secondStepImage).toBe(getMovementStepImage("tai-chi", 1, taiChiSession.visuals[1]));
-    expect(secondStepImage).not.toBe(firstStepImage);
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
+    const secondStepVideo = screen.getByTestId("movement-exercise-step-video");
+    expect(secondStepVideo).toHaveAttribute("src", getMovementStepVideo("tai-chi", 1, taiChiSession.visuals[1]));
+    expect(secondStepVideo).toHaveAttribute("poster", getMovementStepImage("tai-chi", 1, taiChiSession.visuals[1]));
+    expect(secondStepVideo.getAttribute("poster")).not.toBe(firstStepVideo.getAttribute("poster"));
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-back-step"));
+    fireEvent.click(screen.getByTestId("button-movement-guide-pause"));
+    await flushAsyncEffects();
+    await advanceMovementGuideVisualStep();
 
-    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand tall with a chair nearby if helpful.");
-    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "standing-support");
-    expect(screen.getByTestId("movement-exercise-step-image").getAttribute("src")).toBe(firstStepImage);
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
+    expect(screen.getByTestId("movement-guide-status")).toHaveTextContent("Session paused");
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
+    fireEvent.click(screen.getByTestId("button-movement-guide-pause"));
+    await advanceMovementGuideVisualStep();
+    await advanceMovementGuideIntro();
+    await advanceMovementGuideVisualStep();
+    await advanceMovementGuideIntro();
+    await advanceMovementGuideVisualStep();
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Float your hands forward and back slowly.");
+    await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "hand-flow");
-    expect(screen.getByTestId("movement-exercise-step-image").getAttribute("src")).toBe(getMovementStepImage("tai-chi", 3, taiChiSession.visuals[3]));
-    expect(screen.getByTestId("button-movement-guide-finish")).toHaveTextContent("Finish and log 10 min");
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("tai-chi", 3, taiChiSession.visuals[3]));
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("poster", getMovementStepImage("tai-chi", 3, taiChiSession.visuals[3]));
+    expect(screen.queryByTestId("button-movement-guide-finish")).not.toBeInTheDocument();
   });
 
-  it("changes the step photo and written step together", () => {
-    (["chair-yoga", "tai-chi"] as const).forEach((exerciseId, index) => {
+  it("shows a live countdown that freezes while the routine is paused", async () => {
+    vi.useFakeTimers();
+    renderRoom("/social-rooms/morning-movement/exercises/chair-yoga");
+
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-guide-countdown")).toHaveTextContent("2:30 left");
+    expect(screen.getByTestId("movement-guide-step-countdown-progress")).toHaveStyle({ width: "0%" });
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("movement-guide-countdown")).toHaveTextContent("2:20 left");
+    expect(screen.getByTestId("movement-guide-step-countdown-progress")).toHaveStyle({ width: "6.666666666666667%" });
+
+    fireEvent.click(screen.getByTestId("button-movement-guide-pause"));
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("movement-guide-countdown")).toHaveTextContent("2:20 left");
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
+  });
+
+  it("keeps guided step visuals video-backed and free of circle cues", async () => {
+    vi.useFakeTimers();
+    renderRoom("/social-rooms/morning-movement/exercises/chair-yoga");
+
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
+    await advanceMovementGuideIntro();
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "seated-tall");
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("chair-yoga", 0, "seated-tall"));
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
+
+    await advanceMovementGuideVisualStep();
+    await advanceMovementGuideIntro();
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "shoulder-roll");
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("chair-yoga", 1, "shoulder-roll"));
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
+
+    await advanceMovementGuideVisualStep();
+    await advanceMovementGuideIntro();
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "overhead-reach");
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("chair-yoga", 2, "overhead-reach"));
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
+
+    await advanceMovementGuideVisualStep();
+    await advanceMovementGuideIntro();
+    expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "side-change");
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("chair-yoga", 3, "side-change"));
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
+  });
+
+  it("changes the step photo and written step together", async () => {
+    vi.useFakeTimers();
+    for (const [index, exerciseId] of (["chair-yoga", "tai-chi"] as const).entries()) {
       if (index > 0) cleanup();
       renderRoom(`/social-rooms/morning-movement/exercises/${exerciseId}`);
 
-      const firstStepImage = screen.getByTestId("movement-exercise-step-image").getAttribute("src");
       const firstStepText = screen.getByTestId("movement-exercise-guide-step").textContent;
-      fireEvent.click(screen.getByTestId("button-movement-guide-next"));
+      await flushAsyncEffects();
+      expect(voiceMock.startVoice).toHaveBeenCalled();
+      await advanceMovementGuideIntro();
+      const firstStepMedia = screen.queryByTestId("movement-exercise-step-video")?.getAttribute("src")
+        ?? screen.getByTestId("movement-exercise-step-image").getAttribute("src");
+      await advanceMovementGuideVisualStep();
+      await advanceMovementGuideIntro();
 
-      expect(screen.getByTestId("movement-exercise-step-image").getAttribute("src")).not.toBe(firstStepImage);
+      const secondStepMedia = screen.queryByTestId("movement-exercise-step-video")?.getAttribute("src")
+        ?? screen.getByTestId("movement-exercise-step-image").getAttribute("src");
+      expect(secondStepMedia).not.toBe(firstStepMedia);
       expect(screen.getByTestId("movement-exercise-guide-step").textContent).not.toBe(firstStepText);
       expect(screen.queryByTestId("movement-exercise-step-thumb-1")).not.toBeInTheDocument();
-    });
+      voiceMock.startVoice.mockClear();
+    }
   });
 
   it("keeps Movement exercise motion metadata aligned with each guide step", () => {
@@ -613,50 +751,56 @@ describe("RoomScreen movement room", () => {
     });
   });
 
-  it.each(movementExerciseIds)("renders a step-specific photo for the %s guide", (exerciseId) => {
+  it.each(movementExerciseIds)("renders step-specific media for the %s guide", async (exerciseId) => {
+    vi.useFakeTimers();
     renderRoom(`/social-rooms/morning-movement/exercises/${exerciseId}`);
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
+    await advanceMovementGuideIntro();
 
     const session = MOVEMENT_EXERCISE_SESSIONS[exerciseId];
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute(
       "data-motion",
       session.visuals[0],
     );
-    expect(screen.getByTestId("movement-exercise-step-image")).toHaveAttribute(
-      "src",
+    const stepVideo = getMovementStepVideo(exerciseId, 0, session.visuals[0]);
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", stepVideo);
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute(
+      "poster",
       getMovementStepImage(exerciseId, 0, session.visuals[0]),
     );
-    expect(screen.getByTestId("movement-exercise-step-image")).toHaveAttribute(
-      "alt",
+    expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute(
+      "aria-label",
       expect.stringContaining(session.sceneLabels[0]),
     );
+    expect(screen.queryByTestId("movement-exercise-step-image")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-exercise-step-thumb-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-motion-cue")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-motion-cue-timer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-guide-session-status")).not.toBeInTheDocument();
     expect(document.querySelector(".photo-motion-dot")).not.toBeInTheDocument();
     expect(document.querySelector(".photo-motion-cue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
   });
 
-  it("starts Amara guide with exercise-specific storyboard context", async () => {
+  it("auto-starts VYVA guide with exercise-specific storyboard context", async () => {
     renderRoom("/social-rooms/morning-movement/exercises/tai-chi");
 
-    expect(screen.getByTestId("button-movement-guide-start-audio")).toHaveTextContent("Start Amara guide");
-    fireEvent.click(screen.getByTestId("button-movement-guide-start-audio"));
-
-    await waitFor(() => expect(voiceMock.startVoice).toHaveBeenCalled());
+    await flushAsyncEffects();
+    expect(voiceMock.startVoice).toHaveBeenCalled();
     expect(voiceMock.startVoice).toHaveBeenCalledWith(
       expect.stringContaining("Guide the user through Tai chi."),
       undefined,
       expect.objectContaining({
-        agentSlug: "amara-osei",
+        agentSlug: "wellness",
         roomSlug: "morning-movement",
-        autoStartListening: false,
+        autoStartListening: true,
         dynamicVariables: expect.objectContaining({
           app_entrypoint: "movement_exercise_guide",
           exercise_id: "tai-chi",
           exercise_title: "Tai chi",
           exercise_benefit: "Balance practice",
-          current_step: "Stand tall with a chair nearby if helpful.",
+          current_step: "Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.",
           visual_step_label: "Step 1 of 4",
           visual_motion: "standing-support",
           visual_scene: "Standing tall with chair nearby",
@@ -676,12 +820,18 @@ describe("RoomScreen movement room", () => {
   });
 
   it("sends updated voice context when advancing a connected guide", async () => {
+    vi.useFakeTimers();
     voiceMock.status = "connected";
     renderRoom("/social-rooms/morning-movement/exercises/tai-chi");
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-next"));
+    await flushAsyncEffects();
+    expect(voiceMock.startVoice).toHaveBeenCalled();
+    voiceMock.sendContextUpdate.mockClear();
+    voiceMock.sendText.mockClear();
+    await advanceMovementGuideStep();
 
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
+    await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "soft-knees");
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Soften your knees."));
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"visual_motion\":\"soft-knees\""));
@@ -692,21 +842,33 @@ describe("RoomScreen movement room", () => {
     );
   });
 
-  it("does not auto-advance and replays the current storyboard step", async () => {
-    voiceMock.status = "connected";
+  it("keeps the routine page free of manual guide clutter", async () => {
     renderRoom("/social-rooms/morning-movement/exercises/tai-chi");
+    await flushAsyncEffects();
 
-    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand tall with a chair nearby if helpful.");
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.");
     expect(screen.queryByTestId("movement-motion-cue-timer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("movement-guide-session-status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-guide-pause")).toHaveTextContent("Pause");
+    expect(screen.queryByTestId("button-movement-guide-start-audio")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-replay-step")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-next")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-movement-guide-back-step")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("movement-exercise-guide-step-list")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("movement-exercise-guide-audio-panel")).not.toBeInTheDocument();
+  });
 
-    const promptCount = voiceMock.sendText.mock.calls.length;
-    fireEvent.click(screen.getByTestId("button-movement-guide-replay-step"));
-    expect(voiceMock.sendText).toHaveBeenCalledTimes(promptCount + 1);
-    expect(voiceMock.sendText).toHaveBeenLastCalledWith(
-      expect.stringContaining("Current step 1 of 4"),
-      { invisibleInTranscript: true },
-    );
+  it("shows a single Begin fallback if automatic audio start is blocked", async () => {
+    voiceMock.startVoice.mockRejectedValueOnce(new Error("audio blocked"));
+    renderRoom("/social-rooms/morning-movement/exercises/tai-chi");
+
+    await waitFor(() => expect(screen.getByTestId("movement-guide-audio-fallback")).toBeInTheDocument());
+    expect(screen.getByTestId("movement-guide-audio-fallback")).toHaveTextContent("The visual guide still works without audio.");
+    expect(screen.getByTestId("button-movement-guide-begin-fallback")).toHaveTextContent("Start audio guide");
+    expect(screen.queryByTestId("button-movement-guide-start-audio")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-movement-guide-begin-fallback"));
+    await waitFor(() => expect(screen.getByTestId("movement-guide-status")).toHaveTextContent("Audio guide is live"));
   });
 
   it("handles invalid Movement exercise IDs safely", async () => {
@@ -747,6 +909,7 @@ describe("RoomScreen movement room", () => {
   });
 
   it("expands more exercise cards inside the Movement room", async () => {
+    vi.useFakeTimers();
     renderRoom();
 
     fireEvent.click(screen.getByTestId("button-movement-room-browse-exercises"));
@@ -764,11 +927,12 @@ describe("RoomScreen movement room", () => {
 
     fireEvent.click(screen.getByTestId("movement-room-exercise-card-wall-push-ups"));
 
-    await waitFor(() => expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Wall push-ups"));
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Wall push-ups");
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Stand an arm's length from a wall.");
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
-    fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
+    await completeMovementGuide();
+    vi.useRealTimers();
 
     await waitFor(
       () => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument(),
@@ -795,7 +959,6 @@ describe("RoomScreen movement room", () => {
       wall: "Pompes au mur",
       lastUsed: "Dernier",
       step: "Placez-vous a une longueur de bras du mur.",
-      safety: "Bougez doucement.",
       logged: "Pompes au mur note pendant 10 min.",
     },
     {
@@ -810,7 +973,6 @@ describe("RoomScreen movement room", () => {
       wall: "Piegamenti al muro",
       lastUsed: "Ultimo",
       step: "Mettiti a un braccio di distanza dal muro.",
-      safety: "Muoviti con dolcezza.",
       logged: "Piegamenti al muro registrato per 10 min.",
     },
     {
@@ -825,10 +987,10 @@ describe("RoomScreen movement room", () => {
       wall: "Flexoes na parede",
       lastUsed: "Ultimo",
       step: "Fique a distancia de um braco da parede.",
-      safety: "Movimente-se suavemente.",
       logged: "Flexoes na parede registado por 10 min.",
     },
-  ])("does not fall back to English for Movement exercise copy in $language", async ({ language, title, recommended, week, comfort, chair, more, group, wall, lastUsed, step, safety, logged }) => {
+  ])("does not fall back to English for Movement exercise copy in $language", async ({ language, title, recommended, week, comfort, chair, more, group, wall, lastUsed, step, logged }) => {
+    vi.useFakeTimers();
     languageMock.language = language;
     localStorage.setItem("vyva_movement_last_exercise_id", "wall-push-ups");
     renderRoom();
@@ -854,13 +1016,12 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-room-exercise-card-wall-push-ups")).not.toHaveTextContent("Last used");
 
     fireEvent.click(screen.getByTestId("movement-room-exercise-card-wall-push-ups"));
-    await waitFor(() => expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent(wall));
+    await flushAsyncEffects();
+    expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent(wall);
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent(step);
-    expect(screen.getByTestId("movement-exercise-guide-safety")).toHaveTextContent(safety);
-    expect(screen.getByTestId("movement-exercise-guide-safety")).not.toHaveTextContent("Move gently.");
 
-    fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
-    fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
+    await completeMovementGuide();
+    vi.useRealTimers();
 
     const loggedStatus = await screen.findByTestId("movement-room-exercise-logged-status");
     expect(loggedStatus).toHaveTextContent(logged);

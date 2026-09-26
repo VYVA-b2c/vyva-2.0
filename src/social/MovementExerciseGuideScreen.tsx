@@ -1,9 +1,16 @@
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Headphones, Loader2, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { recordAgentContextUpdate } from "@/lib/agentAppContext";
+import {
+  routineIdFromWellnessToolParameters,
+  subscribeWellnessVoiceTools,
+  type WellnessVoiceToolName,
+  type WellnessVoiceToolResult,
+} from "@/lib/wellnessVoiceBridge";
 import MovementStepAnimation from "./MovementStepAnimation";
 import {
   MOVEMENT_EXERCISE_SESSIONS,
@@ -13,6 +20,7 @@ import {
   getMovementExerciseLanguage,
   getMovementSessionUiCopy,
   getMovementStepImage,
+  getMovementStepVideo,
   isMovementExerciseCardId,
   loadMovementWeekLogDates,
   saveLastMovementExerciseId,
@@ -24,6 +32,11 @@ import {
 const MOVEMENT_ROOM_PATH = "/social-rooms/morning-movement";
 const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
 const EMPTY_MOVEMENT_STEPS: string[] = [];
+const MOVEMENT_GUIDE_TOTAL_DURATION_MS = 10 * 60 * 1000;
+const MOVEMENT_GUIDE_TICK_MS = 1000;
+const MOVEMENT_STEP_INSTRUCTION_INTRO_MS = 10_000;
+
+type GuideRunState = "starting" | "guiding" | "paused" | "blocked" | "saving";
 
 type GuideCopy = {
   backToRoom: string;
@@ -72,7 +85,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       tenMinutes: "10 Min",
       stepLabel: (current, total) => `Schritt ${current} von ${total}`,
       progressLabel: (current, total) => `${current}/${total} Schritte`,
-      currentStepTitle: "Amaras aktueller Hinweis",
+      currentStepTitle: "Aktueller Hinweis von VYVA",
       stepListTitle: "Sitzungsschritte",
       stepListBody: "Tippe auf einen Schritt, wenn du zurueckgehen oder vorausgehen moechtest.",
       completedStep: "Fertig",
@@ -86,7 +99,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       stopAudio: "Audioguide stoppen",
       audioStarting: "Startet...",
       audioLive: "Audioguide ist live",
-      startSession: "Amara-Guide starten",
+      startSession: "VYVA-Guide starten",
       pauseSession: "Pause",
       resumeSession: "Fortsetzen",
       replayCue: "Schritt wiederholen",
@@ -113,7 +126,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       tenMinutes: "10 min",
       stepLabel: (current, total) => `Etape ${current} sur ${total}`,
       progressLabel: (current, total) => `${current}/${total} etapes`,
-      currentStepTitle: "Consigne actuelle d'Amara",
+      currentStepTitle: "Consigne actuelle de VYVA",
       stepListTitle: "Etapes de la seance",
       stepListBody: "Touchez une etape pour revenir ou avancer doucement.",
       completedStep: "Fait",
@@ -127,7 +140,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       stopAudio: "Arreter le guide audio",
       audioStarting: "Demarrage...",
       audioLive: "Le guide audio est actif",
-      startSession: "Demarrer le guide Amara",
+      startSession: "Demarrer le guide VYVA",
       pauseSession: "Pause",
       resumeSession: "Reprendre",
       replayCue: "Rejouer l'etape",
@@ -154,7 +167,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       tenMinutes: "10 min",
       stepLabel: (current, total) => `Passo ${current} di ${total}`,
       progressLabel: (current, total) => `${current}/${total} passi`,
-      currentStepTitle: "Indicazione attuale di Amara",
+      currentStepTitle: "Indicazione attuale di VYVA",
       stepListTitle: "Passi della sessione",
       stepListBody: "Tocca un passo per tornare indietro o andare avanti con calma.",
       completedStep: "Fatto",
@@ -168,7 +181,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       stopAudio: "Ferma guida audio",
       audioStarting: "Avvio...",
       audioLive: "La guida audio e attiva",
-      startSession: "Avvia guida Amara",
+      startSession: "Avvia guida VYVA",
       pauseSession: "Pausa",
       resumeSession: "Riprendi",
       replayCue: "Ripeti passo",
@@ -195,7 +208,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       tenMinutes: "10 min",
       stepLabel: (current, total) => `Passo ${current} de ${total}`,
       progressLabel: (current, total) => `${current}/${total} passos`,
-      currentStepTitle: "Indicacao atual da Amara",
+      currentStepTitle: "Indicacao atual da VYVA",
       stepListTitle: "Passos da sessao",
       stepListBody: "Toque num passo para voltar ou avancar devagar.",
       completedStep: "Feito",
@@ -209,7 +222,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       stopAudio: "Parar guia audio",
       audioStarting: "A iniciar...",
       audioLive: "O guia audio esta ativo",
-      startSession: "Iniciar guia Amara",
+      startSession: "Iniciar guia VYVA",
       pauseSession: "Pausa",
       resumeSession: "Continuar",
       replayCue: "Repetir passo",
@@ -236,7 +249,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       tenMinutes: "10 min",
       stepLabel: (current, total) => `Paso ${current} de ${total}`,
       progressLabel: (current, total) => `${current}/${total} pasos`,
-      currentStepTitle: "Indicacion actual de Amara",
+      currentStepTitle: "Indicacion actual de VYVA",
       stepListTitle: "Pasos de la sesion",
       stepListBody: "Toca un paso para volver o avanzar con calma.",
       completedStep: "Hecho",
@@ -250,7 +263,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       stopAudio: "Parar guia de audio",
       audioStarting: "Iniciando...",
       audioLive: "La guia de audio esta activa",
-      startSession: "Iniciar guia Amara",
+      startSession: "Iniciar guia VYVA",
       pauseSession: "Pausa",
       resumeSession: "Continuar",
       replayCue: "Repetir paso",
@@ -276,7 +289,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
     tenMinutes: "10 min",
     stepLabel: (current, total) => `Step ${current} of ${total}`,
     progressLabel: (current, total) => `${current}/${total} steps`,
-    currentStepTitle: "Amara's current cue",
+    currentStepTitle: "VYVA's current cue",
     stepListTitle: "Session steps",
     stepListBody: "Tap a step if you want to go back or move ahead gently.",
     completedStep: "Done",
@@ -290,7 +303,7 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
     stopAudio: "Stop audio guide",
     audioStarting: "Starting...",
     audioLive: "Audio guide is live",
-    startSession: "Start Amara guide",
+    startSession: "Start VYVA guide",
     pauseSession: "Pause",
     resumeSession: "Resume",
     replayCue: "Replay step",
@@ -333,28 +346,32 @@ function buildVoicePrompt(
   ].join(" ");
 }
 
-function stepStatusFor(index: number, stepIndex: number, copy: GuideCopy) {
-  if (index < stepIndex) return copy.completedStep;
-  if (index === stepIndex) return copy.currentStep;
-  return copy.nextStepStatus;
+function formatGuideTime(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export default function MovementExerciseGuideScreen() {
   const { exerciseId } = useParams<{ exerciseId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { language } = useLanguage();
   const movementLanguage = getMovementExerciseLanguage(language);
   const guideCopy = useMemo(() => getMovementGuideCopy(movementLanguage), [movementLanguage]);
   const sessionCopy = useMemo(() => getMovementSessionUiCopy(movementLanguage), [movementLanguage]);
   const [stepIndex, setStepIndex] = useState(0);
   const [logStatus, setLogStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [runState, setRunState] = useState<GuideRunState>("starting");
+  const [autoStartAttempted, setAutoStartAttempted] = useState(false);
   const [isAudioStarting, setAudioStarting] = useState(false);
+  const [elapsedInStepMs, setElapsedInStepMs] = useState(0);
   const {
     startVoice,
     stopVoice,
     sendText,
     sendContextUpdate,
-    status: voiceStatus,
     isConnecting,
     lastError: voiceError,
   } = useVyvaVoice();
@@ -373,7 +390,13 @@ export default function MovementExerciseGuideScreen() {
   const totalSteps = Math.max(steps.length, 1);
   const isLastStep = stepIndex >= steps.length - 1;
   const progressPercent = Math.max(0, Math.min(100, ((stepIndex + 1) / totalSteps) * 100));
-  const isAudioLive = voiceStatus === "connected";
+  const stepDurationMs = Math.max(15_000, Math.round(MOVEMENT_GUIDE_TOTAL_DURATION_MS / totalSteps));
+  const stepElapsedPercent = Math.max(0, Math.min(100, (elapsedInStepMs / stepDurationMs) * 100));
+  const stepRemainingMs = Math.max(0, stepDurationMs - elapsedInStepMs);
+  const stepRemainingText = formatGuideTime(stepRemainingMs);
+  const showStepInstructionIntro = elapsedInStepMs < MOVEMENT_STEP_INSTRUCTION_INTRO_MS;
+  const isVisualGuideRunning = runState === "guiding" || runState === "blocked";
+  const isVisualGuidePresent = isVisualGuideRunning || runState === "starting";
   const motionForStep = useCallback((nextStepIndex: number): MovementStepMotion => (
     session?.visuals[nextStepIndex] ?? DEFAULT_MOVEMENT_STEP_MOTION
   ), [session]);
@@ -383,6 +406,15 @@ export default function MovementExerciseGuideScreen() {
   const currentStepMotion = motionForStep(stepIndex);
   const currentSceneLabel = sceneForStep(stepIndex);
   const currentStepImage = exercise && visual ? getMovementStepImage(exercise.id, stepIndex, currentStepMotion) ?? visual.image : "";
+  const currentStepVideo = exercise ? getMovementStepVideo(exercise.id, stepIndex, currentStepMotion) : undefined;
+  const routeState = location.state as { autoStartVoiceGuide?: unknown } | null;
+  const hasAutoStartIntent = routeState?.autoStartVoiceGuide === true;
+  const browserHasUserActivation = (() => {
+    if (typeof navigator === "undefined") return true;
+    const userActivation = (navigator as Navigator & { userActivation?: { hasBeenActive?: boolean } }).userActivation;
+    if (!userActivation) return true;
+    return userActivation.hasBeenActive ?? hasAutoStartIntent;
+  })();
 
   const voiceVariables = useCallback((nextStepIndex: number) => {
     const nextMotion = motionForStep(nextStepIndex);
@@ -436,7 +468,10 @@ export default function MovementExerciseGuideScreen() {
 
   useEffect(() => {
     setStepIndex(0);
+    setElapsedInStepMs(0);
     setLogStatus("idle");
+    setRunState("starting");
+    setAutoStartAttempted(false);
   }, [exerciseId]);
 
   const goBackToRoom = useCallback(() => {
@@ -444,42 +479,133 @@ export default function MovementExerciseGuideScreen() {
     navigate(MOVEMENT_ROOM_PATH);
   }, [navigate, stopVoice]);
 
-  const goToStep = useCallback((nextStepIndex: number) => {
-    if (!steps.length) return;
-    const boundedStepIndex = Math.max(0, Math.min(nextStepIndex, steps.length - 1));
-    setStepIndex(boundedStepIndex);
-    if (voiceStatus === "connected") {
-      sendStepPrompt(boundedStepIndex);
-    }
-  }, [sendStepPrompt, steps.length, voiceStatus]);
-
-  const startAmaraGuide = useCallback(async () => {
+  const startVyvaGuide = useCallback(async (nextStepIndex = stepIndex) => {
     if (!exercise || !session) return;
     setAudioStarting(true);
+    setRunState("starting");
     try {
-      await startVoice(promptForStep(stepIndex), undefined, {
-        agentSlug: "amara-osei",
+      await startVoice(promptForStep(nextStepIndex), undefined, {
+        agentSlug: "wellness",
         roomSlug: "morning-movement",
-        autoStartListening: false,
-        dynamicVariables: voiceVariables(stepIndex),
+        autoStartListening: true,
+        dynamicVariables: voiceVariables(nextStepIndex),
       });
-      sendStepPrompt(stepIndex);
+      sendStepPrompt(nextStepIndex);
+      setRunState("guiding");
     } catch {
-      // The visual guide keeps running if live audio is not available.
+      setRunState("blocked");
     } finally {
       setAudioStarting(false);
     }
   }, [exercise, promptForStep, sendStepPrompt, session, startVoice, stepIndex, voiceVariables]);
 
-  const replayStep = useCallback(() => {
-    if (voiceStatus === "connected") {
-      sendStepPrompt(stepIndex);
+  useEffect(() => {
+    if (!exercise || !session || autoStartAttempted) return;
+    setAutoStartAttempted(true);
+    if (!hasAutoStartIntent && !browserHasUserActivation) {
+      setRunState("blocked");
+      return;
     }
-  }, [sendStepPrompt, stepIndex, voiceStatus]);
+    void startVyvaGuide(0);
+  }, [autoStartAttempted, browserHasUserActivation, exercise, hasAutoStartIntent, session, startVyvaGuide]);
+
+  const pauseGuide = useCallback(() => {
+    setRunState("paused");
+    stopVoice();
+  }, [stopVoice]);
+
+  const resumeGuide = useCallback(() => {
+    void startVyvaGuide(stepIndex);
+  }, [startVyvaGuide, stepIndex]);
+
+  const handleWellnessVoiceTool = useCallback((name: WellnessVoiceToolName, parameters: Record<string, unknown>): WellnessVoiceToolResult => {
+    if (!exercise) return { ok: false, code: "wellness_routine_unavailable", activity: "wellness_routine" };
+
+    if (name === "pause_wellness_routine") {
+      stopVoice();
+      setRunState("paused");
+      recordAgentContextUpdate({
+        summary: `Wellness routine paused by voice: ${exercise.title} (${exercise.id}).`,
+        path: `/social-rooms/morning-movement/exercises/${exercise.id}`,
+      });
+      return {
+        ok: true,
+        code: "routine_paused",
+        activity: "wellness_routine",
+        routine_id: exercise.id,
+        routine_title: exercise.title,
+        session_state: "paused",
+      };
+    }
+
+    if (name === "resume_wellness_routine") {
+      void startVyvaGuide(stepIndex);
+      return {
+        ok: true,
+        code: "routine_resuming",
+        activity: "wellness_routine",
+        routine_id: exercise.id,
+        routine_title: exercise.title,
+        session_state: "running",
+      };
+    }
+
+    if (name === "stop_wellness_routine") {
+      stopVoice();
+      navigate("/social-rooms/experts/amara");
+      return {
+        ok: true,
+        code: "routine_stopped",
+        activity: "wellness_routine",
+        routine_id: exercise.id,
+        routine_title: exercise.title,
+        session_state: "stopped",
+      };
+    }
+
+    let routineId = routineIdFromWellnessToolParameters(parameters, language);
+    const adaptation = typeof parameters.adaptation === "string" ? parameters.adaptation.trim().toLowerCase() : "";
+    if (!routineId && name === "adapt_wellness_routine") {
+      if (adaptation.includes("calm") || adaptation.includes("breath")) routineId = "calm-breathing";
+      else if (adaptation.includes("seated") || adaptation.includes("easy") || adaptation.includes("easier")) routineId = "chair-yoga";
+    }
+
+    if (!routineId) {
+      return {
+        ok: false,
+        code: "routine_not_recognized",
+        activity: "wellness_routine",
+        routine_id: exercise.id,
+        routine_title: exercise.title,
+        session_state: "running",
+      };
+    }
+
+    const target = getMovementExerciseCards(movementLanguage).find((card) => card.id === routineId);
+    stopVoice();
+    setRunState("starting");
+    recordAgentContextUpdate({
+      summary: `Wellness routine changed by voice: ${target?.title ?? routineId} (${routineId}).`,
+      path: `/social-rooms/morning-movement/exercises/${routineId}`,
+    });
+    navigate(`/social-rooms/morning-movement/exercises/${routineId}`, { state: { autoStartVoiceGuide: true } });
+    return {
+      ok: true,
+      code: name === "adapt_wellness_routine" ? "routine_adapted" : "routine_started",
+      activity: "wellness_routine",
+      routine_id: routineId,
+      routine_title: target?.title ?? routineId,
+      session_state: "routine_opening",
+      ...(adaptation ? { adaptation } : {}),
+    };
+  }, [exercise, language, movementLanguage, navigate, startVyvaGuide, stepIndex, stopVoice]);
+
+  useEffect(() => subscribeWellnessVoiceTools(handleWellnessVoiceTool), [handleWellnessVoiceTool]);
 
   const finishAndLog = useCallback(async () => {
     if (!exercise || !session || logStatus === "saving") return;
     setLogStatus("saving");
+    setRunState("saving");
     try {
       const response = await apiFetch("/api/activity/log", {
         method: "POST",
@@ -495,8 +621,30 @@ export default function MovementExerciseGuideScreen() {
       navigate(MOVEMENT_ROOM_PATH, { state: { movementExerciseLoggedId: exercise.id } });
     } catch {
       setLogStatus("error");
+      setRunState("paused");
     }
   }, [exercise, logStatus, navigate, session, stopVoice]);
+
+  useEffect(() => {
+    if (!exercise || !session || !isVisualGuideRunning || logStatus === "saving") return undefined;
+    const timer = window.setInterval(() => {
+      setElapsedInStepMs((currentElapsed) => {
+        const nextElapsed = Math.min(stepDurationMs, currentElapsed + MOVEMENT_GUIDE_TICK_MS);
+        if (nextElapsed < stepDurationMs) return nextElapsed;
+
+        if (stepIndex >= steps.length - 1) {
+          void finishAndLog();
+          return stepDurationMs;
+        }
+
+        const nextStepIndex = stepIndex + 1;
+        setStepIndex(nextStepIndex);
+        sendStepPrompt(nextStepIndex);
+        return 0;
+      });
+    }, MOVEMENT_GUIDE_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [exercise, finishAndLog, isVisualGuideRunning, logStatus, sendStepPrompt, session, stepDurationMs, stepIndex, steps.length]);
 
   if (!exercise || !session || !visual || !isMovementExerciseCardId(exerciseId)) {
     return (
@@ -521,266 +669,157 @@ export default function MovementExerciseGuideScreen() {
     );
   }
 
+  const statusText = logStatus === "saving" || runState === "saving"
+    ? guideCopy.saving
+    : runState === "blocked"
+      ? guideCopy.audioUnavailable
+      : runState === "paused"
+        ? guideCopy.sessionPaused
+        : isAudioStarting || isConnecting || runState === "starting"
+          ? guideCopy.audioStarting
+          : guideCopy.audioLive;
+
   return (
     <section
-      className="mx-auto w-full max-w-[980px] px-4 py-4 pb-28 sm:px-6"
+      className="mx-auto flex min-h-[calc(100svh-92px)] w-full max-w-[820px] flex-col px-4 pb-28 pt-4 sm:px-6"
       data-testid="movement-exercise-guide"
     >
-      <button
-        type="button"
-        onClick={goBackToRoom}
-        className="mb-3 inline-flex min-h-[48px] items-center gap-2 rounded-full border border-[#CFEAF2] bg-white px-4 font-body text-[15px] font-black text-[#0369A1] shadow-[0_8px_18px_rgba(2,132,199,0.06)]"
-        data-testid="button-movement-guide-back-room"
-      >
-        <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-        {guideCopy.backToRoom}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={goBackToRoom}
+          className="vyva-tap inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#CFEAF2] bg-white text-[#0369A1] shadow-[0_8px_18px_rgba(2,132,199,0.06)]"
+          data-testid="button-movement-guide-back-room"
+          aria-label={guideCopy.backToRoom}
+        >
+          <ArrowLeft size={20} strokeWidth={2.7} aria-hidden="true" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate font-body text-[22px] font-black leading-tight text-[#123047] sm:text-[28px]">
+            {exercise.title}
+          </h1>
+          <p
+            className="mt-0.5 font-body text-[13px] font-black leading-tight"
+            style={{ color: visual.accent }}
+            data-testid="movement-guide-status"
+          >
+            {statusText}
+          </p>
+        </div>
+        {runState !== "saving" ? (
+          <button
+            type="button"
+            onClick={runState === "paused" ? resumeGuide : pauseGuide}
+            disabled={logStatus === "saving" || runState === "saving" || isAudioStarting}
+            className="vyva-tap inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 font-body text-[14px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:opacity-65"
+            style={{ background: visual.accent }}
+            data-testid="button-movement-guide-pause"
+          >
+            {runState === "paused" ? (
+              <Play size={18} strokeWidth={2.7} aria-hidden="true" />
+            ) : (
+              <Pause size={18} strokeWidth={2.7} aria-hidden="true" />
+            )}
+            {runState === "paused" ? guideCopy.resumeSession : guideCopy.pauseSession}
+          </button>
+        ) : null}
+      </div>
 
-      <div className="rounded-[24px] border bg-white p-3 shadow-[0_12px_28px_rgba(18,48,71,0.08)] sm:p-4" style={{ borderColor: visual.border }}>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <div className="grid min-w-0 grid-cols-[76px_minmax(0,1fr)] items-center gap-3">
-            <img
-              src={visual.image}
-              alt=""
-              className="h-[76px] w-[76px] rounded-[18px] object-cover"
-              data-testid="movement-exercise-guide-image"
-              draggable={false}
-            />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex rounded-full px-3 py-1.5 font-body text-[12px] font-black uppercase leading-tight"
-                  style={{ background: visual.softBg, color: visual.accent }}
-                >
-                  {guideCopy.guideLabel}
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-black leading-tight"
-                  style={{ background: visual.softBg, color: visual.accent }}
-                >
-                  <Clock size={15} strokeWidth={2.5} aria-hidden="true" />
-                  {guideCopy.tenMinutes}
-                </span>
-                <span
-                  className="inline-flex rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black leading-tight shadow-[0_6px_16px_rgba(18,48,71,0.08)]"
-                  style={{ color: visual.accent }}
-                >
-                  {guideCopy.progressLabel(stepIndex + 1, totalSteps)}
-                </span>
-              </div>
-              <h1 className="mt-2 font-display text-[27px] leading-[1.04] text-[#123047] sm:text-[40px]">
-                {exercise.title}
-              </h1>
-              <p className="mt-1 font-body text-[14px] font-bold leading-snug text-[#66717B] sm:text-[16px]">
-                {exercise.benefit}
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:min-w-[230px]">
-            <div aria-label={guideCopy.stepLabel(stepIndex + 1, totalSteps)} role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={stepIndex + 1}>
-              <div className="h-2.5 overflow-hidden rounded-full bg-[#E8F3F7]">
-                <div
-                  className="h-full rounded-full transition-[width] duration-300"
-                  style={{ width: `${progressPercent}%`, background: visual.accent }}
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={startAmaraGuide}
-              disabled={isAudioStarting || isConnecting || isAudioLive}
-              className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:opacity-75"
-              style={{ background: visual.accent }}
-              data-testid="button-movement-guide-start-audio"
-            >
-              {isAudioStarting || isConnecting ? (
-                <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Play size={20} strokeWidth={2.6} aria-hidden="true" />
-              )}
-              {isAudioStarting || isConnecting ? guideCopy.audioStarting : isAudioLive ? guideCopy.audioLive : guideCopy.startSession}
-            </button>
-            <button
-              type="button"
-              onClick={replayStep}
-              className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] border border-[#CFEAF2] bg-white px-4 font-body text-[15px] font-black text-[#0369A1]"
-              data-testid="button-movement-guide-replay-step"
-            >
-              <RotateCcw size={18} strokeWidth={2.5} aria-hidden="true" />
-              {guideCopy.replayCue}
-            </button>
-          </div>
+      <div
+        aria-label={guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+        role="progressbar"
+        aria-valuemin={1}
+        aria-valuemax={totalSteps}
+        aria-valuenow={stepIndex + 1}
+        className="mt-4"
+      >
+        <div className="flex items-center justify-between gap-3 pb-2">
+          <span className="font-body text-[13px] font-black text-[#55707D]">
+            {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+          </span>
+          <span
+            className="font-body text-[15px] font-black tabular-nums text-[#123047]"
+            data-testid="movement-guide-countdown"
+            aria-live="polite"
+          >
+            {guideCopy.timeRemaining(stepRemainingText)}
+          </span>
+        </div>
+        <div className="relative h-3 overflow-hidden rounded-full bg-[#E8F3F7]">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full opacity-25 transition-[width] duration-300"
+            style={{ width: `${progressPercent}%`, background: visual.accent }}
+            aria-hidden="true"
+          />
+          <div
+            className="relative h-full rounded-full transition-[width] duration-300"
+            style={{ width: `${stepElapsedPercent}%`, background: visual.accent }}
+            data-testid="movement-guide-step-countdown-progress"
+          />
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="rounded-[24px] border border-[#D7EEF5] bg-white p-4 shadow-[0_12px_26px_rgba(2,132,199,0.06)] sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#0369A1]">
+      <main className="mt-5 flex flex-1 flex-col justify-center">
+        {showStepInstructionIntro ? (
+          <section
+            className="grid min-h-[520px] place-items-center rounded-[28px] border border-white/20 bg-[radial-gradient(circle_at_50%_18%,#8B3DCE_0%,#6B21A8_56%,#581C87_100%)] px-7 py-10 text-center text-white shadow-[0_20px_44px_rgba(107,33,168,0.24)]"
+            data-testid="movement-guide-step-intro"
+            aria-live="polite"
+          >
+            <div className="mx-auto max-w-[680px]">
+              <p className="font-body text-[18px] font-black uppercase tracking-[0.08em] text-white/75">
                 {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
               </p>
-              <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-[#123047]">{guideCopy.currentStepTitle}</h2>
+              <h2
+                className="mt-8 font-body text-[40px] font-black leading-[1.05] tracking-normal sm:text-[56px]"
+                data-testid="movement-exercise-guide-step"
+              >
+                {currentStep}
+              </h2>
             </div>
-            <div className="flex gap-1.5" aria-hidden="true">
-              {steps.map((step, index) => (
-                <span
-                  key={step}
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: index === stepIndex ? visual.accent : visual.border }}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="mt-4">
-            <MovementStepAnimation
-              motion={currentStepMotion}
-              image={currentStepImage}
-              imageAlt={`${exercise.title}: ${currentSceneLabel}`}
-              accent={visual.accent}
-              softBg={visual.softBg}
-              border={visual.border}
-              stepLabel={guideCopy.stepLabel(stepIndex + 1, totalSteps)}
-              instruction={currentStep}
-            />
-          </div>
-          <div className="mt-4 grid grid-cols-[0.9fr_1.1fr] gap-3">
+          </section>
+        ) : (
+          <MovementStepAnimation
+            motion={currentStepMotion}
+            image={currentStepImage}
+            imageAlt={`${exercise.title}: ${currentSceneLabel}`}
+            video={currentStepVideo}
+            accent={visual.accent}
+            softBg={visual.softBg}
+            border={visual.border}
+            stepLabel={guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+            instruction={currentStep}
+            isGuiding={isVisualGuidePresent}
+          />
+        )}
+
+        {runState === "blocked" ? (
+          <div className="mt-4 rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] p-4 text-center" data-testid="movement-guide-audio-fallback">
+            <p className="font-body text-[15px] font-bold leading-snug text-[#BE185D]">
+              {voiceError ? `${voiceError} ` : ""}{guideCopy.audioUnavailable}
+            </p>
             <button
               type="button"
-              onClick={() => goToStep(stepIndex - 1)}
-              disabled={stepIndex === 0}
-              className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] border border-[#CFEAF2] bg-white px-4 font-body text-[16px] font-black text-[#0369A1] disabled:opacity-45 sm:min-h-[58px] sm:text-[17px]"
-              data-testid="button-movement-guide-back-step"
+              onClick={resumeGuide}
+              className="vyva-tap mt-3 inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-6 font-body text-[16px] font-black text-white"
+              style={{ background: visual.accent }}
+              data-testid="button-movement-guide-begin-fallback"
             >
-              <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
-              {guideCopy.previousStep}
+              <Play size={20} strokeWidth={2.7} aria-hidden="true" />
+              {guideCopy.startAudio}
             </button>
-            {isLastStep ? (
-              <button
-                type="button"
-                onClick={finishAndLog}
-                disabled={logStatus === "saving"}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_24px_rgba(2,132,199,0.14)] disabled:opacity-70 sm:min-h-[58px] sm:text-[17px]"
-                style={{ background: visual.accent }}
-                data-testid="button-movement-guide-finish"
-              >
-                {logStatus === "saving" ? (
-                  <Loader2 size={22} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <Check size={22} strokeWidth={2.7} aria-hidden="true" />
-                )}
-                {logStatus === "saving" ? guideCopy.saving : guideCopy.finish}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => goToStep(stepIndex + 1)}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[16px] font-black text-white sm:min-h-[58px] sm:text-[17px]"
-                style={{ background: visual.accent }}
-                data-testid="button-movement-guide-next"
-              >
-                {guideCopy.nextStep}
-                <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
-              </button>
-            )}
           </div>
-          <div
-            className="mt-4 flex items-start gap-2 rounded-[18px] border px-3 py-3 font-body text-[15px] font-bold leading-snug"
-            style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
-            data-testid="movement-exercise-guide-safety"
+        ) : null}
+
+        {logStatus === "error" ? (
+          <p
+            className="mt-4 rounded-[18px] border border-[#FECDD3] bg-[#FFF1F2] px-4 py-3 text-center font-body text-[14px] font-bold leading-snug text-[#BE185D]"
+            data-testid="movement-exercise-guide-log-error"
           >
-            <ShieldCheck size={20} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden="true" />
-            {sessionCopy.safety}
-          </div>
-          {logStatus === "error" ? (
-            <p
-              className="mt-3 rounded-[16px] border border-[#FECDD3] bg-[#FFF1F2] px-3 py-2 font-body text-[14px] font-bold leading-snug text-[#BE185D]"
-              data-testid="movement-exercise-guide-log-error"
-            >
-              {guideCopy.error}
-            </p>
-          ) : null}
-        </section>
-
-        <aside className="grid gap-4">
-          <section className="rounded-[24px] border border-[#D7EEF5] bg-white p-4 shadow-[0_12px_26px_rgba(2,132,199,0.06)]" data-testid="movement-exercise-guide-step-list">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: visual.softBg, color: visual.accent }}>
-                <CheckCircle2 size={21} strokeWidth={2.6} aria-hidden="true" />
-              </span>
-              <div>
-                <h2 className="font-body text-[19px] font-black leading-tight text-[#123047]">{guideCopy.stepListTitle}</h2>
-                <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-[#66717B]">{guideCopy.stepListBody}</p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              {steps.map((step, index) => {
-                const isCurrent = index === stepIndex;
-                const isComplete = index < stepIndex;
-                return (
-                  <button
-                    key={step}
-                    type="button"
-                    onClick={() => goToStep(index)}
-                    aria-current={isCurrent ? "step" : undefined}
-                    className="grid min-h-[72px] grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[18px] border px-3 py-2 text-left transition"
-                    style={{
-                      background: isCurrent ? visual.softBg : "#FFFFFF",
-                      borderColor: isCurrent ? visual.border : "#D7EEF5",
-                    }}
-                    data-testid={`button-movement-guide-step-${index + 1}`}
-                  >
-                    <span
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full font-body text-[15px] font-black shadow-[0_5px_12px_rgba(18,48,71,0.08)]"
-                      style={{
-                        background: isCurrent || isComplete ? visual.accent : "#EFF7FA",
-                        color: isCurrent || isComplete ? "#FFFFFF" : "#66717B",
-                      }}
-                    >
-                      {isComplete ? <Check size={18} strokeWidth={2.8} aria-hidden="true" /> : index + 1}
-                    </span>
-                    <span>
-                      <span className="block font-body text-[12px] font-black uppercase tracking-[0.08em]" style={{ color: isCurrent ? visual.accent : "#66717B" }}>
-                        {stepStatusFor(index, stepIndex, guideCopy)}
-                      </span>
-                      <span className="mt-0.5 line-clamp-2 block font-body text-[15px] font-black leading-snug text-[#123047]">
-                        {step}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-[24px] border border-[#D7EEF5] bg-[#FBFEFF] p-4 shadow-[0_12px_26px_rgba(2,132,199,0.06)]" data-testid="movement-exercise-guide-audio-panel">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: visual.softBg, color: visual.accent }}>
-                <Headphones size={21} strokeWidth={2.6} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="font-body text-[19px] font-black leading-tight text-[#123047]">{guideCopy.audioTitle}</p>
-                <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-[#66717B]">{guideCopy.audioBody}</p>
-              </div>
-            </div>
-            <p className="mt-3 rounded-[16px] px-3 py-2 font-body text-[13px] font-black leading-snug" style={{ background: visual.softBg, color: visual.accent }}>
-              {isAudioLive ? guideCopy.audioLive : guideCopy.audioSync}
-            </p>
-            <div className="mt-3 flex flex-col gap-2">
-              {voiceError ? (
-                <p className="rounded-[14px] bg-[#FFF1F2] px-3 py-2 font-body text-[13px] font-bold text-[#BE185D]">
-                  {voiceError} {guideCopy.audioUnavailable}
-                </p>
-              ) : (
-                <p className="rounded-[14px] bg-white px-3 py-2 font-body text-[13px] font-semibold leading-snug text-[#66717B]">
-                  {guideCopy.audioUnavailable}
-                </p>
-              )}
-            </div>
-          </section>
-        </aside>
-      </div>
-
+            {guideCopy.error}
+          </p>
+        ) : null}
+      </main>
     </section>
   );
 }

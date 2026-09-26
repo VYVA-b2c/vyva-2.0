@@ -1162,8 +1162,8 @@
           "detail": "Cheffe méditerranéenne"
         },
         "amara": {
-          "label": "Amara Osei",
-          "detail": "Guide de mouvement"
+          "label": "Wellness Coach",
+          "detail": "Mouvement et calme"
         },
         "marco": {
           "label": "Marco Reyes",
@@ -2533,3 +2533,4 @@
     }
   }
 }
+

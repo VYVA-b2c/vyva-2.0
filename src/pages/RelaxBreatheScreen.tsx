@@ -121,7 +121,7 @@ function fallbackPlan(): BreathingPlan {
   };
 }
 
-function buildMarcoPrompt(plan: BreathingPlan, phase: BreathingPhase, phaseIndex: number) {
+function buildWellnessGuidePrompt(plan: BreathingPlan, phase: BreathingPhase, phaseIndex: number) {
   return [
     plan.voicePrompt,
     `Current phase ${phaseIndex + 1} of ${plan.phases.length}: ${phase.title}.`,
@@ -207,7 +207,7 @@ export default function RelaxBreatheScreen() {
     safety: t("activities.relaxBreathe.safety", "If breathing feels difficult, painful, dizzy, or unusual, stop and seek help."),
     chooseTitle: t("activities.relaxBreathe.chooseTitle", "What would help now?"),
     chooseBody: t("activities.relaxBreathe.chooseBody", "Choose once. VYVA will shape the session and guide you."),
-    talkToMarco: t("activities.relaxBreathe.talkToMarco", "Talk with Marco"),
+    talkToMarco: t("activities.relaxBreathe.talkToMarco", "Talk with VYVA"),
     planning: t("activities.relaxBreathe.planning", "Choosing a gentle plan..."),
     listening: t("activities.relaxBreathe.listening", "Listening"),
     muted: t("activities.relaxBreathe.muted", "Muted"),
@@ -222,7 +222,7 @@ export default function RelaxBreatheScreen() {
     completeBody: t("activities.relaxBreathe.completeBody", "VYVA will remember what helped."),
     saferNext: t("activities.relaxBreathe.saferNext", "This may not be the right moment for breathing practice. Stop and seek help if symptoms feel unusual."),
     fallbackNotice: t("activities.relaxBreathe.fallbackNotice", "Using a simple calm session for now."),
-    proposedTitle: t("activities.relaxBreathe.proposedTitle", "Marco suggests"),
+    proposedTitle: t("activities.relaxBreathe.proposedTitle", "VYVA suggests"),
     confirmStart: t("activities.relaxBreathe.confirmStart", "Start this"),
     askForChange: t("activities.relaxBreathe.askForChange", "Change it"),
     voiceIntentHint: t("activities.relaxBreathe.voiceIntentHint", "Say calm, sleep, focus, easier, shorter, or stop."),
@@ -258,7 +258,7 @@ export default function RelaxBreatheScreen() {
       breathing_cue: phase.cue,
       safety_line: copy.safety,
     })}`);
-    sendText(buildMarcoPrompt(nextPlan, phase, nextPhaseIndex), { invisibleInTranscript: true });
+    sendText(buildWellnessGuidePrompt(nextPlan, phase, nextPhaseIndex), { invisibleInTranscript: true });
   }, [copy.safety, sendContextUpdate, sendText]);
 
   const patchSession = useCallback(async (status: SessionState, extra: Record<string, unknown> = {}) => {
@@ -422,7 +422,7 @@ export default function RelaxBreatheScreen() {
         guidanceMode: "guided_audio",
       });
       await startVoice([
-        "You are Marco, VYVA's breathing coach.",
+        "You are VYVA's Wellness Coach. Do not introduce yourself with a separate personal name.",
         "Start by asking what the user needs from breathing today: calm, sleep, focus, energy, or something else.",
         "Ask about difficulty and time only if useful.",
         "Do not begin intense breathwork. Keep it senior-friendly, gentle, and safety-first.",

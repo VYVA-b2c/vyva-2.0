@@ -87,12 +87,12 @@ const amaraSession: AdvisorSessionResponse = {
   ui,
   advisor: {
     slug: "amara",
-    name: "Amara",
+    name: "Wellness",
     role: "Coach",
-    shortRole: "Movement",
-    intro: "Gentle movement, balance, Tai chi, chair yoga, and light strength.",
-    starter: "Would you like to move seated, with chair support, or a little more actively?",
-    disclaimerText: "Amara shares gentle movement guidance. Stop if you feel pain, dizzy, or short of breath.",
+    shortRole: "Movement and calm",
+    intro: "Movement, breathing, energy, and balance.",
+    starter: "Pick a gentle wellness routine.",
+    disclaimerText: "Stop if you feel pain, dizzy, or short of breath.",
     sortOrder: 5,
     iconKey: "coach",
     chipBg: "#E8F7EF",
@@ -135,7 +135,12 @@ const sabioSession: AdvisorSessionResponse = {
 
 function LocationProbe() {
   const location = useLocation();
-  return <div data-testid="current-route">{location.pathname}</div>;
+  return (
+    <>
+      <div data-testid="current-route">{location.pathname}</div>
+      <div data-testid="route-state">{JSON.stringify(location.state ?? null)}</div>
+    </>
+  );
 }
 
 function renderChat(initialPath: string | { pathname: string; state?: unknown } = "/social-rooms/experts/nora") {
@@ -187,7 +192,7 @@ describe("AdvisorChat", () => {
 
     expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nutrition Expert");
     expect(screen.getByRole("button", { name: /Voice chat/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Text chat/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Text chat/i })).not.toBeInTheDocument();
     expect(screen.getByTestId("advisor-intro")).toHaveTextContent("I can help with meals, appetite and hydration.");
     expect(screen.queryByText("How would you like to talk today?")).not.toBeInTheDocument();
     expect(screen.queryByTestId("advisor-disclaimer")).not.toBeInTheDocument();
@@ -207,12 +212,11 @@ describe("AdvisorChat", () => {
     );
   });
 
-  it("shows a message field immediately and focuses it from Text chat", () => {
+  it("shows a message field immediately without a Text chat entry card", () => {
     renderChat();
     const input = screen.getByTestId("input-advisor-message");
     expect(input).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-advisor-start-chat"));
-    expect(input).toHaveFocus();
+    expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
     expect(startVoiceMock).not.toHaveBeenCalled();
   });
 
@@ -339,14 +343,18 @@ describe("AdvisorChat", () => {
     renderChat("/social-rooms/experts/amara");
 
     expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Voice guide/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-sit-to-stand")).toBeInTheDocument();
-    expect(screen.queryByTestId("button-movement-coach-routine-calm-breathing")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-coach-routine-calm-breathing")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-movement-coach-routine-chair-yoga"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/morning-movement/exercises/chair-yoga");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
@@ -376,11 +384,16 @@ describe("AdvisorChat", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));
       expect(startVoiceMock).toHaveBeenCalledWith(
-        expect.stringContaining("Wellness Coach"),
+        expect.stringContaining("Wellness Coach hub"),
         expect.stringContaining("chair yoga"),
         expect.objectContaining({
-          agentSlug: "amara",
-          dynamicVariables: expect.objectContaining({ advisor_slug: "amara" }),
+          agentSlug: "wellness",
+          dynamicVariables: expect.objectContaining({
+            advisor_slug: "amara",
+            app_entrypoint: "wellness_coach_hub",
+            visible_screen: "wellness_routine_picker",
+            session_state: "routine_picker",
+          }),
         }),
       );
     });

@@ -104,7 +104,7 @@ describe("AdvisorHub", () => {
     expect(screen.queryByText("Who can help today?")).not.toBeInTheDocument();
 
     expect(slugs.map((slug) => screen.getByTestId(`button-advisor-${slug}`).textContent)).toEqual([
-      "Wellness CoachMovement, energy and balance",
+      "Wellness CoachMovement, breathing and balance",
       "Nutrition ExpertMeals, appetite and hydration",
       "Hobby CompanionActivities matched to your interests",
       "Savings GuideBills, prices and everyday costs",
@@ -114,7 +114,7 @@ describe("AdvisorHub", () => {
       "Outings CompanionPlan accessible local activities",
     ]);
     expect(screen.getByTestId("button-advisor-amara")).toHaveAccessibleName(
-      "Wellness Coach. Movement, energy and balance",
+      "Wellness Coach. Movement, breathing and balance",
     );
   });
 
@@ -137,7 +137,7 @@ describe("AdvisorHub", () => {
     renderHub();
 
     expect(screen.getByText("Wellness Coach")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
-    expect(screen.getByText("Movement, energy and balance")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
+    expect(screen.getByText("Movement, breathing and balance")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
     expect(screen.getByTestId("button-advisor-amara")).not.toHaveClass("hidden");
     expect(screen.getByTestId("button-advisor-diego")).toHaveClass("advisor-team-card--other-page");

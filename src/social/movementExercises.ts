@@ -22,6 +22,11 @@ export function getMovementStepImage(exerciseId: MovementExerciseCardId, stepInd
   return MOVEMENT_STEP_IMAGE_MODULES[`../assets/senior-activities/steps/${exerciseId}/${stepNumber}-${motion}.jpg`];
 }
 
+export function getMovementStepVideo(exerciseId: MovementExerciseCardId, stepIndex: number, motion: MovementStepMotion) {
+  const stepNumber = `${stepIndex + 1}`.padStart(2, "0");
+  return `/assets/movement/${exerciseId}-step-${stepNumber}-${motion}.mp4`;
+}
+
 export const MOVEMENT_EXERCISE_VISUALS: Record<MovementExerciseCardId, { image: string; accent: string; softBg: string; border: string }> = {
   "chair-yoga":      { image: chairYogaImage,      accent: "#6B21A8", softBg: "#F5F3FF", border: "#D8B4FE" },
   "tai-chi":         { image: taiChiImage,         accent: "#33691E", softBg: "#EEF8DF", border: "#CFE8B8" },
@@ -399,12 +404,12 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
     visuals: ["standing-support", "soft-knees", "weight-shift", "hand-flow"],
     sceneLabels: ["Standing tall with chair nearby", "Knees softly bent", "Weight shifting gently", "Hands floating forward"],
     steps: {
-      en: ["Stand tall with a chair nearby if helpful.", "Soften your knees.", "Shift weight gently from one foot to the other.", "Float your hands forward and back slowly."],
-      de: ["Steh aufrecht, mit einem Stuhl in der Naehe.", "Beuge die Knie nur leicht.", "Verlagere das Gewicht sanft von einem Fuss zum anderen.", "Fuehre die Haende langsam vor und zurueck."],
-      es: ["Ponte de pie con una silla cerca si ayuda.", "Flexiona un poco las rodillas.", "Cambia el peso suavemente de un pie al otro.", "Mueve las manos hacia delante y atras despacio."],
-      fr: ["Tenez-vous droit avec une chaise proche si besoin.", "Pliez tres legerement les genoux.", "Deplacez doucement le poids d'un pied a l'autre.", "Faites glisser les mains lentement vers l'avant puis l'arriere."],
-      it: ["Stai in piedi con una sedia vicina se aiuta.", "Piega leggermente le ginocchia.", "Sposta il peso con dolcezza da un piede all'altro.", "Muovi lentamente le mani avanti e indietro."],
-      pt: ["Fique de pe com uma cadeira perto se ajudar.", "Dobre um pouco os joelhos.", "Mude o peso suavemente de um pe para o outro.", "Mova as maos devagar para a frente e para tras."],
+      en: ["Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.", "Soften your knees.", "Shift weight gently from one foot to the other.", "Float your hands forward and back slowly."],
+      de: ["Steh mit flachen Fuessen und entspannten Schultern. Halte bei Bedarf einen Stuhl in der Naehe.", "Beuge die Knie nur leicht.", "Verlagere das Gewicht sanft von einem Fuss zum anderen.", "Fuehre die Haende langsam vor und zurueck."],
+      es: ["Ponte de pie con los pies apoyados y los hombros relajados. Ten una silla cerca si ayuda.", "Flexiona un poco las rodillas.", "Cambia el peso suavemente de un pie al otro.", "Mueve las manos hacia delante y atras despacio."],
+      fr: ["Tenez-vous debout, pieds a plat et epaules detendues. Gardez une chaise proche si besoin.", "Pliez tres legerement les genoux.", "Deplacez doucement le poids d'un pied a l'autre.", "Faites glisser les mains lentement vers l'avant puis l'arriere."],
+      it: ["Stai in piedi con i piedi ben appoggiati e le spalle rilassate. Tieni una sedia vicina se aiuta.", "Piega leggermente le ginocchia.", "Sposta il peso con dolcezza da un piede all'altro.", "Muovi lentamente le mani avanti e indietro."],
+      pt: ["Fique de pe com os pes apoiados e os ombros relaxados. Tenha uma cadeira perto se ajudar.", "Dobre um pouco os joelhos.", "Mude o peso suavemente de um pe para o outro.", "Mova as maos devagar para a frente e para tras."],
     },
   },
   "seated-strength": {

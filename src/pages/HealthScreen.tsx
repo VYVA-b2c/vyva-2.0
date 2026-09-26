@@ -2128,8 +2128,8 @@ const HealthScreen = () => {
     },
     {
       id: "amara-osei",
-      label: t("health.findSpecialist.experts.amara.label", "Amara Osei"),
-      detail: t("health.findSpecialist.experts.amara.detail", "Movement guide"),
+      label: t("health.findSpecialist.experts.amara.label", "Wellness Coach"),
+      detail: t("health.findSpecialist.experts.amara.detail", "Movement and calm"),
       Icon: Activity,
       iconBg: "#EFF6FF",
       iconColor: "#0284C7",

@@ -690,9 +690,9 @@ export default function BreathGarden({
                     setGuidanceMode("guided");
                     setVoiceMuted(false);
                   }}
-                  title={t("games.breathGarden.guidedWithMarco", "Guided · Marco")}
+                  title={t("games.breathGarden.guidedWithMarco", "Guided · VYVA")}
                   accessibleLabel={t("games.breathGarden.guidedAudio", "Guided audio")}
-                  accessibleDescription={t("games.breathGarden.guidedAudioDescription", "Breathe with Marco")}
+                  accessibleDescription={t("games.breathGarden.guidedAudioDescription", "Breathe with VYVA")}
                   icon={<Headphones size={19} strokeWidth={2.4} aria-hidden="true" />}
                 />
                 <GuidanceChoice
@@ -739,12 +739,12 @@ export default function BreathGarden({
                 {audioWarning || (voiceMuted
                   ? t("games.breathGarden.guidanceMuted", "Voice guidance muted")
                   : audioStatus === "loading"
-                    ? t("games.breathGarden.preparingGuidance", "Preparing Marco's guidance...")
+                    ? t("games.breathGarden.preparingGuidance", "Preparing VYVA guidance...")
                     : agentStatus === "connecting"
                       ? t("games.breathGarden.connectingGuide", "Connecting your breathing guide...")
                       : agentStatus === "connected"
                         ? t("games.breathGarden.agentConnected", "Breathing guide connected")
-                        : t("games.breathGarden.guidedByMarco", "Guided by Marco"))}
+                        : t("games.breathGarden.guidedByMarco", "Guided by VYVA"))}
               </p>
             ) : null}
             <div className="mt-6 grid grid-cols-2 gap-3">

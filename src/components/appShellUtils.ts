@@ -2,7 +2,12 @@ import type { VoiceAppAction } from "@/lib/voiceNavigation";
 
 export type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
-const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/", "/social-rooms/morning-movement/exercises/", "/activities/relax-breathe"];
+const FULLSCREEN_ROUTE_PREFIXES = [
+  "/memory-games/",
+  "/social-rooms/morning-movement/exercises/",
+  "/dev/social-rooms/morning-movement/exercises/",
+  "/activities/relax-breathe",
+];
 const FULLSCREEN_ROUTES = [
   "/chat",
   "/spatial-navigator",
