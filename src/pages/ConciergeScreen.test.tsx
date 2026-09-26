@@ -383,7 +383,12 @@ describe("ConciergeScreen task navigation", () => {
       state: { conciergeTaskEntry },
     }], "task");
 
-    expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
+    if (conciergeTaskEntry.kind === "home_service") {
+      expect(await screen.findByRole("heading", { name: "Choose a service" })).toBeInTheDocument();
+      expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+    } else {
+      expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
+    }
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
     expect(await screen.findByTestId(expectedPanel)).toBeInTheDocument();
   });
@@ -3683,9 +3688,8 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
-    expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
-    expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Current path: VYVA review");
-    expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Recipient: Trusted search");
+    expect(within(screen.getByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
 
@@ -3808,7 +3812,7 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
-    expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
+    expect(within(screen.getByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
     const startButton = screen.getByTestId("button-appointment-start-home-service");
     expect(startButton).not.toBeDisabled();
     fireEvent.click(startButton);
@@ -4021,12 +4025,8 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
-    await waitFor(() => {
-      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Tool ready");
-      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Direct tool: WhatsApp");
-      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Recipient: Saved Plumber");
-    });
+    expect(within(await screen.findByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
     });
