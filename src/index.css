@@ -965,6 +965,22 @@
   background: linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, var(--picker-accent-tint) 100%);
 }
 
+.home-repair-page [data-testid="panel-home-service-service-picker"] > div {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-repair-page [data-testid="panel-home-service-service-picker"] button {
+  text-align: left;
+  justify-content: flex-start;
+  padding: 20px;
+  border-width: 1px;
+}
+.home-repair-page[data-home-master-theme="dark"] :is([class*="bg-white"], [class*="bg-[#FBF8FF]"], [class*="bg-[#F5F3FF]"]) {
+  background-color: #291e33;
+  border-color: rgba(255,255,255,0.14);
+}
+.home-repair-page[data-home-master-theme="dark"] :is([class*="text-vyva-text"], [class*="text-[#6D28D9]"]) { color: #fff8ff; }
+.home-repair-page[data-home-master-theme="dark"] [class*="text-vyva-purple"] { color: #d7b8ff; }
+
 [data-home-master-theme="dark"].advisor-chat-theme {
   background:
     radial-gradient(circle at 50% 0%, rgba(88, 52, 112, 0.34), transparent 42%),

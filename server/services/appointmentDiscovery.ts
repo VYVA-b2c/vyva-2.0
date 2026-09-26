@@ -350,7 +350,8 @@ export async function discoverAppointmentProviderOptions(input: {
         const mapsUrl = safeUrl(detail?.url) ?? (place.place_id
           ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText(place.name) || "provider")}&query_place_id=${place.place_id}`
           : null);
-        const bookingUrl = website;
+        // A discovered trade website is a reference, not evidence of online booking.
+        const bookingUrl = input.appointmentType === "home-service" ? null : website;
         const sourcePriority = [
           website ? "official_website" : null,
           "google_places",

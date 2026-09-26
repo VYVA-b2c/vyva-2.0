@@ -143,7 +143,7 @@ describe("ConciergePickerScreen", () => {
   });
 
   it("replaces choices with setup and restores them on back", async () => {
-    renderPicker("get-help", { ...configuredProfile, savedProviders: [] });
+    renderPicker("get-help", { savedProviders: [] });
     await waitForPickerReady("button-concierge-picker-home-repair");
     fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
     expect(screen.getByTestId("panel-concierge-service-setup")).toBeInTheDocument();
@@ -154,13 +154,14 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/get-help");
   });
 
-  it("offers provider setup without an unrelated discovery action", async () => {
+  it("opens home repair discovery without requiring a trusted provider", async () => {
     renderPicker("get-help", { ...configuredProfile, savedProviders: [] });
     await waitForPickerReady("button-concierge-picker-home-repair");
     fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
     expect(screen.queryByRole("button", { name: "Find me another one" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-concierge-setup-provider"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    expect(screen.queryByTestId("button-concierge-setup-provider")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
+    expect(screen.getByTestId("route-state")).toHaveTextContent('"kind":"home_service"');
   });
 
   it("shows the four Book Appointments options and routes each appointment kind", async () => {
