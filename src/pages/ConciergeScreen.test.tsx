@@ -1467,7 +1467,7 @@ describe("ConciergeScreen action hub", () => {
 
     fireEvent.click(screen.getByTestId("button-concierge-card-service"));
     expect(screen.getByTestId("panel-appointment-assistant")).toBeInTheDocument();
-    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("And the best options are...");
+    expect(screen.queryByTestId("button-appointment-start-home-service")).not.toBeInTheDocument();
     await dismissHomeServiceGuide();
   });
 
@@ -3670,8 +3670,8 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("panel-appointment-assistant")).toBeInTheDocument();
     expect(screen.queryByTestId("panel-appointment-home-service-summary")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
-    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("And the best options are...");
-    expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
+    expect(screen.queryByTestId("button-appointment-start-home-service")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-appointment-start-home-service")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-service-type-plumber"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
@@ -3682,16 +3682,15 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
 
     expect(screen.getByTestId("panel-home-service-address")).toHaveTextContent("Where should the provider come?");
-    expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
+    expect(screen.queryByTestId("button-appointment-start-home-service")).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId("input-home-service-address"), {
       target: { value: "Calle Home 10, 29602 Marbella" },
     });
     fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
-    expect(within(screen.getByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Tools for home maintenance" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
-    fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
+
 
     expect(await screen.findByText("Marbella Rapid Plumbing")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
@@ -3812,10 +3811,8 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
-    expect(within(screen.getByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
-    const startButton = screen.getByTestId("button-appointment-start-home-service");
-    expect(startButton).not.toBeDisabled();
-    fireEvent.click(startButton);
+    expect(screen.queryByRole("img", { name: "Tools for home maintenance" })).not.toBeInTheDocument();
+
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -4025,17 +4022,14 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
 
-    expect(within(await screen.findByTestId("panel-home-service-ready")).getByRole("img", { name: "Tools for home maintenance" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Tools for home maintenance" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
+
 
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
-    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: WhatsApp");
-    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: WhatsApp");
-    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Address: saved");
+    expect(screen.queryByTestId("panel-appointment-readiness")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-appointment-confirmation-checkpoint")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Contact this provider");
     expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
