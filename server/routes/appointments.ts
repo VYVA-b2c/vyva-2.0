@@ -528,6 +528,7 @@ async function savedProviderOptions(
   detail: string,
   requestPreferences: Record<string, unknown>,
 ) {
+  if (appointmentType === "home-service" && requestPreferences.use_saved_provider === false) return [];
   const providers = await db
     .select()
     .from(userProviders)
@@ -1053,7 +1054,17 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
     const allCandidates = [...existingOptions, ...insertedOptions];
-    const decision = decideProviderCandidates(allCandidates.map(optionCandidate), providerDecisionRequest(request));
+    // External Home Repair search means the user chose not to use their saved contacts.
+    const declinedSaved = request.appointment_type === "home-service"
+      ? allCandidates.filter(option => option.provider_source === "saved") : [];
+    for (const option of declinedSaved) {
+      await db.update(appointmentProviderOptions).set({ status: "excluded" })
+        .where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    }
+    const decision = decideProviderCandidates(
+      allCandidates.filter(option => !declinedSaved.includes(option)).map(optionCandidate),
+      providerDecisionRequest(request),
+    );
     const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
     await Promise.all(allCandidates.map(async (option) => {
       const item = decisionById.get(option.id);

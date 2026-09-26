@@ -31,7 +31,6 @@ export const HOME_SERVICE_TYPES: Array<{
 
 export const HOME_SERVICE_COMMON_CRITERIA = [
   { key: "fastest", en: "Fastest help", es: "Mas rapido" },
-  { key: "trusted", en: "Most trusted", es: "Mas fiable" },
   { key: "lowest_cost", en: "Lower cost", es: "Mejor precio" },
   { key: "highest_rated", en: "Highest rated", es: "Mejor valorado" },
   { key: "not_sure", en: "Not sure", es: "No lo se" },

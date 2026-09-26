@@ -15,7 +15,7 @@ export function HomeServicePriorities({ isSpanish, onContinue }: {
     });
   }
   return <fieldset className="mt-3" aria-label={isSpanish ? "Prioridades" : "Priorities"}>
-    <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
       {HOME_SERVICE_COMMON_CRITERIA.map(option => {
         const checked = selected.includes(option.key);
         const disabled = !checked && option.key !== "not_sure" && selected.length >= 2;

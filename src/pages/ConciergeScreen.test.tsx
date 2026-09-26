@@ -3646,7 +3646,7 @@ describe("ConciergeScreen action hub", () => {
           version: "home-service-intake-v1",
           origin: "app",
           service_type: "plumber",
-          criteria: ["trusted", "lowest_cost"],
+          criteria: ["highest_rated", "lowest_cost"],
           urgency: "today",
           answers: expect.objectContaining({
             home_address: "Calle Home 10, 29602 Marbella",
@@ -3693,7 +3693,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-yes"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-kitchen"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-cannot_find"));
-    fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-highest_rated"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-lowest_cost"));
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What matters to you?");
     fireEvent.click(screen.getByTestId("button-home-service-priorities-continue"));
@@ -3823,7 +3823,7 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
-    fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-highest_rated"));
     fireEvent.click(screen.getByTestId("button-home-service-priorities-continue"));
     fireEvent.change(screen.getByTestId("input-home-service-address"), {
       target: { value: "Calle Home 10, 29602 Marbella" },
@@ -3878,7 +3878,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 
-  it("turns a voice plumber payload into the same structured service intake", async () => {
+  it.each([false, true])("offers the saved plumber before external search (decline: %s)", async (declineSaved) => {
     voiceActionMock.action = {
       id: "voice-home-service-1",
       actionType: "concierge.home_service",
@@ -4045,8 +4045,33 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-readiness")).not.toBeInTheDocument();
 
 
+    expect(await screen.findByTestId("panel-home-service-saved-first")).toBeVisible();
+    expect(screen.queryByTestId("panel-home-service-question")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-confirm-address")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with this provider" }));
     fireEvent.click(await screen.findByTestId("button-home-service-confirm-address"));
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
+    expect(screen.queryByText("I found a saved provider to review first.")).not.toBeInTheDocument();
+    const savedRequestCall = apiFetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/appointments/requests"));
+    expect(JSON.parse(String(savedRequestCall?.[1]?.body)).preferences.service_intake.criteria).not.toContain("trusted");
+    expect(screen.queryByText("What matters to you?")).not.toBeInTheDocument();
+    expect(screen.getByText("Your trusted provider")).toBeVisible();
+    expect(screen.getByTestId("button-home-service-find-someone-else")).toBeVisible();
+    expect(apiFetchMock.mock.calls.some(([url]) => /discover-options|\/verify$/.test(String(url)))).toBe(false);
+    if (declineSaved) {
+      apiFetchMock.mockImplementationOnce(async () => jsonResponse({
+        request: { id: "request-voice-home-service", appointment_type: "home-service", status: "options_ready", preferences: {} },
+        options: [],
+      }));
+      fireEvent.click(screen.getByTestId("button-home-service-find-someone-else"));
+      await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests/request-voice-home-service/discover-options",
+        expect.objectContaining({ method: "POST" }),
+      ));
+      await waitFor(() => expect(screen.queryByText("Saved Plumber")).not.toBeInTheDocument());
+      expect(apiFetchMock.mock.calls.some(([url]) => String(url).endsWith("/confirm-attempt"))).toBe(false);
+      return;
+    }
     expect(screen.queryByTestId("panel-appointment-readiness")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-appointment-confirmation-checkpoint")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Contact this provider");
@@ -6440,6 +6465,8 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(within(homeReceipt).getByTestId("button-concierge-receipt-template"));
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toBeInTheDocument();
+    expect(await screen.findByTestId("panel-home-service-saved-first")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with this provider" }));
     expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });

@@ -11,7 +11,8 @@ describe("Home Service priorities", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Fastest help" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Lower cost" }));
     expect(submit).not.toHaveBeenCalled();
-    expect(screen.getByRole("checkbox", { name: "Most trusted" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Highest rated" })).toBeDisabled();
+    expect(screen.queryByRole("checkbox", { name: "Most trusted" })).not.toBeInTheDocument();
     expect(screen.queryByText("Senior-safe")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(submit).toHaveBeenCalledWith("fastest,lowest_cost");
@@ -19,10 +20,10 @@ describe("Home Service priorities", () => {
   it("makes Not sure exclusive and allows changing the selection", () => {
     render(<HomeServicePriorities isSpanish={false} onContinue={vi.fn()} />);
     fireEvent.click(screen.getByLabelText("Fastest help"));
-    fireEvent.click(screen.getByLabelText("Most trusted"));
+    fireEvent.click(screen.getByLabelText("Lower cost"));
     fireEvent.click(screen.getByLabelText("Not sure"));
     expect(screen.getByLabelText("Fastest help")).not.toBeChecked();
-    expect(screen.getByLabelText("Most trusted")).not.toBeChecked();
+    expect(screen.getByLabelText("Lower cost")).not.toBeChecked();
     expect(screen.getByLabelText("Not sure")).toBeChecked();
     fireEvent.click(screen.getByLabelText("Highest rated"));
     expect(screen.getByLabelText("Not sure")).not.toBeChecked();
@@ -32,8 +33,8 @@ describe("Home Service priorities", () => {
   it("renders Spanish options and continues with a single priority", () => {
     const submit = vi.fn();
     render(<HomeServicePriorities isSpanish onContinue={submit} />);
-    fireEvent.click(screen.getByLabelText("Mas fiable"));
+    fireEvent.click(screen.getByLabelText("Mejor precio"));
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(submit).toHaveBeenCalledWith("trusted");
+    expect(submit).toHaveBeenCalledWith("lowest_cost");
   });
 });

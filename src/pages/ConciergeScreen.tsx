@@ -245,6 +245,7 @@ import {
 import {
   selectConciergeSavedProvider,
   savedProviderIsTrusted,
+  savedProviderSearchText,
 } from "../../shared/conciergeSavedProviders";
 import {
   buildConciergeProviderActionNeededPatch,
@@ -3803,7 +3804,8 @@ function savedHomeServiceProviderDetails(
     "limpieza",
   ];
 
-  return selectConciergeSavedProvider(providers, "home_service", serviceTerms.length > 0 ? serviceTerms : generalTerms);
+  const matching = serviceType ? providers.filter(provider => serviceTerms.some(term => savedProviderSearchText(provider).includes(term.toLowerCase()))) : providers;
+  return selectConciergeSavedProvider(matching, "home_service", serviceTerms.length > 0 ? serviceTerms : generalTerms);
 }
 
 function preferredToolForSavedProvider(
@@ -9695,6 +9697,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   ));
   const [appointmentNote, setAppointmentNote] = useState("");
   const [homeServiceType, setHomeServiceType] = useState<HomeServiceType | null>(null);
+  const [homeProviderChoice, setHomeProviderChoice] = useState<{ service: HomeServiceType; choice: "saved" | "search" } | null>(null);
   const [homeServiceIntakeOrigin, setHomeServiceIntakeOrigin] = useState<ServiceIntakeOrigin>("app");
   const [homeServiceIntakeAnswers, setHomeServiceIntakeAnswers] = useState<Record<string, string>>({});
   const [homeServiceTextDrafts, setHomeServiceTextDrafts] = useState<Record<string, string>>({});
@@ -10494,6 +10497,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const savedHomeServiceProviderDetailsValue = savedHomeServiceProviderDetails(conciergeProfile, homeServiceType);
   const savedHomeServiceProvider = savedHomeServiceProviderDetailsValue?.name?.trim() || "";
   const hasSavedHomeServiceProvider = Boolean(savedHomeServiceProviderDetailsValue);
+  const showEarlySavedHomeProvider = Boolean(homeServiceType && hasSavedHomeServiceProvider
+    && homeProviderChoice?.service !== homeServiceType && !appointmentRequest);
   const savedHomeAddress = profileHomeAddressLabel(conciergeProfile);
   const homeServiceSessionAddress = homeServiceIntakeAnswers.home_address?.trim() || homeServiceIntakeAnswers.location?.trim() || "";
   const appointmentHomeServiceAddress = appointmentRequest?.appointment_type === "home-service"
@@ -12133,14 +12138,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     || (appointmentNotice && !(isHomeServiceWithoutProvider && !appointmentDiscovery)
       && !(isHomeServiceAppointment && appointmentOptions.length > 0 && [
         "I found a trusted option to review.",
+        "I found a saved provider to review first.",
+        "He encontrado un proveedor guardado para revisar primero.",
         "He encontrado una opcion fiable para revisar.",
         "I found options. Choose one before contacting.",
         "He encontrado opciones. Elige una antes de contactar.",
       ].includes(appointmentNotice))),
   );
+  const usingSavedHomeProvider = homeProviderChoice?.service === homeServiceType && homeProviderChoice?.choice === "saved";
   const homeServiceQuestions = useMemo(
-    () => homeServiceType ? homeServiceQuestionsFor(homeServiceType, homeServiceIntakeAnswers) : [],
-    [homeServiceIntakeAnswers, homeServiceType],
+    () => homeServiceType ? homeServiceQuestionsFor(homeServiceType, homeServiceIntakeAnswers)
+      .filter(question => !usingSavedHomeProvider || question.key !== "criteria") : [],
+    [homeServiceIntakeAnswers, homeServiceType, usingSavedHomeProvider],
   );
   const isHomeServiceElectricalDanger = homeServiceType === "electrician" &&
     (homeServiceIntakeAnswers.safety_risk === "danger_now" || homeServiceIntakeAnswers.safety_risk === "hazard");
@@ -12187,7 +12196,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       origin: homeServiceIntakeOrigin,
       serviceType: homeServiceType,
       urgency: homeServiceIntakeAnswers.urgency,
-      criteria: homeServiceIntakeAnswers.criteria,
+      criteria: usingSavedHomeProvider ? "not_sure" : homeServiceIntakeAnswers.criteria,
       answers: homeServiceIntakeAnswers,
       language: locale,
     }).safety_flags;
@@ -12872,9 +12881,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       origin: homeServiceIntakeOrigin,
       serviceType: homeServiceType,
       urgency: homeServiceIntakeAnswers.urgency,
-      criteria: homeServiceIntakeAnswers.criteria,
+      criteria: usingSavedHomeProvider ? "not_sure" : homeServiceIntakeAnswers.criteria,
       answers: {
         ...homeServiceIntakeAnswers,
+        ...(usingSavedHomeProvider ? { criteria: "not_sure" } : {}),
         ...answerSource,
       },
       language: locale,
@@ -12883,6 +12893,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       intake,
       preferences: {
         service_intake: intake,
+        ...(homeProviderChoice?.service === homeServiceType ? { use_saved_provider: homeProviderChoice.choice === "saved" } : {}),
         requested_time: homeServiceIntakeAnswers.requested_time?.trim() || null,
         home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes?.trim() || null,
         photo_name: homeServiceCanvasPhotoName || null,
@@ -13188,13 +13199,15 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
   }, []);
   const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending;
+  const homeSavedProvidersFirst = isHomeServiceAppointment && appointmentOptions.length > 0
+    && appointmentOptions.every(option => option.provider_source === "saved");
   const [homeSearchMessage, setHomeSearchMessage] = useState(0);
   useEffect(() => {
     if (!appointmentOpen || !isHomeServiceIntakeComplete) {
       homeSearchStarted.current = false;
       return;
     }
-    if (!isHomeServiceAppointment || !homeServiceSearchAddressConfirmed || isHomeServiceElectricalDanger || appointmentRequest || homeSearchBusy || chatLoading || homeSearchStarted.current) return;
+    if (showEarlySavedHomeProvider || !isHomeServiceAppointment || !homeServiceSearchAddressConfirmed || isHomeServiceElectricalDanger || appointmentRequest || homeSearchBusy || chatLoading || homeSearchStarted.current) return;
     homeSearchStarted.current = true;
     startAppointmentFlow(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service")!);
   });
@@ -19790,7 +19803,19 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           >
 
 
-            {isHomeServiceAppointment && !appointmentRequest && !homeSearchBusy && (
+            {isHomeServiceAppointment && showEarlySavedHomeProvider && !homeSearchBusy && (
+              <div className="px-3 py-6 sm:px-4" data-testid="panel-home-service-saved-first">
+                <p className="font-body text-[13px] font-semibold text-vyva-purple">{isSpanish ? "Tu proveedor de confianza" : "Your trusted provider"}</p>
+                <h2 className="mt-3 font-display text-[24px] font-semibold text-vyva-text-1">{savedHomeServiceProvider}</h2>
+                <button type="button" className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-6`} onClick={() => setHomeProviderChoice({ service: homeServiceType!, choice: "saved" })}>
+                  {isSpanish ? "Continuar con este proveedor" : "Continue with this provider"}
+                </button>
+                <button type="button" className="vyva-tap mt-3 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4" onClick={() => setHomeProviderChoice({ service: homeServiceType!, choice: "search" })}>
+                  {isSpanish ? "Buscar otro profesional" : "Find someone else"}
+                </button>
+              </div>
+            )}
+            {isHomeServiceAppointment && !showEarlySavedHomeProvider && !appointmentRequest && !homeSearchBusy && (
               <div
                 className="mt-1"
                 data-testid="panel-home-service-intake"
@@ -19986,7 +20011,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(180,83,9,0.18)] disabled:opacity-55"
                       >
                         <CircleCheck size={16} aria-hidden="true" />
-                        {isSpanish ? "Buscar cerca de esta direccion" : "Search near this address"}
+                        {usingSavedHomeProvider ? (isSpanish ? "Usar esta direccion" : "Use this address") : (isSpanish ? "Buscar cerca de esta direccion" : "Search near this address")}
                       </button>
                     </div>
                   )}
@@ -19996,7 +20021,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       <h2 className="font-display text-[22px] font-semibold text-vyva-text-1">{isSpanish ? "Donde necesitas ayuda?" : "Where do you need help?"}</h2>
                       <p className="mt-3 font-body text-[16px] leading-relaxed text-vyva-text-2">{homeServiceVisitAddress}</p>
                       <button type="button" data-testid="button-home-service-confirm-address" className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-5`} onClick={() => setHomeServiceSearchAddressConfirmed(true)}>
-                        {isSpanish ? "Buscar cerca de esta direccion" : "Search near this address"}
+                        {usingSavedHomeProvider ? (isSpanish ? "Usar esta direccion" : "Use this address") : (isSpanish ? "Buscar cerca de esta direccion" : "Search near this address")}
                       </button>
                       <button type="button" className="vyva-tap mt-2 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4" onClick={() => { setHomeServiceSearchAddressConfirmed(false); setHomeServiceEditingAddress(true); }}>
                         {isSpanish ? "Usar otra direccion" : "Use another address"}
@@ -20245,8 +20270,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
             {isHomeServiceAppointment && (createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending) && (
               <div role="status" aria-live="polite" aria-busy="true" className="py-8 text-center" data-testid="home-repair-search-loader">
                 <Loader2 size={32} className="mx-auto animate-spin text-vyva-purple motion-reduce:animate-none" aria-hidden="true" />
-                <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{isSpanish ? "Buscando opciones para ti" : "Finding options for you"}</h2>
+                <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{usingSavedHomeProvider && createAppointmentMutation.isPending ? (isSpanish ? "Preparando tu solicitud" : "Preparing your request") : (isSpanish ? "Buscando opciones para ti" : "Finding options for you")}</h2>
+                {usingSavedHomeProvider && createAppointmentMutation.isPending ? (
+                  <p className="mx-auto mt-3 max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{isSpanish ? `Preparando los detalles para ${savedHomeServiceProvider}.` : `Getting the details ready for ${savedHomeServiceProvider}.`}</p>
+                ) : (
                 <p className="mx-auto mt-3 min-h-[72px] max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{(isSpanish ? ["Partimos del servicio solicitado y tus preferencias.", "Tenemos en cuenta los proveedores guardados y las opciones cercanas.", "Comparamos valoraciones, numero de opiniones y adecuacion al trabajo cuando estan disponibles.", "Preparamos opciones para que las revises. Tu decides el siguiente paso."] : ["Starting with the service you need and your preferences.", "Considering saved providers and nearby options.", "Comparing available ratings, review counts, and suitability for the job.", "Preparing options for you to review. You decide what happens next."])[homeSearchMessage]}</p>
+                )}
                 <p className="mx-auto mt-3 max-w-md font-body text-[13px] leading-relaxed text-vyva-text-2">{isSpanish ? "El precio, la disponibilidad y el historial pueden necesitar confirmacion. No contactamos a nadie sin tu permiso." : "Price, availability and service history may still need confirmation. No one is contacted without your permission."}</p>
               </div>
             )}
@@ -20264,7 +20293,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {isHomeServiceAppointment && appointmentRequest && appointmentOptions.length > 0 && (
+            {isHomeServiceAppointment && !homeSavedProvidersFirst && appointmentRequest && appointmentOptions.length > 0 && (
               <ProviderVerificationPanel
                 key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).sort().join(",")}`}
                 requestId={appointmentRequest.id}
@@ -20275,7 +20304,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 onRanked={applyHomeServiceVerificationRanking}
               />
             )}
-            {appointmentRequest && appointmentOptions.length > 0 && (!isHomeServiceAppointment || homeVerifiedResultsVisible) && (
+            {appointmentRequest && appointmentOptions.length > 0 && !homeSearchBusy && (!isHomeServiceAppointment || homeSavedProvidersFirst || homeVerifiedResultsVisible) && (
               <div className={isHomeServiceAppointment ? "home-repair-results mt-2 pt-2" : "mt-3 rounded-[24px] border border-[#D8B4FE] bg-white p-4 shadow-[0_16px_36px_rgba(49,18,94,0.10)] sm:p-5"} data-testid="panel-appointment-provider-options">
                 <div className="flex items-start gap-4">
                   <span className={isHomeServiceAppointment ? "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple/10 text-vyva-purple" : "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple"}>
@@ -20283,7 +20312,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-                      {isHomeServiceAppointment ? (isSpanish ? "Proveedor sugerido" : "Suggested provider") : appointmentRecommendationLabel}
+                      {homeSavedProvidersFirst ? (isSpanish ? "Tu proveedor de confianza" : "Your trusted provider") : isHomeServiceAppointment ? (isSpanish ? "Proveedor sugerido" : "Suggested provider") : appointmentRecommendationLabel}
                     </p>
                     <h3 className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {appointmentProviderName}
@@ -20349,7 +20378,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </>
                 )}
 
-                {(appointmentOptions.length > 1 || isHomeServiceAppointment) && (
+                {homeSavedProvidersFirst && (
+                  <button type="button" onClick={handleDiscoverAppointmentOptions}
+                    data-testid="button-home-service-find-someone-else"
+                    className="vyva-tap mt-3 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4">
+                    {isSpanish ? "Buscar otro profesional" : "Find someone else"}
+                  </button>
+                )}
+                {(appointmentOptions.length > 1 || (isHomeServiceAppointment && !homeSavedProvidersFirst)) && (
                   <details className={isHomeServiceAppointment ? "mt-6 border-t border-current/15" : "mt-3 overflow-hidden rounded-[16px] border border-[#E9D5FF] bg-[#FBF8FF]"}>
                     <summary className={isHomeServiceAppointment ? "flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 font-body text-[14px] font-medium text-vyva-text-2" : "flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-3 font-body text-[12px] font-black text-vyva-purple"}>
                       <span>{isSpanish ? "Ver otras opciones" : "See other options"}</span>
@@ -20381,7 +20417,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         );
                       })}
                     </div>
-                    {isHomeServiceAppointment && (
+                    {isHomeServiceAppointment && !homeSavedProvidersFirst && (
                       <button
                         type="button"
                         onClick={handleDiscoverAppointmentOptions}
