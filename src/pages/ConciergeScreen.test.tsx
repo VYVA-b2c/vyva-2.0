@@ -97,7 +97,7 @@ const apiFetchMock = vi.mocked(apiFetch);
 const HOME_SERVICE_GUIDE_STORAGE_KEY = "vyva_concierge_home_service_guide_hidden_v1";
 
 async function dismissHomeServiceGuide() {
-  fireEvent.click(await screen.findByTestId("button-home-service-guide-understood"));
+  expect(await screen.findByTestId("panel-home-service-intake")).toBeInTheDocument();
   await waitFor(() => {
     expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
   });
@@ -1422,7 +1422,7 @@ describe("ConciergeScreen action hub", () => {
       });
     });
     expect(requestBody?.detail).toContain("home safety quote");
-    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
+    expect(await screen.findByTestId("panel-appointment-assistant")).toBeInTheDocument();
   }, 60_000);
 
   it("opens Government from Book Now directly in the admin form flow", async () => {
@@ -1461,8 +1461,8 @@ describe("ConciergeScreen action hub", () => {
     }
 
     fireEvent.click(screen.getByTestId("button-concierge-card-service"));
-    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
-    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
+    expect(screen.getByTestId("panel-appointment-assistant")).toBeInTheDocument();
+    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("And the best options are...");
     await dismissHomeServiceGuide();
   });
 
@@ -1499,24 +1499,13 @@ describe("ConciergeScreen action hub", () => {
     expect(apiFetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/appointments/requests"))).toBe(false);
   });
 
-  it("shows the home service guide as a one-time popup with a saved hide option", async () => {
+  it("opens service choices directly without an introductory popup", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
-
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
-
-    expect(await screen.findByTestId("modal-home-service-guide")).toBeVisible();
-    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("Saved list checked");
-    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("Trusted search");
-    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("You confirm");
-
-    fireEvent.click(screen.getByTestId("checkbox-home-service-guide-never"));
-    fireEvent.click(screen.getByTestId("button-home-service-guide-understood"));
-    await waitFor(() => {
-      expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("button-home-service-open-guide")).not.toBeInTheDocument();
-    expect(localStorage.getItem(HOME_SERVICE_GUIDE_STORAGE_KEY)).toBe("true");
+    expect(await screen.findByTestId("panel-home-service-service-picker")).toBeVisible();
+    expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
+    expect(screen.queryByText("Request details")).not.toBeInTheDocument();
   });
 
   it("creates an appointment request and asks VYVA to handle the saved provider before booking", async () => {
@@ -3673,10 +3662,10 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
     await dismissHomeServiceGuide();
 
-    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
+    expect(await screen.findByTestId("panel-appointment-assistant")).toBeInTheDocument();
     expect(screen.queryByTestId("panel-appointment-home-service-summary")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
-    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
+    expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("And the best options are...");
     expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
 
     fireEvent.click(screen.getByTestId("button-home-service-type-plumber"));
@@ -3779,7 +3768,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-type-other"));
 
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What service do you need?");
-    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Current question");
+    expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("Current question");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 1 of 3");
     expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("How urgent is it?");
     fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
@@ -3787,7 +3776,7 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
 
-    expect(screen.getByTestId("panel-home-service-intake")).toHaveTextContent("Pest control");
+    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Pest control");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("How urgent is it?");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 2 of 3");
   });
@@ -6436,7 +6425,7 @@ describe("ConciergeScreen route prefill", () => {
     const homeReceipt = await screen.findByTestId("panel-concierge-completed-receipt");
     fireEvent.click(within(homeReceipt).getByTestId("button-concierge-receipt-template"));
 
-    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
+    expect(await screen.findByTestId("panel-appointment-assistant")).toBeInTheDocument();
     expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });

@@ -43,7 +43,7 @@ describe("appointment discovery", () => {
     expect(result.reservation_systems.map((item) => item.name)).toContain("Doctoralia");
   });
 
-  it("maps Google Places results into confirmable provider options", async () => {
+  it.each(["medical", "home-service"])("maps %s results without inventing home-service booking channels", async (appointmentType) => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -77,7 +77,7 @@ describe("appointment discovery", () => {
     });
 
     const result = await discoverAppointmentProviderOptions({
-      appointmentType: "medical",
+      appointmentType,
       detail: "dermatology appointment",
       location: { city: "Marbella", region: "Malaga", countryCode: "ES" },
       language: "en",
@@ -86,13 +86,14 @@ describe("appointment discovery", () => {
     expect(fetchMock).toHaveBeenCalled();
     expect(result.fallback_reason).toBeUndefined();
     expect(result.options).toHaveLength(1);
-    expect(result.options[0].available_channels).toEqual(["booking_url", "phone", "manual"]);
+    expect(result.options[0].available_channels).toEqual(appointmentType === "home-service" ? ["phone", "manual"] : ["booking_url", "phone", "manual"]);
     expect(result.options[0].provider_snapshot).toMatchObject({
       source: "google_places",
       place_id: "place-123",
       name: "Clinica Costa",
       phone: "+34 600 111 222",
-      booking_url: "https://clinic.example/book",
+      website_url: "https://clinic.example/book",
+      booking_url: appointmentType === "home-service" ? null : "https://clinic.example/book",
       maps_url: "https://maps.google.com/?cid=123",
       rating: 4.7,
       review_count: 118,

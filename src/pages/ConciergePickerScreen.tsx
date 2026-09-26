@@ -116,7 +116,6 @@ function setupRequirementsForOption(option: PickerOptionConfig, profile: Concier
     CONCIERGE_FLOW_REFERENCES.transportBooking,
     CONCIERGE_FLOW_REFERENCES.otcPharmacy,
     CONCIERGE_FLOW_REFERENCES.medicalAppointment,
-    CONCIERGE_FLOW_REFERENCES.homeService,
   ].includes(flow) && !hasSavedProvider(profile, flow)) requirements.push("trusted_provider");
   return requirements;
 }
@@ -566,17 +565,17 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
       }
     >
       {showNudge && (
-        <aside className={`mb-4 flex items-center gap-2 rounded-lg border p-3 ${isDark ? "border-[#4B8F85] bg-[#102B29] text-white" : "border-[#99F6E4] bg-[#F0FDFA] text-[#134E4A]"}`} data-testid="get-help-nudge">
-          <button type="button" className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left font-semibold" onClick={() => {
+        <aside className={`mb-4 flex items-center gap-1 rounded-[22px] border px-3 py-2 ${isDark ? "border-white/[0.14] bg-white/[0.06] text-[#FFF8FF]" : "border-[#E9DDF5] bg-[#FAF7FF] text-vyva-text-1"}`} data-testid="get-help-nudge">
+          <button type="button" className="vyva-tap flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl text-left font-body text-[15px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B98CFF]" onClick={() => {
             const task = attentionTask ?? draftTask;
             if (task) navigate(attentionTask ? task.detailPath : task.resumePath);
             else if (providerOption) setBlockedOption(providerOption);
           }}>
-            <HeartHandshake size={24} className="shrink-0" aria-hidden="true" />
-            <span className="min-w-0 break-words">{nudgeLabels[nudgeKind!]}</span>
-            <ChevronRight size={20} className="shrink-0" aria-hidden="true" />
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#D7B8FF]" : "bg-[#F1E8FF] text-vyva-purple"}`}><HeartHandshake size={20} aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1 break-words">{nudgeLabels[nudgeKind!]}</span>
+            <ChevronRight size={18} className={`shrink-0 ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`} aria-hidden="true" />
           </button>
-          <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center" aria-label={nudgeLabels[3]} title={nudgeLabels[3]} onClick={() => {
+          <button type="button" className={`vyva-tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors ${isDark ? "text-[#CFC4D8] hover:bg-white/10" : "text-[#75667E] hover:bg-[#F1E8FF]"}`} aria-label={nudgeLabels[3]} title={nudgeLabels[3]} onClick={() => {
             setNudgeDismissed(true);
             try { sessionStorage.setItem("concierge:get-help:nudge-dismissed", "true"); } catch { /* Dismiss still works for this visit. */ }
           }}><X size={20} aria-hidden="true" /></button>
