@@ -340,12 +340,13 @@ export default function AllergiesSection() {
     <PhoneFrame
       subtitle={t("onboarding.allergies.title", "Allergies")}
       showBack
-      onBack={() => navigate("/onboarding/profile")}
+      onBack={() => navigate("/onboarding/profile/group/health")}
       showAllSections
       onAllSections={() => navigate("/onboarding/profile")}
     >
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           compact
           icon={AlertTriangle}
           title={t("onboarding.allergies.title", "Allergies")}
@@ -521,11 +522,9 @@ export default function AllergiesSection() {
             saving={saving}
             onSave={handleSave}
             disabled={isLoading || !hasAllergySectionContent}
-            saveLabel={t("onboarding.allergies.saveContinue", "Save and continue")}
+            saveLabel="Save changes"
             savingLabel={t("onboarding.allergies.saving", "Saving...")}
             helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-            skipLabel={t("onboarding.allergies.skip", "Skip for now")}
-            onSkip={() => navigate("/onboarding/profile")}
             testId="button-allergies-save"
           />
         </OnboardingCompanionTarget>

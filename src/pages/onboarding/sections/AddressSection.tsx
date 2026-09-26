@@ -407,9 +407,10 @@ export default function AddressSection() {
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="Home address" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Home address" showBack onBack={() => navigate("/onboarding/profile/group/account")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={MapPin}
           title="Home address"
           kicker="Local help"
@@ -605,13 +606,6 @@ export default function AddressSection() {
             {saving ? "Saving..." : "Save home address"}
           </Button>
           </OnboardingCompanionTarget>
-          <button
-            data-testid="button-address-skip"
-            onClick={() => navigate("/onboarding/profile")}
-            className="py-2 text-center text-[15px] font-bold text-gray-500"
-          >
-            Skip for now
-          </button>
         </div>
       </div>
 

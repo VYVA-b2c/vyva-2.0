@@ -5,6 +5,7 @@ import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useToastSurface } from "@/hooks/useToastSurface";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
 
 interface PhoneFrameProps {
   layout?: "phone" | "page";
@@ -38,13 +39,31 @@ export function PhoneFrame({
   const isHomeMasterProfilePreview =
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/dev/home-master/profile/");
-  const shouldShowCompanionMode = showCompanionMode && !isHomeMasterProfilePreview;
-  const shouldShowAllSections = showAllSections && !isHomeMasterProfilePreview;
+  const isCanonicalProfilePage = typeof window !== "undefined" && (
+    isHomeMasterProfilePreview ||
+    window.location.pathname.startsWith("/onboarding/profile/") ||
+    window.location.pathname.startsWith("/dev/profile-overview/section/")
+  );
+  const shouldShowCompanionMode = showCompanionMode && !isCanonicalProfilePage;
+  const shouldShowAllSections = showAllSections && !isCanonicalProfilePage;
   const toastSurfaceRef = useToastSurface<HTMLDivElement>();
   const { t } = useTranslation();
   const { isDark } = useHomeMasterTheme();
-  const profileTheme = isHomeMasterProfilePreview ? (isDark ? "dark" : "light") : undefined;
+  const { runPrimaryVoiceAction, primaryVoiceActionId } = useOnboardingAgent();
+  const profileTheme = isCanonicalProfilePage ? (isDark ? "dark" : "light") : undefined;
   const handleBack = () => {
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/dev/profile-overview/section/")) {
+      const sectionId = window.location.pathname.split("/").pop() ?? "";
+      const groupBySection: Record<string, string> = {
+        basics: "account", address: "account", health: "health", conditions: "health",
+        allergies: "health", diet: "health", devices: "health", medications: "medication",
+        emergency: "emergency", cognitive: "preferences", hobbies: "preferences",
+        "care-team": "care-team", gp: "providers", providers: "providers",
+      };
+      window.history.pushState({}, "", `/dev/profile-overview/group/${groupBySection[sectionId] ?? "account"}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
     if (isHomeMasterProfilePreview && homeMasterBackPath) {
       window.history.pushState({}, "", homeMasterBackPath);
       window.dispatchEvent(new PopStateEvent("popstate"));
@@ -57,7 +76,7 @@ export function PhoneFrame({
     <div
       ref={toastSurfaceRef}
       data-testid="phone-frame"
-      data-home-master-profile-frame={isHomeMasterProfilePreview ? "true" : undefined}
+      data-home-master-profile-frame={isCanonicalProfilePage ? "true" : undefined}
       data-home-master-theme={profileTheme}
       className={`home-master-profile-frame relative mx-auto w-full ${layout === "page" ? "max-w-[920px]" : "max-h-[calc(100dvh-1rem)] max-w-[410px] overflow-x-hidden overflow-y-auto rounded-[36px] border shadow-[0_28px_70px_rgba(91,33,182,0.14)] sm:max-w-[620px] md:max-w-[780px] lg:max-w-[920px]"} ${className}`}
       style={layout === "page" ? undefined : { minHeight: 620 }}
@@ -97,19 +116,32 @@ export function PhoneFrame({
                 <VyvaIcon icon={LayoutGrid} size={16} />
                 All
               </button>
-            ) : rightAction ? (
+            ) : isCanonicalProfilePage && primaryVoiceActionId ? (
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
-                {rightAction}
+                <button
+                  type="button"
+                  onClick={runPrimaryVoiceAction}
+                  aria-label="Add information by voice"
+                  data-testid="button-profile-header-voice"
+                  className="home-master-profile-voice-trigger vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"
+                >
+                  <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone="inverse" />
+                </button>
               </div>
-            ) : isHomeMasterProfilePreview ? (
+            ) : isCanonicalProfilePage ? (
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
                 <a
-                  href="/dev/home-master"
+                  href={isHomeMasterProfilePreview ? "/dev/home-master" : "/"}
                   aria-label="Return to VYVA voice mode"
+                  data-testid="button-profile-header-voice"
                   className="home-master-profile-voice-trigger vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"
                 >
                   <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone="inverse" />
                 </a>
+              </div>
+            ) : rightAction ? (
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
+                {rightAction}
               </div>
             ) : (
               <div className="h-11 w-11 flex-shrink-0" aria-hidden="true" />

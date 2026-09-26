@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Camera, CheckCircle2, ChevronDown, Mic, User } from "lucide-react";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
-import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileStandaloneHeader, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
@@ -486,19 +486,7 @@ export default function BasicsSection() {
 
   return (
     <div className="min-h-screen bg-vyva-cream flex flex-col">
-      {/* Nav header */}
-      <div className="flex items-center gap-3 px-5 pt-12 pb-4">
-        <button
-          data-testid="button-basics-back"
-          onClick={() => navigate("/onboarding/profile")}
-          className="p-2 -ml-2 rounded-full text-vyva-text-2 hover:bg-vyva-warm transition-colors"
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <h1 className="flex-1 font-display text-[20px] font-semibold text-vyva-text-1">
-          Your basics
-        </h1>
-      </div>
+      <ProfileStandaloneHeader title="Account details" backTestId="button-basics-back" onBack={() => navigate(window.location.pathname.startsWith("/dev/profile-overview/") ? "/dev/profile-overview/group/account" : "/onboarding/profile/group/account")} />
 
       <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-7 overflow-y-auto px-4 pb-8 sm:px-5">
         <OnboardingCompanionModeChip
@@ -517,6 +505,7 @@ export default function BasicsSection() {
           }}
         />
         <ProfileSectionHero
+          hideTitle
           icon={User}
           title="About you"
           kicker="Personal setup"
@@ -978,14 +967,6 @@ export default function BasicsSection() {
             )}
           </button>
           </OnboardingCompanionTarget>
-          <button
-            data-testid="button-basics-skip"
-            type="button"
-            onClick={() => navigate("/onboarding/profile")}
-            className="w-full py-2 text-center font-body text-[15px] font-bold text-vyva-text-3"
-          >
-            Skip for now
-          </button>
         </div>
       </div>
       {speakItOpen ? (

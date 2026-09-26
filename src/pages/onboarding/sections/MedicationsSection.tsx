@@ -644,7 +644,7 @@ export default function MedicationsSection() {
       className="!rounded-none"
       subtitle={t("onboarding.medications.title", "Medications")}
       showBack
-      onBack={() => confirmNavigation("/onboarding/profile")}
+      onBack={() => confirmNavigation("/onboarding/profile/group/medication")}
       homeMasterBackPath="/dev/home-master/profile"
       showCompanionMode={false}
       rightAction={(
@@ -1006,11 +1006,9 @@ export default function MedicationsSection() {
             saving={saving || autoSaving}
             onSave={handleSave}
             disabled={adding || !!removingId || isLoading || !hasMedicationSectionContent}
-            saveLabel={t("onboarding.medications.saveContinue", "Save and continue")}
+            saveLabel="Save changes"
             savingLabel={t("onboarding.medications.saving", "Saving...")}
             helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-            skipLabel={t("onboarding.medications.skip", "Skip for now")}
-            onSkip={() => confirmNavigation("/onboarding/profile")}
             testId="button-meds-save"
           />
         </OnboardingCompanionTarget>

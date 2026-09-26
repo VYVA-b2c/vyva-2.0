@@ -590,12 +590,13 @@ export default function HobbiesSection() {
     <PhoneFrame
       subtitle="Hobbies & interests"
       showBack
-      onBack={() => navigate("/onboarding/profile")}
+      onBack={() => navigate("/onboarding/profile/group/preferences")}
       showAllSections
       onAllSections={() => navigate("/onboarding/profile")}
     >
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={Sparkles}
           title="Companionship"
           kicker="Real conversation"
@@ -754,13 +755,6 @@ export default function HobbiesSection() {
             {saving ? "Saving..." : "Save hobbies & interests"}
           </Button>
           </OnboardingCompanionTarget>
-          <button
-            data-testid="button-hobbies-skip"
-            onClick={() => navigate("/onboarding/profile")}
-            className="text-[14px] text-vyva-text-3 py-2 text-center"
-          >
-            Skip for now
-          </button>
         </div>
       </div>
     </PhoneFrame>

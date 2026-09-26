@@ -626,9 +626,10 @@ export default function ConditionsSection() {
   };
 
   return (
-    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile/group/health")} homeMasterBackPath="/dev/home-master/profile">
       <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           compact
           icon={HeartPulse}
           title={t("onboarding.conditions.title", "Tell us about your health")}
@@ -1019,11 +1020,9 @@ export default function ConditionsSection() {
             saving={saving}
             onSave={handleSave}
             disabled={isLoading || !hasHealthSectionContent}
-            saveLabel={t("onboarding.conditions.saveContinue", "Save and continue")}
+            saveLabel="Save changes"
             savingLabel={t("onboarding.conditions.saving", "Saving...")}
             helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-            skipLabel={t("onboarding.conditions.skip", "Skip for now")}
-            onSkip={() => navigate("/onboarding/profile")}
             testId="button-conditions-save"
           />
         </OnboardingCompanionTarget>

@@ -72,6 +72,12 @@ export function OnboardingCompanionModeChip({
     runPrimaryVoiceAction,
   } = useOnboardingCompanionGuidance();
   const vyvaVoice = useOptionalVyvaVoice();
+  const isCanonicalProfilePage = typeof window !== "undefined" && (
+    window.location.pathname.startsWith("/onboarding/profile/") ||
+    window.location.pathname.startsWith("/dev/profile-overview/section/")
+  );
+
+  if (isCanonicalProfilePage) return null;
 
   const options: Array<{
     id: OnboardingCompanionMode;
