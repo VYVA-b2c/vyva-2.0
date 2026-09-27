@@ -42,7 +42,7 @@ async function createProfile(values: Partial<typeof profiles.$inferInsert> = {})
 }
 
 async function createAccount(values: Partial<typeof users.$inferInsert> = {}) {
-  const accountId = randomUUID();
+  const accountId = values.id ?? randomUUID();
   createdAccountIds.add(accountId);
   await db.insert(users).values({
     id: accountId,
@@ -51,6 +51,11 @@ async function createAccount(values: Partial<typeof users.$inferInsert> = {}) {
     ...values,
   });
   return accountId;
+}
+
+async function createSelfProfile(values: Partial<typeof profiles.$inferInsert> = {}) {
+  const accountId = await createAccount({ id: values.id ?? randomUUID() });
+  return createProfile({ ...values, id: accountId });
 }
 
 afterEach(async () => {
@@ -71,7 +76,7 @@ afterEach(async () => {
 describe("Profile save", () => {
   it.each(["en", "es", "fr", "de", "it", "pt"])("preserves the saved address when Account Settings saves %s", async language => {
     const address = { address_line_1: "6 Calle Test", address_line_2: "2A", city: "Tarifa", region: "Andalucia", postcode: "11380", country_code: "ES", caregiver_name: "Existing helper", caregiver_contact: "+34600000999" };
-    const profileId = await createProfile({ full_name: "Language Test", phone_number: "+34600000101", ...address });
+    const profileId = await createSelfProfile({ full_name: "Language Test", phone_number: "+34600000101", ...address });
     await request(app).post("/api/profile").set("x-user-id", profileId)
       .send({ firstName: "Language", lastName: "Test", phone: "+33600000101", language, timezone: "Europe/Madrid" }).expect(200);
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
@@ -79,7 +84,7 @@ describe("Profile save", () => {
   });
 
   it("still allows explicitly submitted address changes and clearing", async () => {
-    const profileId = await createProfile({ full_name: "Address Test", address_line_1: "Old street", city: "Tarifa", postcode: "11380", country_code: "ES" });
+    const profileId = await createSelfProfile({ full_name: "Address Test", address_line_1: "Old street", city: "Tarifa", postcode: "11380", country_code: "ES" });
     await request(app).post("/api/profile").set("x-user-id", profileId)
       .send({ firstName: "Address", phone: "+34600000101", street: "New street", postalCode: "", language: "fr" }).expect(200);
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
@@ -88,7 +93,7 @@ describe("Profile save", () => {
 
   it("saves profiles whose IDs come from external text auth providers", async () => {
     const profileId = `legacy-profile-${randomUUID()}`;
-    await createProfile({
+    await createSelfProfile({
       id: profileId,
       full_name: "Legacy User",
       phone_number: "+34600000101",
@@ -617,7 +622,7 @@ describe("Profile save", () => {
       full_name: "Existing Owner",
       phone_number: "+34600000999",
     });
-    const profileId = await createProfile({
+    const profileId = await createSelfProfile({
       full_name: "New Owner",
       phone_number: "+34600000123",
     });
