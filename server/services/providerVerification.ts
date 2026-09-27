@@ -75,6 +75,7 @@ export function evaluateVerification(candidate: VerificationCandidate, evidence:
 export async function verifyProvider(candidate: VerificationCandidate, signal: AbortSignal): Promise<ProviderVerification> {
   if (!process.env.OPENAI_API_KEY) return incompleteVerification("Verification search is not configured.");
   if (!candidate.name || (!candidate.address && !candidate.phone)) return incompleteVerification("Insufficient public business identity.");
+  let stage = "search";
   try {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 110000 });
     const response = await client.responses.create({
@@ -85,7 +86,9 @@ export async function verifyProvider(candidate: VerificationCandidate, signal: A
       input: JSON.stringify({ ...candidate, today: new Date().toISOString().slice(0, 10) }),
     }, { signal });
     if (signal.aborted) return incompleteVerification("Checks stopped before completion.", true);
+    stage = "parse";
     const evidence = evidenceSchema.parse(JSON.parse(response.output_text));
+    stage = "sources";
     const searched = new Set<string>();
     let complaintQueryObserved = false;
     for (const output of response.output) {
@@ -113,6 +116,10 @@ export async function verifyProvider(candidate: VerificationCandidate, signal: A
       console.warn("[provider-verification] upstream authentication rejected", { status });
       return incompleteVerification("Provider verification is unavailable because its service credentials need updating. Nearby search results are still available.");
     }
+    console.warn("[provider-verification] evidence check failed", {
+      stage, status: typeof status === "number" ? status : undefined,
+      kind: error instanceof z.ZodError ? "schema" : error instanceof SyntaxError ? "json" : "request",
+    });
     return incompleteVerification("Evidence could not be retrieved or validated.", true);
   }
 }
