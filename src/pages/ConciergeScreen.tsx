@@ -10984,11 +10984,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   const discoverAppointmentOptionsMutation = useMutation({
     mutationFn: discoverAppointmentOptions,
-    onMutate: () => {
+    onMutate: async (requestId) => {
       setAppointmentError(null);
       setAppointmentNotice(null);
+      await queryClient.cancelQueries({ queryKey: ["/api/appointments/requests", requestId] });
     },
     onSuccess: (result) => {
+      queryClient.setQueryData(["/api/appointments/requests", result.request.id], result);
       setAppointmentRequest(result.request);
       setAppointmentOptions(result.options);
       setAppointmentDiscovery(result.discovery ?? null);
@@ -20338,7 +20340,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {isHomeServiceAppointment && !homeSavedProvidersFirst && appointmentRequest && appointmentOptions.length > 0 && (
+            {isHomeServiceAppointment && !homeSearchBusy && !homeSavedProvidersFirst && appointmentRequest && appointmentOptions.length > 0 && (
               <ProviderVerificationPanel
                 key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).sort().join(",")}`}
                 requestId={appointmentRequest.id}

@@ -60,7 +60,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
       try {
         const response = await apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
         if (!response.ok) {
-          console.warn("[provider-verification] request rejected", { status: response.status });
+          console.warn(`[provider-verification] request rejected: ${response.status}`);
           throw new Error("Verification unavailable");
         }
         const data = await response.json();

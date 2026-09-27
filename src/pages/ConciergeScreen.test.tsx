@@ -498,6 +498,33 @@ describe("ConciergeScreen task navigation", () => {
     expect(apiFetchMock.mock.calls.some(([url]) => String(url).endsWith("/confirm-attempt"))).toBe(false);
   });
 
+  it("replaces the saved request cache when searching again", async () => {
+    const requestId = "12345678-1234-4234-8234-123456789012";
+    const task = {
+      id: savedTaskId, user_id: "user-1", kind: "home_service", entry_payload: { kind: "home_service" },
+      progress_payload: { appointmentType: "home-service", serviceType: "plumber", requestId },
+      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      created_at: "2026-07-18T12:00:00.000Z", updated_at: "2026-07-18T12:05:00.000Z", completed_at: null, deleted_at: null,
+    };
+    mockConciergeLists([], [], [task]);
+    const response = (id: string) => ({ request: { id: requestId, appointment_type: "home-service", preferences: {}, status: "options_ready" }, options: [{
+      id, provider_source: "external", provider_snapshot: { name: id }, available_channels: ["manual"], status: "suggested", rank: 1,
+    }], discovery: { source: "google_places", inserted_count: 1 } });
+    const fallback = apiFetchMock.getMockImplementation()!;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url) === `/api/appointments/requests/${requestId}`) return jsonResponse(response("Old provider"));
+      if (String(url) === `/api/appointments/requests/${requestId}/discover-options`) return jsonResponse(response("New provider"));
+      return fallback(url, init);
+    });
+    const { queryClient } = renderScreen([`/concierge/task/${savedTaskId}`], "task");
+    expect(await screen.findByText("Old provider")).toBeVisible();
+    fireEvent.click(screen.getByText("See other options"));
+    fireEvent.click(screen.getByRole("button", { name: "Search again" }));
+    expect(await screen.findByText("New provider")).toBeVisible();
+    expect(queryClient.getQueryData(["/api/appointments/requests", requestId])).toEqual(response("New provider"));
+    expect(screen.queryByText("Old provider")).not.toBeInTheDocument();
+  });
+
   it("restores saved home-service answers after refresh", async () => {
     const savedTask = {
       id: savedTaskId,
