@@ -124,13 +124,15 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
     {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{es ? "Reintentar comprobaciones" : "Retry checks"}</button>}
     <p className="font-semibold text-vyva-text-1">{result?.status === "verified" ? (es ? "Verificado" : "Verified") : result?.status === "concerns" ? (es ? "Aspectos a revisar" : "Concerns found") : (es ? "Comprobaciones incompletas" : "Checks incomplete")}</p>
-    {result?.status === "incomplete" && result.gaps[0] && <p className="mt-2">{result.gaps[0]}</p>}
+    {result?.status === "incomplete" && <p className="mt-2">{result.retryable
+      ? (es ? "No se pudieron completar las comprobaciones. Puedes reintentarlo." : "Checks could not finish. You can retry.")
+      : (es ? "No verificado de forma independiente." : "Not independently verified.")}</p>}
     <details className="mt-2">
       <summary className="cursor-pointer py-2 text-vyva-purple">{es ? "Que hemos comprobado" : "What we checked"}</summary>
       <p>{es ? "Identidad, servicio y opiniones disponibles. No garantiza calidad ni disponibilidad." : "Business identity, service fit and available reviews. Not a guarantee of quality or availability."}</p>
       {priorityNotes.map(note => <p className="mt-2" key={note}>{es ? spanishNotes[note] ?? note : note}</p>)}
       {result && <p className="mt-2">{result.reviewCount} {es ? "opiniones con fecha; recientes:" : "dated reviews; recent:"} {result.recentReviewCount}</p>}
-      {result?.gaps.slice(result.status === "incomplete" ? 1 : 0).map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{gap}</p>)}
+      {result?.gaps.map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{gap}</p>)}
       {result?.concerns.map((concern, i) => <p className="mt-2" key={`concern-${i}`}>{concern}</p>)}
       {result?.sources.map(url => <a className="mt-2 block break-words text-vyva-purple underline" key={url} href={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
       {result && <p className="mt-2">{es ? "Comprobado:" : "Checked:"} {new Date(result.checkedAt).toLocaleDateString()}</p>}
