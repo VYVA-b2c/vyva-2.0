@@ -467,6 +467,37 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
   });
 
+  it("recovers an empty saved request after discovery without refreshing the page", async () => {
+    const requestId = "12345678-1234-4234-8234-123456789012";
+    const task = {
+      id: savedTaskId, user_id: "user-1", kind: "home_service",
+      entry_payload: { kind: "home_service" },
+      progress_payload: { appointmentType: "home-service", serviceType: "plumber", requestId },
+      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      created_at: "2026-07-18T12:00:00.000Z", updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null, deleted_at: null,
+    };
+    mockConciergeLists([], [], [task]);
+    const fallback = apiFetchMock.getMockImplementation()!;
+    let reads = 0;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url) === `/api/appointments/requests/${requestId}`) {
+        reads += 1;
+        return jsonResponse({ request: { id: requestId, appointment_type: "home-service", preferences: {}, status: "options_ready" }, options: reads === 1 ? [] : [{
+          id: "recovered-provider", provider_source: "saved", provider_snapshot: { name: "Recovered Tarifa Plumber" },
+          available_channels: ["manual"], status: "suggested", rank: 1,
+        }] });
+      }
+      return fallback(url, init);
+    });
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+    expect(await screen.findByTestId("home-repair-search-loader")).toBeVisible();
+    expect(await screen.findByText("Recovered Tarifa Plumber", {}, { timeout: 5000 })).toBeVisible();
+    expect(screen.queryByTestId("home-repair-search-loader")).not.toBeInTheDocument();
+    expect(reads).toBeGreaterThan(1);
+    expect(apiFetchMock.mock.calls.some(([url]) => String(url).endsWith("/confirm-attempt"))).toBe(false);
+  });
+
   it("restores saved home-service answers after refresh", async () => {
     const savedTask = {
       id: savedTaskId,

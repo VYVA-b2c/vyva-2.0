@@ -88,7 +88,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   }, [requestId, optionIds, round, onResultsVisible, onRanked, es]);
 
   if (phase === "checking") return <section className="flex items-center gap-3 py-3 text-sm text-vyva-text-2" aria-live="polite" data-testid="provider-verification-loading">
-    <Loader2 className="mx-auto mb-4 animate-spin text-vyva-purple motion-reduce:animate-none" size={28} aria-hidden="true" />
+    <Loader2 className="shrink-0 animate-spin text-vyva-purple motion-reduce:animate-none" size={20} aria-hidden="true" />
     <p className="text-sm">{(es
       ? ["Contrastamos la identidad y los servicios con fuentes publicas.", "Buscamos opiniones recientes y posibles problemas recurrentes.", "Solo verificamos lo que podemos respaldar con pruebas."]
       : ["Cross-checking business identity and services against public sources.", "Looking for recent reviews and recurring concerns.", "Only evidence-backed checks count toward verification."])[message]}</p>
@@ -118,12 +118,13 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
     {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{es ? "Reintentar comprobaciones" : "Retry checks"}</button>}
     <p className="font-semibold text-vyva-text-1">{result?.status === "verified" ? (es ? "Verificado" : "Verified") : result?.status === "concerns" ? (es ? "Aspectos a revisar" : "Concerns found") : (es ? "Comprobaciones incompletas" : "Checks incomplete")}</p>
+    {result?.status === "incomplete" && result.gaps[0] && <p className="mt-2">{result.gaps[0]}</p>}
     <details className="mt-2">
       <summary className="cursor-pointer py-2 text-vyva-purple">{es ? "Que hemos comprobado" : "What we checked"}</summary>
       <p>{es ? "Identidad, servicio y opiniones disponibles. No garantiza calidad ni disponibilidad." : "Business identity, service fit and available reviews. Not a guarantee of quality or availability."}</p>
       {priorityNotes.map(note => <p className="mt-2" key={note}>{es ? spanishNotes[note] ?? note : note}</p>)}
       {result && <p className="mt-2">{result.reviewCount} {es ? "opiniones con fecha; recientes:" : "dated reviews; recent:"} {result.recentReviewCount}</p>}
-      {result?.gaps.map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{gap}</p>)}
+      {result?.gaps.slice(result.status === "incomplete" ? 1 : 0).map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{gap}</p>)}
       {result?.concerns.map((concern, i) => <p className="mt-2" key={`concern-${i}`}>{concern}</p>)}
       {result?.sources.map(url => <a className="mt-2 block break-words text-vyva-purple underline" key={url} href={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
       {result && <p className="mt-2">{es ? "Comprobado:" : "Checked:"} {new Date(result.checkedAt).toLocaleDateString()}</p>}

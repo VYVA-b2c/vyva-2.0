@@ -107,7 +107,12 @@ export async function verifyProvider(candidate: VerificationCandidate, signal: A
     }));
     if (signal.aborted) return incompleteVerification("Checks stopped before completion.", true);
     return evaluateVerification(candidate, { ...evidence, complaintSearchCompleted: evidence.complaintSearchCompleted && complaintQueryObserved }, pages, searched);
-  } catch {
+  } catch (error) {
+    const status = (error as { status?: number })?.status;
+    if (status === 401 || status === 403) {
+      console.warn("[provider-verification] upstream authentication rejected", { status });
+      return incompleteVerification("Provider verification is unavailable because its service credentials need updating. Nearby search results are still available.");
+    }
     return incompleteVerification("Evidence could not be retrieved or validated.", true);
   }
 }

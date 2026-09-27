@@ -10418,11 +10418,24 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   });
 
   const persistedAppointmentRequestId = persistedTask?.progress_payload.requestId ?? null;
+  const [appointmentRecoveryExpired, setAppointmentRecoveryExpired] = useState(false);
+  useEffect(() => {
+    setAppointmentRecoveryExpired(false);
+    if (!persistedAppointmentRequestId) return;
+    const timer = window.setTimeout(() => setAppointmentRecoveryExpired(true), 60000);
+    return () => window.clearTimeout(timer);
+  }, [persistedAppointmentRequestId]);
   const persistedAppointmentRequestQuery = useQuery({
     queryKey: ["/api/appointments/requests", persistedAppointmentRequestId],
     queryFn: () => fetchAppointmentRequest(persistedAppointmentRequestId!),
     enabled: mode === "task" && isPersistedConciergeTaskId(persistedAppointmentRequestId),
     retry: false,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return !appointmentRecoveryExpired && !query.state.error
+        && data?.request.appointment_type === "home-service"
+        && data.options.length === 0 && !data.discovery ? 2000 : false;
+    },
   });
 
   useEffect(() => {
@@ -13211,7 +13224,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     const best = Object.entries(ranking).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
     if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
   }, []);
-  const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending;
+  const homeRequestAwaitingResults = isHomeServiceAppointment && mode === "task"
+    && Boolean(persistedAppointmentRequestId) && appointmentOptions.length === 0
+    && !appointmentDiscovery && !appointmentError;
+  const homeRecoveryFailed = homeRequestAwaitingResults
+    && (appointmentRecoveryExpired || persistedAppointmentRequestQuery.isError);
+  const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending
+    || (homeRequestAwaitingResults && !homeRecoveryFailed);
   const homeSavedProvidersFirst = isHomeServiceAppointment && appointmentOptions.length > 0
     && appointmentOptions.every(option => option.provider_source === "saved");
   const [homeSearchMessage, setHomeSearchMessage] = useState(0);
@@ -20284,7 +20303,16 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </button>
             )}
 
-            {isHomeServiceAppointment && (createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending) && (
+            {homeRecoveryFailed && !createAppointmentMutation.isPending && !discoverAppointmentOptionsMutation.isPending && (
+              <div role="alert" className="py-4 text-vyva-text-2">
+                <p>{isSpanish ? "No hemos podido cargar los resultados. Puedes reintentar la busqueda." : "We couldn't load the results. You can retry the search."}</p>
+                <button type="button" className="vyva-tap min-h-[44px] text-vyva-purple underline" onClick={() => {
+                  if (appointmentRequest) discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
+                  else void persistedAppointmentRequestQuery.refetch();
+                }}>{isSpanish ? "Reintentar busqueda" : "Retry search"}</button>
+              </div>
+            )}
+            {isHomeServiceAppointment && homeSearchBusy && (
               <div role="status" aria-live="polite" aria-busy="true" className="py-8 text-center" data-testid="home-repair-search-loader">
                 <Loader2 size={32} className="mx-auto animate-spin text-vyva-purple motion-reduce:animate-none" aria-hidden="true" />
                 <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{usingSavedHomeProvider && createAppointmentMutation.isPending ? (isSpanish ? "Preparando tu solicitud" : "Preparing your request") : (isSpanish ? "Buscando opciones para ti" : "Finding options for you")}</h2>
