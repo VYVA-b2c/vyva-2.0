@@ -59,11 +59,17 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     void Promise.all(ids.filter(id => !next[id]).map(async id => {
       try {
         const response = await apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
-        if (!response.ok) throw new Error("Verification unavailable");
+        if (!response.ok) {
+          console.warn("[provider-verification] request rejected", { status: response.status });
+          throw new Error("Verification unavailable");
+        }
         const data = await response.json();
         const result = currentVerification(data.verification);
         if (disposed || controller.signal.aborted) return;
-        if (!result) throw new Error("Invalid verification response");
+        if (!result) {
+          console.warn("[provider-verification] invalid or expired verification response");
+          throw new Error("Invalid verification response");
+        }
         resultsRef.current = { ...resultsRef.current, [id]: result };
         if (Number.isFinite(data.ranking?.score) && Array.isArray(data.ranking?.priority_notes)) rankingRef.current[id] = data.ranking;
         setResults(resultsRef.current);
