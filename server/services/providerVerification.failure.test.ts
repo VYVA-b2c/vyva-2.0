@@ -25,7 +25,15 @@ describe("verification failures", () => {
     const evidence = { sources: [{ url: "[Source](https://example.com/business)", serviceQuote: "Plumbing" }], reviews: [], complaintSearchCompleted: false, limitations: [] };
     expect(parseVerificationEvidence(JSON.stringify(evidence)).sources[0].url).toBe("https://example.com/business");
     evidence.sources[0].url = "[Source](javascript:alert(1))";
-    expect(() => parseVerificationEvidence(JSON.stringify(evidence))).toThrow();
+    const rejected = parseVerificationEvidence(JSON.stringify(evidence));
+    expect(rejected.sources).toEqual([]);
+    expect(rejected.limitations[0]).toContain("excluded");
+  });
+  it("excludes malformed reviews without losing valid sources or claiming verification", () => {
+    const evidence = parseVerificationEvidence(JSON.stringify({ sources: [{ url: "https://example.com", serviceQuote: "Plumbing services" }], reviews: [{ url: "https://example.com", date: "", dateQuote: "", quote: "", concern: "" }], complaintSearchCompleted: false, limitations: [] }));
+    expect(evidence.sources).toHaveLength(1);
+    expect(evidence.reviews).toEqual([]);
+    expect(evidence.limitations[0]).toContain("excluded");
   });
   it.each([401, 403])("reports credential failure %s without inviting futile retries", async status => {
     vi.stubEnv("OPENAI_API_KEY", "test-only");

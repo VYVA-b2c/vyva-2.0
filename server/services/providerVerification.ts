@@ -35,7 +35,22 @@ export type VerificationEvidence = z.infer<typeof evidenceSchema>;
 export function parseVerificationEvidence(text: string): VerificationEvidence {
   const trimmed = text.trim();
   const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
-  return evidenceSchema.parse(JSON.parse(fenced ? fenced[1] : trimmed));
+  const raw = z.object({
+    sources: z.array(z.unknown()), reviews: z.array(z.unknown()),
+    complaintSearchCompleted: z.boolean(), limitations: z.array(z.string()),
+  }).parse(JSON.parse(fenced ? fenced[1] : trimmed));
+  const sources = raw.sources.slice(0, 8).flatMap(source => {
+    const parsed = sourceSchema.safeParse(source);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const reviews = raw.reviews.slice(0, 20).flatMap(review => {
+    const parsed = evidenceSchema.shape.reviews.element.safeParse(review);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const discarded = sources.length !== raw.sources.length || reviews.length !== raw.reviews.length;
+  const limitations = raw.limitations.slice(0, discarded ? 7 : 8).map(value => value.slice(0, 300));
+  if (discarded) limitations.unshift("Some retrieved evidence was malformed or exceeded limits and was excluded.");
+  return evidenceSchema.parse({ ...raw, sources, reviews, limitations });
 }
 export interface VerificationCandidate { name: string; address: string; phone: string; website: string; service: string }
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
