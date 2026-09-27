@@ -69,6 +69,23 @@ afterEach(async () => {
 });
 
 describe("Profile save", () => {
+  it.each(["en", "es", "fr", "de", "it", "pt"])("preserves the saved address when Account Settings saves %s", async language => {
+    const address = { address_line_1: "6 Calle Test", address_line_2: "2A", city: "Tarifa", region: "Andalucia", postcode: "11380", country_code: "ES", caregiver_name: "Existing helper", caregiver_contact: "+34600000999" };
+    const profileId = await createProfile({ full_name: "Language Test", phone_number: "+34600000101", ...address });
+    await request(app).post("/api/profile").set("x-user-id", profileId)
+      .send({ firstName: "Language", lastName: "Test", phone: "+33600000101", language, timezone: "Europe/Madrid" }).expect(200);
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
+    expect(profile).toMatchObject({ ...address, language, language_preference: language });
+  });
+
+  it("still allows explicitly submitted address changes and clearing", async () => {
+    const profileId = await createProfile({ full_name: "Address Test", address_line_1: "Old street", city: "Tarifa", postcode: "11380", country_code: "ES" });
+    await request(app).post("/api/profile").set("x-user-id", profileId)
+      .send({ firstName: "Address", phone: "+34600000101", street: "New street", postalCode: "", language: "fr" }).expect(200);
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, profileId)).limit(1);
+    expect(profile).toMatchObject({ address_line_1: "New street", city: "Tarifa", postcode: null, country_code: "ES" });
+  });
+
   it("saves profiles whose IDs come from external text auth providers", async () => {
     const profileId = `legacy-profile-${randomUUID()}`;
     await createProfile({
