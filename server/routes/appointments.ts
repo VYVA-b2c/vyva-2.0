@@ -638,7 +638,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     serviceType: intake?.service_type,
     detail: intake?.research_brief ?? request.reason_detail,
     criteria: intake?.criteria,
-    maxResults: 3,
+    maxResults: request.appointment_type === "home-service" ? 12 : 3,
   };
 }
 

@@ -518,7 +518,7 @@ describe("ConciergeScreen task navigation", () => {
     });
     const { queryClient } = renderScreen([`/concierge/task/${savedTaskId}`], "task");
     expect(await screen.findByText("Old provider")).toBeVisible();
-    fireEvent.click(screen.getByText("See other options"));
+    expect(screen.getByRole("button", { name: "Search again" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Search again" }));
     expect(await screen.findByText("New provider")).toBeVisible();
     expect(queryClient.getQueryData(["/api/appointments/requests", requestId])).toEqual(response("New provider"));
@@ -3780,7 +3780,7 @@ describe("ConciergeScreen action hub", () => {
 
 
     expect(await screen.findByRole("heading", { name: "Budget Plumbing" })).toBeVisible();
-    expect(screen.getByText("Checks incomplete")).toBeVisible();
+    expect(screen.getByText("Checks incomplete")).not.toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
   });
 

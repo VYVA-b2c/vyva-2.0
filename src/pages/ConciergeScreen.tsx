@@ -3529,7 +3529,7 @@ function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isS
   const parts = [
     rating ? `${rating}${reviews !== null ? ` (${reviews} ${isSpanish ? "resenas" : "reviews"})` : ""}` : "",
     opening,
-    ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).slice(0, 1)),
+    ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1)),
   ].filter(Boolean);
   return parts.join(" · ") || (isSpanish ? "Disponibilidad y precio por confirmar" : "Availability and price to be confirmed");
 }
@@ -20434,7 +20434,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </button>
                 )}
                 {(appointmentOptions.length > 1 || (isHomeServiceAppointment && !homeSavedProvidersFirst)) && (
-                  <details className={isHomeServiceAppointment ? "mt-6 border-t border-current/15" : "mt-3 overflow-hidden rounded-[16px] border border-[#E9D5FF] bg-[#FBF8FF]"}>
+                  <details open={isHomeServiceAppointment ? true : undefined} className={isHomeServiceAppointment ? "mt-6 border-t border-current/15" : "mt-3 overflow-hidden rounded-[16px] border border-[#E9D5FF] bg-[#FBF8FF]"}>
                     <summary className={isHomeServiceAppointment ? "flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 font-body text-[14px] font-medium text-vyva-text-2" : "flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-3 font-body text-[12px] font-black text-vyva-purple"}>
                       <span>{isSpanish ? "Ver otras opciones" : "See other options"}</span>
                       <ChevronDown size={15} aria-hidden="true" />

@@ -213,6 +213,19 @@ describe("appointment discovery", () => {
     expect(result.options[0].provider_snapshot).toMatchObject({ country_code: country, search_country_code: country });
   });
 
+  it("fills shortlist slots after rejecting cross-border candidates", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: ["foreign", "local"].map(place_id => ({ place_id, geometry: { location: { lat: 36.014, lng: -5.604 } } })) });
+      return jsonResponse({ status: "OK", result: { address_components: url.searchParams.get("place_id") === "local" ? spain : [{ short_name: "MA", types: ["country"] }] } });
+    });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { address: "Tarifa" }, maxResults: 1 });
+    expect(result.options.map(option => option.provider_snapshot.place_id)).toEqual(["local"]);
+  });
+
   it("does not search when geocoding cannot establish the country", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");

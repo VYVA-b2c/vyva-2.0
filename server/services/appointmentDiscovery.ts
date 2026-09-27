@@ -381,6 +381,9 @@ export async function discoverAppointmentProviderOptions(input: {
     }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
+    // Collect a bounded candidate pool before country filtering so rejected
+    // cross-border results do not consume the requested shortlist slots.
+    const candidateLimit = homeSearch ? 40 : (input.maxResults ?? 5);
     for (const query of buildAppointmentSearchQueries({
       appointmentType: input.appointmentType,
       detail: input.detail,
@@ -397,9 +400,9 @@ export async function discoverAppointmentProviderOptions(input: {
         if (!identity || seen.has(identity)) continue;
         seen.add(identity);
         places.push(place);
-        if (places.length >= (input.maxResults ?? 5)) break;
+        if (places.length >= candidateLimit) break;
       }
-      if (places.length >= (input.maxResults ?? 5)) break;
+      if (places.length >= candidateLimit) break;
     }
 
     if (places.length === 0) {
@@ -411,14 +414,15 @@ export async function discoverAppointmentProviderOptions(input: {
       };
     }
 
-    const selected = places.slice(0, input.maxResults ?? 5);
+    const selected = places;
     const details = await Promise.all(
       selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language, input.appointmentType === "home-service" && Boolean(input.constraints?.includes("lowest_cost"))).catch(() => null) : null),
     );
     // A radius can cross national borders; region is only a Google search bias.
     // Unknown country is not evidence that a provider serves the requested country.
     const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
-      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode);
+      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode)
+      .slice(0, input.maxResults ?? 5);
 
     return {
       source: "google_places",

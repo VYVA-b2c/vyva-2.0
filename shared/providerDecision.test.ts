@@ -18,6 +18,11 @@ function candidate(overrides: Partial<ProviderCandidate>): ProviderCandidate {
 describe("provider decision engine", () => {
   const homeRequest = { appointmentType: "home-service", serviceType: "plumber" };
   const tradeCandidate = (overrides: Partial<ProviderCandidate>) => candidate({ name: "Example Plumber", category: "home_service", trusted: false, ...overrides });
+  it("keeps a larger eligible home-service shortlist when requested", () => {
+    const candidates = Array.from({ length: 8 }, (_, i) => tradeCandidate({ id: `plumber-${i}`, name: `Plumber ${i}` }));
+    expect(decideProviderCandidates(candidates, { ...homeRequest, maxResults: 12 }).ranked).toHaveLength(8);
+    expect(decideProviderCandidates(candidates, homeRequest).ranked).toHaveLength(3);
+  });
 
   it("changes ordering for different priorities on the same shortlist", () => {
     const candidates = [
