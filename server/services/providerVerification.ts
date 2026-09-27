@@ -18,6 +18,11 @@ const evidenceSchema = z.object({
   limitations: z.array(z.string().max(300)).max(8),
 });
 export type VerificationEvidence = z.infer<typeof evidenceSchema>;
+export function parseVerificationEvidence(text: string): VerificationEvidence {
+  const trimmed = text.trim();
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
+  return evidenceSchema.parse(JSON.parse(fenced ? fenced[1] : trimmed));
+}
 export interface VerificationCandidate { name: string; address: string; phone: string; website: string; service: string }
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const host = (s: string) => { try { return new URL(s).hostname.replace(/^www\./, ""); } catch { return ""; } };
@@ -87,7 +92,7 @@ export async function verifyProvider(candidate: VerificationCandidate, signal: A
     }, { signal });
     if (signal.aborted) return incompleteVerification("Checks stopped before completion.", true);
     stage = "parse";
-    const evidence = evidenceSchema.parse(JSON.parse(response.output_text));
+    const evidence = parseVerificationEvidence(response.output_text);
     stage = "sources";
     const searched = new Set<string>();
     let complaintQueryObserved = false;
