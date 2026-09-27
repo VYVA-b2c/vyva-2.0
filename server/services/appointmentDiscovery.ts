@@ -1,6 +1,7 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
+import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
 
 type AppointmentSource = "google_places";
 
@@ -151,13 +152,8 @@ export function buildAppointmentSearchQueries(input: {
     ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
-  if (serviceType) return Array.from(new Set([
-    `${serviceLabel} ${input.location}`,
-    ...(input.countryCode === "ES" ? [`${homeServiceTypeLabel(serviceType, "es")} ${input.location}`] : []),
-    `${searchTerms} ${input.location}`,
-    // Coordinates and strict geography checks constrain this broader nearby query.
-    ...(input.countryCode ? [homeServiceTypeLabel(serviceType, input.countryCode === "ES" ? "es" : "en")] : []),
-  ]));
+  if (serviceType) return localHomeServiceTerms(serviceType, input.countryCode, input.language)
+    .flatMap(term => input.countryCode ? [`${term} ${input.location}`, term] : [`${term} ${input.location}`]);
   // Home-service preferences rank evidence; they are not literal trade keywords.
   const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));

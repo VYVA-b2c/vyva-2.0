@@ -113,6 +113,8 @@ function inferCategory(candidate: ProviderCandidate): ConciergeProviderCategoryI
   for (const [category, pattern] of Object.entries(CATEGORY_PATTERNS) as Array<[Exclude<ConciergeProviderCategoryId, "other">, RegExp]>) {
     if (pattern.test(text)) return category;
   }
+  if (["plumber", "electrician", "locksmith", "cleaner", "handyman", "other"].some(service =>
+    homeServiceSearchTerms(service).some(term => text.includes(normalized(term))))) return "home_service";
   return "other";
 }
 
