@@ -12201,15 +12201,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     : 0;
   const homeServiceProgressLabel = homeServiceQuestions.length > 0
     ? (isHomeServiceIntakeComplete
-      ? (isSpanish ? "Listo" : "Ready")
-      : isSpanish
-        ? `Paso ${homeServiceCurrentStep} de ${homeServiceQuestions.length}`
-        : `Step ${homeServiceCurrentStep} of ${homeServiceQuestions.length}`)
+      ? homeServiceText(locale, "Ready")
+      : homeServiceText(locale, "Step {current} of {total}").replace("{current}", String(homeServiceCurrentStep)).replace("{total}", String(homeServiceQuestions.length)))
     : "";
   const homeServiceCompletedLabel = homeServiceQuestions.length > 0
-    ? (isSpanish
-      ? `${answeredHomeServiceQuestionCount} de ${homeServiceQuestions.length} listo`
-      : `${answeredHomeServiceQuestionCount} of ${homeServiceQuestions.length} done`)
+    ? homeServiceText(locale, "{current} of {total} done").replace("{current}", String(answeredHomeServiceQuestionCount)).replace("{total}", String(homeServiceQuestions.length))
     : "";
   const homeServiceNeededLabel = homeServiceType === "other" && homeServiceIntakeAnswers.service_needed && homeServiceIntakeAnswers.service_needed !== "skip"
     ? homeServiceIntakeAnswers.service_needed.trim()
@@ -20443,7 +20439,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               {appointmentOptionName(option, isSpanish)}
                             </span>
                             <span className="mt-0.5 block text-[11px] font-semibold text-vyva-text-2">
-                              {option.match_reason || (homeServiceText(locale, "Reviewable source"))}
+                              {isHomeServiceAppointment && homeServiceType
+                                ? homeServiceText(locale, "{service} matching this request").replace("{service}", homeServiceTypeLabel(homeServiceType, locale))
+                                : option.match_reason || homeServiceText(locale, "Reviewable source")}
                             </span>
                             <span className="mt-0.5 block text-[11px] leading-snug text-vyva-text-3">
                               {appointmentOptionEvidenceSummary(option, isSpanish, locale)}

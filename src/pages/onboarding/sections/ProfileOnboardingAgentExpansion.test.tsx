@@ -10,6 +10,7 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 
 vi.mock("@/i18n", () => ({
   getLanguageSnapshot: () => ({ language: "en", source: "test" }),
+  useLanguage: () => ({ language: "en" }),
 }));
 
 vi.mock("@/lib/queryClient", async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { evaluateVerification, type VerificationEvidence } from "./providerVerification.js";
+import { HOME_SERVICE_SEARCH_TERMS } from "../../shared/homeServiceSearch.js";
 
 const now = new Date("2026-09-26T12:00:00Z");
 const candidate = { name: "Example Plumbing", address: "123 Example Street Madrid", phone: "", website: "https://example.com", service: "plumber" };
@@ -17,6 +18,13 @@ function fixture() {
   return { evidence, pages, searched: new Set(pages.keys()) };
 }
 describe("provider verification policy", () => {
+  it.each(Object.entries(HOME_SERVICE_SEARCH_TERMS).flatMap(([language, terms]) =>
+    Object.entries(terms).map(([service, term]) => ({ language, service, term }))))("accepts corroborated $language evidence for $service", ({ service, term }) => {
+    const f = fixture();
+    f.evidence.sources[0].serviceQuote = `Service: ${term}. Available services listed here.`;
+    f.pages.set(f.evidence.sources[0].url, `${candidate.name} ${candidate.address} ${f.evidence.sources[0].serviceQuote}`);
+    expect(evaluateVerification({ ...candidate, service }, f.evidence, f.pages, f.searched, now).status).toBe("verified");
+  });
   it("requires corroborated identity, service, five reviews and recent coverage", () => {
     const f = fixture();
     expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).status).toBe("verified");
