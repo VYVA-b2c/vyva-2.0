@@ -638,7 +638,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     serviceType: intake?.service_type,
     detail: intake?.research_brief ?? request.reason_detail,
     criteria: intake?.criteria,
-    maxResults: 3,
+    maxResults: request.appointment_type === "home-service" ? 12 : 3,
   };
 }
 
@@ -1009,7 +1009,8 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
       location: visitAddress ? { address: visitAddress } : location,
       language: request.language,
-      maxResults: 12,
+      // Service eligibility is evaluated below, before the ranked display limit.
+      maxResults: request.appointment_type === "home-service" ? 40 : 12,
       serviceType: serviceIntake?.service_type,
       urgency: serviceIntake?.urgency,
       constraints: serviceIntake?.criteria,

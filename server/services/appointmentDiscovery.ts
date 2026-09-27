@@ -1,6 +1,7 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
+import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
 
 type AppointmentSource = "google_places";
 
@@ -137,6 +138,7 @@ export function buildAppointmentSearchQueries(input: {
   detail: string;
   location: string;
   language: string;
+  countryCode?: string;
   serviceType?: string | null;
   urgency?: string | null;
   constraints?: string[];
@@ -150,7 +152,8 @@ export function buildAppointmentSearchQueries(input: {
     ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
-  if (serviceType) return [`${serviceLabel} ${input.location}`, `${searchTerms} ${input.location}`];
+  if (serviceType) return localHomeServiceTerms(serviceType, input.countryCode, input.language)
+    .flatMap(term => input.countryCode ? [`${term} ${input.location}`, term] : [`${term} ${input.location}`]);
   // Home-service preferences rank evidence; they are not literal trade keywords.
   const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
@@ -381,12 +384,16 @@ export async function discoverAppointmentProviderOptions(input: {
     }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
+    // Collect a bounded candidate pool before country filtering so rejected
+    // cross-border results do not consume the requested shortlist slots.
+    const candidateLimit = homeSearch ? 40 : (input.maxResults ?? 5);
     for (const query of buildAppointmentSearchQueries({
       appointmentType: input.appointmentType,
       detail: input.detail,
       location,
       language,
       serviceType: input.serviceType,
+      countryCode: center?.countryCode ?? countryCode,
       urgency: input.urgency,
       constraints: input.constraints,
     })) {
@@ -397,9 +404,9 @@ export async function discoverAppointmentProviderOptions(input: {
         if (!identity || seen.has(identity)) continue;
         seen.add(identity);
         places.push(place);
-        if (places.length >= (input.maxResults ?? 5)) break;
+        if (places.length >= candidateLimit) break;
       }
-      if (places.length >= (input.maxResults ?? 5)) break;
+      if (places.length >= candidateLimit) break;
     }
 
     if (places.length === 0) {
@@ -411,14 +418,15 @@ export async function discoverAppointmentProviderOptions(input: {
       };
     }
 
-    const selected = places.slice(0, input.maxResults ?? 5);
+    const selected = places;
     const details = await Promise.all(
       selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language, input.appointmentType === "home-service" && Boolean(input.constraints?.includes("lowest_cost"))).catch(() => null) : null),
     );
     // A radius can cross national borders; region is only a Google search bias.
     // Unknown country is not evidence that a provider serves the requested country.
     const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
-      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode);
+      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode)
+      .slice(0, input.maxResults ?? 5);
 
     return {
       source: "google_places",

@@ -1,3 +1,5 @@
+import { multilingualHomeServiceTerms } from "./homeServiceSearch.js";
+
 export const HOME_SERVICE_INTAKE_VERSION = "home-service-intake-v1";
 
 export type ServiceIntakeOrigin = "voice" | "app";
@@ -275,7 +277,7 @@ function compactCriteria(value: unknown): string[] {
 
 export function homeServiceSearchTerms(type: HomeServiceType | string | null | undefined): string[] {
   const normalized = normalizeHomeServiceType(type);
-  return HOME_SERVICE_TYPES.find((item) => item.key === normalized)?.searchTerms ?? [];
+  return [...new Set([...(HOME_SERVICE_TYPES.find((item) => item.key === normalized)?.searchTerms ?? []), ...multilingualHomeServiceTerms(normalized)])];
 }
 
 export function detectHomeServiceSafetyFlags(input: {

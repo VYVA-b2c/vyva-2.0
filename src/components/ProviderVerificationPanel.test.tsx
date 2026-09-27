@@ -53,7 +53,11 @@ describe("provider verification wait", () => {
     expect(visible).toHaveBeenLastCalledWith(true);
     expect(screen.queryByText("Keep checking")).not.toBeInTheDocument();
     expect(ranked).toHaveBeenCalledWith({ one: { score: 123, priority_notes: ["Price information is unavailable; your job needs a quote."] } });
+    expect(screen.getByText("Checks incomplete")).not.toBeVisible();
+    expect(screen.queryByText("Not independently verified.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("What we checked"));
+    expect(screen.getByText("Checks incomplete")).toBeVisible();
+    expect(screen.getByText("Reviews unavailable")).toBeVisible();
     expect(screen.getByText("Price information is unavailable; your job needs a quote.")).toBeVisible();
   });
 
