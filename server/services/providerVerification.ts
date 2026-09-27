@@ -4,14 +4,19 @@ import { z } from "zod";
 import type { ProviderVerification } from "../../shared/providerVerification.js";
 import { pageText, safeFetchProviderPage } from "./providerSourceAdapters.js";
 
+const evidenceUrl = z.preprocess(value => {
+  if (typeof value !== "string") return value;
+  const link = /^\[[^\]]*\]\((https?:\/\/[^\s]+)\)$/.exec(value.trim());
+  return link ? link[1] : value;
+}, z.string().url());
 const sourceSchema = z.object({
-  url: z.string().url(),
+  url: evidenceUrl,
   serviceQuote: z.string().max(600),
 });
 const evidenceSchema = z.object({
   sources: z.array(sourceSchema).max(8),
   reviews: z.array(z.object({
-    url: z.string().url(), date: z.string(), dateQuote: z.string().min(4).max(100),
+    url: evidenceUrl, date: z.string(), dateQuote: z.string().min(4).max(100),
     quote: z.string().min(30).max(800),
     concern: z.string().max(300),
   })).max(20),
