@@ -623,23 +623,23 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
       {blockedOption ? (
         <section className="py-5" data-testid="panel-concierge-service-setup">
           <p className={`font-body text-[12px] font-black uppercase ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`}>
-            {isSpanish ? "Configuracion necesaria" : "Setup needed"}
+            {homeServiceText(language, "Setup needed")}
           </p>
           <h2 className={`mt-2 font-display text-[24px] font-semibold ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
-            {isSpanish ? `Prepara ${blockedOption.labelFallback} primero` : `Set up ${blockedOption.labelFallback} first`}
+            {homeServiceText(language, "Set up {service} first").replace("{service}", t(blockedOption.labelKey, blockedOption.labelFallback))}
           </h2>
           <div className={`mt-6 divide-y border-y ${isDark ? "divide-white/15 border-white/15" : "divide-[#E9DDF5] border-[#E9DDF5]"}`}>
             {blockedRequirements.includes("home_address") ? (
               <button type="button" onClick={openAddressSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-address">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><MapPin size={24} aria-hidden="true" /></span>
-                <span className="min-w-0 flex-1">{isSpanish ? "Anadir direccion" : "Add home address"}</span>
+                <span className="min-w-0 flex-1">{homeServiceText(language, "Add home address")}</span>
                 <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}
             {blockedRequirements.includes("trusted_provider") ? (
               <button type="button" onClick={openProviderSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-provider">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><ShieldCheck size={24} aria-hidden="true" /></span>
-                <span className="min-w-0 flex-1">{isSpanish ? "Anadir proveedor" : "Add trusted provider"}</span>
+                <span className="min-w-0 flex-1">{homeServiceText(language, "Add trusted provider")}</span>
                 <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}

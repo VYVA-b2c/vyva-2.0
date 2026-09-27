@@ -60,7 +60,7 @@ const configuredProfile = {
 
 function renderPicker(
   category: "get-help" | "order-in" | "book-appointments" | "discover",
-  profile = configuredProfile,
+  profile: Partial<typeof configuredProfile> = configuredProfile,
   backPath = "/concierge",
 ) {
   apiFetchMock.mockResolvedValue(jsonResponse(profile));
@@ -85,6 +85,21 @@ async function waitForPickerReady(testId: string) {
 }
 
 describe("ConciergePickerScreen", () => {
+  it.each([
+    ["fr", "Configuration nécessaire", "Ajouter l’adresse du domicile"],
+    ["es", "Configuración necesaria", "Añadir dirección"],
+    ["de", "Einrichtung erforderlich", "Wohnadresse hinzufügen"],
+    ["it", "Configurazione necessaria", "Aggiungi indirizzo di casa"],
+    ["pt", "Configuração necessária", "Adicionar morada de casa"],
+  ])("localizes genuine missing-address setup in %s", async (language, heading, addressAction) => {
+    const view = renderPicker("get-help", { savedProviders: [] });
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    view.switchLanguage(language);
+    fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
+    expect(screen.getByTestId("panel-concierge-service-setup")).toHaveTextContent(heading);
+    expect(screen.getByTestId("button-concierge-setup-address")).toHaveTextContent(addressAction);
+  });
+
   beforeEach(() => {
     currentLocale.language = "en";
     sessionStorage.clear();

@@ -1,6 +1,10 @@
 // English keys are shared by the existing intake definitions and persisted evidence.
 // User-entered text and provider names are never translated by this catalogue.
 export const HOME_SERVICE_TEXT = {
+  "Setup needed": ["Configuración necesaria", "Configuration nécessaire", "Einrichtung erforderlich", "Configurazione necessaria", "Configuração necessária"],
+  "Set up {service} first": ["Configura {service} primero", "Configurez d’abord {service}", "Richten Sie zuerst {service} ein", "Configura prima {service}", "Configure primeiro {service}"],
+  "Add home address": ["Añadir dirección", "Ajouter l’adresse du domicile", "Wohnadresse hinzufügen", "Aggiungi indirizzo di casa", "Adicionar morada de casa"],
+  "Add trusted provider": ["Añadir proveedor de confianza", "Ajouter un prestataire de confiance", "Vertrauenswürdigen Anbieter hinzufügen", "Aggiungi un fornitore di fiducia", "Adicionar prestador de confiança"],
   "Plumber": ["Fontanero", "Plombier", "Klempner", "Idraulico", "Canalizador"],
   "Electrician": ["Electricista", "Électricien", "Elektriker", "Elettricista", "Eletricista"],
   "Locksmith": ["Cerrajero", "Serrurier", "Schlüsseldienst", "Fabbro", "Chaveiro"],
