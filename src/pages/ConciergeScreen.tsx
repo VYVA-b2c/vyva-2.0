@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
+import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1026,7 +1027,7 @@ interface AppointmentAttemptResponse {
 interface AppointmentDiscoveryMeta {
   search_id?: string;
   source?: string;
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
   inserted_count?: number;
   eligible_count?: number;
   exclusion_summary?: Record<string, number>;
@@ -10417,11 +10418,24 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   });
 
   const persistedAppointmentRequestId = persistedTask?.progress_payload.requestId ?? null;
+  const [appointmentRecoveryExpired, setAppointmentRecoveryExpired] = useState(false);
+  useEffect(() => {
+    setAppointmentRecoveryExpired(false);
+    if (!persistedAppointmentRequestId) return;
+    const timer = window.setTimeout(() => setAppointmentRecoveryExpired(true), 60000);
+    return () => window.clearTimeout(timer);
+  }, [persistedAppointmentRequestId]);
   const persistedAppointmentRequestQuery = useQuery({
     queryKey: ["/api/appointments/requests", persistedAppointmentRequestId],
     queryFn: () => fetchAppointmentRequest(persistedAppointmentRequestId!),
     enabled: mode === "task" && isPersistedConciergeTaskId(persistedAppointmentRequestId),
     retry: false,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return !appointmentRecoveryExpired && !query.state.error
+        && data?.request.appointment_type === "home-service"
+        && data.options.length === 0 && !data.discovery ? 2000 : false;
+    },
   });
 
   useEffect(() => {
@@ -10970,11 +10984,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   const discoverAppointmentOptionsMutation = useMutation({
     mutationFn: discoverAppointmentOptions,
-    onMutate: () => {
+    onMutate: async (requestId) => {
       setAppointmentError(null);
       setAppointmentNotice(null);
+      await queryClient.cancelQueries({ queryKey: ["/api/appointments/requests", requestId] });
     },
     onSuccess: (result) => {
+      queryClient.setQueryData(["/api/appointments/requests", result.request.id], result);
       setAppointmentRequest(result.request);
       setAppointmentOptions(result.options);
       setAppointmentDiscovery(result.discovery ?? null);
@@ -10987,6 +11003,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setAppointmentNotice(isSpanish
           ? "He encontrado opciones. Elige una antes de contactar."
           : "I found options. Choose one before contacting.");
+        return;
+      }
+      if (result.discovery?.fallback_reason === "address_unresolved") {
+        setAppointmentError(isSpanish
+          ? "No hemos podido localizar esta direccion. Revisa la ciudad, el codigo postal y el pais antes de volver a buscar."
+          : "We couldn't locate this address. Check the city, postal code and country before searching again.");
+        return;
+      }
+      if (result.discovery?.fallback_reason === "geocoding_unavailable" || result.discovery?.fallback_reason === "google_places_unavailable") {
+        setAppointmentError(isSpanish
+          ? "El servicio de busqueda no esta disponible. No hemos podido completar la busqueda; esto no significa que no haya proveedores."
+          : "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers.");
         return;
       }
       if (result.discovery?.fallback_reason === "google_places_not_configured") {
@@ -13185,7 +13213,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   const homeSearchStarted = useRef(false);
-  const [homeVerifiedResultsVisible, setHomeVerifiedResultsVisible] = useState(false);
+  const [, setHomeVerifiedResultsVisible] = useState(false);
   const applyHomeServiceVerificationRanking = useCallback((ranking: Record<string, VerificationRanking>) => {
     if (Object.keys(ranking).length === 0) return;
     setAppointmentOptions(current => current.map(option => ({
@@ -13198,7 +13226,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     const best = Object.entries(ranking).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
     if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
   }, []);
-  const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending;
+  const homeRequestAwaitingResults = isHomeServiceAppointment && mode === "task"
+    && Boolean(persistedAppointmentRequestId) && appointmentOptions.length === 0
+    && !appointmentDiscovery && !appointmentError;
+  const homeRecoveryFailed = homeRequestAwaitingResults
+    && (appointmentRecoveryExpired || persistedAppointmentRequestQuery.isError);
+  const homeSearchBusy = createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending
+    || (homeRequestAwaitingResults && !homeRecoveryFailed);
   const homeSavedProvidersFirst = isHomeServiceAppointment && appointmentOptions.length > 0
     && appointmentOptions.every(option => option.provider_source === "saved");
   const [homeSearchMessage, setHomeSearchMessage] = useState(0);
@@ -15242,7 +15276,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     });
   }
 
-  const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const routedTaskActionId = persistedTask?.linked_pending_id
+    ?? (taskId && taskId !== "new" ? taskId : null);
+  const activeAction = mode === "task"
+    ? pendingActions.find(action => action.id === routedTaskActionId)
+    : pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
   const activeActionProviderShortlist = parseProviderShortlistPayload(activeAction?.action_payload);
   const activeActionProviderShortlistNotice = activeProviderShortlistNotice
     ?? (activeActionProviderShortlist && activeAction?.action_payload?.contact_handoff_status === "unavailable"
@@ -20267,7 +20305,16 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </button>
             )}
 
-            {isHomeServiceAppointment && (createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending) && (
+            {homeRecoveryFailed && !createAppointmentMutation.isPending && !discoverAppointmentOptionsMutation.isPending && (
+              <div role="alert" className="py-4 text-vyva-text-2">
+                <p>{isSpanish ? "No hemos podido cargar los resultados. Puedes reintentar la busqueda." : "We couldn't load the results. You can retry the search."}</p>
+                <button type="button" className="vyva-tap min-h-[44px] text-vyva-purple underline" onClick={() => {
+                  if (appointmentRequest) discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
+                  else void persistedAppointmentRequestQuery.refetch();
+                }}>{isSpanish ? "Reintentar busqueda" : "Retry search"}</button>
+              </div>
+            )}
+            {isHomeServiceAppointment && homeSearchBusy && (
               <div role="status" aria-live="polite" aria-busy="true" className="py-8 text-center" data-testid="home-repair-search-loader">
                 <Loader2 size={32} className="mx-auto animate-spin text-vyva-purple motion-reduce:animate-none" aria-hidden="true" />
                 <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{usingSavedHomeProvider && createAppointmentMutation.isPending ? (isSpanish ? "Preparando tu solicitud" : "Preparing your request") : (isSpanish ? "Buscando opciones para ti" : "Finding options for you")}</h2>
@@ -20293,7 +20340,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {isHomeServiceAppointment && !homeSavedProvidersFirst && appointmentRequest && appointmentOptions.length > 0 && (
+            {isHomeServiceAppointment && !homeSearchBusy && !homeSavedProvidersFirst && appointmentRequest && appointmentOptions.length > 0 && (
               <ProviderVerificationPanel
                 key={`${appointmentRequest.id}:${appointmentOptions.map(o => o.id).sort().join(",")}`}
                 requestId={appointmentRequest.id}
@@ -20304,7 +20351,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 onRanked={applyHomeServiceVerificationRanking}
               />
             )}
-            {appointmentRequest && appointmentOptions.length > 0 && !homeSearchBusy && (!isHomeServiceAppointment || homeSavedProvidersFirst || homeVerifiedResultsVisible) && (
+            {appointmentRequest && appointmentOptions.length > 0 && !homeSearchBusy && (
               <div className={isHomeServiceAppointment ? "home-repair-results mt-2 pt-2" : "mt-3 rounded-[24px] border border-[#D8B4FE] bg-white p-4 shadow-[0_16px_36px_rgba(49,18,94,0.10)] sm:p-5"} data-testid="panel-appointment-provider-options">
                 <div className="flex items-start gap-4">
                   <span className={isHomeServiceAppointment ? "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple/10 text-vyva-purple" : "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple"}>
@@ -20317,9 +20364,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     <h3 className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {appointmentProviderName}
                     </h3>
-                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                    {!isHomeServiceAppointment && <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                       {selectedAppointmentOption?.match_reason || appointmentProviderTrustNote}
-                    </p>
+                    </p>}
                     {selectedAppointmentOption && (
                       <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
                         {!isHomeServiceAppointment && `${appointmentProviderTrustNote} · `}{appointmentOptionEvidenceSummary(selectedAppointmentOption, isSpanish)}
@@ -20330,6 +20377,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         {appointmentProviderAddress}
                       </p>
                     )}
+                    {isHomeServiceAppointment && selectedAppointmentOption && <HomeProviderDetails snapshot={selectedAppointmentOption.provider_snapshot} isSpanish={isSpanish} />}
                   </div>
                 </div>
 
@@ -20434,7 +20482,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {appointmentRequest && appointmentOptions.length === 0 && (
+            {appointmentRequest && appointmentOptions.length === 0 && !homeSearchBusy && (!isHomeServiceAppointment || Boolean(appointmentDiscovery) || Boolean(appointmentError)) && (
               <div className="mt-3">
                 <MissingProviderChoicePanel
                   title={noSavedProviderTitle}

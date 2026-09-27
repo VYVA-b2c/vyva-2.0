@@ -21,7 +21,13 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   const [phase, setPhase] = useState<"checking" | "choice" | "results">("checking");
   const [round, setRound] = useState(0);
   const [message, setMessage] = useState(0);
-  const optionIds = options.slice(0, 3).map(o => o.id).sort().join(",");
+  const shortlistKey = JSON.stringify([requestId, options.map(o => o.id).sort()]);
+  const auditSelection = useRef({ key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") });
+  // Reranking must not change the audit batch and restart a finished wait.
+  if (auditSelection.current.key !== shortlistKey) {
+    auditSelection.current = { key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") };
+  }
+  const optionIds = auditSelection.current.ids;
   const latest = useRef(options);
   latest.current = options;
   useEffect(() => {
@@ -53,34 +59,49 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     void Promise.all(ids.filter(id => !next[id]).map(async id => {
       try {
         const response = await apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
-        if (!response.ok) return;
+        if (!response.ok) {
+          console.warn(`[provider-verification] request rejected: ${response.status}`);
+          throw new Error("Verification unavailable");
+        }
         const data = await response.json();
         const result = currentVerification(data.verification);
-        if (!result || disposed || controller.signal.aborted) return;
+        if (disposed || controller.signal.aborted) return;
+        if (!result) {
+          console.warn("[provider-verification] invalid or expired verification response");
+          throw new Error("Invalid verification response");
+        }
         resultsRef.current = { ...resultsRef.current, [id]: result };
         if (Number.isFinite(data.ranking?.score) && Array.isArray(data.ranking?.priority_notes)) rankingRef.current[id] = data.ranking;
         setResults(resultsRef.current);
-      } catch { /* Failed checks stay incomplete; never award verification. */ }
+      } catch {
+        if (disposed || controller.signal.aborted) return;
+        resultsRef.current = { ...resultsRef.current, [id]: {
+          version: 1, status: "incomplete", checkedAt: new Date().toISOString(),
+          reviewCount: 0, recentReviewCount: 0, sources: [], concerns: [], retryable: true,
+          gaps: [es ? "El servicio de comprobacion no esta disponible. Este proveedor no esta verificado." : "The verification service is unavailable. This provider is not verified."],
+        } };
+        setResults(resultsRef.current);
+      }
     })).then(() => {
       if (disposed || controller.signal.aborted) return;
       clearTimeout(deadline);
       clearInterval(interval);
-      if (ids.some(id => !resultsRef.current[id] || resultsRef.current[id].retryable)) setPhase("choice");
-      else { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }
+      onRanked?.(rankingRef.current);
+      setPhase("results");
+      onResultsVisible(true);
     });
     return () => { disposed = true; controller.abort(); clearTimeout(deadline); clearInterval(interval); };
   }, [requestId, optionIds, round, onResultsVisible, onRanked, es]);
 
-  if (phase === "checking") return <section className="py-10 text-center text-vyva-text-1" aria-live="polite" data-testid="provider-verification-loading">
-    <Loader2 className="mx-auto mb-4 animate-spin text-vyva-purple motion-reduce:animate-none" size={28} aria-hidden="true" />
-    <h3 className="text-xl font-semibold">{es ? "Comprobando proveedores" : "Checking providers"}</h3>
-    <p className="mx-auto mt-3 min-h-12 max-w-md text-sm text-vyva-text-2">{(es
+  if (phase === "checking") return <section className="flex items-center gap-3 py-3 text-sm text-vyva-text-2" aria-live="polite" data-testid="provider-verification-loading">
+    <Loader2 className="shrink-0 animate-spin text-vyva-purple motion-reduce:animate-none" size={20} aria-hidden="true" />
+    <p className="text-sm">{(es
       ? ["Contrastamos la identidad y los servicios con fuentes publicas.", "Buscamos opiniones recientes y posibles problemas recurrentes.", "Solo verificamos lo que podemos respaldar con pruebas."]
       : ["Cross-checking business identity and services against public sources.", "Looking for recent reviews and recurring concerns.", "Only evidence-backed checks count toward verification."])[message]}</p>
   </section>;
-  if (phase === "choice") return <section className="py-8 text-vyva-text-1" aria-live="polite">
+  if (phase === "choice") return <section className="border-b border-current/10 py-3 text-vyva-text-1" aria-live="polite">
     <h3 className="text-lg font-semibold">{es ? "Algunas comprobaciones siguen incompletas" : "Some checks are still incomplete"}</h3>
-    <p className="mt-2 text-sm text-vyva-text-2">{es ? "Puedes ver las opciones o dedicar hasta dos minutos mas a las comprobaciones." : "See the available options, or allow up to two more minutes for checks."}</p>
+    <p className="mt-2 text-sm text-vyva-text-2">{es ? "Puedes revisar los proveedores de abajo o dedicar dos minutos mas a las comprobaciones." : "Browse the providers below, or allow two more minutes for checks."}</p>
     <div className="mt-5 flex flex-wrap gap-4">
       <button type="button" className="min-h-11 rounded-full bg-vyva-purple px-5 py-2 font-semibold text-white" onClick={() => { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }}>{es ? "Ver resultados ahora" : "Show results now"}</button>
       <button type="button" className="min-h-11 px-2 font-semibold text-vyva-purple" onClick={() => setRound(n => n + 1)}>{es ? "Seguir comprobando" : "Keep checking"}</button>
@@ -101,7 +122,11 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     "Price information is unavailable; your job needs a quote.": "No hay informacion de precios; tu trabajo necesita un presupuesto.",
   };
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
+    {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{es ? "Reintentar comprobaciones" : "Retry checks"}</button>}
     <p className="font-semibold text-vyva-text-1">{result?.status === "verified" ? (es ? "Verificado" : "Verified") : result?.status === "concerns" ? (es ? "Aspectos a revisar" : "Concerns found") : (es ? "Comprobaciones incompletas" : "Checks incomplete")}</p>
+    {result?.status === "incomplete" && <p className="mt-2">{result.retryable
+      ? (es ? "No se pudieron completar las comprobaciones. Puedes reintentarlo." : "Checks could not finish. You can retry.")
+      : (es ? "No verificado de forma independiente." : "Not independently verified.")}</p>}
     <details className="mt-2">
       <summary className="cursor-pointer py-2 text-vyva-purple">{es ? "Que hemos comprobado" : "What we checked"}</summary>
       <p>{es ? "Identidad, servicio y opiniones disponibles. No garantiza calidad ni disponibilidad." : "Business identity, service fit and available reviews. Not a guarantee of quality or availability."}</p>

@@ -4,6 +4,7 @@ import {
   buildAppointmentSearchQueries,
   discoverAppointmentProviderOptions,
   reservationSystemLinksFor,
+  normalizeSearchAddress,
 } from "./appointmentDiscovery.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -26,6 +27,78 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("falls back to an explicit postcode area without changing the visit address or accepting US results", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const location = { address: "my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other" };
+    const original = location.address;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        if (url.searchParams.get("address")?.startsWith("Calle")) return jsonResponse({ status: "ZERO_RESULTS", results: [] });
+        expect(url.searchParams.get("address")).toBe("11380 Tarifa, Andalucia");
+        return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      }
+      if (url.pathname.includes("textsearch")) {
+        expect(url.searchParams.get("query")).not.toContain("madroneo");
+        return jsonResponse({ status: "OK", results: [
+          { name: "Texas", place_id: "us", geometry: { location: { lat: 29.5, lng: -98.3 } } },
+          { name: "Tarifa", place_id: "local", geometry: { location: { lat: 36.014, lng: -5.604 } } },
+        ] });
+      }
+      return jsonResponse({ status: "OK", result: {} });
+    });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location });
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({ place_id: "local", search_area_fallback: true, search_area: "11380 Tarifa, Andalucia" });
+    expect(location.address).toBe(original);
+  });
+  it("cleans the reported conversational address without inventing a country", () => {
+    expect(normalizeSearchAddress("my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other"))
+      .toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");
+  });
+
+  it.each([
+    [{ status: "ZERO_RESULTS", results: [] }, "address_unresolved"],
+    [{ status: "OK", results: [{ partial_match: true }] }, "address_unresolved"],
+    [{ status: "REQUEST_DENIED" }, "geocoding_unavailable"],
+  ])("distinguishes address and geocoding failures", async (body, reason) => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(body));
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", detail: "plumber", location: { address: "Tarifa, Spain" } });
+    expect(result.fallback_reason).toBe(reason);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("rejects Denver and unknown coordinates for a confirmed Tarifa address", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        expect(url.searchParams.get("address")).toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");
+        return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      }
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [
+        { name: "Denver plumber", place_id: "denver", geometry: { location: { lat: 39.72, lng: -104.94 } } },
+        { name: "Unknown plumber", place_id: "unknown" },
+        { name: "Tarifa plumber", place_id: "tarifa", geometry: { location: { lat: 36.015, lng: -5.605 } } },
+      ] });
+      expect(url.searchParams.get("place_id")).toBe("tarifa");
+      return jsonResponse({ status: "OK", result: {} });
+    });
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "fast help", location: { address: "my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other" } });
+    expect(result.options.map(option => option.provider_snapshot.place_id)).toEqual(["tarifa"]);
+  });
+
+  it("does not search globally when address resolution fails", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ status: "REQUEST_DENIED" }));
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", detail: "plumber", location: { address: "Tarifa, Spain" } });
+    expect(result.options).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("does not call Google when no server-side Places key is configured", async () => {
     clearPlacesEnv();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -48,11 +121,13 @@ describe("appointment discovery", () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/geocode/")) return jsonResponse({ status: "OK", results: [{ geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
       if (url.includes("/place/textsearch/")) {
         return jsonResponse({
           status: "OK",
           results: [{
             name: "Clinica Costa",
+            geometry: { location: { lat: 36.51, lng: -4.88 } },
             formatted_address: "Avenida del Mar 10, Marbella",
             rating: 4.7,
             user_ratings_total: 118,
@@ -148,7 +223,7 @@ describe("appointment discovery", () => {
       language: "en",
     });
 
-    expect(queries[0]).toMatch(/^Electrician electrician electrical/i);
+    expect(queries[0]).toMatch(/^Electrician /i);
     expect(queries[0]).toContain("Marbella, Spain");
   });
 });

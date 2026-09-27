@@ -21,5 +21,6 @@ export function currentVerification(value: unknown, now = Date.now()): ProviderV
     && Array.isArray(item.sources) && item.sources.every(url => typeof url === "string" && /^https?:\/\//.test(url))
     && Array.isArray(item.gaps) && item.gaps.every(g => typeof g === "string")
     && Array.isArray(item.concerns) && item.concerns.every(g => typeof g === "string")
-    && Number.isFinite(age) && age >= 0 && age < 24 * 60 * 60 * 1000 ? item : null;
+    // Client and server clocks can differ slightly, even for a fresh response.
+    && Number.isFinite(age) && age >= -5 * 60 * 1000 && age < 24 * 60 * 60 * 1000 ? item : null;
 }

@@ -6,6 +6,15 @@ vi.mock("@/lib/queryClient", () => ({ apiFetch: vi.fn() }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 const options = [{ id: "one", provider_snapshot: {} }];
 describe("provider verification wait", () => {
+  it("reveals results on service failure instead of pretending checks are running", async () => {
+    vi.mocked(apiFetch).mockRejectedValue(new Error("Unavailable"));
+    const visible = vi.fn();
+    render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={visible} />);
+    expect(await screen.findByText("Checks incomplete")).toBeInTheDocument();
+    expect(visible).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText("Keep checking")).not.toBeInTheDocument();
+    expect(screen.getByText("Retry checks")).toBeInTheDocument();
+  });
   it("preserves completed provider checks when the user extends the window", async () => {
     vi.useFakeTimers();
     vi.mocked(apiFetch).mockImplementation(async url => {
@@ -50,7 +59,7 @@ describe("provider verification wait", () => {
 
   it("does not restart audits when ranking changes option order", async () => {
     const verification = { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [], concerns: [], retryable: false };
-    const initial = ["one", "two"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
+    const initial = ["one", "two", "three", "four"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
     const ranked = vi.fn();
     const visible = vi.fn();
     const view = render(<ProviderVerificationPanel requestId="request" options={initial} selectedId="one" isSpanish={false} onResultsVisible={visible} onRanked={ranked} />);
