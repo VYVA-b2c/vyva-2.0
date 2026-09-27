@@ -212,6 +212,9 @@ describe("appointment discovery", () => {
     expect(result.options.map(option => option.provider_snapshot.place_id)).toEqual([country]);
     expect(result.options[0].provider_snapshot).toMatchObject({ country_code: country, search_country_code: country });
   });
+  it("searches the local Spanish trade name even when the app is English", () => {
+    expect(buildAppointmentSearchQueries({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: "Tarifa", countryCode: "ES", language: "en" })).toContain("Fontanero Tarifa");
+  });
 
   it("fills shortlist slots after rejecting cross-border candidates", async () => {
     clearPlacesEnv();
