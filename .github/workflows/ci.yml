@@ -183,6 +183,9 @@ jobs:
             --testTimeout=180000 \
             server/__tests__/profile-channel-preferences.test.ts
 
+      - name: Verify account saves preserve home addresses
+        run: node ./scripts/run-vitest.mjs --testTimeout=180000 server/__tests__/profile-save.test.ts
+
   task11-postgres-freeze-proof:
     runs-on: ubuntu-latest
     services:
