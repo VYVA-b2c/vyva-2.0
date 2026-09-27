@@ -45,7 +45,9 @@ type GooglePlaceSearchResult = {
   business_status?: string;
 };
 
+type AddressComponent = { short_name?: string; types?: string[] };
 type GooglePlaceDetails = {
+  address_components?: AddressComponent[];
   price_level?: number;
   formatted_phone_number?: string;
   international_phone_number?: string;
@@ -218,6 +220,11 @@ export function reservationSystemLinksFor(input: {
 }
 
 type Coordinates = { lat: number; lng: number };
+type SearchCenter = Coordinates & { countryCode: string };
+function addressCountry(components?: AddressComponent[]): string | null {
+  const country = components?.find(component => component.types?.includes("country"))?.short_name?.toUpperCase();
+  return country && /^[A-Z]{2}$/.test(country) ? country : null;
+}
 function validCoordinates(value?: Coordinates): value is Coordinates {
   return Boolean(value && Number.isFinite(value.lat) && Number.isFinite(value.lng) && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180);
 }
@@ -238,7 +245,7 @@ class DiscoveryFailure extends Error {
   }
 }
 
-async function resolveSearchAddress(address: string, key: string): Promise<Coordinates | null> {
+async function resolveSearchAddress(address: string, key: string): Promise<SearchCenter | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
   url.searchParams.set("address", address);
   url.searchParams.set("key", key);
@@ -246,11 +253,12 @@ async function resolveSearchAddress(address: string, key: string): Promise<Coord
     throw new DiscoveryFailure("geocoding_unavailable", "geocode", "NETWORK_OR_TIMEOUT");
   });
   if (!response.ok) throw new DiscoveryFailure("geocoding_unavailable", "geocode", String(response.status));
-  const data = await response.json() as { status?: string; results?: Array<{ partial_match?: boolean; geometry?: { location?: Coordinates } }> };
+  const data = await response.json() as { status?: string; results?: Array<{ partial_match?: boolean; address_components?: AddressComponent[]; geometry?: { location?: Coordinates } }> };
   if (data.status !== "OK" && data.status !== "ZERO_RESULTS") throw new DiscoveryFailure("geocoding_unavailable", "geocode", data.status ?? "INVALID_RESPONSE");
   if (data.status !== "OK" || data.results?.length !== 1 || data.results[0].partial_match) return null;
   const point = data.results[0].geometry?.location;
-  return validCoordinates(point) ? point : null;
+  const countryCode = addressCountry(data.results[0].address_components);
+  return validCoordinates(point) && countryCode ? { ...point, countryCode } : null;
 }
 async function fetchGoogleTextSearch(query: string, key: string, language: string, countryCode: string, center?: Coordinates | null): Promise<GooglePlaceSearchResult[]> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
@@ -276,7 +284,7 @@ async function fetchGoogleTextSearch(query: string, key: string, language: strin
 async function fetchGooglePlaceDetails(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", `formatted_phone_number,international_phone_number,website,url,opening_hours${includePrice ? ",price_level" : ""}`);
+  url.searchParams.set("fields", `address_components,formatted_phone_number,international_phone_number,website,url,opening_hours${includePrice ? ",price_level" : ""}`);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
@@ -382,7 +390,7 @@ export async function discoverAppointmentProviderOptions(input: {
       urgency: input.urgency,
       constraints: input.constraints,
     })) {
-      const results = await fetchGoogleTextSearch(query, key, language, countryCode, center);
+      const results = await fetchGoogleTextSearch(query, key, language, center?.countryCode ?? countryCode, center);
       for (const place of results) {
         if (center && (!validCoordinates(place.geometry?.location) || distanceMeters(center, place.geometry.location) > 50000)) continue;
         const identity = placeIdentity(place);
@@ -407,12 +415,16 @@ export async function discoverAppointmentProviderOptions(input: {
     const details = await Promise.all(
       selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language, input.appointmentType === "home-service" && Boolean(input.constraints?.includes("lowest_cost"))).catch(() => null) : null),
     );
+    // A radius can cross national borders; region is only a Google search bias.
+    // Unknown country is not evidence that a provider serves the requested country.
+    const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
+      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode);
 
     return {
       source: "google_places",
       reservation_systems: reservationSystems,
-      options: selected.map((place, index) => {
-        const detail = details[index] ?? null;
+      ...(eligible.length === 0 ? { fallback_reason: "no_google_results" as const } : {}),
+      options: eligible.map(({ place, detail }) => {
         const phone = cleanText(detail?.international_phone_number) || cleanText(detail?.formatted_phone_number) || null;
         const website = safeUrl(detail?.website);
         const mapsUrl = safeUrl(detail?.url) ?? (place.place_id
@@ -430,6 +442,8 @@ export async function discoverAppointmentProviderOptions(input: {
           source: "google_places",
           search_area: location,
           search_area_fallback: areaFallback,
+          search_country_code: center?.countryCode ?? null,
+          country_code: addressCountry(detail?.address_components),
           source_label: website ? "Official website via Google Maps" : "Google Maps",
           source_priority: sourcePriority,
           place_id: place.place_id ?? null,
