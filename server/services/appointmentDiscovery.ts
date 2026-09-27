@@ -155,6 +155,8 @@ export function buildAppointmentSearchQueries(input: {
     `${serviceLabel} ${input.location}`,
     ...(input.countryCode === "ES" ? [`${homeServiceTypeLabel(serviceType, "es")} ${input.location}`] : []),
     `${searchTerms} ${input.location}`,
+    // Coordinates and strict geography checks constrain this broader nearby query.
+    ...(input.countryCode ? [homeServiceTypeLabel(serviceType, input.countryCode === "ES" ? "es" : "en")] : []),
   ]));
   // Home-service preferences rank evidence; they are not literal trade keywords.
   const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");

@@ -214,6 +214,7 @@ describe("appointment discovery", () => {
   });
   it("searches the local Spanish trade name even when the app is English", () => {
     expect(buildAppointmentSearchQueries({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: "Tarifa", countryCode: "ES", language: "en" })).toContain("Fontanero Tarifa");
+    expect(buildAppointmentSearchQueries({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: "Tarifa", countryCode: "ES", language: "en" })).toContain("Fontanero");
   });
 
   it("fills shortlist slots after rejecting cross-border candidates", async () => {
