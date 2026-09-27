@@ -29,6 +29,7 @@ import {
   type CanonicalDetailFlowShellContract,
 } from "@/components/CanonicalDetailFlowShell";
 import { useLanguage } from "@/i18n";
+import { homeServiceText } from "../../shared/homeServiceText";
 import {
   conciergeTaskPath,
   type ConciergeTaskEntry,
@@ -464,11 +465,12 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     staleTime: 0,
     gcTime: 0,
   });
-  const { data: conciergeProfile = null, isLoading: profileLoading } = useQuery<ConciergeProfile | null>({
+  const { data: conciergeProfile = null, isLoading: profileLoading, isError: profileError, isFetching: profileFetching, refetch: retryProfile } = useQuery<ConciergeProfile | null>({
     queryKey: ["/api/profile"],
     queryFn: async () => {
       const response = await apiFetch("/api/profile");
-      return response.ok ? await response.json() as ConciergeProfile : null;
+      if (!response.ok) throw new Error("Could not load profile");
+      return await response.json() as ConciergeProfile | null;
     },
     retry: false,
   });
@@ -491,6 +493,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   }, [navigate]);
 
   function handleOptionSelect(option: PickerOptionConfig) {
+    if (profileLoading || profileError) return;
     const missing = setupRequirementsForOption(option, conciergeProfile);
     if (missing.length > 0) {
       setBlockedOption(option);
@@ -506,14 +509,14 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
 
   useEffect(() => {
     const resumeOptionId = searchParams.get("resume");
-    if (!resumeOptionId || profileLoading) return;
+    if (!resumeOptionId || profileLoading || profileError) return;
     const option = config.options.find((candidate) => candidate.id === resumeOptionId);
     setSearchParams({}, { replace: true });
     if (!option) return;
     const missing = setupRequirementsForOption(option, conciergeProfile);
     if (missing.length === 0) continueToOption(option);
     else setBlockedOption(option);
-  }, [conciergeProfile, config.options, continueToOption, profileLoading, searchParams, setSearchParams]);
+  }, [conciergeProfile, config.options, continueToOption, profileLoading, profileError, searchParams, setSearchParams]);
 
   function openAddressSetup() {
     if (!blockedOption) return;
@@ -581,6 +584,10 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
           }}><X size={20} aria-hidden="true" /></button>
         </aside>
       )}
+      {profileError && <div role="alert" className="mb-4 text-vyva-text-1">
+        <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
+        <button type="button" disabled={profileFetching} className="min-h-11 text-vyva-purple underline" onClick={() => void retryProfile()}>{homeServiceText(language, "Retry")}</button>
+      </div>}
       {!blockedOption && <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
@@ -592,7 +599,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
               type="button"
               data-testid={option.testId}
               onClick={() => handleOptionSelect(option)}
-              disabled={profileLoading}
+              disabled={profileLoading || profileError}
               aria-label={`${label}. ${detail}`}
               style={{ "--picker-accent-tint": `${option.iconColor}18`, ...(!isDark ? { background: `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${option.iconBg} 100%)` } : {}) } as CSSProperties}
               className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}

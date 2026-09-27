@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
 import { currentVerification } from "../../shared/providerVerification.js";
+import { requestDisplayLanguage } from "../../shared/language.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -1008,7 +1009,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
       location: visitAddress ? { address: visitAddress } : location,
-      language: request.language,
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
       // Service eligibility is evaluated below, before the ranked display limit.
       maxResults: request.appointment_type === "home-service" ? 40 : 12,
       serviceType: serviceIntake?.service_type,

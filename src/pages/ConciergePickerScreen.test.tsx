@@ -6,6 +6,7 @@ import ConciergePickerScreen from "./ConciergePickerScreen";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.fn();
+const currentLocale = vi.hoisted(() => ({ language: "en" }));
 const nudgeInbox = vi.hoisted(() => ({ needs_you: [] as unknown[], waiting: [], completed: [] }));
 vi.mock("@/lib/conciergeTaskDrafts", () => ({ listConciergeTaskDrafts: async () => [] }));
 vi.mock("@/lib/conciergeTaskInbox", () => ({
@@ -25,7 +26,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
-  useLanguage: () => ({ language: "en" }),
+  useLanguage: () => currentLocale,
 }));
 
 vi.mock("@/hooks/useVyvaVoice", () => ({
@@ -64,7 +65,7 @@ function renderPicker(
 ) {
   apiFetchMock.mockResolvedValue(jsonResponse(profile));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const tree = () => (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[`/concierge/${category}`]}>
         <LocationProbe />
@@ -73,8 +74,10 @@ function renderPicker(
           <Route path="*" element={null} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const view = render(tree());
+  return { ...view, switchLanguage: (language: string) => { currentLocale.language = language; view.rerender(tree()); } };
 }
 
 async function waitForPickerReady(testId: string) {
@@ -83,9 +86,32 @@ async function waitForPickerReady(testId: string) {
 
 describe("ConciergePickerScreen", () => {
   beforeEach(() => {
+    currentLocale.language = "en";
     sessionStorage.clear();
     nudgeInbox.needs_you = [];
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
+  });
+
+  it("does not misreport a profile request failure as a missing address in French", async () => {
+    currentLocale.language = "fr";
+    apiFetchMock.mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+    renderPicker("get-help");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger votre profil");
+    expect(screen.queryByTestId("panel-concierge-service-setup")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
+  });
+
+  it.each(["es", "fr", "de", "it", "pt"])("keeps a saved address when switching to %s", async language => {
+    const view = renderPicker("get-help");
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    view.switchLanguage(language);
+    fireEvent.click(screen.getByTestId("button-concierge-picker-home-repair"));
+    expect(screen.queryByTestId("panel-concierge-service-setup")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
   });
 
   it("prioritises attention over a draft and dismisses the nudge for this session", async () => {

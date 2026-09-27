@@ -2,6 +2,7 @@ import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
 import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
+import { homeServiceText } from "../../shared/homeServiceText.js";
 
 type AppointmentSource = "google_places";
 
@@ -149,7 +150,7 @@ export function buildAppointmentSearchQueries(input: {
     ? normalizeHomeServiceType(input.serviceType)
     : null;
   const serviceLabel = serviceType
-    ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
+    ? homeServiceTypeLabel(serviceType, input.language)
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
   if (serviceType) return localHomeServiceTerms(serviceType, input.countryCode, input.language)
@@ -304,8 +305,8 @@ async function fetchGooglePlaceDetails(placeId: string, key: string, language: s
 function summarizeOpeningHours(details: GooglePlaceDetails | null, language: string): string | null {
   const hours = details?.opening_hours;
   if (!hours) return null;
-  if (hours.open_now === true) return language.startsWith("es") ? "Abierto ahora" : "Open now";
-  if (hours.open_now === false) return language.startsWith("es") ? "Cerrado ahora" : "Closed now";
+  if (hours.open_now === true) return homeServiceText(language, "Open now");
+  if (hours.open_now === false) return homeServiceText(language, "Closed now");
   return hours.weekday_text?.slice(0, 2).join(" - ") ?? null;
 }
 
@@ -481,9 +482,7 @@ export async function discoverAppointmentProviderOptions(input: {
         return {
           provider_source: "external",
           provider_snapshot: snapshot,
-          match_reason: language.startsWith("es")
-            ? "Encontrado con Google Maps"
-            : "Found with Google Maps",
+          match_reason: homeServiceText(language, "Found with Google Maps"),
           available_channels: optionChannels(phone, bookingUrl),
           status: "suggested",
         };

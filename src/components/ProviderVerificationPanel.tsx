@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { currentVerification, type ProviderVerification } from "../../shared/providerVerification";
+import { homeServiceText } from "../../shared/homeServiceText";
 
 interface Option { id: string; provider_source?: string; provider_snapshot: Record<string, unknown> }
 export interface VerificationRanking { score: number; priority_notes: string[] }
@@ -10,11 +11,14 @@ interface Props {
   options: Option[];
   selectedId: string | null;
   isSpanish: boolean;
+  language?: string;
   onResultsVisible: (visible: boolean) => void;
   onRanked?: (ranking: Record<string, VerificationRanking>) => void;
 }
 
-export function ProviderVerificationPanel({ requestId, options, selectedId, isSpanish: es, onResultsVisible, onRanked }: Props) {
+export function ProviderVerificationPanel({ requestId, options, selectedId, isSpanish: es, language, onResultsVisible, onRanked }: Props) {
+  const locale = language ?? (es ? "es" : "en");
+  const copy = (text: string) => homeServiceText(locale, text);
   const [results, setResults] = useState<Record<string, ProviderVerification>>({});
   const resultsRef = useRef(results);
   const rankingRef = useRef<Record<string, VerificationRanking>>({});
@@ -37,7 +41,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     const next = Object.fromEntries(ids.flatMap(id => {
       const option = latest.current.find(o => o.id === id);
       const privateContact: ProviderVerification | null = option?.provider_source === "saved" || option?.provider_source === "manual"
-        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [es ? "Este contacto no se ha enviado a servicios externos de investigacion." : "This contact has not been sent to external research services."], concerns: [], retryable: false } : null;
+        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["This contact has not been sent to external research services."], concerns: [], retryable: false } : null;
       const existing = resultsRef.current[id] ?? currentVerification(option?.provider_snapshot.verification) ?? privateContact;
       return existing && !existing.retryable ? [[id, existing]] : [];
     }));
@@ -78,7 +82,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
         resultsRef.current = { ...resultsRef.current, [id]: {
           version: 1, status: "incomplete", checkedAt: new Date().toISOString(),
           reviewCount: 0, recentReviewCount: 0, sources: [], concerns: [], retryable: true,
-          gaps: [es ? "El servicio de comprobacion no esta disponible. Este proveedor no esta verificado." : "The verification service is unavailable. This provider is not verified."],
+          gaps: ["The verification service is unavailable. This provider is not verified."],
         } };
         setResults(resultsRef.current);
       }
@@ -91,20 +95,18 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
       onResultsVisible(true);
     });
     return () => { disposed = true; controller.abort(); clearTimeout(deadline); clearInterval(interval); };
-  }, [requestId, optionIds, round, onResultsVisible, onRanked, es]);
+  }, [requestId, optionIds, round, onResultsVisible, onRanked]);
 
   if (phase === "checking") return <section className="flex items-center gap-3 py-3 text-sm text-vyva-text-2" aria-live="polite" data-testid="provider-verification-loading">
     <Loader2 className="shrink-0 animate-spin text-vyva-purple motion-reduce:animate-none" size={20} aria-hidden="true" />
-    <p className="text-sm">{(es
-      ? ["Contrastamos la identidad y los servicios con fuentes publicas.", "Buscamos opiniones recientes y posibles problemas recurrentes.", "Solo verificamos lo que podemos respaldar con pruebas."]
-      : ["Cross-checking business identity and services against public sources.", "Looking for recent reviews and recurring concerns.", "Only evidence-backed checks count toward verification."])[message]}</p>
+    <p className="text-sm">{copy(["Cross-checking business identity and services against public sources.", "Looking for recent reviews and recurring concerns.", "Only evidence-backed checks count toward verification."][message])}</p>
   </section>;
   if (phase === "choice") return <section className="border-b border-current/10 py-3 text-vyva-text-1" aria-live="polite">
-    <h3 className="text-lg font-semibold">{es ? "Algunas comprobaciones siguen incompletas" : "Some checks are still incomplete"}</h3>
-    <p className="mt-2 text-sm text-vyva-text-2">{es ? "Puedes revisar los proveedores de abajo o dedicar dos minutos mas a las comprobaciones." : "Browse the providers below, or allow two more minutes for checks."}</p>
+    <h3 className="text-lg font-semibold">{copy("Some checks are still incomplete")}</h3>
+    <p className="mt-2 text-sm text-vyva-text-2">{copy("Browse the providers below, or allow two more minutes for checks.")}</p>
     <div className="mt-5 flex flex-wrap gap-4">
-      <button type="button" className="min-h-11 rounded-full bg-vyva-purple px-5 py-2 font-semibold text-white" onClick={() => { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }}>{es ? "Ver resultados ahora" : "Show results now"}</button>
-      <button type="button" className="min-h-11 px-2 font-semibold text-vyva-purple" onClick={() => setRound(n => n + 1)}>{es ? "Seguir comprobando" : "Keep checking"}</button>
+      <button type="button" className="min-h-11 rounded-full bg-vyva-purple px-5 py-2 font-semibold text-white" onClick={() => { onRanked?.(rankingRef.current); setPhase("results"); onResultsVisible(true); }}>{copy("Show results now")}</button>
+      <button type="button" className="min-h-11 px-2 font-semibold text-vyva-purple" onClick={() => setRound(n => n + 1)}>{copy("Keep checking")}</button>
     </div>
   </section>;
   const result = selectedId ? results[selectedId] : null;
@@ -122,18 +124,18 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     "Price information is unavailable; your job needs a quote.": "No hay informacion de precios; tu trabajo necesita un presupuesto.",
   };
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
-    {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{es ? "Reintentar comprobaciones" : "Retry checks"}</button>}
-    {result?.status === "concerns" && <p className="font-semibold text-vyva-text-1">{es ? "Aspectos a revisar" : "Concerns found"}</p>}
+    {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{copy("Retry checks")}</button>}
+    {result?.status === "concerns" && <p className="font-semibold text-vyva-text-1">{copy("Concerns found")}</p>}
     <details className="mt-2">
-      <summary className="cursor-pointer py-2 text-vyva-purple">{es ? "Que hemos comprobado" : "What we checked"}</summary>
-      <p>{result?.status === "verified" ? (es ? "Verificado" : "Verified") : result?.status === "concerns" ? (es ? "Aspectos a revisar" : "Concerns found") : (es ? "Comprobaciones incompletas" : "Checks incomplete")}</p>
-      <p>{es ? "Identidad, servicio y opiniones disponibles. No garantiza calidad ni disponibilidad." : "Business identity, service fit and available reviews. Not a guarantee of quality or availability."}</p>
-      {priorityNotes.map(note => <p className="mt-2" key={note}>{es ? spanishNotes[note] ?? note : note}</p>)}
-      {result && <p className="mt-2">{result.reviewCount} {es ? "opiniones con fecha; recientes:" : "dated reviews; recent:"} {result.recentReviewCount}</p>}
-      {result?.gaps.map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{gap}</p>)}
+      <summary className="cursor-pointer py-2 text-vyva-purple">{copy("What we checked")}</summary>
+      <p>{copy(result?.status === "verified" ? "Verified" : result?.status === "concerns" ? "Concerns found" : "Checks incomplete")}</p>
+      <p>{copy("Business identity, service fit and available reviews. Not a guarantee of quality or availability.")}</p>
+      {priorityNotes.map(note => <p className="mt-2" key={note}>{homeServiceText(locale, note, spanishNotes[note])}</p>)}
+      {result && <p className="mt-2">{result.reviewCount} {copy("dated reviews; recent:")} {result.recentReviewCount}</p>}
+      {result?.gaps.map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{copy(gap)}</p>)}
       {result?.concerns.map((concern, i) => <p className="mt-2" key={`concern-${i}`}>{concern}</p>)}
       {result?.sources.map(url => <a className="mt-2 block break-words text-vyva-purple underline" key={url} href={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
-      {result && <p className="mt-2">{es ? "Comprobado:" : "Checked:"} {new Date(result.checkedAt).toLocaleDateString()}</p>}
+      {result && <p className="mt-2">{copy("Checked:")} {new Date(result.checkedAt).toLocaleDateString(locale)}</p>}
     </details>
   </section>;
 }
