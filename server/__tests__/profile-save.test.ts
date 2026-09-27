@@ -75,7 +75,7 @@ afterEach(async () => {
 
 describe("Profile save", () => {
   it.each(["en", "es", "fr", "de", "it", "pt"])("preserves the saved address when Account Settings saves %s", async language => {
-    const address = { address_line_1: "6 Calle Test", address_line_2: "2A", city: "Tarifa", region: "Andalucia", postcode: "11380", country_code: "ES", caregiver_name: "Existing helper", caregiver_contact: "+34600000999" };
+    const address = { address_line_1: "6 Calle Test", city: "Tarifa", region: "Andalucia", postcode: "11380", country_code: "ES", caregiver_name: "Existing helper", caregiver_contact: "+34600000999" } satisfies Partial<typeof profiles.$inferInsert>;
     const profileId = await createSelfProfile({ full_name: "Language Test", phone_number: "+34600000101", ...address });
     await request(app).post("/api/profile").set("x-user-id", profileId)
       .send({ firstName: "Language", lastName: "Test", phone: "+33600000101", language, timezone: "Europe/Madrid" }).expect(200);
