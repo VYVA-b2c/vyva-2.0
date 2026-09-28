@@ -7,6 +7,39 @@ vi.mock("@/lib/queryClient", () => ({ apiFetch: vi.fn() }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 const options = [{ id: "one", provider_snapshot: {} }];
 describe("provider verification wait", () => {
+  it("waits for an in-flight audit and displays its completed result", async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ ok: false, status: 409 } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 3, recentReviewCount: 1, sources: [], gaps: ["Limited coverage"], concerns: [], retryable: false } }) } as Response);
+    const visible = vi.fn();
+    render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={visible} />);
+    await act(async () => {});
+    expect(screen.queryByText("Retry checks")).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Limited coverage")).toBeInTheDocument();
+    expect(visible).toHaveBeenLastCalledWith(true);
+  });
+
+  it("stops in-flight retries at the existing deadline and on unmount", async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiFetch).mockResolvedValue({ ok: false, status: 409 } as Response);
+    const view = render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} onResultsVisible={vi.fn()} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(120000); });
+    expect(screen.getByText("Keep checking")).toBeInTheDocument();
+    const calls = vi.mocked(apiFetch).mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+    expect(apiFetch).toHaveBeenCalledTimes(calls);
+    fireEvent.click(screen.getByText("Keep checking"));
+    await act(async () => {});
+    view.unmount();
+    const unmountedCalls = vi.mocked(apiFetch).mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+    expect(apiFetch).toHaveBeenCalledTimes(unmountedCalls);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each(["es", "fr", "de", "it", "pt"])("changes labels to %s without restarting verification", async language => {
     vi.mocked(apiFetch).mockRejectedValue(new Error("Unavailable"));
     const visible = vi.fn();
