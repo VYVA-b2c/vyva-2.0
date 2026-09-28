@@ -5,7 +5,6 @@ import SettingsHome from "./SettingsHome";
 
 const toastMock = vi.fn();
 const logoutMock = vi.fn();
-const profileHeroMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
@@ -14,15 +13,9 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@/components/onboarding/PhoneFrame", () => ({
-  PhoneFrame: ({ children }: { children: React.ReactNode }) => <div data-testid="phone-frame">{children}</div>,
-}));
-
-vi.mock("@/components/onboarding/ProfileSectionHero", () => ({
-  ProfileSectionHero: (props: { title: string; badges?: unknown[] }) => {
-    profileHeroMock(props);
-    return <header data-testid="settings-hero">{props.title}</header>;
-  },
+vi.mock("@/components/CanonicalDetailFlowShell", () => ({
+  CanonicalDetailFlowShell: ({ children, shellContract }: { children: React.ReactNode; shellContract: { headerTitle: string } }) => <div data-testid="settings-canonical-screen"><h1>{shellContract.headerTitle}</h1>{children}</div>,
+  CanonicalVoiceButton: () => <button type="button">Talk to VYVA</button>,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -48,20 +41,32 @@ afterEach(() => {
   vi.restoreAllMocks();
   toastMock.mockClear();
   logoutMock.mockClear();
-  profileHeroMock.mockClear();
 });
 
 describe("SettingsHome action rows", () => {
-  it("keeps the Settings hero free of section chips", () => {
+  it("uses the canonical Settings shell without the legacy profile hero", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
         <SettingsHome />
       </MemoryRouter>,
     );
 
-    const props = profileHeroMock.mock.calls[0]?.[0];
-    expect(props).toEqual(expect.objectContaining({ title: "settings.home.title" }));
-    expect(props).not.toHaveProperty("badges");
+    expect(screen.getByTestId("settings-canonical-screen")).toHaveTextContent("Settings");
+    expect(screen.queryByTestId("settings-hero")).not.toBeInTheDocument();
+  });
+
+  it("returns to the canonical profile instead of the legacy account page", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/settings" element={<SettingsHome />} />
+          <Route path="/onboarding/profile" element={<div data-testid="canonical-profile-route">Profile</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId("button-settings-profile"));
+    expect(screen.getByTestId("canonical-profile-route")).toBeInTheDocument();
   });
 
   it("turns delete account into a safe support request action", () => {

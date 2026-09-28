@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -20,8 +20,11 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
-import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
-import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import {
+  CanonicalDetailFlowShell,
+  CanonicalVoiceButton,
+  type CanonicalDetailFlowShellContract,
+} from "@/components/CanonicalDetailFlowShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
@@ -31,6 +34,14 @@ import { apiFetch } from "@/lib/queryClient";
 const TERMS_OF_SERVICE_URL = "https://vyva.life/terms-of-service";
 const PRIVACY_POLICY_URL = "https://vyva.life/privacypolicy";
 const SUPPORT_EMAIL = "support@vyva.life";
+const SETTINGS_SHELL_CONTRACT: CanonicalDetailFlowShellContract = {
+  shellId: "home.production",
+  headerId: "detail.voice-touch",
+  headerTitle: "Settings",
+  containerId: "flow.rounded-card",
+  bottomNavId: "home-sos-reports",
+  composer: "hidden",
+};
 
 type BillingStatus = {
   status?: string | null;
@@ -73,14 +84,14 @@ function Row({
   const rowContent = (
     <>
       <div
-        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px] shadow-[0_10px_24px_rgba(53,28,87,0.08)]"
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px]"
         style={{ background: iconBg, color: iconColor }}
       >
-        <Icon size={24} />
+        <Icon size={20} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={`text-[18px] font-black leading-tight ${danger ? "text-[#B0355A]" : "text-vyva-text-1"}`}>{title}</p>
-        {sub ? <p className="mt-1 text-[14px] leading-snug text-vyva-text-2">{sub}</p> : null}
+        <p className={`text-[16px] font-black leading-tight ${danger ? "text-[#B0355A]" : "text-vyva-text-1"}`}>{title}</p>
+        {sub ? <p className="mt-0.5 text-[13px] leading-snug text-vyva-text-2">{sub}</p> : null}
       </div>
       {value ? <span className="rounded-full bg-[#F5F0FF] px-3 py-1 text-[12px] font-black text-vyva-purple">{value}</span> : null}
       {onClick ? <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#C4B5D8]" /> : null}
@@ -91,7 +102,7 @@ function Row({
     return (
       <div
         data-testid={testId}
-        className="flex min-h-[86px] w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left"
+        className="flex min-h-[68px] w-full items-center gap-3 px-3 py-3 text-left"
       >
         {rowContent}
       </div>
@@ -104,7 +115,7 @@ function Row({
       onClick={onClick}
       disabled={disabled}
       data-testid={testId}
-      className="flex min-h-[86px] w-full items-center gap-4 rounded-[22px] px-4 py-4 text-left transition-colors hover:bg-[#FCF8FF] disabled:cursor-wait disabled:opacity-70"
+      className="flex min-h-[68px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-[#FCF8FF] disabled:cursor-wait disabled:opacity-70"
     >
       {rowContent}
     </button>
@@ -113,10 +124,10 @@ function Row({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[28px] border border-[#EFE4D5] bg-white p-3 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
-      <div className="px-3 pb-3 pt-2 text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-2">{title}</div>
-      <div className="flex flex-col gap-2">{children}</div>
-    </div>
+    <section className="overflow-hidden rounded-[24px] border border-vyva-border bg-white shadow-[0_10px_28px_rgba(53,28,87,0.05)]">
+      <h2 className="px-4 pb-2 pt-4 text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-2">{title}</h2>
+      <div className="divide-y divide-vyva-border px-1">{children}</div>
+    </section>
   );
 }
 
@@ -131,10 +142,13 @@ function formatPlanLabel(value: string | null | undefined) {
 
 export default function SettingsHome() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
   const [isDownloadingData, setIsDownloadingData] = useState(false);
+  const isHomeMasterPreview = location.pathname.startsWith("/dev/home-master/");
+  const profilePath = isHomeMasterPreview ? "/dev/home-master/profile" : "/onboarding/profile";
   const { data: billingStatus, isLoading: billingLoading } = useQuery<BillingStatus>({
     queryKey: ["/api/billing/status"],
     retry: false,
@@ -237,24 +251,24 @@ export default function SettingsHome() {
   };
 
   return (
-    <PhoneFrame>
-      <div data-testid="settings-home-grid" className="grid gap-5 px-1 pb-6 pt-5 sm:px-2 md:grid-cols-2 md:items-start md:px-3">
-        <ProfileSectionHero
-          icon={Shield}
-          title={t("settings.home.title")}
-          kicker="VYVA settings"
-          description={t("settings.home.subtitle")}
-          className="md:col-span-2"
-        />
+    <CanonicalDetailFlowShell
+      shellContract={SETTINGS_SHELL_CONTRACT}
+      onBack={() => navigate(profilePath)}
+      headerAction={<CanonicalVoiceButton label="Talk to VYVA" contextHint="Help me understand or change a VYVA setting." agentSlug="settings" />}
+      shellTestId="settings-canonical-screen"
+      contentTestId="settings-canonical-content"
+    >
+      <div data-testid="settings-home-grid" className="mx-auto grid w-full max-w-[760px] gap-4 pb-6 md:grid-cols-2 md:items-start">
 
         <Section title={t("settings.home.sections.account")}>
           <Row
             icon={UserRound}
             iconBg="#F5F0FF"
             iconColor="#6B21A8"
-            title={t("settings.home.rows.myAccount")}
-            sub={t("settings.home.rows.myAccountSub")}
-            onClick={() => navigate("/settings/account")}
+            title="Profile"
+            sub="Personal, health, medication and care details"
+            onClick={() => navigate(profilePath)}
+            data-testid="button-settings-profile"
           />
           <Row
             icon={Bell}
@@ -275,16 +289,7 @@ export default function SettingsHome() {
           />
         </Section>
 
-        <Section title={t("settings.home.sections.healthSetup", "Health setup")}>
-          <Row
-            icon={HeartPulse}
-            iconBg="#FDECEC"
-            iconColor="#D14D41"
-            title={t("settings.home.rows.healthProfile")}
-            sub={t("settings.home.rows.healthProfileSub")}
-            onClick={() => navigate("/onboarding/profile")}
-            data-testid="button-settings-health-profile"
-          />
+        <Section title="Services">
           <Row
             icon={Bluetooth}
             iconBg="#ECFDF5"
@@ -294,9 +299,6 @@ export default function SettingsHome() {
             onClick={() => navigate("/settings/health-devices")}
             data-testid="button-settings-health-devices"
           />
-        </Section>
-
-        <Section title={t("settings.home.sections.conciergeSetup", "Concierge setup")}>
           <Row
             icon={Handshake}
             iconBg="#F0FDFA"
@@ -402,6 +404,6 @@ export default function SettingsHome() {
           />
         </Section>
       </div>
-    </PhoneFrame>
+    </CanonicalDetailFlowShell>
   );
 }

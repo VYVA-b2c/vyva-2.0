@@ -1290,7 +1290,7 @@ const App = () => (
                     <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
-                    <Route path="/dev/home-master/settings" element={<AppShell><SettingsHome /></AppShell>} />
+                    <Route path="/dev/home-master/settings" element={<SettingsHome />} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />
                     <Route path="/dev/profile-overview/group/:groupId" element={<ProfileGroupPage preview />} />
                     <Route path="/dev/profile-overview/section/:id" element={<SectionRouter />} />
@@ -1376,7 +1376,7 @@ const App = () => (
                   <Route path="/onboarding/careteam" element={<CareTeamFlow />} />
                   <Route path="/settings/privacy" element={<PrivacySettings />} />
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
-                  <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
+                  <Route path="/settings" element={<SettingsHome />} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
