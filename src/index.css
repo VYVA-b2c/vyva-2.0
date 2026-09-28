@@ -777,7 +777,8 @@
 }
 
 [data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-reminder,
-[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-avatar-card {
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-avatar-card,
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-section {
   background: var(--hm-profile-surface) !important;
   border-color: var(--hm-profile-border) !important;
   color: var(--hm-profile-text);

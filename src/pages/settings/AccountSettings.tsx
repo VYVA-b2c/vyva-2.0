@@ -656,7 +656,7 @@ export default function AccountSettings() {
           </p>
         </section>
 
-        <section aria-label="Personal details" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
+        <section aria-label="Personal details" className="home-master-profile-account-section flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] sm:p-6">
 
         <ResponsiveGrid columns="two" gap="md">
           <FormField
@@ -752,7 +752,7 @@ export default function AccountSettings() {
 
         </section>
 
-        <section aria-label="Contact details" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
+        <section aria-label="Contact details" className="home-master-profile-account-section flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] sm:p-6">
 
         <FormField
           htmlFor="phone"
@@ -835,7 +835,7 @@ export default function AccountSettings() {
 
         </section>
 
-        <section aria-label="Language and region" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
+        <section aria-label="Language and region" className="home-master-profile-account-section flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] sm:p-6">
 
         <ResponsiveGrid columns="two" gap="md">
           <FormField label={t("settings.account.language")} {...fieldMeta}>
