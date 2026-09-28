@@ -507,7 +507,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("Doctors & providers")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
     expect(screen.getByText("Text and theme")).toBeInTheDocument();
-    expect(screen.getByText("Call support")).toBeInTheDocument();
+    expect(screen.getByText("Get support")).toBeInTheDocument();
   });
 
   it("skips the follow-up question when the first answer is Great or Okay", () => {

@@ -1240,7 +1240,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
         ].join(" ")}
       >
         <VyvaIcon icon={Phone} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
-        Call support
+        Get support
       </button>
     </PrototypeShell>
   );
