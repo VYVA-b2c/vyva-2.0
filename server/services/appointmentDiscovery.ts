@@ -1,6 +1,8 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
+import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
+import { homeServiceText } from "../../shared/homeServiceText.js";
 
 type AppointmentSource = "google_places";
 
@@ -30,20 +32,25 @@ export interface AppointmentDiscoveryResult {
   source: AppointmentSource;
   options: AppointmentDiscoveredOption[];
   reservation_systems: ReservationSystemLink[];
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
 }
 
 type GooglePlaceSearchResult = {
+  geometry?: { location?: { lat: number; lng: number } };
   name?: string;
   formatted_address?: string;
   rating?: number;
   user_ratings_total?: number;
+  price_level?: number;
   place_id?: string;
   types?: string[];
   business_status?: string;
 };
 
+type AddressComponent = { short_name?: string; types?: string[] };
 type GooglePlaceDetails = {
+  address_components?: AddressComponent[];
+  price_level?: number;
   formatted_phone_number?: string;
   international_phone_number?: string;
   website?: string;
@@ -132,6 +139,7 @@ export function buildAppointmentSearchQueries(input: {
   detail: string;
   location: string;
   language: string;
+  countryCode?: string;
   serviceType?: string | null;
   urgency?: string | null;
   constraints?: string[];
@@ -142,10 +150,13 @@ export function buildAppointmentSearchQueries(input: {
     ? normalizeHomeServiceType(input.serviceType)
     : null;
   const serviceLabel = serviceType
-    ? homeServiceTypeLabel(serviceType, input.language.startsWith("es") ? "es" : "en")
+    ? homeServiceTypeLabel(serviceType, input.language)
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
-  const constraints = (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
+  if (serviceType) return localHomeServiceTerms(serviceType, input.countryCode, input.language)
+    .flatMap(term => input.countryCode ? [`${term} ${input.location}`, term] : [`${term} ${input.location}`]);
+  // Home-service preferences rank evidence; they are not literal trade keywords.
+  const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
   const templates = focusedDetail
     ? [
@@ -212,31 +223,76 @@ export function reservationSystemLinksFor(input: {
   }
 }
 
-async function fetchGoogleTextSearch(query: string, key: string, language: string, countryCode: string): Promise<GooglePlaceSearchResult[]> {
+type Coordinates = { lat: number; lng: number };
+type SearchCenter = Coordinates & { countryCode: string };
+function addressCountry(components?: AddressComponent[]): string | null {
+  const country = components?.find(component => component.types?.includes("country"))?.short_name?.toUpperCase();
+  return country && /^[A-Z]{2}$/.test(country) ? country : null;
+}
+function validCoordinates(value?: Coordinates): value is Coordinates {
+  return Boolean(value && Number.isFinite(value.lat) && Number.isFinite(value.lng) && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180);
+}
+function distanceMeters(a: Coordinates, b: Coordinates): number {
+  const rad = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2
+    + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+export function normalizeSearchAddress(address: string): string {
+  return cleanText(address).replace(/^my address is\s+/i, "")
+    .split(",").map(part => part.trim()).filter(part => part && !/^other$/i.test(part)).join(", ");
+}
+
+class DiscoveryFailure extends Error {
+  constructor(public reason: "address_unresolved" | "geocoding_unavailable" | "google_places_unavailable", public stage: string, public status: string) {
+    super(reason);
+  }
+}
+
+async function resolveSearchAddress(address: string, key: string): Promise<SearchCenter | null> {
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", address);
+  url.searchParams.set("key", key);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) }).catch(() => {
+    throw new DiscoveryFailure("geocoding_unavailable", "geocode", "NETWORK_OR_TIMEOUT");
+  });
+  if (!response.ok) throw new DiscoveryFailure("geocoding_unavailable", "geocode", String(response.status));
+  const data = await response.json() as { status?: string; results?: Array<{ partial_match?: boolean; address_components?: AddressComponent[]; geometry?: { location?: Coordinates } }> };
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") throw new DiscoveryFailure("geocoding_unavailable", "geocode", data.status ?? "INVALID_RESPONSE");
+  if (data.status !== "OK" || data.results?.length !== 1 || data.results[0].partial_match) return null;
+  const point = data.results[0].geometry?.location;
+  const countryCode = addressCountry(data.results[0].address_components);
+  return validCoordinates(point) && countryCode ? { ...point, countryCode } : null;
+}
+async function fetchGoogleTextSearch(query: string, key: string, language: string, countryCode: string, center?: Coordinates | null): Promise<GooglePlaceSearchResult[]> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
   url.searchParams.set("query", query);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("region", countryCode.toLowerCase());
   url.searchParams.set("key", key);
+  if (center) {
+    url.searchParams.set("location", `${center.lat},${center.lng}`);
+    url.searchParams.set("radius", "50000");
+  }
 
-  const response = await fetch(url);
-  if (!response.ok) return [];
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new DiscoveryFailure("google_places_unavailable", "textsearch", String(response.status));
   const data = await response.json() as {
     status?: string;
     results?: GooglePlaceSearchResult[];
   };
-  if (data.status && !["OK", "ZERO_RESULTS"].includes(data.status)) return [];
+  if (!data.status || !["OK", "ZERO_RESULTS"].includes(data.status)) throw new DiscoveryFailure("google_places_unavailable", "textsearch", data.status ?? "INVALID_RESPONSE");
   return data.results ?? [];
 }
 
-async function fetchGooglePlaceDetails(placeId: string, key: string, language: string): Promise<GooglePlaceDetails | null> {
+async function fetchGooglePlaceDetails(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", "formatted_phone_number,international_phone_number,website,url,opening_hours");
+  url.searchParams.set("fields", `address_components,formatted_phone_number,international_phone_number,website,url,opening_hours${includePrice ? ",price_level" : ""}`);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) return null;
   const data = await response.json() as {
     status?: string;
@@ -249,8 +305,8 @@ async function fetchGooglePlaceDetails(placeId: string, key: string, language: s
 function summarizeOpeningHours(details: GooglePlaceDetails | null, language: string): string | null {
   const hours = details?.opening_hours;
   if (!hours) return null;
-  if (hours.open_now === true) return language.startsWith("es") ? "Abierto ahora" : "Open now";
-  if (hours.open_now === false) return language.startsWith("es") ? "Cerrado ahora" : "Closed now";
+  if (hours.open_now === true) return homeServiceText(language, "Open now");
+  if (hours.open_now === false) return homeServiceText(language, "Closed now");
   return hours.weekday_text?.slice(0, 2).join(" - ") ?? null;
 }
 
@@ -285,7 +341,9 @@ export async function discoverAppointmentProviderOptions(input: {
   constraints?: string[];
 }): Promise<AppointmentDiscoveryResult> {
   const language = cleanText(input.language) || "es";
-  const location = appointmentLocationText(input.location);
+  let location = input.appointmentType === "home-service"
+    ? normalizeSearchAddress(appointmentLocationText(input.location))
+    : appointmentLocationText(input.location);
   const countryCode = countryRegion(input.location?.countryCode);
   const reservationSystems = reservationSystemLinksFor({
     appointmentType: input.appointmentType,
@@ -304,26 +362,52 @@ export async function discoverAppointmentProviderOptions(input: {
   }
 
   try {
+    const homeSearch = input.appointmentType === "home-service";
+    const hasLocation = input.location && Object.values(input.location).some(value => cleanText(value));
+    let center = homeSearch && hasLocation ? await resolveSearchAddress(location, key) : null;
+    let areaFallback = false;
+    if (homeSearch && hasLocation && !center) {
+      // Only remove the street when an explicit postcode/locality segment exists.
+      // Never substitute a default city or the profile location for an override.
+      const parts = location.split(",").map(part => part.trim());
+      const areaIndex = parts.findIndex((part, index) => index > 0 && /^\d{5}\s+\p{L}/u.test(part));
+      const area = areaIndex > 0 ? parts.slice(areaIndex).join(", ") : "";
+      if (area) {
+        center = await resolveSearchAddress(area, key);
+        if (center) {
+          location = area;
+          areaFallback = true;
+        }
+      }
+    }
+    if (homeSearch && !center) {
+      throw new DiscoveryFailure("address_unresolved", "geocode", "NO_UNAMBIGUOUS_MATCH");
+    }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
+    // Collect a bounded candidate pool before country filtering so rejected
+    // cross-border results do not consume the requested shortlist slots.
+    const candidateLimit = homeSearch ? 40 : (input.maxResults ?? 5);
     for (const query of buildAppointmentSearchQueries({
       appointmentType: input.appointmentType,
       detail: input.detail,
       location,
       language,
       serviceType: input.serviceType,
+      countryCode: center?.countryCode ?? countryCode,
       urgency: input.urgency,
       constraints: input.constraints,
     })) {
-      const results = await fetchGoogleTextSearch(query, key, language, countryCode);
+      const results = await fetchGoogleTextSearch(query, key, language, center?.countryCode ?? countryCode, center);
       for (const place of results) {
+        if (center && (!validCoordinates(place.geometry?.location) || distanceMeters(center, place.geometry.location) > 50000)) continue;
         const identity = placeIdentity(place);
         if (!identity || seen.has(identity)) continue;
         seen.add(identity);
         places.push(place);
-        if (places.length >= (input.maxResults ?? 5)) break;
+        if (places.length >= candidateLimit) break;
       }
-      if (places.length >= (input.maxResults ?? 5)) break;
+      if (places.length >= candidateLimit) break;
     }
 
     if (places.length === 0) {
@@ -335,16 +419,21 @@ export async function discoverAppointmentProviderOptions(input: {
       };
     }
 
-    const selected = places.slice(0, input.maxResults ?? 5);
+    const selected = places;
     const details = await Promise.all(
-      selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language).catch(() => null) : null),
+      selected.map((place) => place.place_id ? fetchGooglePlaceDetails(place.place_id, key, language, input.appointmentType === "home-service" && Boolean(input.constraints?.includes("lowest_cost"))).catch(() => null) : null),
     );
+    // A radius can cross national borders; region is only a Google search bias.
+    // Unknown country is not evidence that a provider serves the requested country.
+    const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
+      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode)
+      .slice(0, input.maxResults ?? 5);
 
     return {
       source: "google_places",
       reservation_systems: reservationSystems,
-      options: selected.map((place, index) => {
-        const detail = details[index] ?? null;
+      ...(eligible.length === 0 ? { fallback_reason: "no_google_results" as const } : {}),
+      options: eligible.map(({ place, detail }) => {
         const phone = cleanText(detail?.international_phone_number) || cleanText(detail?.formatted_phone_number) || null;
         const website = safeUrl(detail?.website);
         const mapsUrl = safeUrl(detail?.url) ?? (place.place_id
@@ -360,6 +449,10 @@ export async function discoverAppointmentProviderOptions(input: {
         ].filter(Boolean);
         const snapshot: Record<string, unknown> = {
           source: "google_places",
+          search_area: location,
+          search_area_fallback: areaFallback,
+          search_country_code: center?.countryCode ?? null,
+          country_code: addressCountry(detail?.address_components),
           source_label: website ? "Official website via Google Maps" : "Google Maps",
           source_priority: sourcePriority,
           place_id: place.place_id ?? null,
@@ -371,8 +464,11 @@ export async function discoverAppointmentProviderOptions(input: {
           maps_url: mapsUrl,
           rating: place.rating ?? null,
           review_count: place.user_ratings_total ?? null,
+          price_level: detail?.price_level ?? place.price_level ?? null,
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
+          opening_hours_text: detail?.opening_hours?.weekday_text ?? [],
+          open_now: detail?.opening_hours?.open_now ?? null,
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,
@@ -386,20 +482,24 @@ export async function discoverAppointmentProviderOptions(input: {
         return {
           provider_source: "external",
           provider_snapshot: snapshot,
-          match_reason: language.startsWith("es")
-            ? "Encontrado con Google Maps"
-            : "Found with Google Maps",
+          match_reason: homeServiceText(language, "Found with Google Maps"),
           available_channels: optionChannels(phone, bookingUrl),
           status: "suggested",
         };
       }),
     };
-  } catch {
+  } catch (error) {
+    // Never log request URLs, API keys, or the user's address.
+    console.warn("[appointment-discovery]", {
+      stage: error instanceof DiscoveryFailure ? error.stage : "discovery",
+      status: error instanceof DiscoveryFailure ? error.status : "NETWORK_OR_INVALID_RESPONSE",
+      reason: error instanceof DiscoveryFailure ? error.reason : "google_places_unavailable",
+    });
     return {
       source: "google_places",
       options: [],
       reservation_systems: reservationSystems,
-      fallback_reason: "google_places_unavailable",
+      fallback_reason: error instanceof DiscoveryFailure ? error.reason : "google_places_unavailable",
     };
   }
 }

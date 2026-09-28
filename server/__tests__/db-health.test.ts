@@ -88,6 +88,10 @@ describe("database health route", () => {
 
     expect(res.body).toMatchObject({
       ok: true,
+      runtime: {
+        databaseConfigSource: "DATABASE_URL",
+        databaseTargetFingerprint: expect.any(String),
+      },
       database: {
         connected: true,
         databaseUrlConfigured: true,

@@ -1,6 +1,10 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
+import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
+import { currentVerification } from "../../shared/providerVerification.js";
+import { requestDisplayLanguage } from "../../shared/language.js";
+import { homeServiceText } from "../../shared/homeServiceText.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -526,6 +530,7 @@ async function savedProviderOptions(
   detail: string,
   requestPreferences: Record<string, unknown>,
 ) {
+  if (appointmentType === "home-service" && requestPreferences.use_saved_provider === false) return [];
   const providers = await db
     .select()
     .from(userProviders)
@@ -597,7 +602,6 @@ function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
 
 function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
   const snapshot = recordValue(option.provider_snapshot);
-  const openingStatus = snapshotText(snapshot, "opening_status")?.toLowerCase() ?? "";
   return {
     id: option.id,
     source: option.provider_source === "saved" || option.provider_source === "manual" ? option.provider_source : "external",
@@ -618,8 +622,10 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     preferred: option.status === "recommended" && option.provider_source === "saved",
     rating: typeof snapshot.rating === "number" ? snapshot.rating : null,
     reviewCount: typeof snapshot.review_count === "number" ? snapshot.review_count : null,
-    availability: openingStatus.includes("open") && !openingStatus.includes("closed") ? "available" : "unknown",
-    evidenceStatus: option.provider_source === "saved" ? "reported" : "verified",
+    openNow: typeof snapshot.open_now === "boolean" ? snapshot.open_now : null,
+    priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
+    availability: "unknown",
+    evidenceStatus: snapshot.verification_eligible === true && currentVerification(snapshot.verification)?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -634,7 +640,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     serviceType: intake?.service_type,
     detail: intake?.research_brief ?? request.reason_detail,
     criteria: intake?.criteria,
-    maxResults: 3,
+    maxResults: request.appointment_type === "home-service" ? 12 : 3,
   };
 }
 
@@ -644,6 +650,7 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
     score: item.score,
     reasons: item.reasons,
     uncertainties: item.uncertainties,
+    priority_notes: item.priorityNotes ?? [],
     category: item.canonicalCategory,
     exact_subservice_match: item.exactSubserviceMatch,
   };
@@ -652,8 +659,8 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
 function providerMatchReason(item: ProviderDecisionResult, appointmentType: string, serviceType?: string | null, language = "en") {
   const spanish = language.startsWith("es");
   if (appointmentType === "home-service" && serviceType) {
-    const label = homeServiceTypeLabel(serviceType, spanish ? "es" : "en");
-    return spanish ? `${label} adecuado para esta solicitud` : `${label} matching this request`;
+    const label = homeServiceTypeLabel(serviceType, language);
+    return homeServiceText(language, "{service} matching this request").replace("{service}", label);
   }
   return spanish ? "Coincide con esta solicitud" : "Matches this request";
 }
@@ -942,6 +949,8 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
         provider_source: parsed.data.provider_source,
         provider_snapshot: {
           ...snapshot,
+          verification: null,
+          verification_eligible: false,
           provider_preference_snapshot: ordered.preferenceSnapshot,
           preferred_channel: ordered.preferredChannel,
         },
@@ -994,19 +1003,23 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const serviceIntake = request.appointment_type === "home-service"
       ? homeServiceIntakeFromPreferences(requestPreferences)
       : null;
+    const visitAddress = request.appointment_type === "home-service"
+      ? homeServiceAddressFromPreferences(requestPreferences).trim()
+      : "";
     const discovery = await discoverAppointmentProviderOptions({
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
-      location,
-      language: request.language,
-      maxResults: 12,
+      location: visitAddress ? { address: visitAddress } : location,
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+      // Service eligibility is evaluated below, before the ranked display limit.
+      maxResults: request.appointment_type === "home-service" ? 40 : 12,
       serviceType: serviceIntake?.service_type,
       urgency: serviceIntake?.urgency,
       constraints: serviceIntake?.criteria,
     });
 
     const existingIdentities = new Set(
-      existingOptions.map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
+      (request.appointment_type === "home-service" ? [] : existingOptions).map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
     );
     const nextRank = existingOptions.reduce((max, option) => Math.max(max, option.rank ?? 0), 0) + 1;
     const candidates = discovery.options
@@ -1029,6 +1042,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
           provider_source: option.provider_source,
           provider_snapshot: {
             ...option.provider_snapshot,
+            verification_eligible: true,
             provider_preference_snapshot: ordered.preferenceSnapshot,
             preferred_channel: ordered.preferredChannel,
           },
@@ -1043,7 +1057,17 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
     const allCandidates = [...existingOptions, ...insertedOptions];
-    const decision = decideProviderCandidates(allCandidates.map(optionCandidate), providerDecisionRequest(request));
+    // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
+    const declinedSaved = request.appointment_type === "home-service"
+      ? existingOptions : [];
+    for (const option of declinedSaved) {
+      await db.update(appointmentProviderOptions).set({ status: "excluded" })
+        .where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    }
+    const decision = decideProviderCandidates(
+      allCandidates.filter(option => !declinedSaved.includes(option)).map(optionCandidate),
+      providerDecisionRequest(request),
+    );
     const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
     await Promise.all(allCandidates.map(async (option) => {
       const item = decisionById.get(option.id);
@@ -1115,6 +1139,62 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
   } catch (err) {
     console.error("[appointments POST /requests/:id/discover-options]", err);
     return res.status(500).json({ error: "Could not look for appointment options" });
+  }
+});
+
+const activeProviderChecks = new Set<string>();
+router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || typeof req.params.optionId !== "string") return res.status(400).json({ error: "Invalid request" });
+  const request = await loadRequestForUser(req.params.id, userId);
+  if (!request || request.appointment_type !== "home-service") return res.status(404).json({ error: "Request not found" });
+  const options = await loadOptionsForRequest(request.id, userId, true);
+  // Display ranking may change during an audit or differ after a page refresh.
+  // Eligibility comes from the owned request and public-source guards, not rank.
+  const option = options.find(o => o.id === req.params.optionId && o.status !== "excluded");
+  if (!option) return res.status(404).json({ error: "Provider not found" });
+  const snapshot = recordValue(option.provider_snapshot);
+  // Saved/private contacts must not be submitted to external research services.
+  if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !snapshotText(snapshot, "place_id")) return res.json({ verification: incompleteVerification("Only newly discovered public businesses can be researched.") });
+  const cached = currentVerification(snapshot.verification);
+  const checkedDecision = (verification: NonNullable<typeof cached>) => {
+    const checkedOption = { ...option, provider_snapshot: { ...snapshot, verification } };
+    const item = decideProviderCandidates([optionCandidate(checkedOption)], providerDecisionRequest(request)).ranked[0];
+    return item ? providerDecisionSnapshot(item) : null;
+  };
+  if (cached && !cached.retryable) return res.json({ verification: cached, ranking: checkedDecision(cached) });
+  if (activeProviderChecks.has(option.id)) return res.status(409).json({ error: "Check already in progress" });
+  if (activeProviderChecks.size >= 30) return res.status(429).json({ error: "Verification is busy. Try again later." });
+  activeProviderChecks.add(option.id);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 118000);
+  const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+  res.on("close", disconnect);
+  try {
+    const verification = await verifyProvider({
+      name: snapshotText(snapshot, "name") ?? "",
+      address: snapshotText(snapshot, "address") ?? "",
+      phone: snapshotText(snapshot, "phone") ?? "",
+      website: snapshotText(snapshot, "website_url") ?? "",
+      service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+    }, controller.signal);
+    if (controller.signal.aborted) return;
+    const ranking = checkedDecision(verification);
+    // Merge into the current snapshot so concurrent preference changes survive.
+    await db.update(appointmentProviderOptions).set({
+      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
+      updated_at: new Date(),
+    }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    return res.json({ verification, ranking });
+  } catch {
+    if (!controller.signal.aborted) return res.status(503).json({ error: "Provider checks unavailable" });
+  } finally {
+    clearTimeout(timer);
+    res.off("close", disconnect);
+    activeProviderChecks.delete(option.id);
+    if (!res.writableEnded && !res.destroyed) res.status(504).json({ error: "Provider checks timed out" });
   }
 });
 

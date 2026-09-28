@@ -20,6 +20,9 @@ import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
+import { normalizeAddressCountry as normaliseCountry, addressCountryLabel } from "@/lib/addressCountry";
+import { useLanguage } from "@/i18n";
+import { addressText, type AddressTextKey } from "@/i18n/address";
 import { MapPin, Mic, Loader2, CheckCircle2 } from "lucide-react";
 import {
   applyProfileVoiceCorrection,
@@ -53,29 +56,9 @@ const COUNTRIES = [
   "Ireland", "United States", "Canada", "Australia", "Other",
 ];
 
-// Nominatim country to our list
-function normaliseCountry(raw: string): string {
-  const map: Record<string, string> = {
-    "espana": "Spain", "spain": "Spain",
-    "united kingdom": "United Kingdom", "uk": "United Kingdom", "great britain": "United Kingdom",
-    "france": "France",
-    "germany": "Germany", "deutschland": "Germany",
-    "italy": "Italy", "italia": "Italy",
-    "portugal": "Portugal",
-    "netherlands": "Netherlands", "holland": "Netherlands",
-    "belgium": "Belgium", "belgique": "Belgium",
-    "switzerland": "Switzerland", "schweiz": "Switzerland",
-    "austria": "Austria", "osterreich": "Austria",
-    "ireland": "Ireland", "eire": "Ireland",
-    "united states": "United States", "usa": "United States", "us": "United States",
-    "canada": "Canada",
-    "australia": "Australia",
-  };
-  const key = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-  return map[key] ?? (COUNTRIES.includes(raw) ? raw : "Other");
-}
-
 export default function AddressSection() {
+  const { language } = useLanguage();
+  const copy = useCallback((key: AddressTextKey, params?: Record<string, string | number>) => addressText(language, key, params), [language]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -102,8 +85,8 @@ export default function AddressSection() {
     () =>
       createProfileOnboardingAgentSectionConfig({
         sectionId: "address",
-        sectionLabel: "Home address",
-        voicePrompt: "Tell VYVA your home address.",
+        sectionLabel: copy("Home address"),
+        voicePrompt: copy("Tell VYVA your home address."),
         expectedFields: ["address_line_1", "address_line_2", "city", "region", "postcode", "country"],
         targetIds: {
           addByVoice: "address-add-by-voice",
@@ -111,7 +94,7 @@ export default function AddressSection() {
           reviewSave: "address-review-save",
         },
       }),
-    [],
+    [copy],
   );
   const savedFading = false;
   const retryCountdown = null;
@@ -143,14 +126,14 @@ export default function AddressSection() {
   useEffect(() => {
     const unregister = registerVoiceAction({
       id: "profile-address-voice-capture",
-      label: "Speak it",
+      label: copy("Speak it"),
       description: "Say your home address.",
       sectionConfig: addressAgentSectionConfig,
       targetId: addressAgentSectionConfig.targetIds?.addByVoice,
       onStart: startVoiceAddressCapture,
     });
     return unregister;
-  }, [addressAgentSectionConfig, registerVoiceAction, startVoiceAddressCapture]);
+  }, [addressAgentSectionConfig, copy, registerVoiceAction, startVoiceAddressCapture]);
 
   useEffect(() => {
     if (companionMode !== "voice") {
@@ -163,14 +146,14 @@ export default function AddressSection() {
       draftStatus: voiceDraft ? "parsed-draft" : "idle",
       currentSectionId: addressAgentSectionConfig.sectionId,
       currentSectionLabel: addressAgentSectionConfig.sectionLabel,
-      currentPrompt: voiceDraft ? "Review the address before adding it." : addressAgentSectionConfig.voicePrompt,
+      currentPrompt: voiceDraft ? copy("Review the address before adding it.") : addressAgentSectionConfig.voicePrompt,
       activeTargetId: voiceDraft
         ? addressAgentSectionConfig.targetIds?.draftReview
         : addressAgentSectionConfig.targetIds?.addByVoice,
     });
 
     return () => clearGuidance();
-  }, [addressAgentSectionConfig, clearGuidance, companionMode, parsing, setGuidance, voiceDraft]);
+  }, [addressAgentSectionConfig, clearGuidance, companionMode, copy, parsing, setGuidance, voiceDraft]);
 
   const buildAddressPayload = (current: AddressForm) => ({
     address_line_1: current.address_line_1,
@@ -201,7 +184,7 @@ export default function AddressSection() {
         city:           p.city           ?? prev.city,
         region:         p.region         ?? prev.region,
         postcode:       p.postcode       ?? prev.postcode,
-        country:        (p as AddressForm & { country?: string; country_code?: string }).country_code ?? (p as AddressForm & { country?: string }).country ?? prev.country,
+        country:        normaliseCountry((p as AddressForm & { country_code?: string }).country_code || p.country || prev.country),
       }));
     }
   }, [data]);
@@ -226,7 +209,7 @@ export default function AddressSection() {
   //  Detect my location
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
-      toast({ title: "Location not supported", description: "Your browser doesn't support location detection.", variant: "destructive" });
+      toast({ title: copy("Location not supported"), description: copy("Your browser doesn't support location detection."), variant: "destructive" });
       return;
     }
     setDetecting(true);
@@ -268,15 +251,25 @@ export default function AddressSection() {
 
           const addr = geocoded.address ?? {};
           const country = normaliseCountry(addr.country_code ?? addr.country ?? "");
-          applyAddress({ ...addr, country });
+          if (!addr.address_line_1?.trim() && !addr.city?.trim()) throw new Error("No usable address found");
+          // A new detected location must not inherit a street or postcode from the old one.
+          setForm({
+            address_line_1: addr.address_line_1?.trim() ?? "",
+            address_line_2: addr.address_line_2?.trim() ?? "",
+            city: addr.city?.trim() ?? "",
+            region: addr.region?.trim() ?? "",
+            postcode: addr.postcode?.trim() ?? "",
+            country,
+          });
+          setAutoSaveStatus("idle");
           setLocationAccuracy(Math.round(accuracy));
           setDetected(true);
           toast({
-            title: "Location detected",
-            description: `We found your address within about ${Math.round(accuracy)}m. Please check the house/floor details.`,
+            title: copy("Location detected"),
+            description: copy("We found your address within about {meters}m. Please check the house/floor details.", { meters: Math.round(accuracy) }),
           });
         } catch {
-          toast({ title: "Could not get address", description: "Location was found but we couldn't look up the address. Please fill in manually.", variant: "destructive" });
+          toast({ title: copy("Address lookup unavailable"), description: copy("Your existing address has not changed. Review and save it, or enter a different address manually."), variant: "destructive" });
         } finally {
           setDetecting(false);
         }
@@ -284,9 +277,9 @@ export default function AddressSection() {
       (err) => {
         setDetecting(false);
         const msg = err.code === 1
-          ? "Location permission was denied. Please allow location access and try again."
-          : "Could not detect your location. Please fill in the address manually.";
-        toast({ title: "Location unavailable", description: msg, variant: "destructive" });
+          ? copy("Location permission was denied. Please allow location access and try again.")
+          : copy("Could not detect your location. Please fill in the address manually.");
+        toast({ title: copy("Location unavailable"), description: msg, variant: "destructive" });
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -330,7 +323,7 @@ export default function AddressSection() {
       const addr = data.address ?? {};
       const hasAny = Object.values(addr).some((v) => v && v.trim());
       if (!hasAny) {
-        toast({ title: "Couldn't read the address", description: 'Try speaking more clearly, e.g. "42 Calle Mayor, Zamora, Spain"' });
+        toast({ title: copy("Couldn't read the address"), description: copy("Try speaking more clearly, e.g. \"42 Calle Mayor, Zamora, Spain\"") });
         return;
       }
       if (addr.country) addr.country = normaliseCountry(addr.country);
@@ -340,10 +333,10 @@ export default function AddressSection() {
           voiceStatus: "error",
           draftStatus: "needs-clarification",
           lastHeardText: transcript,
-          error: "VYVA could not find an address in that.",
+          error: copy("VYVA could not find an address in that."),
           activeTargetId: addressAgentSectionConfig.targetIds?.addByVoice,
         });
-        toast({ title: "Couldn't read the address", description: 'Try speaking more clearly, e.g. "42 Calle Mayor, Zamora, Spain"' });
+        toast({ title: copy("Couldn't read the address"), description: copy("Try speaking more clearly, e.g. \"42 Calle Mayor, Zamora, Spain\"") });
         return;
       }
       setVoiceDraft(draft);
@@ -353,9 +346,9 @@ export default function AddressSection() {
         lastHeardText: transcript,
         activeTargetId: addressAgentSectionConfig.targetIds?.draftReview,
       });
-      toast({ title: "Address ready to review", description: "Please check it before adding it to the form." });
+      toast({ title: copy("Address ready to review"), description: copy("Please check it before adding it to the form.") });
     } catch {
-      toast({ title: "Couldn't process your address", description: "Please fill in the fields manually.", variant: "destructive" });
+      toast({ title: copy("Couldn't process your address"), description: copy("Please fill in the fields manually."), variant: "destructive" });
     } finally {
       setParsing(false);
     }
@@ -392,13 +385,14 @@ export default function AddressSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       setAutoSaveStatus("saved");
       setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigate(completePath());
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not save home address", description: msg, variant: "destructive" });
+      toast({ title: copy("Could not save home address"), description: msg, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -407,18 +401,18 @@ export default function AddressSection() {
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="Home address" showBack onBack={() => navigate("/onboarding/profile/group/account")}>
+    <PhoneFrame subtitle={copy("Home address")} showBack onBack={() => navigate("/onboarding/profile/group/account")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
           hideTitle
           icon={MapPin}
-          title="Home address"
-          kicker="Local help"
-          description="VYVA uses your address for safety features, local services, and emergency support only when needed."
+          title={copy("Home address")}
+          kicker={copy("Local help")}
+          description={copy("VYVA uses your address for safety features, local services, and emergency support only when needed.")}
           badges={[
-            { label: "Safety", color: "red" },
-            { label: "Local services", color: "green" },
-            { label: "Private", color: "purple" },
+            { label: copy("Safety"), color: "red" },
+            { label: copy("Local services"), color: "green" },
+            { label: copy("Private"), color: "purple" },
           ]}
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-address-autosave" }}
         />
@@ -450,14 +444,14 @@ export default function AddressSection() {
             </div>
             <div className="min-w-0">
               <p className="home-master-profile-location-title font-body text-[18px] font-black leading-tight" style={{ color: "#15803D" }}>
-                {detecting ? "Detecting..." : detected ? "Location used!" : "Detect my location"}
+                {detecting ? copy("Detecting...") : detected ? copy("Location used!") : copy("Detect my location")}
               </p>
               <p className="home-master-profile-location-copy mt-1 font-body text-[14px] font-semibold" style={{ color: "#16A34A" }}>
                 {detecting
-                  ? "High-accuracy GPS"
+                  ? copy("High-accuracy GPS")
                   : locationAccuracy
-                    ? `Approx. +/-${locationAccuracy}m`
-                    : "Auto-fill from GPS"
+                    ? copy("Approx. +/-{meters}m", { meters: locationAccuracy })
+                    : copy("Auto-fill from GPS")
                 }
               </p>
             </div>
@@ -467,14 +461,14 @@ export default function AddressSection() {
             <OnboardingCompanionTarget targetId="address-add-by-voice">
               <ProfileVoiceAction
                 icon={Mic}
-                title="Speak it"
-                description="Say your address"
+                title={copy("Speak it")}
+                description={copy("Say your address")}
                 onClick={startVoiceAddressCapture}
                 testId="button-address-speak-it"
                 className="min-h-[86px]"
                 disabled={isLoading}
                 busy={parsing}
-                busyLabel="Reading..."
+                busyLabel={copy("Reading...")}
               />
             </OnboardingCompanionTarget>
           ) : null}
@@ -484,9 +478,9 @@ export default function AddressSection() {
           <OnboardingCompanionTarget targetId="address-voice-draft">
             <ProfileVoiceDraftReview
               draft={voiceDraft}
-              confirmLabel="Add address"
-              tryAgainLabel="Try again"
-              dismissLabel="Dismiss"
+              confirmLabel={copy("Add address")}
+              tryAgainLabel={copy("Try again")}
+              dismissLabel={copy("Dismiss")}
               onConfirm={confirmVoiceDraft}
               onTryAgain={startVoiceAddressCapture}
               onDismiss={() => setVoiceDraft(null)}
@@ -506,17 +500,17 @@ export default function AddressSection() {
         {/* Divider with label */}
         <div className="flex items-center gap-2">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-[11px] text-gray-400 font-medium">or fill in below</span>
+          <span className="text-[11px] text-gray-400 font-medium">{copy("or fill in below")}</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
 
         {/*  Address fields  */}
         <div className="space-y-1.5">
-          <Label className="text-[15px] font-extrabold text-gray-700">Street address</Label>
+          <Label className="text-[15px] font-extrabold text-gray-700">{copy("Street address")}</Label>
           {isLoading ? <FieldSkeleton /> : (
             <Input
               data-testid="input-address-line1"
-              placeholder="House number & street name"
+              placeholder={copy("House number & street name")}
               value={form.address_line_1}
               onChange={(e) => set("address_line_1", e.target.value)}
               className={seniorInputClassName}
@@ -525,11 +519,11 @@ export default function AddressSection() {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-[15px] font-extrabold text-gray-700">Floor / apartment <span className="font-normal text-gray-400">(optional)</span></Label>
+          <Label className="text-[15px] font-extrabold text-gray-700">{copy("Floor / apartment")} <span className="font-normal text-gray-400">{copy("(optional)")}</span></Label>
           {isLoading ? <FieldSkeleton /> : (
             <Input
               data-testid="input-address-line2"
-              placeholder="Floor, flat number, building name"
+              placeholder={copy("Floor, flat number, building name")}
               value={form.address_line_2}
               onChange={(e) => set("address_line_2", e.target.value)}
               className={seniorInputClassName}
@@ -539,11 +533,11 @@ export default function AddressSection() {
 
         <div className="grid grid-cols-1 gap-4 min-[620px]:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-[15px] font-extrabold text-gray-700">City / Town</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">{copy("City / Town")}</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-city"
-                placeholder="e.g. Zamora"
+                placeholder="Zamora"
                 value={form.city}
                 onChange={(e) => set("city", e.target.value)}
                 className={seniorInputClassName}
@@ -551,11 +545,11 @@ export default function AddressSection() {
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[15px] font-extrabold text-gray-700">Postcode</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">{copy("Postcode")}</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-postcode"
-                placeholder="e.g. 49001"
+                placeholder="49001"
                 value={form.postcode}
                 onChange={(e) => set("postcode", e.target.value)}
                 className={seniorInputClassName}
@@ -566,11 +560,11 @@ export default function AddressSection() {
 
         <div className="grid grid-cols-1 gap-4 min-[620px]:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-[15px] font-extrabold text-gray-700">Region / Province</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">{copy("Region / Province")}</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Input
                 data-testid="input-address-region"
-                placeholder="e.g. Castilla y Leon"
+                placeholder="Castilla y León"
                 value={form.region}
                 onChange={(e) => set("region", e.target.value)}
                 className={seniorInputClassName}
@@ -578,7 +572,7 @@ export default function AddressSection() {
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[15px] font-extrabold text-gray-700">Country</Label>
+            <Label className="text-[15px] font-extrabold text-gray-700">{copy("Country")}</Label>
             {isLoading ? <FieldSkeleton /> : (
               <Select value={form.country} onValueChange={(v) => set("country", v)}>
                 <SelectTrigger data-testid="select-address-country" className={seniorInputClassName}>
@@ -586,7 +580,7 @@ export default function AddressSection() {
                 </SelectTrigger>
                 <SelectContent>
                   {COUNTRIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>{c === "Other" ? copy("Other") : addressCountryLabel(c, language)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -603,7 +597,7 @@ export default function AddressSection() {
             disabled={saving || isLoading}
             className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]"
           >
-            {saving ? "Saving..." : "Save home address"}
+            {saving ? copy("Saving...") : copy("Save home address")}
           </Button>
           </OnboardingCompanionTarget>
         </div>
@@ -612,8 +606,8 @@ export default function AddressSection() {
       {/* SpeakIt overlay */}
       {speakItOpen && (
         <SpeakItOverlay
-          title="Say your home address"
-          hint='e.g. "42 Calle Mayor, Zamora, 49001, Spain"'
+          title={copy("Say your home address")}
+          hint={copy("Try speaking more clearly, e.g. \"42 Calle Mayor, Zamora, Spain\"")}
           onDone={handleSpeakItDone}
           onCancel={() => setSpeakItOpen(false)}
         />

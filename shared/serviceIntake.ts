@@ -1,3 +1,6 @@
+import { multilingualHomeServiceTerms } from "./homeServiceSearch.js";
+import { homeServiceText } from "./homeServiceText.js";
+
 export const HOME_SERVICE_INTAKE_VERSION = "home-service-intake-v1";
 
 export type ServiceIntakeOrigin = "voice" | "app";
@@ -31,10 +34,8 @@ export const HOME_SERVICE_TYPES: Array<{
 
 export const HOME_SERVICE_COMMON_CRITERIA = [
   { key: "fastest", en: "Fastest help", es: "Mas rapido" },
-  { key: "trusted", en: "Most trusted", es: "Mas fiable" },
   { key: "lowest_cost", en: "Lower cost", es: "Mejor precio" },
   { key: "highest_rated", en: "Highest rated", es: "Mejor valorado" },
-  { key: "senior_safe", en: "Senior-safe", es: "Seguro para mayores" },
   { key: "not_sure", en: "Not sure", es: "No lo se" },
 ] as const;
 
@@ -57,7 +58,7 @@ export interface HomeServiceQuestion {
   en: string;
   es: string;
   kind: HomeServiceQuestionKind;
-  options?: Array<{ key: string; en: string; es: string }>;
+  options?: ReadonlyArray<{ key: string; en: string; es: string }>;
   placeholderEn?: string;
   placeholderEs?: string;
 }
@@ -75,8 +76,8 @@ const URGENCY_QUESTIONS: HomeServiceQuestion[] = [
 const FINISHING_QUESTIONS: HomeServiceQuestion[] = [
   {
     key: "criteria",
-    en: "What matters most?",
-    es: "Que importa mas?",
+    en: "What matters to you?",
+    es: "Que es importante para ti?",
     kind: "choice",
     options: HOME_SERVICE_COMMON_CRITERIA,
   },
@@ -244,13 +245,13 @@ export function normalizeHomeServiceUrgency(value: unknown): HomeServiceUrgency 
 export function homeServiceTypeLabel(type: HomeServiceType | string | null | undefined, language = "en") {
   const normalized = normalizeHomeServiceType(type);
   const entry = HOME_SERVICE_TYPES.find((item) => item.key === normalized) ?? HOME_SERVICE_TYPES[HOME_SERVICE_TYPES.length - 1];
-  return language.startsWith("es") ? entry.es : entry.en;
+  return homeServiceText(language, entry.en, entry.es);
 }
 
 function optionLabel(question: HomeServiceQuestion, value: string, language: string) {
   const option = question.options?.find((item) => item.key === value);
   if (!option) return value;
-  return language.startsWith("es") ? option.es : option.en;
+  return homeServiceText(language, option.en, option.es);
 }
 
 function clean(value: unknown): string {
@@ -277,7 +278,7 @@ function compactCriteria(value: unknown): string[] {
 
 export function homeServiceSearchTerms(type: HomeServiceType | string | null | undefined): string[] {
   const normalized = normalizeHomeServiceType(type);
-  return HOME_SERVICE_TYPES.find((item) => item.key === normalized)?.searchTerms ?? [];
+  return [...new Set([...(HOME_SERVICE_TYPES.find((item) => item.key === normalized)?.searchTerms ?? []), ...multilingualHomeServiceTerms(normalized)])];
 }
 
 export function detectHomeServiceSafetyFlags(input: {
@@ -325,7 +326,7 @@ export function buildHomeServiceResearchBrief(input: {
       if (question.key === "service_needed" && customServiceLabel) return "";
       const value = question.key === "urgency" ? urgency : answers[question.key];
       if (!value) return "";
-      const label = language.startsWith("es") ? question.es : question.en;
+      const label = homeServiceText(language, question.en, question.es);
       return `${label}: ${optionLabel(question, value, language)}`;
     })
     .filter(Boolean);
