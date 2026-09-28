@@ -1844,39 +1844,6 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
           </section>
         ) : null}
 
-        {false ? (
-          <section className="medication-hub-card rounded-[26px] border border-[#E6DCEB] bg-white p-5 shadow-[0_12px_32px_rgba(63,45,75,0.06)]" aria-labelledby="medication-today-heading" data-testid="section-medication-timeline">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="medication-hub-kicker font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">Today</p>
-                <h2 id="medication-today-heading" className="medication-hub-title mt-1 font-body text-[23px] font-black text-[#241238]">Your medicine plan</h2>
-              </div>
-              <span className="medication-hub-muted font-body text-[14px] font-bold text-vyva-text-2">{totalTakenDoseCount} of {totalScheduledDoseCount} recorded</span>
-            </div>
-            <div className="mt-4 space-y-2">
-              {displayMeds.map((med) => {
-                const taken = isMedTaken(med);
-                return (
-                  <article key={med.id} className={`medication-timeline-row flex min-h-[72px] items-center gap-3 rounded-[19px] border px-3 py-3 ${taken ? "border-[#BDEBD8] bg-[#F0FDFA]" : "border-[#E8DED4] bg-[#FFFCF8]"}`}>
-                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${taken ? "bg-[#D1FAE5] text-[#0F766E]" : "bg-[#FFF4CF] text-[#9A6500]"}`}>
-                      {taken ? <Check size={20} strokeWidth={2.7} aria-hidden="true" /> : <Clock size={20} strokeWidth={2.5} aria-hidden="true" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="medication-hub-title truncate font-body text-[17px] font-black text-vyva-text-1">{med.displayName}</h3>
-                      <p className="medication-hub-muted mt-0.5 font-body text-[14px] font-semibold text-vyva-text-2">{med.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")} · {formatRelativeDoseTime(med.scheduledTimeForApi)}</p>
-                    </div>
-                    {taken ? (
-                      <span className="rounded-full bg-[#D1FAE5] px-3 py-1.5 font-body text-[13px] font-black text-[#0F766E]">Taken</span>
-                    ) : (
-                      <button type="button" onClick={() => confirmMutation.mutate(med)} disabled={confirmMutation.isPending} className="vyva-tap min-h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[14px] font-black text-white disabled:opacity-60">Taken</button>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
         <section className="medication-hub-card rounded-[26px] border border-[#E6DCEB] bg-white p-5 shadow-[0_12px_32px_rgba(63,45,75,0.06)]" aria-labelledby="medication-list-heading" data-testid="section-medication-list-summary">
           <div className="flex items-center justify-between gap-3">
             <h2 id="medication-list-heading" className="medication-hub-title font-body text-[23px] font-black text-[#241238]">My medicines</h2>
