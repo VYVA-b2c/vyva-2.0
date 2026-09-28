@@ -107,6 +107,26 @@ describe("provider verification wait", () => {
     expect(screen.getByText("Price information is unavailable; your job needs a quote.")).toBeVisible();
   });
 
+  it("translates saved evidence diagnostics when switching through every supported language", async () => {
+    const diagnostic = "Some retrieved evidence was malformed or exceeded limits and was excluded.";
+    const verification = { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [diagnostic], concerns: [], retryable: false };
+    const savedOptions = [{ id: "one", provider_snapshot: { verification } }];
+    const visible = vi.fn();
+    const view = render(<ProviderVerificationPanel requestId="request" options={savedOptions} selectedId="one" isSpanish={false} language="en" onResultsVisible={visible} />);
+    await screen.findByText(diagnostic);
+    fireEvent.click(screen.getByText("What we checked"));
+    for (const language of ["fr", "es", "de", "it", "pt", "en"]) {
+      view.rerender(<ProviderVerificationPanel requestId="request" options={savedOptions} selectedId="one" isSpanish={language === "es"} language={language} onResultsVisible={visible} />);
+      const translated = homeServiceText(language, diagnostic);
+      expect(screen.getByText(translated)).toBeVisible();
+      if (language !== "en") {
+        expect(translated).not.toBe(diagnostic);
+        expect(screen.queryByText(diagnostic)).not.toBeInTheDocument();
+      }
+    }
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
   it("does not restart audits when ranking changes option order", async () => {
     const verification = { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: [], concerns: [], retryable: false };
     const initial = ["one", "two", "three", "four"].map((id, i) => ({ id, provider_snapshot: { verification, provider_decision: { score: 100 + i, priority_notes: [] } } }));
