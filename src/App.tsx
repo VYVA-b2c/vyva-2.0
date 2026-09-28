@@ -1290,6 +1290,7 @@ const App = () => (
                     <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                    <Route path="/dev/home-master/settings" element={<AppShell><SettingsHome /></AppShell>} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />
                     <Route path="/dev/profile-overview/group/:groupId" element={<ProfileGroupPage preview />} />
                     <Route path="/dev/profile-overview/section/:id" element={<SectionRouter />} />

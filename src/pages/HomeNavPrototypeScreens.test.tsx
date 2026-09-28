@@ -424,6 +424,7 @@ describe("Home/Nav prototype screens", () => {
     fireEvent.click(screen.getByTestId("button-profile-care-team"));
     fireEvent.click(screen.getByTestId("button-profile-providers"));
     fireEvent.click(screen.getByTestId("button-profile-accessibility"));
+    fireEvent.click(screen.getByTestId("button-profile-settings"));
 
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/account");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/health");
@@ -432,6 +433,7 @@ describe("Home/Nav prototype screens", () => {
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/care-team");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/providers");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/preferences");
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/settings");
   });
 
   it("renders Preferences as a local profile sub-screen with changeable preference rows", () => {
