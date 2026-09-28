@@ -1150,7 +1150,9 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
   const request = await loadRequestForUser(req.params.id, userId);
   if (!request || request.appointment_type !== "home-service") return res.status(404).json({ error: "Request not found" });
   const options = await loadOptionsForRequest(request.id, userId, true);
-  const option = options.filter(o => o.status !== "excluded").sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).slice(0, 3).find(o => o.id === req.params.optionId);
+  // Display ranking may change during an audit or differ after a page refresh.
+  // Eligibility comes from the owned request and public-source guards, not rank.
+  const option = options.find(o => o.id === req.params.optionId && o.status !== "excluded");
   if (!option) return res.status(404).json({ error: "Provider not found" });
   const snapshot = recordValue(option.provider_snapshot);
   // Saved/private contacts must not be submitted to external research services.
