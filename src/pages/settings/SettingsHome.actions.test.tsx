@@ -55,18 +55,15 @@ describe("SettingsHome action rows", () => {
     expect(screen.queryByTestId("settings-hero")).not.toBeInTheDocument();
   });
 
-  it("returns to the canonical profile instead of the legacy account page", () => {
+  it("does not duplicate Profile inside Settings", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
-        <Routes>
-          <Route path="/settings" element={<SettingsHome />} />
-          <Route path="/onboarding/profile" element={<div data-testid="canonical-profile-route">Profile</div>} />
-        </Routes>
+        <SettingsHome />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByTestId("button-settings-profile"));
-    expect(screen.getByTestId("canonical-profile-route")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-settings-profile")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Notifications & support" })).toBeInTheDocument();
   });
 
   it("turns delete account into a safe support request action", () => {

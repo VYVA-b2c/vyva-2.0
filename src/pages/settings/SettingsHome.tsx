@@ -9,7 +9,6 @@ import {
   CreditCard,
   Download,
   FileText,
-  HeartPulse,
   Handshake,
   Info,
   Lock,
@@ -18,7 +17,6 @@ import {
   Shield,
   Star,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import {
   CanonicalDetailFlowShell,
@@ -260,16 +258,7 @@ export default function SettingsHome() {
     >
       <div data-testid="settings-home-grid" className="mx-auto grid w-full max-w-[760px] gap-4 pb-6 md:grid-cols-2 md:items-start">
 
-        <Section title={t("settings.home.sections.account")}>
-          <Row
-            icon={UserRound}
-            iconBg="#F5F0FF"
-            iconColor="#6B21A8"
-            title="Profile"
-            sub="Personal, health, medication and care details"
-            onClick={() => navigate(profilePath)}
-            data-testid="button-settings-profile"
-          />
+        <Section title="Notifications & support">
           <Row
             icon={Bell}
             iconBg="#EEF4FF"
