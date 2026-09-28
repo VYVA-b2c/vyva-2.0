@@ -44,6 +44,7 @@ Create a local `.env` file for secrets. The app expects these variables dependin
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `GOOGLE_PLACES_API_KEY`
+- `WEBSITE_LEAD_SYNC_SECRET` for server-to-server website lead ingestion into admin marketing contacts
 - `MEM0_API_KEY` optional
 
 Server integration tests are skipped unless `DATABASE_URL` is present.

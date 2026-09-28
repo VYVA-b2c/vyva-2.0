@@ -61,6 +61,7 @@ import adminLearningRouter from "./routes/adminLearning.js";
 import adminContentIndexRouter from "./routes/adminContentIndex.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import { adminMarketingRouter } from "./routes/adminMarketing.js";
+import websiteLeadIntegrationRouter from "./routes/websiteLeadIntegration.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import {
@@ -262,6 +263,7 @@ app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
 app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioWebhooksRouter);
 app.use("/api/public/whatsapp-private-checkins", publicWhatsappCheckinRouter);
 app.use("/api/integrations/care-operations/whatsapp-private-checkins", careOperationsWhatsappRouter);
+app.use("/api/integrations/website-leads", websiteLeadIntegrationRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/vyva-demo", vyvaDemoRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
