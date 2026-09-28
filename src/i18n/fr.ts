@@ -2050,6 +2050,16 @@ const fr = {
     },
   },
   concierge: {
+    master: { picker: { getHelp: {
+      title: "Obtenir de l'aide",
+      voiceContext: "Demandez de quelle aide la personne a besoin. Ne contactez personne et ne réservez rien sans confirmation.",
+      options: {
+        homeRepair: "Dépannage à domicile", homeRepairDetail: "Plombier, électricien, ménage",
+        healthcare: "Santé", healthcareDetail: "Trouver un spécialiste ou une aide médicale",
+        adminService: "Aide administrative", adminServiceDetail: "Formulaires, courriers et démarches",
+        homeCare: "Aide à domicile", homeCareDetail: "Comparer les aidants ou les établissements",
+      },
+    } } },
     fastHelp: {
       ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
       actions: {

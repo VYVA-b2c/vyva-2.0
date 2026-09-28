@@ -2,10 +2,23 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProviderVerificationPanel } from "./ProviderVerificationPanel";
 import { apiFetch } from "@/lib/queryClient";
+import { homeServiceText } from "../../shared/homeServiceText";
 vi.mock("@/lib/queryClient", () => ({ apiFetch: vi.fn() }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 const options = [{ id: "one", provider_snapshot: {} }];
 describe("provider verification wait", () => {
+  it.each(["es", "fr", "de", "it", "pt"])("changes labels to %s without restarting verification", async language => {
+    vi.mocked(apiFetch).mockRejectedValue(new Error("Unavailable"));
+    const visible = vi.fn();
+    const view = render(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={false} language="en" onResultsVisible={visible} />);
+    await screen.findByText("Retry checks");
+    view.rerender(<ProviderVerificationPanel requestId="request" options={options} selectedId="one" isSpanish={language === "es"} language={language} onResultsVisible={visible} />);
+    expect(screen.getByText(homeServiceText(language, "Retry checks"))).toBeInTheDocument();
+    expect(screen.getByText(homeServiceText(language, "What we checked"))).toBeInTheDocument();
+    expect(screen.getByText(homeServiceText(language, "The verification service is unavailable. This provider is not verified."))).toBeInTheDocument();
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(visible).toHaveBeenCalledTimes(2);
+  });
   it("reveals results on service failure instead of pretending checks are running", async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error("Unavailable"));
     const visible = vi.fn();

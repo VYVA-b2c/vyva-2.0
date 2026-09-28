@@ -1754,6 +1754,16 @@ const it = {
     },
   },
   concierge: {
+    master: { picker: { getHelp: {
+      title: "Ricevi aiuto",
+      voiceContext: "Chiedi di quale aiuto ha bisogno la persona. Non contattare né prenotare nessuno senza conferma.",
+      options: {
+        homeRepair: "Riparazioni domestiche", homeRepairDetail: "Idraulico, elettricista, pulizie",
+        healthcare: "Salute", healthcareDetail: "Trova uno specialista o assistenza sanitaria",
+        adminService: "Assistenza amministrativa", adminServiceDetail: "Moduli, lettere e pratiche burocratiche",
+        homeCare: "Assistenza domiciliare", homeCareDetail: "Confronta assistenti o strutture di cura",
+      },
+    } } },
     fastHelp: {
       ridePrefill: "Aiutami a trovare opzioni di trasporto sicuro. Chiedi destinazione e orario, prepara opzioni chiare e non prenotare nulla senza la mia conferma.",
       actions: {

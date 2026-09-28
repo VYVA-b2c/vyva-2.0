@@ -1,4 +1,5 @@
 import { multilingualHomeServiceTerms } from "./homeServiceSearch.js";
+import { homeServiceText } from "./homeServiceText.js";
 
 export const HOME_SERVICE_INTAKE_VERSION = "home-service-intake-v1";
 
@@ -244,13 +245,13 @@ export function normalizeHomeServiceUrgency(value: unknown): HomeServiceUrgency 
 export function homeServiceTypeLabel(type: HomeServiceType | string | null | undefined, language = "en") {
   const normalized = normalizeHomeServiceType(type);
   const entry = HOME_SERVICE_TYPES.find((item) => item.key === normalized) ?? HOME_SERVICE_TYPES[HOME_SERVICE_TYPES.length - 1];
-  return language.startsWith("es") ? entry.es : entry.en;
+  return homeServiceText(language, entry.en, entry.es);
 }
 
 function optionLabel(question: HomeServiceQuestion, value: string, language: string) {
   const option = question.options?.find((item) => item.key === value);
   if (!option) return value;
-  return language.startsWith("es") ? option.es : option.en;
+  return homeServiceText(language, option.en, option.es);
 }
 
 function clean(value: unknown): string {
@@ -325,7 +326,7 @@ export function buildHomeServiceResearchBrief(input: {
       if (question.key === "service_needed" && customServiceLabel) return "";
       const value = question.key === "urgency" ? urgency : answers[question.key];
       if (!value) return "";
-      const label = language.startsWith("es") ? question.es : question.en;
+      const label = homeServiceText(language, question.en, question.es);
       return `${label}: ${optionLabel(question, value, language)}`;
     })
     .filter(Boolean);

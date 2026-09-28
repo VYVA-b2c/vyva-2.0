@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
 import { currentVerification } from "../../shared/providerVerification.js";
+import { requestDisplayLanguage } from "../../shared/language.js";
+import { homeServiceText } from "../../shared/homeServiceText.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -657,8 +659,8 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
 function providerMatchReason(item: ProviderDecisionResult, appointmentType: string, serviceType?: string | null, language = "en") {
   const spanish = language.startsWith("es");
   if (appointmentType === "home-service" && serviceType) {
-    const label = homeServiceTypeLabel(serviceType, spanish ? "es" : "en");
-    return spanish ? `${label} adecuado para esta solicitud` : `${label} matching this request`;
+    const label = homeServiceTypeLabel(serviceType, language);
+    return homeServiceText(language, "{service} matching this request").replace("{service}", label);
   }
   return spanish ? "Coincide con esta solicitud" : "Matches this request";
 }
@@ -1008,7 +1010,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
       location: visitAddress ? { address: visitAddress } : location,
-      language: request.language,
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
       // Service eligibility is evaluated below, before the ranked display limit.
       maxResults: request.appointment_type === "home-service" ? 40 : 12,
       serviceType: serviceIntake?.service_type,
@@ -1174,6 +1176,7 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
       phone: snapshotText(snapshot, "phone") ?? "",
       website: snapshotText(snapshot, "website_url") ?? "",
       service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
     }, controller.signal);
     if (controller.signal.aborted) return;
     const ranking = checkedDecision(verification);

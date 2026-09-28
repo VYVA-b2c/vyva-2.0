@@ -194,7 +194,6 @@ export function buildProfileIdentityPayload(form: IdentityBasicsForm) {
     phone: buildPhoneNumber(form.phoneCountry, form.phoneLocal),
     email: form.email.trim(),
     language: form.language,
-    country: form.phoneCountry,
   };
 }
 

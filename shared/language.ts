@@ -29,3 +29,7 @@ export function languageName(language: string | null | undefined): string {
     pt: "Portuguese",
   });
 }
+
+export function requestDisplayLanguage(header: string | undefined, savedLanguage: string | null | undefined): AppLanguage {
+  return normalizeAppLanguage(header, normalizeAppLanguage(savedLanguage, "es"));
+}

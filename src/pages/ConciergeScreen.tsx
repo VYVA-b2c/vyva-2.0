@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
 import { HomeProviderDetails } from "@/components/HomeProviderDetails";
+import { homeHelpCopy } from "../../shared/homeHelpCopy";
+import { homeServiceText } from "../../shared/homeServiceText";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1900,12 +1902,12 @@ const HOME_SERVICE_VOICE_ANSWER_KEYS = [
   "criteria",
 ] as const;
 
-function homeServiceTextFromQuestion(question: HomeServiceQuestion, isSpanish: boolean) {
-  return isSpanish ? question.es : question.en;
+function homeServiceTextFromQuestion(question: HomeServiceQuestion, locale: string) {
+  return homeServiceText(locale, question.en, question.es);
 }
 
-function homeServiceOptionText(option: { en: string; es: string }, isSpanish: boolean) {
-  return isSpanish ? option.es : option.en;
+function homeServiceOptionText(option: { en: string; es: string }, locale: string) {
+  return homeServiceText(locale, option.en, option.es);
 }
 
 function chatHistoryKey(locale: string) {
@@ -3515,37 +3517,41 @@ function appointmentProviderDecision(option: AppointmentProviderOption | null | 
   return value && typeof value === "object" && !Array.isArray(value) ? value as AppointmentProviderDecision : {};
 }
 
-function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isSpanish: boolean): string {
+function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isSpanish: boolean, language = isSpanish ? "es" : "en"): string {
+  const copy = (text: string) => homeServiceText(language, text);
   const snapshot = option.provider_snapshot;
   const rating = typeof snapshot.rating === "number" ? snapshot.rating.toFixed(1) : "";
   const reviews = typeof snapshot.review_count === "number" ? snapshot.review_count : null;
-  const opening = appointmentSnapshotText(option, "opening_status");
+  const opening = typeof snapshot.open_now === "boolean"
+    ? copy(snapshot.open_now ? "Open now" : "Closed now")
+    : copy(appointmentSnapshotText(option, "opening_status"));
   const decision = appointmentProviderDecision(option);
   const priorityNotes = decision.priority_notes ?? [];
   const priorityGaps = [
-    priorityNotes.some(note => note.startsWith("Price information is unavailable")) ? (isSpanish ? "Precio por confirmar" : "Price to be confirmed") : "",
-    priorityNotes.some(note => note.includes("job availability is unconfirmed") || note.startsWith("No confirmed timing evidence")) ? (isSpanish ? "Disponibilidad por confirmar" : "Availability unconfirmed") : "",
+    priorityNotes.some(note => note.startsWith("Price information is unavailable")) ? copy("Price to be confirmed") : "",
+    priorityNotes.some(note => note.includes("job availability is unconfirmed") || note.startsWith("No confirmed timing evidence")) ? copy("Availability unconfirmed") : "",
   ].filter(Boolean);
   const parts = [
-    rating ? `${rating}${reviews !== null ? ` (${reviews} ${isSpanish ? "resenas" : "reviews"})` : ""}` : "",
+    rating ? `${rating}${reviews !== null ? ` (${reviews} ${copy("reviews")})` : ""}` : "",
     opening,
-    ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1)),
+    ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1).map(copy)),
   ].filter(Boolean);
-  return parts.join(" · ") || (isSpanish ? "Disponibilidad y precio por confirmar" : "Availability and price to be confirmed");
+  return parts.join(" · ") || copy("Availability and price to be confirmed");
 }
 
-function homeServiceCanvasOptionDescription(option: AppointmentProviderOption, isSpanish: boolean): string {
+function homeServiceCanvasOptionDescription(option: AppointmentProviderOption, language: string): string {
+  const copy = (text: string) => homeServiceText(language, text);
   const value = (...keys: string[]) => keys.map((key) => appointmentSnapshotText(option, key)).find(Boolean) || "";
-  const unknown = isSpanish ? "No indicado" : "Unknown";
+  const unknown = copy("Unknown");
   const availability = appointmentOptionAvailability(option) || unknown;
   const price = value("call_out_fee", "callout_fee", "price", "price_or_advantage") || unknown;
   const distance = value("distance", "distance_text", "distance_or_availability") || unknown;
   const reputation = value("rating", "reputation", "trust_note") || unknown;
   return [
-    `${isSpanish ? "Disponibilidad" : "Availability"}: ${availability}`,
-    `${isSpanish ? "Precio" : "Price"}: ${price}`,
-    `${isSpanish ? "Distancia" : "Distance"}: ${distance}`,
-    `${isSpanish ? "Reputacion" : "Reputation"}: ${reputation}`,
+    `${copy("Availability")}: ${copy(availability)}`,
+    `${copy("Price")}: ${price}`,
+    `${copy("Distance")}: ${distance}`,
+    `${copy("Reputation")}: ${reputation}`,
   ].join(" · ");
 }
 
@@ -11000,32 +11006,22 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       });
 
       if (result.options.length > 0) {
-        setAppointmentNotice(isSpanish
-          ? "He encontrado opciones. Elige una antes de contactar."
-          : "I found options. Choose one before contacting.");
+        setAppointmentNotice(homeServiceText(locale, "I found options. Choose one before contacting."));
         return;
       }
       if (result.discovery?.fallback_reason === "address_unresolved") {
-        setAppointmentError(isSpanish
-          ? "No hemos podido localizar esta direccion. Revisa la ciudad, el codigo postal y el pais antes de volver a buscar."
-          : "We couldn't locate this address. Check the city, postal code and country before searching again.");
+        setAppointmentError(homeServiceText(locale, "We couldn't locate this address. Check the city, postal code and country before searching again."));
         return;
       }
       if (result.discovery?.fallback_reason === "geocoding_unavailable" || result.discovery?.fallback_reason === "google_places_unavailable") {
-        setAppointmentError(isSpanish
-          ? "El servicio de busqueda no esta disponible. No hemos podido completar la busqueda; esto no significa que no haya proveedores."
-          : "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers.");
+        setAppointmentError(homeServiceText(locale, "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers."));
         return;
       }
       if (result.discovery?.fallback_reason === "google_places_not_configured") {
-        setAppointmentNotice(isSpanish
-          ? "La busqueda externa aun no esta configurada. Puedo prepararlo por chat."
-          : "External search is not configured yet. I can still prepare this in chat.");
+        setAppointmentNotice(homeServiceText(locale, "External search is not configured yet. I can still prepare this in chat."));
         return;
       }
-      setAppointmentNotice(isSpanish
-        ? "No he encontrado una opcion clara. Puedo prepararlo por chat."
-        : "I did not find a clear option. I can still prepare this in chat.");
+      setAppointmentNotice(homeServiceText(locale, "I did not find a clear option. I can still prepare this in chat."));
     },
     onError: (error) => {
       if (isFeatureAccessVerificationError(error)) {
@@ -12205,15 +12201,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     : 0;
   const homeServiceProgressLabel = homeServiceQuestions.length > 0
     ? (isHomeServiceIntakeComplete
-      ? (isSpanish ? "Listo" : "Ready")
-      : isSpanish
-        ? `Paso ${homeServiceCurrentStep} de ${homeServiceQuestions.length}`
-        : `Step ${homeServiceCurrentStep} of ${homeServiceQuestions.length}`)
+      ? homeServiceText(locale, "Ready")
+      : homeServiceText(locale, "Step {current} of {total}").replace("{current}", String(homeServiceCurrentStep)).replace("{total}", String(homeServiceQuestions.length)))
     : "";
   const homeServiceCompletedLabel = homeServiceQuestions.length > 0
-    ? (isSpanish
-      ? `${answeredHomeServiceQuestionCount} de ${homeServiceQuestions.length} listo`
-      : `${answeredHomeServiceQuestionCount} of ${homeServiceQuestions.length} done`)
+    ? homeServiceText(locale, "{current} of {total} done").replace("{current}", String(answeredHomeServiceQuestionCount)).replace("{total}", String(homeServiceQuestions.length))
     : "";
   const homeServiceNeededLabel = homeServiceType === "other" && homeServiceIntakeAnswers.service_needed && homeServiceIntakeAnswers.service_needed !== "skip"
     ? homeServiceIntakeAnswers.service_needed.trim()
@@ -16222,9 +16214,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentOptions.map((option) => ({
       id: option.id,
       label: appointmentOptionName(option, isSpanish),
-      description: homeServiceCanvasOptionDescription(option, isSpanish),
+      description: homeServiceCanvasOptionDescription(option, locale),
     }))
-  ), [appointmentOptions, isSpanish]);
+  ), [appointmentOptions, isSpanish, locale]);
   const homeServiceCanvasSelectedOption = homeServiceCanvasOptions.find((option) => option.id === selectedAppointmentOptionId)
     ?? homeServiceCanvasOptions[0]
     ?? null;
@@ -19832,10 +19824,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           <AppointmentContainer
             Icon={AppointmentPanelIcon}
             kicker={isHomeServiceAppointment ? null : appointmentPanelKicker}
-            title={isHomeServiceAppointment ? (homeServiceNeededLabel || (homeServiceType ? homeServiceTypeLabel(homeServiceType, locale) : (isSpanish ? "Elige un servicio" : "Choose a service"))) : appointmentPanelTitle}
+            title={isHomeServiceAppointment ? (homeServiceNeededLabel || (homeServiceType ? homeServiceTypeLabel(homeServiceType, locale) : (homeServiceText(locale, "Choose a service")))) : appointmentPanelTitle}
             titleId="appointment-assistant-title"
             onClose={() => isHomeServiceAppointment ? navigate("/concierge/get-help") : setAppointmentOpen(false)}
-            closeLabel={isSpanish ? "Cerrar" : "Close"}
+            closeLabel={homeServiceText(locale, "Close")}
             panelTestId="panel-appointment-assistant"
             body={isHomeServiceIntakeActive ? "tight" : "normal"}
           >
@@ -19843,13 +19835,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
             {isHomeServiceAppointment && showEarlySavedHomeProvider && !homeSearchBusy && (
               <div className="px-3 py-6 sm:px-4" data-testid="panel-home-service-saved-first">
-                <p className="font-body text-[13px] font-semibold text-vyva-purple">{isSpanish ? "Tu proveedor de confianza" : "Your trusted provider"}</p>
+                <p className="font-body text-[13px] font-semibold text-vyva-purple">{homeServiceText(locale, "Your trusted provider")}</p>
                 <h2 className="mt-3 font-display text-[24px] font-semibold text-vyva-text-1">{savedHomeServiceProvider}</h2>
                 <button type="button" className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-6`} onClick={() => setHomeProviderChoice({ service: homeServiceType!, choice: "saved" })}>
-                  {isSpanish ? "Continuar con este proveedor" : "Continue with this provider"}
+                  {homeServiceText(locale, "Continue with this provider")}
                 </button>
                 <button type="button" className="vyva-tap mt-3 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4" onClick={() => setHomeProviderChoice({ service: homeServiceType!, choice: "search" })}>
-                  {isSpanish ? "Buscar otro profesional" : "Find someone else"}
+                  {homeServiceText(locale, "Find someone else")}
                 </button>
               </div>
             )}
@@ -19876,10 +19868,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
                       <div className="pt-4">
                         <p className="font-body text-[20px] font-black leading-[1.12] text-vyva-text-1">
-                          {homeServiceTextFromQuestion(activeHomeServiceQuestion, isSpanish)}
+                          {homeServiceTextFromQuestion(activeHomeServiceQuestion, locale)}
                         </p>
                         {activeHomeServiceQuestion.key === "criteria" ? (
-                          <HomeServicePriorities isSpanish={isSpanish} onContinue={value => setHomeServiceAnswer("criteria", value)} />
+                          <HomeServicePriorities isSpanish={isSpanish} language={locale} onContinue={value => setHomeServiceAnswer("criteria", value)} />
                         ) : activeHomeServiceQuestion.kind === "choice" ? (
                           <div className="mt-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
                             {activeHomeServiceQuestion.options?.map((option) => (
@@ -19890,7 +19882,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 align="center"
                                 className="min-h-[50px] px-3 text-[15px]"
                               >
-                                {homeServiceOptionText(option, isSpanish)}
+                                {homeServiceOptionText(option, locale)}
                               </PurpleModalOption>
                             ))}
                             {!activeHomeServiceQuestion.options?.some((option) => option.key === "not_sure") && (
@@ -19899,7 +19891,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 align="center"
                                 className="min-h-[50px] px-3 text-[15px]"
                               >
-                                {isSpanish ? "No lo se" : "Not sure"}
+                                {homeServiceText(locale, "Not sure")}
                               </PurpleModalOption>
                             )}
                           </div>
@@ -19911,7 +19903,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 ...current,
                                 [activeHomeServiceQuestion.key]: event.target.value,
                               }))}
-                              placeholder={isSpanish ? activeHomeServiceQuestion.placeholderEs : activeHomeServiceQuestion.placeholderEn}
+                              placeholder={homeServiceText(locale, activeHomeServiceQuestion.placeholderEn ?? "", activeHomeServiceQuestion.placeholderEs)}
                               rows={3}
                               className="min-h-[104px] w-full resize-none rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/15"
                             />
@@ -19925,7 +19917,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 data-testid="button-home-service-answer-next"
                                 className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                               >
-                                {isSpanish ? "Guardar" : "Save"}
+                                {homeServiceText(locale, "Save")}
                               </button>
                               <button
                                 type="button"
@@ -19933,7 +19925,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 data-testid="button-home-service-answer-skip"
                                 className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                               >
-                                {isSpanish ? "Saltar" : "Skip"}
+                                {homeServiceText(locale, "Skip")}
                               </button>
                             </div>
                           </div>
@@ -19954,12 +19946,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         </span>
                         <div className="min-w-0">
                           <p className="font-body text-[18px] font-black leading-tight text-[#991B1B]">
-                            {isSpanish ? "Primero, seguridad." : "Safety first."}
+                            {homeServiceText(locale, "Safety first.")}
                           </p>
                           <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#7F1D1D]">
-                            {isSpanish
-                              ? "No toques enchufes, cables, cuadros electricos ni aparatos si hay peligro. Si alguien esta en riesgo, pide ayuda urgente ahora."
-                              : "Do not touch sockets, wires, breakers, or appliances if there is danger. If anyone is at risk, get urgent help now."}
+                            {homeServiceText(locale, "Do not touch sockets, wires, breakers, or appliances if there is danger. If anyone is at risk, get urgent help now.")}
                           </p>
                         </div>
                       </div>
@@ -19971,9 +19961,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-[#B91C1C] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_24px_rgba(185,28,28,0.20)]"
                         >
                           <PhoneCall size={18} aria-hidden="true" />
-                          {isSpanish
-                            ? `Llamar al ${homeServiceLocalEmergency.label} ahora`
-                            : `Call ${homeServiceLocalEmergency.label} now`}
+                          {homeServiceText(locale, "Call {number} now").replace("{number}", homeServiceLocalEmergency.label)}
                         </a>
                         {homeServiceEmergencyContactHref ? (
                           <a
@@ -19982,13 +19970,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                             className="vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border-2 border-[#FCA5A5] bg-white px-4 font-body text-[15px] font-black text-[#B91C1C]"
                           >
                             <UserRound size={17} aria-hidden="true" />
-                            {isSpanish
-                              ? `Avisar a ${homeServiceEmergencyContact?.name || "mi contacto"}`
-                              : `Alert ${homeServiceEmergencyContact?.name || "my contact"}`}
+                            {homeServiceText(locale, "Alert {contact}").replace("{contact}", homeServiceEmergencyContact?.name || homeServiceText(locale, "my contact"))}
                           </a>
                         ) : homeServiceEmergencyContactLoading ? (
                           <div className="min-h-[50px] rounded-full border border-[#FCA5A5] bg-white px-4 py-3 text-center font-body text-[13px] font-bold text-[#7F1D1D]">
-                            {isSpanish ? "Buscando contacto guardado..." : "Checking saved contact..."}
+                            {homeServiceText(locale, "Checking saved contact...")}
                           </div>
                         ) : null}
                         <button
@@ -19997,7 +19983,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           data-testid="button-home-service-safe-for-now"
                           className="vyva-tap inline-flex min-h-[50px] items-center justify-center rounded-full border-2 border-[#FCA5A5] bg-white px-4 font-body text-[14px] font-black text-[#7F1D1D]"
                         >
-                          {isSpanish ? "Estoy a salvo, seguir con electricista urgente" : "I am safe, continue with urgent electrician"}
+                          {homeServiceText(locale, "I am safe, continue with urgent electrician")}
                         </button>
                       </div>
                     </div>
@@ -20014,12 +20000,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         </span>
                         <div className="min-w-0">
                           <p className="font-body text-[17px] font-black leading-tight text-[#92400E]">
-                            {isSpanish ? "Donde debe ir el proveedor?" : "Where should the provider come?"}
+                            {homeHelpCopy(locale, "destination")}
                           </p>
                           <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                            {isSpanish
-                              ? "VYVA usara esta direccion solo cuando confirmes el contacto o la reserva."
-                              : "This address is used for this search only. Your profile stays unchanged."}
+                            {homeHelpCopy(locale, "addressUse")}
                           </p>
                         </div>
                       </div>
@@ -20029,7 +20013,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           ...current,
                           home_address: event.target.value,
                         }))}
-                        placeholder={isSpanish ? "Direccion, piso, puerta o notas de acceso" : "Address, apartment, entrance, or access notes"}
+                        placeholder={homeHelpCopy(locale, "addressHint")}
                         rows={2}
                         data-testid="input-home-service-address"
                         className="mt-3 min-h-[86px] w-full resize-none rounded-[18px] border border-[#FCD34D] bg-white px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#B45309] focus:ring-4 focus:ring-[#F59E0B]/15"
@@ -20049,30 +20033,28 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(180,83,9,0.18)] disabled:opacity-55"
                       >
                         <CircleCheck size={16} aria-hidden="true" />
-                        {usingSavedHomeProvider ? (isSpanish ? "Usar esta direccion" : "Use this address") : (isSpanish ? "Buscar cerca de esta direccion" : "Search near this address")}
+                        {homeHelpCopy(locale, usingSavedHomeProvider ? "use" : "search")}
                       </button>
                     </div>
                   )}
 
                   {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && isHomeServiceIntakeComplete && (
                     <div className="order-1 mt-4" data-testid="panel-home-service-ready">
-                      <h2 className="font-display text-[22px] font-semibold text-vyva-text-1">{isSpanish ? "Donde necesitas ayuda?" : "Where do you need help?"}</h2>
+                      <h2 className="font-display text-[22px] font-semibold text-vyva-text-1">{homeHelpCopy(locale, "where")}</h2>
                       <p className="mt-3 font-body text-[16px] leading-relaxed text-vyva-text-2">{homeServiceVisitAddress}</p>
                       <button type="button" data-testid="button-home-service-confirm-address" className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-5`} onClick={() => setHomeServiceSearchAddressConfirmed(true)}>
-                        {usingSavedHomeProvider ? (isSpanish ? "Usar esta direccion" : "Use this address") : (isSpanish ? "Buscar cerca de esta direccion" : "Search near this address")}
+                        {homeHelpCopy(locale, usingSavedHomeProvider ? "use" : "search")}
                       </button>
                       <button type="button" className="vyva-tap mt-2 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4" onClick={() => { setHomeServiceSearchAddressConfirmed(false); setHomeServiceEditingAddress(true); }}>
-                        {isSpanish ? "Usar otra direccion" : "Use another address"}
+                        {homeHelpCopy(locale, "another")}
                       </button>
                       <div className="mt-3">
                         <div className="min-w-0">
                           {homeServiceSafetyFlags.length > 0 && (
                             <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                               {hasHomeServicePoweredMedicalEquipment
-                                ? (isSpanish
-                                  ? "VYVA priorizara ayuda rapida por equipo medico electrico."
-                                  : "VYVA will prioritize fast help because powered medical equipment is involved.")
-                                : (isSpanish ? "Se priorizara urgencia y seguridad." : "Urgency and safety will be prioritized.")}
+                                ? (homeServiceText(locale, "VYVA will prioritize fast help because powered medical equipment is involved."))
+                                : (homeServiceText(locale, "Urgency and safety will be prioritized."))}
                             </p>
                           )}
                         </div>
@@ -20087,7 +20069,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       data-testid="panel-home-service-service-picker"
                     >
                       <summary className="vyva-tap flex min-h-[42px] cursor-pointer list-none items-center justify-between rounded-[14px] px-2 font-body text-[13px] font-black text-vyva-purple">
-                        <span>{isSpanish ? "Cambiar servicio" : "Change service"}</span>
+                        <span>{homeServiceText(locale, "Change service")}</span>
                         <ChevronDown size={16} aria-hidden="true" />
                       </summary>
                       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -20112,7 +20094,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               selected={selected}
                               className="min-h-[46px] px-3 text-[12px]"
                             >
-                              {isSpanish ? service.es : service.en}
+                              {homeServiceTypeLabel(service.key, locale)}
                             </PurpleModalOption>
                           );
                         })}
@@ -20130,7 +20112,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           }));
                         }}
                       >
-                        {isSpanish ? "Omitir todo" : "Skip all"}
+                        {homeServiceText(locale, "Skip all")}
                       </button>
                     )}
                     </>
@@ -20155,7 +20137,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                             data-testid={`button-home-service-type-${service.key}`}
                             className="min-h-[72px] !rounded-lg px-3 text-[16px]"
                           >
-                            {isSpanish ? service.es : service.en}
+                            {homeServiceTypeLabel(service.key, locale)}
                           </PurpleModalOption>
                         ))}
                       </div>
@@ -20301,29 +20283,29 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-3`}
               >
                 {createAppointmentMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Search size={16} className="mr-2" />}
-                {isSpanish ? "Reintentar busqueda" : "Retry search"}
+                {homeServiceText(locale, "Retry search")}
               </button>
             )}
 
             {homeRecoveryFailed && !createAppointmentMutation.isPending && !discoverAppointmentOptionsMutation.isPending && (
               <div role="alert" className="py-4 text-vyva-text-2">
-                <p>{isSpanish ? "No hemos podido cargar los resultados. Puedes reintentar la busqueda." : "We couldn't load the results. You can retry the search."}</p>
+                <p>{homeServiceText(locale, "We couldn't load the results. You can retry the search.")}</p>
                 <button type="button" className="vyva-tap min-h-[44px] text-vyva-purple underline" onClick={() => {
                   if (appointmentRequest) discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
                   else void persistedAppointmentRequestQuery.refetch();
-                }}>{isSpanish ? "Reintentar busqueda" : "Retry search"}</button>
+                }}>{homeServiceText(locale, "Retry search")}</button>
               </div>
             )}
             {isHomeServiceAppointment && homeSearchBusy && (
               <div role="status" aria-live="polite" aria-busy="true" className="py-8 text-center" data-testid="home-repair-search-loader">
                 <Loader2 size={32} className="mx-auto animate-spin text-vyva-purple motion-reduce:animate-none" aria-hidden="true" />
-                <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{usingSavedHomeProvider && createAppointmentMutation.isPending ? (isSpanish ? "Preparando tu solicitud" : "Preparing your request") : (isSpanish ? "Buscando opciones para ti" : "Finding options for you")}</h2>
+                <h2 className="mt-4 font-display text-[21px] font-semibold text-vyva-text-1">{homeServiceText(locale, usingSavedHomeProvider && createAppointmentMutation.isPending ? "Preparing your request" : "Finding options for you")}</h2>
                 {usingSavedHomeProvider && createAppointmentMutation.isPending ? (
-                  <p className="mx-auto mt-3 max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{isSpanish ? `Preparando los detalles para ${savedHomeServiceProvider}.` : `Getting the details ready for ${savedHomeServiceProvider}.`}</p>
+                  <p className="mx-auto mt-3 max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{homeServiceText(locale, "Getting the details ready for {provider}.").replace("{provider}", savedHomeServiceProvider)}</p>
                 ) : (
-                <p className="mx-auto mt-3 min-h-[72px] max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{(isSpanish ? ["Partimos del servicio solicitado y tus preferencias.", "Tenemos en cuenta los proveedores guardados y las opciones cercanas.", "Comparamos valoraciones, numero de opiniones y adecuacion al trabajo cuando estan disponibles.", "Preparamos opciones para que las revises. Tu decides el siguiente paso."] : ["Starting with the service you need and your preferences.", "Considering saved providers and nearby options.", "Comparing available ratings, review counts, and suitability for the job.", "Preparing options for you to review. You decide what happens next."])[homeSearchMessage]}</p>
+                <p className="mx-auto mt-3 min-h-[72px] max-w-md font-body text-[15px] leading-relaxed text-vyva-text-2">{homeServiceText(locale, ["Starting with the service you need and your preferences.", "Considering saved providers and nearby options.", "Comparing available ratings, review counts, and suitability for the job.", "Preparing options for you to review. You decide what happens next."][homeSearchMessage])}</p>
                 )}
-                <p className="mx-auto mt-3 max-w-md font-body text-[13px] leading-relaxed text-vyva-text-2">{isSpanish ? "El precio, la disponibilidad y el historial pueden necesitar confirmacion. No contactamos a nadie sin tu permiso." : "Price, availability and service history may still need confirmation. No one is contacted without your permission."}</p>
+                <p className="mx-auto mt-3 max-w-md font-body text-[13px] leading-relaxed text-vyva-text-2">{homeServiceText(locale, "Price, availability and service history may still need confirmation. No one is contacted without your permission.")}</p>
               </div>
             )}
             {showAppointmentStatusMessage && !(isHomeServiceAppointment && (createAppointmentMutation.isPending || homeServiceSearchPending || discoverAppointmentOptionsMutation.isPending)) && (
@@ -20333,9 +20315,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 }`}
               >
                 {createAppointmentMutation.isPending
-                  ? (isSpanish ? "Preparando solicitud..." : "Preparing request...")
+                  ? (homeServiceText(locale, "Preparing request..."))
                   : discoverAppointmentOptionsMutation.isPending
-                    ? (isSpanish ? "Buscando opciones..." : "Looking for options...")
+                    ? (homeServiceText(locale, "Looking for options..."))
                   : appointmentError || appointmentNotice}
               </div>
             )}
@@ -20347,6 +20329,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 options={appointmentOptions}
                 selectedId={selectedAppointmentOption?.id ?? null}
                 isSpanish={isSpanish}
+                language={locale}
                 onResultsVisible={setHomeVerifiedResultsVisible}
                 onRanked={applyHomeServiceVerificationRanking}
               />
@@ -20359,7 +20342,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-                      {homeSavedProvidersFirst ? (isSpanish ? "Tu proveedor de confianza" : "Your trusted provider") : isHomeServiceAppointment ? (isSpanish ? "Proveedor sugerido" : "Suggested provider") : appointmentRecommendationLabel}
+                      {homeSavedProvidersFirst ? (homeServiceText(locale, "Your trusted provider")) : isHomeServiceAppointment ? homeHelpCopy(locale, "suggested") : appointmentRecommendationLabel}
                     </p>
                     <h3 className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {appointmentProviderName}
@@ -20369,7 +20352,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     </p>}
                     {selectedAppointmentOption && (
                       <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
-                        {!isHomeServiceAppointment && `${appointmentProviderTrustNote} · `}{appointmentOptionEvidenceSummary(selectedAppointmentOption, isSpanish)}
+                        {!isHomeServiceAppointment && `${appointmentProviderTrustNote} · `}{appointmentOptionEvidenceSummary(selectedAppointmentOption, isSpanish, locale)}
                       </p>
                     )}
                     {appointmentProviderAddress && (
@@ -20377,7 +20360,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         {appointmentProviderAddress}
                       </p>
                     )}
-                    {isHomeServiceAppointment && selectedAppointmentOption && <HomeProviderDetails snapshot={selectedAppointmentOption.provider_snapshot} isSpanish={isSpanish} />}
+                    {isHomeServiceAppointment && selectedAppointmentOption && <HomeProviderDetails snapshot={selectedAppointmentOption.provider_snapshot} isSpanish={isSpanish} language={locale} />}
                   </div>
                 </div>
 
@@ -20387,7 +20370,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       <ActionReadinessPanel
                         readiness={selectedAppointmentToolReadiness}
                         desiredAction={isHomeServiceAppointment
-                          ? (isSpanish ? "Preparar servicio en casa" : "Prepare home service")
+                          ? (homeServiceText(locale, "Prepare home service"))
                           : (isSpanish ? "Preparar cita" : "Prepare appointment")}
                         recipient={appointmentProviderName}
                         isSpanish={isSpanish}
@@ -20407,8 +20390,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           ? <Loader2 size={18} className="mr-2 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                           : null}
                         {selectedAppointmentActionChannel === "manual"
-                          ? (isSpanish ? "Continuar con este proveedor" : "Continue with this provider")
-                          : (isSpanish ? "Contactar con este proveedor" : "Contact this provider")}
+                          ? (homeServiceText(locale, "Continue with this provider"))
+                          : homeHelpCopy(locale, "contact")}
                       </button>
                     ) : <ActionConfirmationCheckpoint
                       title={isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts"}
@@ -20430,13 +20413,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   <button type="button" onClick={handleDiscoverAppointmentOptions}
                     data-testid="button-home-service-find-someone-else"
                     className="vyva-tap mt-3 min-h-[44px] font-body text-[14px] text-vyva-text-2 underline underline-offset-4">
-                    {isSpanish ? "Buscar otro profesional" : "Find someone else"}
+                    {homeServiceText(locale, "Find someone else")}
                   </button>
                 )}
                 {(appointmentOptions.length > 1 || (isHomeServiceAppointment && !homeSavedProvidersFirst)) && (
                   <details open={isHomeServiceAppointment ? true : undefined} className={isHomeServiceAppointment ? "mt-6 border-t border-current/15" : "mt-3 overflow-hidden rounded-[16px] border border-[#E9D5FF] bg-[#FBF8FF]"}>
                     <summary className={isHomeServiceAppointment ? "flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 font-body text-[14px] font-medium text-vyva-text-2" : "flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-3 font-body text-[12px] font-black text-vyva-purple"}>
-                      <span>{isSpanish ? "Ver otras opciones" : "See other options"}</span>
+                      <span>{homeHelpCopy(locale, "others")}</span>
                       <ChevronDown size={15} aria-hidden="true" />
                     </summary>
                     <div className={isHomeServiceAppointment ? "home-repair-alternatives flex flex-col" : "grid grid-cols-1 gap-2 border-t border-[#E9D5FF] p-3 sm:grid-cols-2"}>
@@ -20456,10 +20439,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               {appointmentOptionName(option, isSpanish)}
                             </span>
                             <span className="mt-0.5 block text-[11px] font-semibold text-vyva-text-2">
-                              {option.match_reason || (isSpanish ? "Fuente revisable" : "Reviewable source")}
+                              {isHomeServiceAppointment && homeServiceType
+                                ? homeServiceText(locale, "{service} matching this request").replace("{service}", homeServiceTypeLabel(homeServiceType, locale))
+                                : option.match_reason || homeServiceText(locale, "Reviewable source")}
                             </span>
                             <span className="mt-0.5 block text-[11px] leading-snug text-vyva-text-3">
-                              {appointmentOptionEvidenceSummary(option, isSpanish)}
+                              {appointmentOptionEvidenceSummary(option, isSpanish, locale)}
                             </span>
                           </button>
                         );
@@ -20474,7 +20459,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         className="vyva-tap inline-flex min-h-[44px] items-center px-3 font-body text-[13px] font-medium text-vyva-text-2 underline underline-offset-4 disabled:opacity-50"
                       >
                         {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={14} className="mr-2 animate-spin" aria-hidden="true" /> : null}
-                        {isSpanish ? "Buscar de nuevo" : "Search again"}
+                        {homeHelpCopy(locale, "again")}
                       </button>
                     )}
                   </details>
@@ -20486,17 +20471,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               <div className="mt-3">
                 <MissingProviderChoicePanel
                   title={noSavedProviderTitle}
-                  body={noSavedProviderBody || (isSpanish ? "VYVA puede buscar opciones antes de contactar." : "VYVA can look for options before contacting anyone.")}
+                  body={noSavedProviderBody || (homeServiceText(locale, "VYVA can look for options before contacting anyone."))}
                   addLabel={isHomeServiceAppointment
-                    ? (isSpanish ? "Anadir mi proveedor" : "Add my usual provider")
-                    : (isSpanish ? "Anadir mi clinica" : "Add my usual provider")}
+                    ? (homeServiceText(locale, "Add my usual provider"))
+                    : (homeServiceText(locale, "Add my usual provider"))}
                   addDetail={isHomeServiceAppointment
-                    ? (isSpanish ? "Servicio en casa de confianza" : "Trusted home service")
+                    ? (homeServiceText(locale, "Trusted home service"))
                     : (isSpanish ? "Medico o clinica de confianza" : "Doctor or clinic")}
                   findLabel={appointmentDiscoverLabel}
-                  findDetail={isSpanish ? "Revisar opciones primero" : "Review options first"}
-                  helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
-                  helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+                  findDetail={homeServiceText(locale, "Review options first")}
+                  helperLabel={homeServiceText(locale, "Ask someone to help")}
+                  helperDetail={homeServiceText(locale, "Family or caregiver setup")}
                   onAddProvider={isHomeServiceAppointment ? openHomeServiceProviderSetup : openMedicalProviderSetup}
                   onFindOptions={handleDiscoverAppointmentOptions}
                   onAskHelper={() => openProviderSetupHelper(isHomeServiceAppointment

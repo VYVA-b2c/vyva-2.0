@@ -29,6 +29,7 @@ import {
   type CanonicalDetailFlowShellContract,
 } from "@/components/CanonicalDetailFlowShell";
 import { useLanguage } from "@/i18n";
+import { homeServiceText } from "../../shared/homeServiceText";
 import {
   conciergeTaskPath,
   type ConciergeTaskEntry,
@@ -464,11 +465,12 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     staleTime: 0,
     gcTime: 0,
   });
-  const { data: conciergeProfile = null, isLoading: profileLoading } = useQuery<ConciergeProfile | null>({
+  const { data: conciergeProfile = null, isLoading: profileLoading, isError: profileError, isFetching: profileFetching, refetch: retryProfile } = useQuery<ConciergeProfile | null>({
     queryKey: ["/api/profile"],
     queryFn: async () => {
       const response = await apiFetch("/api/profile");
-      return response.ok ? await response.json() as ConciergeProfile : null;
+      if (!response.ok) throw new Error("Could not load profile");
+      return await response.json() as ConciergeProfile | null;
     },
     retry: false,
   });
@@ -491,6 +493,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   }, [navigate]);
 
   function handleOptionSelect(option: PickerOptionConfig) {
+    if (profileLoading || profileError) return;
     const missing = setupRequirementsForOption(option, conciergeProfile);
     if (missing.length > 0) {
       setBlockedOption(option);
@@ -506,14 +509,14 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
 
   useEffect(() => {
     const resumeOptionId = searchParams.get("resume");
-    if (!resumeOptionId || profileLoading) return;
+    if (!resumeOptionId || profileLoading || profileError) return;
     const option = config.options.find((candidate) => candidate.id === resumeOptionId);
     setSearchParams({}, { replace: true });
     if (!option) return;
     const missing = setupRequirementsForOption(option, conciergeProfile);
     if (missing.length === 0) continueToOption(option);
     else setBlockedOption(option);
-  }, [conciergeProfile, config.options, continueToOption, profileLoading, searchParams, setSearchParams]);
+  }, [conciergeProfile, config.options, continueToOption, profileLoading, profileError, searchParams, setSearchParams]);
 
   function openAddressSetup() {
     if (!blockedOption) return;
@@ -581,6 +584,10 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
           }}><X size={20} aria-hidden="true" /></button>
         </aside>
       )}
+      {profileError && <div role="alert" className="mb-4 text-vyva-text-1">
+        <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
+        <button type="button" disabled={profileFetching} className="min-h-11 text-vyva-purple underline" onClick={() => void retryProfile()}>{homeServiceText(language, "Retry")}</button>
+      </div>}
       {!blockedOption && <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
@@ -592,7 +599,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
               type="button"
               data-testid={option.testId}
               onClick={() => handleOptionSelect(option)}
-              disabled={profileLoading}
+              disabled={profileLoading || profileError}
               aria-label={`${label}. ${detail}`}
               style={{ "--picker-accent-tint": `${option.iconColor}18`, ...(!isDark ? { background: `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${option.iconBg} 100%)` } : {}) } as CSSProperties}
               className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}
@@ -616,23 +623,23 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
       {blockedOption ? (
         <section className="py-5" data-testid="panel-concierge-service-setup">
           <p className={`font-body text-[12px] font-black uppercase ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`}>
-            {isSpanish ? "Configuracion necesaria" : "Setup needed"}
+            {homeServiceText(language, "Setup needed")}
           </p>
           <h2 className={`mt-2 font-display text-[24px] font-semibold ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
-            {isSpanish ? `Prepara ${blockedOption.labelFallback} primero` : `Set up ${blockedOption.labelFallback} first`}
+            {homeServiceText(language, "Set up {service} first").replace("{service}", t(blockedOption.labelKey, blockedOption.labelFallback))}
           </h2>
           <div className={`mt-6 divide-y border-y ${isDark ? "divide-white/15 border-white/15" : "divide-[#E9DDF5] border-[#E9DDF5]"}`}>
             {blockedRequirements.includes("home_address") ? (
               <button type="button" onClick={openAddressSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-address">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><MapPin size={24} aria-hidden="true" /></span>
-                <span className="min-w-0 flex-1">{isSpanish ? "Anadir direccion" : "Add home address"}</span>
+                <span className="min-w-0 flex-1">{homeServiceText(language, "Add home address")}</span>
                 <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}
             {blockedRequirements.includes("trusted_provider") ? (
               <button type="button" onClick={openProviderSetup} className={`vyva-tap flex min-h-[80px] w-full items-center gap-4 px-2 py-4 text-left font-body text-[16px] font-bold ${isDark ? "text-[#FFF8FF] hover:bg-white/5" : "text-vyva-text-1 hover:bg-[#F8F2FF]"}`} data-testid="button-concierge-setup-provider">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#B98CFF]" : "bg-[#F3E8FF] text-vyva-purple"}`}><ShieldCheck size={24} aria-hidden="true" /></span>
-                <span className="min-w-0 flex-1">{isSpanish ? "Anadir proveedor" : "Add trusted provider"}</span>
+                <span className="min-w-0 flex-1">{homeServiceText(language, "Add trusted provider")}</span>
                 <ChevronRight size={20} className="shrink-0 text-[#B98CFF]" aria-hidden="true" />
               </button>
             ) : null}
