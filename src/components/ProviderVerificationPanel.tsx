@@ -62,7 +62,24 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     const interval = setInterval(() => setMessage(m => (m + 1) % 3), 4000);
     void Promise.all(ids.filter(id => !next[id]).map(async id => {
       try {
-        const response = await apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
+        const verify = () => apiFetch(`/api/appointments/requests/${requestId}/options/${id}/verify`, { method: "POST", signal: controller.signal });
+        let response = await verify();
+        // A remount can overlap the previous audit while its server cleanup finishes.
+        // Reuse the endpoint's cached result instead of reporting an outage for 409.
+        while (response.status === 409 && !controller.signal.aborted) {
+          await new Promise<void>(resolve => {
+            const finish = () => {
+              clearTimeout(retryTimer);
+              controller.signal.removeEventListener("abort", finish);
+              resolve();
+            };
+            const retryTimer = setTimeout(finish, 1000);
+            controller.signal.addEventListener("abort", finish, { once: true });
+          });
+          if (disposed || controller.signal.aborted) return;
+          response = await verify();
+        }
+        if (disposed || controller.signal.aborted) return;
         if (!response.ok) {
           console.warn(`[provider-verification] request rejected: ${response.status}`);
           throw new Error("Verification unavailable");
