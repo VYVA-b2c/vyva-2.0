@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Camera, LogOut, Mic, ShieldCheck, X } from "lucide-react";
+import { Camera, LogOut, ShieldCheck, X } from "lucide-react";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
-import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import {
+  CanonicalDetailFlowShell,
+  CanonicalVoiceButton,
+  type CanonicalDetailFlowShellContract,
+} from "@/components/CanonicalDetailFlowShell";
 import { seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,6 +190,15 @@ const COUNTRY_DEFAULTS: Record<string, { timezone: string }> = {
 
 const accountInputClassName = `${seniorInputClassName} rounded-lg shadow-none`;
 const accountSelectClassName = accountInputClassName;
+
+const ACCOUNT_SHELL_CONTRACT: CanonicalDetailFlowShellContract = {
+  shellId: "home.production",
+  headerId: "detail.voice-touch",
+  headerTitle: "Account details",
+  containerId: "flow.rounded-card",
+  bottomNavId: "home-sos-reports",
+  composer: "hidden",
+};
 
 const NAME_GENDER_HINTS: Record<"female" | "male", string[]> = {
   female: [
@@ -559,37 +572,27 @@ export default function AccountSettings() {
   };
 
   return (
-    <PhoneFrame
-      layout="page"
-      className="!rounded-none"
-      subtitle={t("settings.account.title")}
-      showBack
+    <CanonicalDetailFlowShell
+      shellContract={ACCOUNT_SHELL_CONTRACT}
       onBack={() => navigate(isHomeMasterPreview ? "/dev/home-master/profile" : "/settings")}
-      homeMasterBackPath="/dev/home-master/profile"
-      showCompanionMode={!isHomeMasterPreview}
-      rightAction={
-        isHomeMasterPreview ? (
-          <button
-            type="button"
-            aria-label="Return to VYVA voice mode"
-            data-testid="button-home-profile-account-voice"
-            onClick={() => navigate("/dev/home-master")}
-            className="grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150 hover:bg-[#7C2FE8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vyva-purple"
-          >
-            <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
-          </button>
-        ) : undefined
-      }
+      headerAction={(
+        <CanonicalVoiceButton
+          label="Talk to VYVA about account details"
+          contextHint="Help me review or update my account details."
+          agentSlug="profile"
+          testId="button-home-profile-account-voice"
+        />
+      )}
+      shellTestId="account-details-canonical-screen"
+      contentTestId="account-details-canonical-content"
     >
-      <div className="home-master-profile-account-content flex flex-col gap-5 pb-6 pt-1">
+      <div className="home-master-profile-account-content mx-auto flex w-full max-w-[760px] flex-col gap-4 pb-6">
         {!isHomeMasterPreview ? (
           <p className="text-[16px] leading-relaxed text-vyva-text-2">{t("settings.account.subtitle")}</p>
         ) : null}
 
         {showRequiredDetailsReminder ? (
-          <div
-            className="home-master-profile-account-reminder flex items-start gap-3 border-l-2 border-vyva-purple pl-3"
-          >
+          <div className="home-master-profile-account-reminder flex items-start gap-3 rounded-2xl border border-vyva-purple/15 bg-white/70 p-4 shadow-sm dark:bg-white/[0.06]">
             <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
               <VyvaIcon icon={ShieldCheck} size={22} accent="check" />
             </div>
@@ -601,7 +604,7 @@ export default function AccountSettings() {
           </div>
         ) : null}
 
-        <div className="home-master-profile-account-avatar-card flex flex-wrap items-center gap-4 border-b border-vyva-purple/15 pb-5">
+        <section aria-label="Profile photo" className="home-master-profile-account-avatar-card flex flex-wrap items-center gap-4 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06]">
           <div className="relative">
             <div
               className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-[28px] font-bold text-white"
@@ -651,7 +654,9 @@ export default function AccountSettings() {
           <p className="min-w-[140px] flex-1 font-body text-[14px] leading-relaxed text-vyva-text-2">
             {t("settings.account.photoHint", "This photo will appear on your community profile")}
           </p>
-        </div>
+        </section>
+
+        <section aria-label="Personal details" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
 
         <ResponsiveGrid columns="two" gap="md">
           <FormField
@@ -745,6 +750,10 @@ export default function AccountSettings() {
           </FormField>
         </ResponsiveGrid>
 
+        </section>
+
+        <section aria-label="Contact details" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
+
         <FormField
           htmlFor="phone"
           label={t("settings.account.phone")}
@@ -824,6 +833,10 @@ export default function AccountSettings() {
           />
         </FormField>
 
+        </section>
+
+        <section aria-label="Language and region" className="flex flex-col gap-5 rounded-[24px] border border-vyva-purple/15 bg-white/85 p-5 shadow-[0_12px_30px_rgba(80,52,109,0.07)] dark:bg-white/[0.06] sm:p-6">
+
         <ResponsiveGrid columns="two" gap="md">
           <FormField label={t("settings.account.language")} {...fieldMeta}>
             <Select
@@ -868,6 +881,8 @@ export default function AccountSettings() {
           </FormField>
         </ResponsiveGrid>
 
+        </section>
+
         <div className="flex flex-col gap-2 pt-2">
           <Button
             onClick={handleSave}
@@ -900,6 +915,6 @@ export default function AccountSettings() {
           </button>
         </div>
       </div>
-    </PhoneFrame>
+    </CanonicalDetailFlowShell>
   );
 }
