@@ -722,8 +722,8 @@
   background: linear-gradient(180deg, rgba(103, 70, 190, 0.34) 0%, rgba(255, 202, 75, 0.06) 42%, rgba(18, 11, 35, 0) 100%);
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame .bg-white,
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-white"],
+[data-home-master-theme="dark"].home-master-profile-frame .bg-white,
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-white"],
 [data-home-master-theme="dark"] .home-master-profile-page .bg-white,
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-white"] {
   background-color: var(--hm-profile-surface) !important;
@@ -744,26 +744,26 @@
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-vyva-cream"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-vyva-cream"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-vyva-cream"] {
   background-color: var(--hm-profile-bg) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-1"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-1"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-1"] {
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-2"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-2"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-3"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-3"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-3"] {
   color: var(--hm-profile-muted) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame input,
-[data-home-master-theme="dark"] .home-master-profile-frame select,
-[data-home-master-theme="dark"] .home-master-profile-frame textarea,
+[data-home-master-theme="dark"].home-master-profile-frame input,
+[data-home-master-theme="dark"].home-master-profile-frame select,
+[data-home-master-theme="dark"].home-master-profile-frame textarea,
 [data-home-master-theme="dark"] .home-master-profile-page input,
 [data-home-master-theme="dark"] .home-master-profile-page select,
 [data-home-master-theme="dark"] .home-master-profile-page textarea {
@@ -801,25 +801,25 @@
 
 /* Dark profile previews also contain legacy onboarding utility classes. Keep
    those controls readable without changing their light-theme presentation. */
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-gray-"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-gray-"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-gray-"] {
   color: var(--hm-profile-muted) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-purple"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-purple"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-purple"] {
   color: #e9d5ff !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#21152F]"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-[#21152F]"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#21152F]"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#22152F]"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-[#22152F]"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#22152F]"] {
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-50"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-100"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-gray-50"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-gray-100"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-50"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-100"] {
   background-color: var(--hm-profile-surface-subtle) !important;
@@ -838,6 +838,53 @@
 [data-home-master-theme="dark"] .home-master-profile-field-badge-required {
   background: rgba(190, 24, 93, 0.22) !important;
   color: #fecdd3 !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-action {
+  background: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(110, 231, 183, 0.42) !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-title {
+  color: #a7f3d0 !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-copy {
+  color: #6ee7b7 !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-emergency-summary {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(252, 165, 165, 0.28) !important;
+}
+
+/* Canonical medication hub: keep the calm hierarchy legible in both modes. */
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-card {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-title {
+  color: #fff8ff !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-muted {
+  color: #cfc2d8 !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-kicker {
+  color: #d7b8ff !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-summary-card {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-timeline-row {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
 }
 
 @media (max-width: 639px) {

@@ -775,16 +775,13 @@ export default function MedicationsSection() {
                         </button>
                         <button
                           type="button"
-                          data-testid={`button-meds-remove-${med.id}`}
-                          onClick={() => removeMed(med.id)}
+                          data-testid={`button-meds-voice-${med.id}`}
+                          aria-label={`Add ${med.name || `medication ${idx + 1}`} by voice`}
+                          onClick={startVoiceMedicationCapture}
                           disabled={busy}
-                          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] transition hover:bg-[#5b1a8f] disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {removingId === med.id ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={18} />
-                          )}
+                          <Mic size={18} />
                         </button>
                       </div>
                     </div>
@@ -825,16 +822,13 @@ export default function MedicationsSection() {
                       )}
                       <button
                         type="button"
-                        data-testid={`button-meds-remove-${med.id}`}
-                        onClick={() => removeMed(med.id)}
+                        data-testid={`button-meds-voice-${med.id}`}
+                        aria-label={`Add medication ${idx + 1} by voice`}
+                        onClick={startVoiceMedicationCapture}
                         disabled={busy}
-                        className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] transition hover:bg-[#5b1a8f] disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {removingId === med.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={18} />
-                        )}
+                        <Mic size={18} />
                       </button>
                     </div>
                   </div>
@@ -952,6 +946,16 @@ export default function MedicationsSection() {
                         <FormField label={<FieldLabel icon={<Stethoscope size={16} />}>Prescribed by</FieldLabel>} hint="Optional, but helpful for future reports.">
                           <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP, specialist, or clinic name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className={inputClassName} />
                         </FormField>
+                        <button
+                          type="button"
+                          data-testid={`button-meds-remove-${med.id}`}
+                          onClick={() => removeMed(med.id)}
+                          disabled={busy}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full px-4 text-[14px] font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {removingId === med.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                          Remove medication
+                        </button>
                       </div>
                     ) : null}
                   </div>
