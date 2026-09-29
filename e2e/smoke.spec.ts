@@ -1117,7 +1117,7 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
   await page.goto("/settings", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
-  const frameBox = await page.getByTestId("phone-frame").boundingBox();
+  const frameBox = await page.getByTestId("settings-canonical-screen-frame").boundingBox();
   expect(frameBox).not.toBeNull();
   expect(frameBox!.width).toBeGreaterThan(700);
   expect(frameBox!.width).toBeLessThanOrEqual(922);
@@ -1126,7 +1126,7 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
-  const mobileFrameBox = await page.getByTestId("phone-frame").boundingBox();
+  const mobileFrameBox = await page.getByTestId("settings-canonical-screen-frame").boundingBox();
   expect(mobileFrameBox).not.toBeNull();
   expect(mobileFrameBox!.width).toBeLessThanOrEqual(390);
   await expectNoHorizontalOverflow(page);
