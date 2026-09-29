@@ -233,7 +233,8 @@ describe("Onboarding Agent profile expansion", () => {
     fireEvent.click(screen.getByTestId("button-profile-voice-draft-confirm"));
 
     expect(screen.getByTestId("input-emergency-name")).toHaveValue("Sara");
-    expect(screen.getByTestId("input-emergency-primary-phone")).toHaveValue("+34 612 345 678");
+    expect(screen.getByTestId("select-emergency-primary-country-code")).toHaveTextContent("+34");
+    expect(screen.getByTestId("input-emergency-primary-phone")).toHaveValue("612 345 678");
     expect(sectionPostCalls("/api/onboarding/section/emergency")).toHaveLength(0);
   });
 

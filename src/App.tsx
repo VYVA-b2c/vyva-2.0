@@ -344,8 +344,22 @@ function RouteLoadingScreen() {
 function SectionRouter() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguage();
   const Section = id ? SECTION_MAP[id] : null;
+
+  if (id === "medications") {
+    const preview = location.pathname.startsWith("/dev/profile-overview/");
+    return (
+      <AppShell>
+        <MedsScreen
+          backPath={preview ? "/dev/profile-overview/group/medication" : "/onboarding/profile/group/medication"}
+          routeBase="/meds"
+          profileContext
+        />
+      </AppShell>
+    );
+  }
 
   if (Section) return <Section />;
 
@@ -817,7 +831,60 @@ function primeHomeMasterPreviewData() {
         takenCountToday: 0,
         scheduledCountToday: 1,
       },
+      {
+        id: "preview-metformin",
+        medication_name: "Metformin",
+        dosage: "500 mg",
+        frequency: "twice_daily",
+        scheduled_times: ["08:00", "20:00"],
+        takenToday: true,
+        takenCountToday: 1,
+        scheduledCountToday: 2,
+      },
     ],
+  });
+  queryClient.setQueryData(["/api/meds/refills/me"], {
+    alerts: [
+      {
+        id: "preview-refill-metformin",
+        title: "Metformin may run low soon",
+        medicineName: "Metformin",
+        severity: "attention",
+        summary: "About 6 days remaining based on your current routine.",
+      },
+    ],
+    permissions: { manage_inventory: true },
+  });
+  queryClient.setQueryData(["/api/meds/my-medicines"], {
+    medicines: [
+      {
+        id: "preview-monoprost",
+        display_name: "Monoprost",
+        common_name: "Monoprost",
+        dose_text: "1 drop",
+        purpose_text: "Eye pressure",
+        item_type: "prescription",
+        drug_class_tag: "other_uncategorized",
+        schedule_times: ["20:00"],
+        status: "active",
+        refill_alert_days: 7,
+        inventory_tracking_enabled: true,
+      },
+      {
+        id: "preview-metformin",
+        display_name: "Metformin",
+        common_name: "Metformin",
+        dose_text: "500 mg",
+        purpose_text: "Blood sugar",
+        item_type: "prescription",
+        drug_class_tag: "diabetes_blood_sugar",
+        schedule_times: ["08:00", "20:00"],
+        status: "active",
+        refill_alert_days: 7,
+        inventory_tracking_enabled: true,
+      },
+    ],
+    classTags: ["diabetes_blood_sugar", "other_uncategorized"],
   });
   queryClient.setQueryData(["/api/games/progress"], {
     summary: {
@@ -1054,7 +1121,17 @@ function HomeMasterProfileActionPreviewRoute({ kind }: { kind: "account" | "heal
   }
 
   if (kind === "health") return <ConditionsSection />;
-  if (kind === "medicines") return <MedicationsSection />;
+  if (kind === "medicines") {
+    return (
+      <AppShell>
+        <MedsScreen
+          backPath="/dev/home-master/profile"
+          routeBase="/dev/home-master/profile/medicines"
+          profileContext
+        />
+      </AppShell>
+    );
+  }
   if (kind === "emergency") return <EmergencySection />;
   if (kind === "care-team") return <CareTeamFlow />;
   if (kind === "providers") return <ProvidersSection />;
@@ -1213,12 +1290,17 @@ const App = () => (
                     <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                    <Route path="/dev/home-master/settings" element={<SettingsHome />} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />
                     <Route path="/dev/profile-overview/group/:groupId" element={<ProfileGroupPage preview />} />
                     <Route path="/dev/profile-overview/section/:id" element={<SectionRouter />} />
                     <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
                     <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
                     <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/home-master/profile/medicines/my-medicines" element={<AppShell><MedsScreen backPath="/dev/home-master/profile" routeBase="/dev/home-master/profile/medicines" profileContext /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/interactions" element={<AppShell><MedsScreen backPath="/dev/home-master/profile" routeBase="/dev/home-master/profile/medicines" profileContext /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/refills" element={<AppShell><MedicationRefillsScreen /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/adherence-report" element={<AppShell><AdherenceReportScreen /></AppShell>} />
                     <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
                     <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
                     <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
@@ -1294,7 +1376,7 @@ const App = () => (
                   <Route path="/onboarding/careteam" element={<CareTeamFlow />} />
                   <Route path="/settings/privacy" element={<PrivacySettings />} />
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
-                  <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
+                  <Route path="/settings" element={<SettingsHome />} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />

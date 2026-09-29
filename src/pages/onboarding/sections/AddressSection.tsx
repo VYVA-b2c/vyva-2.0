@@ -425,7 +425,7 @@ export default function AddressSection() {
             data-testid="button-address-detect-location"
             onClick={handleDetectLocation}
             disabled={detecting || isLoading}
-            className="flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(34,197,94,0.12)] transition-all disabled:opacity-60"
+            className="home-master-profile-location-action flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(34,197,94,0.12)] transition-all disabled:opacity-60"
             style={{
               background: detected ? "#ECFDF5" : "#F0FDF4",
               border: detected ? "1px solid #A7F3D0" : "1px solid #BBF7D0",
@@ -443,10 +443,10 @@ export default function AddressSection() {
               }
             </div>
             <div className="min-w-0">
-              <p className="font-body text-[18px] font-black leading-tight" style={{ color: "#15803D" }}>
+              <p className="home-master-profile-location-title font-body text-[18px] font-black leading-tight" style={{ color: "#15803D" }}>
                 {detecting ? copy("Detecting...") : detected ? copy("Location used!") : copy("Detect my location")}
               </p>
-              <p className="mt-1 font-body text-[14px] font-semibold" style={{ color: "#16A34A" }}>
+              <p className="home-master-profile-location-copy mt-1 font-body text-[14px] font-semibold" style={{ color: "#16A34A" }}>
                 {detecting
                   ? copy("High-accuracy GPS")
                   : locationAccuracy

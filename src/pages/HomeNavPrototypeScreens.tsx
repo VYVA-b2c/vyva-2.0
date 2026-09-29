@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Settings,
   Stethoscope,
   Sun,
   Type,
@@ -1150,6 +1151,7 @@ export function PrototypeReportsScreen({
 }
 
 export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { returnPath?: string } = {}) {
+  const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
   const profileSections: PrototypeSection[] = [
     {
@@ -1206,6 +1208,30 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
       <SectionedRows sections={profileSections} />
       <button
         type="button"
+        data-testid="button-profile-settings"
+        onClick={() => navigate("/dev/home-master/settings")}
+        className={[
+          "mt-6 flex min-h-[82px] w-full items-center gap-4 rounded-[24px] border px-4 py-4 text-left transition-colors",
+          isDark ? "border-white/[0.12] bg-white/[0.07] text-[#F7F0FF]" : "border-[#E9DEF2] bg-white/86 text-[#342B3F] shadow-[0_12px_30px_rgba(80,52,109,0.06)]",
+        ].join(" ")}
+      >
+        <span className={[
+          "grid h-12 w-12 shrink-0 place-items-center rounded-[16px]",
+          isDark ? "bg-white/[0.09] text-[#E9DFFF]" : "bg-[#F1E8FF] text-vyva-purple",
+        ].join(" ")}>
+          <VyvaIcon icon={Settings} size={22} strokeWidth={2.4} tone={isDark ? "inverse" : "brand"} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <strong className="block font-body text-[18px] font-black">Settings</strong>
+          <span className={[
+            "mt-1 block font-body text-[14px] font-semibold leading-snug",
+            isDark ? "text-[#D8CFE6]" : "text-[#8A8095]",
+          ].join(" ")}>Plan & billing, privacy, notifications and account access</span>
+        </span>
+        <ChevronRight size={20} className={isDark ? "text-[#BDAED4]" : "text-[#A899B5]"} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
         data-testid="button-profile-call-support"
         onClick={() => openExistingSos("prototype-profile-support")}
         className={[
@@ -1214,7 +1240,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
         ].join(" ")}
       >
         <VyvaIcon icon={Phone} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
-        Call support
+        Get support
       </button>
     </PrototypeShell>
   );

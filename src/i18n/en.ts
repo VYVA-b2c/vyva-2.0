@@ -278,7 +278,7 @@ const en = {
       priorityDoneSub: "{{taken}} doses confirmed. Nothing else is due.",
       priorityNextTitleOne: "1 dose left today",
       priorityNextTitleMany: "{{count}} doses left today",
-      priorityNextSub: "Next: {{medicine}} at {{time}}.",
+      priorityNextSub: "Next: {{medicine}} {{time}}.",
       priorityAttentionSub: "{{count}} doses still need attention.",
       focusNow: "What needs attention now",
       noPlanLabel: "No plan yet",

@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, ChevronRight, Mic, UserCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronRight, Mic, Settings, UserCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
@@ -54,6 +54,12 @@ const ProfileOverview = ({ preview = false }: { preview?: boolean }) => {
             </button>;
           })}
         </div>
+
+        <button type="button" onClick={() => navigate(preview ? "/dev/home-master/settings" : "/settings")} data-testid="button-profile-settings" className="mt-6 flex min-h-[88px] w-full items-center gap-4 rounded-[24px] border border-vyva-border bg-white px-4 py-4 text-left shadow-[0_10px_26px_rgba(53,28,87,0.055)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(53,28,87,0.09)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/20 sm:px-5">
+          <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[18px] bg-[#F1E8FF] text-vyva-purple"><VyvaIcon icon={Settings} size={25} strokeWidth={2.35} /></span>
+          <span className="min-w-0 flex-1"><strong className="block text-[18px] font-extrabold text-vyva-text-1">Settings</strong><span className="mt-1 block text-[14px] leading-snug text-vyva-text-2">Plan & billing, privacy, notifications and account access</span></span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-vyva-text-3" aria-hidden="true" />
+        </button>
       </main>
     </div>
   );

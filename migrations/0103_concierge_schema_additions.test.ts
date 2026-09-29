@@ -31,7 +31,9 @@ describe("Concierge schema additions migration", () => {
   });
 
   it("adds the missing hot-path indexes on concierge_pending and concierge_task_drafts", () => {
-    expect(migration).toContain("create index if not exists concierge_pending_user_status_idx\n  on concierge_pending (user_id, status);");
+    expect(migration).toMatch(
+      /create index if not exists concierge_pending_user_status_idx\s+on concierge_pending \(user_id, status\);/,
+    );
     expect(migration).toContain("concierge_task_drafts_user_status_updated_idx");
   });
 

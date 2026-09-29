@@ -13,6 +13,7 @@ import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
@@ -35,6 +36,44 @@ type EmergencyForm = {
   address: string;
 };
 
+const RELATIONSHIPS = [
+  "Spouse or partner",
+  "Daughter",
+  "Son",
+  "Parent",
+  "Sibling",
+  "Friend",
+  "Neighbour",
+  "Caregiver",
+  "Other",
+] as const;
+
+const COUNTRY_CODES = [
+  { code: "+34", label: "Spain" },
+  { code: "+44", label: "UK" },
+  { code: "+1", label: "US / Canada" },
+  { code: "+33", label: "France" },
+  { code: "+49", label: "Germany" },
+  { code: "+351", label: "Portugal" },
+  { code: "+39", label: "Italy" },
+  { code: "+31", label: "Netherlands" },
+  { code: "+353", label: "Ireland" },
+] as const;
+
+function splitInternationalPhone(value: string | undefined, fallbackCode = "+34") {
+  const trimmed = value?.trim() ?? "";
+  const knownCode = [...COUNTRY_CODES]
+    .sort((a, b) => b.code.length - a.code.length)
+    .find(({ code }) => trimmed.startsWith(code))?.code;
+  if (knownCode) return { code: knownCode, number: trimmed.slice(knownCode.length).trim() };
+  const match = trimmed.match(/^(\+\d{1,4})\s+(.*)$/);
+  return match ? { code: match[1], number: match[2] } : { code: fallbackCode, number: trimmed };
+}
+
+function formatInternationalPhone(code: string, number: string) {
+  return number.trim() ? `${code} ${number.trim()}` : "";
+}
+
 export default function EmergencySection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -44,6 +83,8 @@ export default function EmergencySection() {
     primary_phone: "", secondary_phone: "", address: "",
   });
   const [saving, setSaving] = useState(false);
+  const [primaryDialCode, setPrimaryDialCode] = useState("+34");
+  const [secondaryDialCode, setSecondaryDialCode] = useState("+34");
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
@@ -134,9 +175,9 @@ export default function EmergencySection() {
 
   const buildEmergencyPayload = (current: EmergencyForm) => ({
     emergency_name: current.name,
-    emergency_phone: current.primary_phone,
+    emergency_phone: formatInternationalPhone(primaryDialCode, current.primary_phone),
     emergency_role: current.relationship,
-    secondary_phone: current.secondary_phone,
+    secondary_phone: formatInternationalPhone(secondaryDialCode, current.secondary_phone),
     address: current.address,
   });
 
@@ -154,11 +195,15 @@ export default function EmergencySection() {
   useEffect(() => {
     const ec = (data?.profile as { emergency_contact?: EmergencyForm } | null)?.emergency_contact;
     if (ec) {
+      const primary = splitInternationalPhone(ec.primary_phone);
+      const secondary = splitInternationalPhone(ec.secondary_phone);
+      setPrimaryDialCode(primary.code);
+      setSecondaryDialCode(secondary.code);
       setForm((prev) => ({
         name:            ec.name            ?? prev.name,
         relationship:    ec.relationship    ?? prev.relationship,
-        primary_phone:   ec.primary_phone   ?? prev.primary_phone,
-        secondary_phone: ec.secondary_phone ?? prev.secondary_phone,
+        primary_phone:   primary.number || prev.primary_phone,
+        secondary_phone: secondary.number || prev.secondary_phone,
         address:         ec.address         ?? prev.address,
       }));
     }
@@ -219,12 +264,16 @@ export default function EmergencySection() {
   const confirmVoiceDraft = () => {
     if (!voiceDraft) return;
     const metadata = voiceDraft.metadata ?? {};
+    const primary = splitInternationalPhone(metadata.primary_phone, primaryDialCode);
+    const secondary = splitInternationalPhone(metadata.secondary_phone, secondaryDialCode);
+    setPrimaryDialCode(primary.code);
+    setSecondaryDialCode(secondary.code);
     setForm((prev) => ({
       ...prev,
       name: metadata.name ?? prev.name,
       relationship: metadata.relationship ?? prev.relationship,
-      primary_phone: metadata.primary_phone ?? prev.primary_phone,
-      secondary_phone: metadata.secondary_phone ?? prev.secondary_phone,
+      primary_phone: primary.number || prev.primary_phone,
+      secondary_phone: secondary.number || prev.secondary_phone,
       address: metadata.address ?? prev.address,
     }));
     setVoiceDraft(null);
@@ -270,19 +319,11 @@ export default function EmergencySection() {
           icon={ShieldAlert}
           title="Emergency contact"
           kicker="Safety net"
-          description="Choose the person VYVA should contact first if you need urgent help and cannot respond."
-          badges={[
-            { label: "24/7 reach", color: "red" },
-            { label: "Urgent only", color: "amber" },
-            { label: "Protected", color: "purple" },
-          ]}
+          description="Choose one person VYVA should contact in an emergency. This can be your caregiver; their number is shared only when needed."
           iconBgClassName="bg-[#B91C1C]"
+          className="home-master-profile-emergency-summary rounded-[24px] border border-red-100 bg-red-50 px-5 py-4"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-emergency-autosave" }}
         />
-
-        <div className="rounded-[24px] border border-red-100 bg-red-50 px-4 py-3 text-[15px] font-semibold leading-relaxed text-red-700">
-          This person can be the same as your caregiver. Their number is shared with emergency services only when needed.
-        </div>
 
         {companionMode !== "voice" ? (
           <OnboardingCompanionTarget targetId="emergency-add-by-voice">
@@ -330,7 +371,19 @@ export default function EmergencySection() {
         <div className="space-y-1.5">
           <Label className="text-[15px] font-extrabold text-gray-700">Relationship to you</Label>
           {isLoading ? <FieldSkeleton /> : (
-            <Input data-testid="input-emergency-relationship" placeholder="e.g. Daughter, Neighbour, Carer" value={form.relationship} onChange={(e) => set("relationship", e.target.value)} className={seniorInputClassName} />
+            <Select value={form.relationship} onValueChange={(value) => set("relationship", value)}>
+              <SelectTrigger data-testid="input-emergency-relationship" className={seniorInputClassName}>
+                <SelectValue placeholder="Choose relationship" />
+              </SelectTrigger>
+              <SelectContent>
+                {form.relationship && !RELATIONSHIPS.includes(form.relationship as typeof RELATIONSHIPS[number]) ? (
+                  <SelectItem value={form.relationship}>{form.relationship}</SelectItem>
+                ) : null}
+                {RELATIONSHIPS.map((relationship) => (
+                  <SelectItem key={relationship} value={relationship}>{relationship}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
@@ -338,13 +391,35 @@ export default function EmergencySection() {
           <div className="space-y-1.5">
             <Label className="text-[15px] font-extrabold text-gray-700">Primary phone (24/7)</Label>
             {isLoading ? <FieldSkeleton /> : (
-              <Input data-testid="input-emergency-primary-phone" type="tel" placeholder="Always reachable" value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} className={seniorInputClassName} />
+              <div className="flex gap-2">
+                <Select value={primaryDialCode} onValueChange={setPrimaryDialCode}>
+                  <SelectTrigger aria-label="Primary phone country code" data-testid="select-emergency-primary-country-code" className={`${seniorInputClassName} w-[132px] shrink-0 px-3`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!COUNTRY_CODES.some(({ code }) => code === primaryDialCode) ? <SelectItem value={primaryDialCode}>{primaryDialCode}</SelectItem> : null}
+                    {COUNTRY_CODES.map(({ code, label }) => <SelectItem key={code} value={code}>{label} {code}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input data-testid="input-emergency-primary-phone" type="tel" inputMode="tel" placeholder="Phone number" value={form.primary_phone} onChange={(e) => set("primary_phone", e.target.value)} className={`${seniorInputClassName} min-w-0`} />
+              </div>
             )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-[15px] font-extrabold text-gray-700">Secondary phone</Label>
             {isLoading ? <FieldSkeleton /> : (
-              <Input data-testid="input-emergency-secondary-phone" type="tel" placeholder="Backup number" value={form.secondary_phone} onChange={(e) => set("secondary_phone", e.target.value)} className={seniorInputClassName} />
+              <div className="flex gap-2">
+                <Select value={secondaryDialCode} onValueChange={setSecondaryDialCode}>
+                  <SelectTrigger aria-label="Secondary phone country code" data-testid="select-emergency-secondary-country-code" className={`${seniorInputClassName} w-[132px] shrink-0 px-3`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!COUNTRY_CODES.some(({ code }) => code === secondaryDialCode) ? <SelectItem value={secondaryDialCode}>{secondaryDialCode}</SelectItem> : null}
+                    {COUNTRY_CODES.map(({ code, label }) => <SelectItem key={code} value={code}>{label} {code}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input data-testid="input-emergency-secondary-phone" type="tel" inputMode="tel" placeholder="Backup number" value={form.secondary_phone} onChange={(e) => set("secondary_phone", e.target.value)} className={`${seniorInputClassName} min-w-0`} />
+              </div>
             )}
           </div>
         </div>
