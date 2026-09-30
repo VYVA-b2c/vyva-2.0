@@ -12182,6 +12182,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     () => isHomeServiceElectricalDanger ? null : homeServiceQuestions.find((question) => !homeServiceIntakeAnswers[question.key]) ?? null,
     [homeServiceIntakeAnswers, homeServiceQuestions, isHomeServiceElectricalDanger],
   );
+  const isHomeServiceNameQuestion = activeHomeServiceQuestion?.key === "service_needed";
   const answeredHomeServiceQuestionCount = homeServiceQuestions.filter((question) => homeServiceIntakeAnswers[question.key]).length;
   const isHomeServiceQuestionSetComplete = Boolean(
     !isHomeServiceElectricalDanger
@@ -19907,26 +19908,30 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               rows={3}
                               className="min-h-[104px] w-full resize-none rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/15"
                             />
-                            <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className={`mt-3 grid gap-2 ${isHomeServiceNameQuestion ? "grid-cols-1" : "grid-cols-2"}`}>
                               <button
                                 type="button"
                                 onClick={() => {
                                   const draft = (homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? "").trim();
+                                  if (isHomeServiceNameQuestion && !draft) return;
                                   setHomeServiceAnswer(activeHomeServiceQuestion.key, draft || "skip");
                                 }}
+                                disabled={isHomeServiceNameQuestion && !(homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? "").trim()}
                                 data-testid="button-home-service-answer-next"
-                                className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+                                className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} disabled:cursor-not-allowed disabled:opacity-50`}
                               >
                                 {homeServiceText(locale, "Save")}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "skip")}
-                                data-testid="button-home-service-answer-skip"
-                                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
-                              >
-                                {homeServiceText(locale, "Skip")}
-                              </button>
+                              {!isHomeServiceNameQuestion && (
+                                <button
+                                  type="button"
+                                  onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "skip")}
+                                  data-testid="button-home-service-answer-skip"
+                                  className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+                                >
+                                  {homeServiceText(locale, "Skip")}
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -20100,7 +20105,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         })}
                       </div>
                     </details>
-                    {activeHomeServiceQuestion && !isHomeServiceElectricalDanger && (
+                    {activeHomeServiceQuestion && !isHomeServiceNameQuestion && !isHomeServiceElectricalDanger && (
                       <button
                         type="button"
                         data-testid="button-home-service-skip-all"

@@ -3862,14 +3862,19 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("Current question");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 1 of 3");
     expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("How urgent is it?");
+    expect(screen.getByTestId("button-home-service-answer-next")).toBeDisabled();
+    expect(screen.queryByTestId("button-home-service-answer-skip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-skip-all")).not.toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
       target: { value: "Pest control" },
     });
+    expect(screen.getByTestId("button-home-service-answer-next")).toBeEnabled();
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
 
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Pest control");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("How urgent is it?");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 2 of 3");
+    expect(screen.getByTestId("button-home-service-skip-all")).toBeInTheDocument();
   });
 
   it("prepares a Concierge request instead of showing raw feature-access errors for home service", async () => {

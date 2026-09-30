@@ -302,4 +302,36 @@ describe("appointment discovery", () => {
     expect(queries[0]).toMatch(/^Electrician /i);
     expect(queries[0]).toContain("Marbella, Spain");
   });
+
+  it.each(["Pest control", "Gardener", "Appliance repair"])(
+    "uses the typed custom service as the primary search term: %s",
+    (service) => {
+      const queries = buildAppointmentSearchQueries({
+        appointmentType: "home-service",
+        serviceType: "other",
+        detail: `${service} needed. Urgency: Today`,
+        location: "Barbate, Spain",
+        countryCode: "ES",
+        language: "en",
+      });
+
+      expect(queries[0]).toBe(`${service} Barbate, Spain`);
+      expect(queries).toContain(service);
+      expect(queries.some((query) => query.includes("mantenimiento del hogar"))).toBe(true);
+    },
+  );
+
+  it("uses the generic local fallback when Other service is skipped", () => {
+    const queries = buildAppointmentSearchQueries({
+      appointmentType: "home-service",
+      serviceType: "other",
+      detail: "Other service needed. Urgency: Flexible",
+      location: "Barbate, Spain",
+      countryCode: "ES",
+      language: "en",
+    });
+
+    expect(queries[0]).toBe("mantenimiento del hogar Barbate, Spain");
+    expect(queries).not.toContain("Other service");
+  });
 });
