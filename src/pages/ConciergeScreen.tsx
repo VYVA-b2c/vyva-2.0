@@ -17373,13 +17373,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     || homeActiveTask.providerStatus === "action_needed"
     || homeActiveTask.providerStatus === "reply_received"
   ) ? homeActiveTask : null;
+  const homeTaskNudge = homeActiveTask;
   const homeTaskFlowReference = activeSavedTaskExecutionTask?.flow_reference
     ?? activeActionExecutionTask?.flow_reference
     ?? (activeSavedTask?.action ? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]) : "")
     ?? (activeAction ? payloadString(activeAction.action_payload, ["flow_reference"]) : "");
   const homeTaskUseCase = activeSavedTask?.action?.use_case ?? activeAction?.use_case ?? "";
   const homeTaskServiceCardId = (() => {
-    if (!homeTaskNeedsAttention) return null;
+    if (!homeTaskNudge) return null;
     if (activeSavedTaskEntry?.kind === "appointment") return "book-appointments";
     if (activeSavedTaskEntry?.kind === "transport") return "order-in";
     if (activeSavedTaskEntry?.kind === "otc_pharmacy" || activeSavedTaskEntry?.kind === "scam_review") return "discover";
@@ -17402,12 +17403,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     return "get-help";
   })();
   const conciergeCardsWithTaskNudge = conciergeMasterCards.map((card) => (
-    card.id === homeTaskServiceCardId && homeTaskNeedsAttention
+    card.id === homeTaskServiceCardId && homeTaskNudge
       ? {
           ...card,
           highlighted: true,
-          highlightLabel: isSpanish ? "Necesita atención" : "Needs attention",
-          onClick: () => navigate(homeTaskNeedsAttention.detailPath),
+          highlightLabel: homeTaskNeedsAttention
+            ? (isSpanish ? "Necesita atención" : "Needs attention")
+            : (isSpanish ? "Tarea en curso" : "Task in progress"),
+          onClick: () => navigate(homeTaskNudge.detailPath),
         }
       : card
   ));

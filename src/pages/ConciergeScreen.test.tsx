@@ -306,6 +306,28 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
   });
 
+  it("nudges an ongoing task on its matching service without showing a generic alert", async () => {
+    mockConciergeLists([], [], [{
+      id: "home-service-draft",
+      kind: "home_service",
+      entry_payload: { kind: "home_service" },
+      progress_payload: {},
+      stage: "details",
+      status: "active",
+      linked_pending_id: null,
+    }]);
+    renderScreen(["/concierge"], "home");
+
+    const homeRepair = await screen.findByTestId("button-concierge-card-service");
+    await waitFor(() => expect(homeRepair).toHaveAttribute("data-highlighted", "true"));
+    expect(homeRepair).toHaveTextContent("Task in progress");
+    expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your request needs attention")).not.toBeInTheDocument();
+
+    fireEvent.click(homeRepair);
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/draft%3Ahome-service-draft");
+  });
+
   it("opens after Home has populated the shared action cache with API envelopes", async () => {
     mockConciergeLists();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
