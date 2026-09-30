@@ -19,6 +19,7 @@ import {
   scheduledEvents,
   userProviders,
   type AppointmentProviderOption,
+  type AppointmentAttempt,
   type AppointmentRequest,
   type UserProvider,
 } from "../../shared/schema.js";
@@ -53,6 +54,12 @@ import {
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
+import { evaluateConciergeChannelReadiness } from "../../shared/conciergeChannelReadiness.js";
+import { toolFromAppointmentChannel } from "../../shared/conciergeToolReadiness.js";
+import {
+  conciergeChannelReadinessForToolWithAdminSettings,
+  loadConciergeChannelReadinessFlagsWithAdminSettings,
+} from "../services/conciergeChannelReadiness.js";
 import {
   decideProviderCandidates,
   type ProviderCandidate,
@@ -95,17 +102,37 @@ const addOptionSchema = z.object({
 });
 
 const confirmAttemptSchema = z.object({
+  attempt_id: z.string().uuid().optional(),
+  preview_revision: z.number().int().positive().optional(),
+  idempotency_key: z.string().trim().min(8).max(200).optional(),
   option_id: z.string().uuid().optional(),
   channel: z.enum(APPOINTMENT_CHANNELS),
+  contact_authorized: z.boolean().optional().default(false),
   result_notes: z.string().trim().max(1000).optional(),
   share_details: z.object({
     share_home_address: z.boolean().optional().default(false),
+    share_access_notes: z.boolean().optional().default(false),
     photo: z.object({
       name: z.string().trim().min(1).max(180),
       type: z.enum(["image/jpeg", "image/png", "image/webp"]),
       data_url: z.string().startsWith("data:image/").max(2_500_000),
     }).optional(),
   }).optional(),
+  draft: z.object({
+    subject: z.string().trim().max(300).optional(),
+    body: z.string().trim().min(1).max(5000).optional(),
+  }).optional(),
+});
+
+const prepareAttemptSchema = z.object({
+  option_id: z.string().uuid(),
+  channel: z.enum(APPOINTMENT_CHANNELS),
+});
+
+const commitBookingSchema = z.object({
+  preview_revision: z.number().int().positive(),
+  idempotency_key: z.string().trim().min(8).max(200),
+  confirmed_terms: z.boolean(),
 });
 
 const markBookedSchema = z.object({
@@ -188,6 +215,21 @@ async function loadRequestForUser(requestId: string, userId: string): Promise<Ap
     .where(and(eq(appointmentRequests.id, requestId), eq(appointmentRequests.user_id, userId)))
     .limit(1);
   return rows[0] ?? null;
+}
+
+async function loadAttemptForUser(attemptId: string, userId: string): Promise<AppointmentAttempt | null> {
+  const rows = await db
+    .select()
+    .from(appointmentAttempts)
+    .where(and(eq(appointmentAttempts.id, attemptId), eq(appointmentAttempts.user_id, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+function attemptMetadata(attempt: AppointmentAttempt | null | undefined): Record<string, unknown> {
+  return attempt?.metadata && typeof attempt.metadata === "object" && !Array.isArray(attempt.metadata)
+    ? attempt.metadata as Record<string, unknown>
+    : {};
 }
 
 async function loadAppointmentSearchLocation(userId: string): Promise<AppointmentSearchLocation> {
@@ -367,6 +409,12 @@ function confirmedHomeServicePayload(
     payload.home_address_shared = false;
   } else {
     payload.home_address_shared = Boolean(payload.home_address);
+  }
+  if (shareDetails?.share_access_notes !== true) {
+    payload.home_access_or_safety_notes = null;
+    payload.access_notes_shared = false;
+  } else {
+    payload.access_notes_shared = Boolean(payload.home_access_or_safety_notes);
   }
   payload.photo_available = Boolean(shareDetails?.photo);
   payload.photo_name = shareDetails?.photo?.name ?? null;
@@ -714,6 +762,34 @@ function appointmentMessage(
 }
 
 router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
+
+router.get("/contact-channel-readiness", async (_req: Request, res: Response) => {
+  try {
+    const liveChannels = APPOINTMENT_CHANNELS.filter((channel) => channel !== "manual");
+    const flags = await loadConciergeChannelReadinessFlagsWithAdminSettings();
+    const results = liveChannels.map((channel) => {
+      const readiness = evaluateConciergeChannelReadiness({
+        tool: toolFromAppointmentChannel(channel),
+        dryRun: false,
+        flags,
+      });
+      return [channel, {
+        status: readiness.status,
+        external_action_allowed: readiness.external_action_allowed,
+      }] as const;
+    });
+
+    return res.json({
+      channels: {
+        ...Object.fromEntries(results),
+        manual: { status: "manual_review", external_action_allowed: true },
+      },
+    });
+  } catch (err) {
+    console.error("[appointments GET /contact-channel-readiness]", err);
+    return res.status(503).json({ error: "Contact channel readiness is unavailable" });
+  }
+});
 
 router.get("/context", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
@@ -1198,26 +1274,182 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
   }
 });
 
-router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response) => {
+router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
-
   const request = await loadRequestForUser(req.params.id, userId);
+  if (!request) return res.status(404).json({ error: "Appointment request not found" });
+
+  const parsed = prepareAttemptSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const option = await loadOptionForRequest(parsed.data.option_id, request.id, userId);
+    if (!option) return res.status(404).json({ error: "Provider option not found" });
+    const channel = parsed.data.channel;
+    if (channel !== "manual" && !option.available_channels.includes(channel)) {
+      return res.status(400).json({ error: "This contact channel is not available for the provider" });
+    }
+
+    const readiness = channel === "manual"
+      ? null
+      : await conciergeChannelReadinessForToolWithAdminSettings({
+          tool: toolFromAppointmentChannel(channel),
+          dryRun: false,
+        });
+    if (readiness && !readiness.external_action_allowed) {
+      return res.status(409).json({
+        error: "This contact method is not currently available. Choose another method or manual review.",
+        code: "contact_channel_not_ready",
+        channel,
+      });
+    }
+
+    const snapshot = recordValue(option.provider_snapshot);
+    const recipient = channel === "phone"
+      ? snapshotText(snapshot, "phone")
+      : channel === "booking_url"
+        ? snapshotText(snapshot, "booking_url")
+        : appointmentChannelRecipient(channel, snapshot);
+    if (channel !== "manual" && !recipient) {
+      return res.status(400).json({ error: "The provider does not have the selected contact detail" });
+    }
+
+    const safePayload = confirmedHomeServicePayload(request, {
+      share_home_address: false,
+      share_access_notes: false,
+    });
+    const message = channel === "email" || channel === "whatsapp"
+      ? appointmentMessage(channel, option, request, safePayload)
+      : null;
+    const revision = 1;
+    const preparedAt = new Date().toISOString();
+    const preview = {
+      version: 1,
+      revision,
+      channel,
+      provider_name: optionName(option),
+      recipient,
+      message,
+      call: channel === "phone" ? {
+        objective: `Ask ${optionName(option)} about availability, timing, estimated cost, and preparation requirements.`,
+        questions: ["What availability do you have?", "What is the estimated cost?", "Is any preparation required?"],
+        commitment_policy: "VYVA may gather information but cannot accept a booking, price, deposit, or terms.",
+      } : null,
+      booking: channel === "booking_url" ? {
+        url: recipient,
+        submit_policy: "prepare_then_confirm",
+        commitment_policy: "VYVA will not submit until the user reviews the exact slot and terms and confirms again.",
+      } : null,
+      manual: channel === "manual" ? {
+        owner: "VYVA support",
+        next_step: "A VYVA operator will prepare the safest contact action and return it for confirmation.",
+      } : null,
+      share_options: {
+        home_address: Boolean(homeServiceAddressFromPreferences(recordValue(request.preferences))),
+        access_notes: Boolean(homeServiceAccessNotesFromPreferences(recordValue(request.preferences))),
+        photo: request.appointment_type === "home-service" && channel === "email",
+      },
+      readiness,
+      prepared_at: preparedAt,
+    };
+
+    const [attempt] = await db.insert(appointmentAttempts).values({
+      request_id: request.id,
+      user_id: userId,
+      provider_option_id: option.id,
+      provider_id: option.provider_id,
+      channel,
+      status: "awaiting_confirmation",
+      metadata: {
+        provider_snapshot: snapshot,
+        preview,
+        preview_revision: revision,
+        prepared_at: preparedAt,
+      },
+    }).returning();
+
+    await db.update(appointmentRequests).set({
+      status: "awaiting_confirmation",
+      selected_provider_id: option.provider_id,
+      selected_provider_option_id: option.id,
+      selected_channel: channel,
+      updated_at: new Date(),
+    }).where(eq(appointmentRequests.id, request.id));
+
+    return res.status(201).json({ attempt, preview });
+  } catch (err) {
+    console.error("[appointments POST /requests/:id/prepare-attempt]", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Could not prepare contact" });
+  }
+});
+
+async function executeAppointmentAttempt(req: Request, res: Response, preparedAttemptId?: string) {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const preparedAttempt = preparedAttemptId ? await loadAttemptForUser(preparedAttemptId, userId) : null;
+  if (preparedAttemptId && !preparedAttempt) return res.status(404).json({ error: "Prepared contact attempt not found" });
+  const requestId = preparedAttempt?.request_id ?? req.params.id;
+  const request = await loadRequestForUser(requestId, userId);
   if (!request) return res.status(404).json({ error: "Appointment request not found" });
 
   const parsed = confirmAttemptSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
+  if (preparedAttempt && parsed.data.attempt_id && parsed.data.attempt_id !== preparedAttempt.id) {
+    return res.status(400).json({ error: "Prepared attempt does not match" });
+  }
+  if (request.appointment_type === "home-service" && parsed.data.contact_authorized !== true) {
+    return res.status(400).json({ error: "Explicit permission is required before contacting this provider" });
+  }
+  if (request.appointment_type === "home-service" && !preparedAttempt) {
+    return res.status(409).json({
+      error: "Prepare and review this provider contact before confirming it.",
+      code: "contact_preview_required",
+    });
+  }
 
-  const optionId = parsed.data.option_id ?? request.selected_provider_option_id ?? undefined;
+  const optionId = parsed.data.option_id ?? preparedAttempt?.provider_option_id ?? request.selected_provider_option_id ?? undefined;
   if (!optionId) return res.status(400).json({ error: "Choose a provider option first" });
 
   try {
     const option = await loadOptionForRequest(optionId, request.id, userId);
     if (!option) return res.status(404).json({ error: "Provider option not found" });
-    if (!option.available_channels.includes(parsed.data.channel)) {
+    if (preparedAttempt && preparedAttempt.channel !== parsed.data.channel) {
+      return res.status(409).json({ error: "The selected channel changed. Prepare the contact again." });
+    }
+    const preparedMetadata = attemptMetadata(preparedAttempt);
+    if (preparedAttempt) {
+      if (preparedAttempt.status !== "awaiting_confirmation") {
+        const previousKey = typeof preparedMetadata.idempotency_key === "string" ? preparedMetadata.idempotency_key : null;
+        if (previousKey && previousKey === parsed.data.idempotency_key && preparedMetadata.execution_response) {
+          return res.status(200).json(preparedMetadata.execution_response);
+        }
+        return res.status(409).json({ error: "This prepared contact has already been used" });
+      }
+      if (parsed.data.preview_revision !== preparedMetadata.preview_revision) {
+        return res.status(409).json({ error: "This contact preview changed. Review it again before confirming.", code: "stale_preview" });
+      }
+      if (!parsed.data.idempotency_key) {
+        return res.status(400).json({ error: "An idempotency key is required" });
+      }
+    }
+    if (parsed.data.channel !== "manual" && !option.available_channels.includes(parsed.data.channel)) {
       return res.status(400).json({ error: "This contact channel is not available for the provider" });
+    }
+    if (request.appointment_type === "home-service" && parsed.data.channel !== "manual") {
+      const readiness = await conciergeChannelReadinessForToolWithAdminSettings({
+        tool: toolFromAppointmentChannel(parsed.data.channel),
+        dryRun: false,
+      });
+      if (!readiness.external_action_allowed) {
+        return res.status(409).json({
+          error: "This contact method is not currently available. Choose another method or manual review.",
+          code: "contact_channel_not_ready",
+          channel: parsed.data.channel,
+        });
+      }
     }
 
     const snapshot = (option.provider_snapshot ?? {}) as Record<string, unknown>;
@@ -1254,7 +1486,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       return res.status(400).json({ error: "This provider does not have a booking page" });
     }
 
-    const [attempt] = await db
+    const attempt = preparedAttempt ?? (await db
       .insert(appointmentAttempts)
       .values({
         request_id: request.id,
@@ -1269,7 +1501,21 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           handled_by_vyva: true,
         },
       })
-      .returning();
+      .returning())[0];
+
+    if (preparedAttempt) {
+      await db.update(appointmentAttempts).set({
+        status: "executing",
+        metadata: {
+          ...preparedMetadata,
+          idempotency_key: parsed.data.idempotency_key,
+          contact_authorized_at: new Date().toISOString(),
+          approved_share_details: parsed.data.share_details ?? {},
+          approved_draft: parsed.data.draft ?? null,
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentAttempts.id, attempt.id));
+    }
 
     let pending: { pendingId?: string; status?: string; message?: string } | null = null;
     let communication: { id: string; channel: string; recipient: string; status: string; provider_message_id?: string | null; error?: string } | null = null;
@@ -1304,6 +1550,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
+            commitment_policy: "Collect information only. Do not accept a booking, price, deposit, or terms.",
             ...homeServicePayload,
           },
           language: request.language,
@@ -1317,6 +1564,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             pending_id: pending.pendingId ?? null,
             status: pending.status === "calling" ? "calling" : "call_started",
             metadata: {
+              ...(preparedAttempt ? preparedMetadata : {}),
               provider_snapshot: snapshot,
               handled_by_vyva: true,
               pending,
@@ -1330,6 +1578,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           .set({
             status: "failed",
             metadata: {
+              ...(preparedAttempt ? preparedMetadata : {}),
               provider_snapshot: snapshot,
               handled_by_vyva: true,
               error: err instanceof Error ? err.message : String(err),
@@ -1340,10 +1589,24 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         throw err;
       }
     } else if (channel === "email" || channel === "whatsapp") {
-      const message = appointmentMessage(channel, option, request, homeServicePayload);
-      const messageBody = photoAttachment
-        ? `${message.body}\n\nA photo is attached with the user's approval.`
-        : message.body;
+      const generatedMessage = appointmentMessage(channel, option, request, homeServicePayload);
+      const message = {
+        subject: parsed.data.draft?.subject ?? generatedMessage.subject,
+        body: parsed.data.draft?.body ?? generatedMessage.body,
+      };
+      const approvedDetailLines = parsed.data.draft ? [
+        typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
+          ? `Visit address: ${homeServicePayload.home_address.trim()}`
+          : "",
+        typeof homeServicePayload.home_access_or_safety_notes === "string" && homeServicePayload.home_access_or_safety_notes.trim()
+          ? `Access/safety notes: ${homeServicePayload.home_access_or_safety_notes.trim()}`
+          : "",
+      ].filter(Boolean) : [];
+      const messageBody = [
+        message.body,
+        ...approvedDetailLines,
+        photoAttachment ? "A photo is attached with the user's approval." : "",
+      ].filter(Boolean).join("\n\n");
       const [queuedCommunication] = await db
         .insert(communicationsLog)
         .values({
@@ -1389,6 +1652,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         .set({
           status: communication.status === "sent" ? `${channel}_sent` : "failed",
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             communication_id: queuedCommunication.id,
@@ -1413,7 +1677,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
 
       formTask = { ...formResult };
 
-      if (formResult.status === "confirmed" && formResult.scheduled_for) {
+      if (!preparedAttempt && formResult.status === "confirmed" && formResult.scheduled_for) {
         const scheduledFor = new Date(formResult.scheduled_for);
         if (!Number.isNaN(scheduledFor.getTime())) {
           const homeVisitLocation = typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
@@ -1488,12 +1752,15 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         .update(appointmentAttempts)
         .set({
           pending_id: pending?.pendingId ?? null,
-          status: bookedFromForm
+          status: preparedAttempt && formResult.status === "confirmed"
+            ? "awaiting_booking_confirmation"
+            : bookedFromForm
             ? "form_confirmed"
             : pending
               ? "form_task_queued"
               : formResult.status,
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             booking_url: bookingUrl,
@@ -1543,6 +1810,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           pending_id: pending.pendingId ?? null,
           status: "manual_task_queued",
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             pending,
@@ -1594,7 +1862,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       scheduledEventId: bookedFromForm?.scheduled_event.id ?? null,
     });
 
-    return res.status(201).json({
+    const executionResponse = {
       attempt: {
         ...attempt,
         status: communication?.status === "sent"
@@ -1618,10 +1886,95 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       handled_by_vyva: true,
       needs_booking_confirmation: true,
       mission,
-    });
+    };
+    if (preparedAttempt) {
+      const latestAttempt = await loadAttemptForUser(attempt.id, userId);
+      await db.update(appointmentAttempts).set({
+        metadata: {
+          ...attemptMetadata(latestAttempt),
+          idempotency_key: parsed.data.idempotency_key,
+          execution_response: executionResponse,
+          executed_at: new Date().toISOString(),
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentAttempts.id, attempt.id));
+    }
+    return res.status(201).json(executionResponse);
   } catch (err) {
     console.error("[appointments POST /requests/:id/confirm-attempt]", err);
     return res.status(500).json({ error: "Could not confirm appointment attempt" });
+  }
+}
+
+router.post("/requests/:id/confirm-attempt", (req: Request, res: Response) => executeAppointmentAttempt(req, res));
+router.post("/attempts/:attemptId/execute", (req: Request, res: Response) => executeAppointmentAttempt(req, res, req.params.attemptId));
+
+router.post("/attempts/:attemptId/commit-booking", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const parsed = commitBookingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.data.confirmed_terms) return res.status(400).json({ error: "Review and confirm the booking terms first" });
+
+  try {
+    const attempt = await loadAttemptForUser(req.params.attemptId, userId);
+    if (!attempt) return res.status(404).json({ error: "Prepared booking attempt not found" });
+    if (attempt.channel !== "booking_url") return res.status(400).json({ error: "This attempt is not a booking form" });
+    const metadata = attemptMetadata(attempt);
+    if (metadata.booking_commit_idempotency_key === parsed.data.idempotency_key && metadata.booking_commit_response) {
+      return res.status(200).json(metadata.booking_commit_response);
+    }
+    if (metadata.preview_revision !== parsed.data.preview_revision) {
+      return res.status(409).json({ error: "This booking preview changed. Review it again before confirming.", code: "stale_preview" });
+    }
+    const formResult = recordValue(metadata.form_automation) as AppointmentFormAutomationResult;
+    if (formResult.status !== "confirmed" || !formResult.scheduled_for) {
+      return res.status(409).json({
+        error: "The provider has not returned a confirmed slot and terms yet.",
+        code: "booking_not_ready",
+      });
+    }
+    const scheduledFor = new Date(formResult.scheduled_for);
+    if (Number.isNaN(scheduledFor.getTime())) return res.status(409).json({ error: "The confirmed booking time is invalid" });
+    const request = await loadRequestForUser(attempt.request_id, userId);
+    if (!request) return res.status(404).json({ error: "Appointment request not found" });
+    const option = attempt.provider_option_id
+      ? await loadOptionForRequest(attempt.provider_option_id, request.id, userId)
+      : null;
+    if (!option) return res.status(404).json({ error: "Provider option not found" });
+
+    const booked = await createScheduledAppointmentFromRequest({
+      userId,
+      request: { ...request, selected_channel: "booking_url" },
+      selectedOption: option,
+      scheduledFor,
+      timezone: formResult.timezone ?? "Europe/Madrid",
+      providerName: optionName(option),
+      location: formResult.location ?? snapshotText(recordValue(option.provider_snapshot), "address"),
+      notes: formResult.notes ?? request.reason_detail ?? null,
+      sourceMetadata: { form_automation: formResult },
+    });
+    const response = { scheduled_event: booked.scheduled_event, attempt_id: attempt.id, status: "booked" };
+    await db.update(appointmentAttempts).set({
+      status: "form_confirmed",
+      metadata: {
+        ...metadata,
+        booking_commit_idempotency_key: parsed.data.idempotency_key,
+        booking_confirmed_at: new Date().toISOString(),
+        booking_commit_response: response,
+        scheduled_event_id: booked.scheduled_event.id,
+      },
+      updated_at: new Date(),
+    }).where(eq(appointmentAttempts.id, attempt.id));
+    await db.update(appointmentRequests).set({
+      status: "booked",
+      linked_scheduled_event_id: booked.scheduled_event.id,
+      updated_at: new Date(),
+    }).where(eq(appointmentRequests.id, request.id));
+    return res.status(201).json(response);
+  } catch (err) {
+    console.error("[appointments POST /attempts/:attemptId/commit-booking]", err);
+    return res.status(500).json({ error: "Could not confirm booking" });
   }
 });
 

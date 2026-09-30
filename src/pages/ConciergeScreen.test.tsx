@@ -843,6 +843,14 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
+      if (target === "/api/appointments/contact-channel-readiness") {
+        return jsonResponse({
+          channels: {
+            email: { status: "ready", external_action_allowed: true },
+            manual: { status: "manual_review", external_action_allowed: true },
+          },
+        });
+      }
       if (target === "/api/profile") {
         return jsonResponse({
           street: "10 Garden Lane",
@@ -860,6 +868,24 @@ describe("ConciergeScreen action hub", () => {
       }
       if (target === "/api/appointments/requests/active-home-service") {
         return jsonResponse({ request: null, options: [] });
+      }
+      if (target.endsWith("/api/appointments/requests/home-canvas-request-1/prepare-attempt")) {
+        return jsonResponse({
+          attempt: { id: "home-canvas-attempt-1", channel: "email", status: "awaiting_confirmation" },
+          preview: {
+            version: 1,
+            revision: 1,
+            channel: "email",
+            provider_name: "Trusted Plumber",
+            recipient: "plumber@example.com",
+            message: { subject: "Home service request", body: "Hello Trusted Plumber, VYVA is helping me arrange a home service visit." },
+            call: null,
+            booking: null,
+            manual: null,
+            share_options: { home_address: true, access_notes: true, photo: false },
+            prepared_at: "2026-07-18T10:00:00.000Z",
+          },
+        });
       }
       if (target === "/api/appointments/requests") {
         const body = JSON.parse(String(init?.body));
@@ -891,7 +917,7 @@ describe("ConciergeScreen action hub", () => {
           }],
         });
       }
-      if (target.endsWith("/confirm-attempt")) {
+      if (target.endsWith("/api/appointments/attempts/home-canvas-attempt-1/execute")) {
         confirmedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
         return jsonResponse({ pending: { pendingId: "home-canvas-pending-1", status: "pending" } });
       }
@@ -935,6 +961,11 @@ describe("ConciergeScreen action hub", () => {
     await respond("home-service-location", { choiceId: "saved_home", value: "Use my saved home", utterance: "Use my saved home" });
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-provider")).toBe(true));
     await respond("home-service-provider", { choiceId: "saved_provider", value: "Trusted Plumber", utterance: "Trusted Plumber" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-contact-consent")).toBe(true));
+    expect(confirmedBody).toBeNull();
+    await respond("home-service-contact-consent", { choiceId: "contact_yes", value: "Yes, contact them", utterance: "Yes" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-contact-method")).toBe(true));
+    await respond("home-service-contact-method", { choiceId: "email", value: "VYVA sends email", utterance: "Email" });
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-review")).toBe(true));
 
     const review = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "home-service-review")!;
@@ -948,7 +979,10 @@ describe("ConciergeScreen action hub", () => {
     expect(confirmedBody).toMatchObject({
       option_id: "home-canvas-option-1",
       channel: "email",
-      share_details: { share_home_address: true },
+      contact_authorized: true,
+      attempt_id: "home-canvas-attempt-1",
+      preview_revision: 1,
+      share_details: { share_home_address: false, share_access_notes: false },
     });
     expect((confirmedBody?.share_details as Record<string, unknown>).photo).toBeUndefined();
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-completed")).toBe(true));
@@ -4008,6 +4042,17 @@ describe("ConciergeScreen action hub", () => {
     };
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target === "/api/appointments/contact-channel-readiness") {
+        return jsonResponse({
+          channels: {
+            booking_url: { status: "not_verified", external_action_allowed: false },
+            phone: { status: "disabled", external_action_allowed: false },
+            whatsapp: { status: "ready", external_action_allowed: true },
+            email: { status: "not_configured", external_action_allowed: false },
+            manual: { status: "manual_review", external_action_allowed: true },
+          },
+        });
+      }
       if (target === "/api/profile") {
         return jsonResponse({
           street: "Calle Home 10",
@@ -4025,11 +4070,34 @@ describe("ConciergeScreen action hub", () => {
           }],
         });
       }
-      if (target.endsWith("/api/appointments/requests/request-voice-home-service/confirm-attempt")) {
+      if (target.endsWith("/api/appointments/requests/request-voice-home-service/prepare-attempt")) {
+        return jsonResponse({
+          attempt: { id: "attempt-prepared-whatsapp", channel: "whatsapp", status: "awaiting_confirmation" },
+          preview: {
+            version: 1,
+            revision: 1,
+            channel: "whatsapp",
+            provider_name: "Saved Plumber",
+            recipient: "+34 600 222 334",
+            message: { subject: "Home service request", body: "Hello Saved Plumber, VYVA is helping me arrange a home service visit." },
+            call: null,
+            booking: null,
+            manual: null,
+            share_options: { home_address: true, access_notes: true, photo: false },
+            prepared_at: "2026-08-03T10:00:00.000Z",
+          },
+        });
+      }
+      if (target.endsWith("/api/appointments/attempts/attempt-prepared-whatsapp/execute")) {
         const body = JSON.parse(String(init?.body));
         expect(body).toMatchObject({
           option_id: "option-saved-plumber",
           channel: "whatsapp",
+          attempt_id: "attempt-prepared-whatsapp",
+          preview_revision: 1,
+          contact_authorized: true,
+          draft: { body: "Please confirm tomorrow availability and estimated cost." },
+          share_details: { share_home_address: true, share_access_notes: true },
         });
         return jsonResponse({
           attempt: { id: "attempt-home-service", channel: "whatsapp", status: "whatsapp_sent" },
@@ -4176,14 +4244,26 @@ describe("ConciergeScreen action hub", () => {
       return;
     }
     expect(screen.queryByTestId("panel-appointment-readiness")).not.toBeInTheDocument();
+    expect(screen.getByTestId("panel-home-service-contact-consent")).toHaveTextContent("Would you like VYVA to contact this provider?");
     expect(screen.queryByTestId("panel-appointment-confirmation-checkpoint")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Contact this provider");
     expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-service-contact-yes"));
+    expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
+    expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
+    expect(screen.queryByTestId("button-home-service-channel-booking_url")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-channel-email")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
+    expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");
+    fireEvent.change(screen.getByTestId("input-home-service-contact-body"), { target: { value: "Please confirm tomorrow availability and estimated cost." } });
+    fireEvent.click(screen.getByTestId("checkbox-share-home-address"));
+    fireEvent.click(screen.getByTestId("checkbox-share-access-notes"));
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
-        "/api/appointments/requests/request-voice-home-service/confirm-attempt",
+        "/api/appointments/attempts/attempt-prepared-whatsapp/execute",
         expect.objectContaining({ method: "POST" }),
       );
     });
