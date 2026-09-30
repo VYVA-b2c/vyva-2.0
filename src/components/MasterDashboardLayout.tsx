@@ -488,7 +488,7 @@ export default function MasterDashboardLayout({
                 ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
-              <div key={card.id} className="min-w-0">
+              <div key={card.id} className="flex min-w-0 flex-col">
               <button
                 type="button"
                 onClick={card.onClick}
@@ -497,7 +497,7 @@ export default function MasterDashboardLayout({
                 aria-current={card.highlighted ? "true" : undefined}
                 data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
-                  "vyva-tap group relative w-full rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  "vyva-tap group relative w-full flex-1 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
                     ? isHomeMasterIntentLayer
