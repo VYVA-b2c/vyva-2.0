@@ -16,7 +16,10 @@ export type ConciergeHomeServiceCanvasStep =
   | "provider"
   | "searching"
   | "options"
+  | "contact_consent"
+  | "contact_method"
   | "review"
+  | "paused"
   | "waiting"
   | "completed"
   | "error";
@@ -26,6 +29,8 @@ export type ConciergeHomeServiceCanvasOption = {
   label: string;
   description: string;
 };
+
+export type ConciergeHomeServiceContactChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
 export type ConciergeHomeServiceCanvasCopy = ReturnType<typeof homeServiceCanvasCopy>;
 
@@ -45,6 +50,8 @@ export type BuildConciergeHomeServiceCanvasInput = {
   savedProviderName?: string;
   options?: ConciergeHomeServiceCanvasOption[];
   selectedOption?: ConciergeHomeServiceCanvasOption | null;
+  contactChannels?: Array<{ id: ConciergeHomeServiceContactChannel; label: string; recommended?: boolean }>;
+  selectedContactChannel?: ConciergeHomeServiceContactChannel | null;
   contactChannelLabel?: string;
   photoWillBeSent?: boolean;
   error?: string | null;
@@ -146,9 +153,19 @@ const COPY = {
   },
 } as const;
 
+const CONTACT_COPY = {
+  de: { consentTitle: "Soll VYVA diesen Anbieter kontaktieren?", consentHelper: "Die Auswahl des Anbieters erlaubt noch keinen Kontakt.", consentYes: "Ja, kontaktieren", consentNotNow: "Nicht jetzt", consentChange: "Anderen Anbieter wählen", methodTitle: "Wie soll VYVA Kontakt aufnehmen?", methodHelper: "Wählen Sie einen verfügbaren Kontaktweg.", recommended: "Empfohlen", pausedTitle: "Für später gespeichert", pausedHelper: "Es wurde kein Anbieter kontaktiert. Sie können diese Aufgabe später fortsetzen.", confirmContact: "Bestätigen und Anbieter kontaktieren" },
+  it: { consentTitle: "Vuoi che VYVA contatti questo fornitore?", consentHelper: "La scelta del fornitore non autorizza ancora alcun contatto.", consentYes: "Sì, contattalo", consentNotNow: "Non ora", consentChange: "Scegli un altro fornitore", methodTitle: "Come deve contattarlo VYVA?", methodHelper: "Scegli un metodo disponibile.", recommended: "Consigliato", pausedTitle: "Salvato per dopo", pausedHelper: "Nessun fornitore è stato contattato. Puoi riprendere questa attività in seguito.", confirmContact: "Conferma e contatta il fornitore" },
+  pt: { consentTitle: "Quer que a VYVA contacte este prestador?", consentHelper: "Escolher o prestador ainda não autoriza qualquer contacto.", consentYes: "Sim, contactar", consentNotNow: "Agora não", consentChange: "Escolher outro prestador", methodTitle: "Como deve a VYVA contactar?", methodHelper: "Escolha um meio de contacto disponível.", recommended: "Recomendado", pausedTitle: "Guardado para mais tarde", pausedHelper: "Nenhum prestador foi contactado. Pode retomar esta tarefa mais tarde.", confirmContact: "Confirmar e contactar prestador" },
+  fr: { consentTitle: "Souhaitez-vous que VYVA contacte ce prestataire ?", consentHelper: "Choisir le prestataire n’autorise pas encore le contact.", consentYes: "Oui, le contacter", consentNotNow: "Pas maintenant", consentChange: "Choisir un autre prestataire", methodTitle: "Comment VYVA doit-il le contacter ?", methodHelper: "Choisissez un moyen de contact disponible.", recommended: "Recommandé", pausedTitle: "Enregistré pour plus tard", pausedHelper: "Aucun prestataire n’a été contacté. Vous pourrez reprendre cette tâche plus tard.", confirmContact: "Confirmer et contacter le prestataire" },
+  en: { consentTitle: "Would you like VYVA to contact this provider?", consentHelper: "Choosing a provider does not give permission to contact them.", consentYes: "Yes, contact them", consentNotNow: "Not now", consentChange: "Choose another provider", methodTitle: "How should VYVA contact them?", methodHelper: "Choose one of the available contact methods.", recommended: "Recommended", pausedTitle: "Saved for later", pausedHelper: "No provider was contacted. You can resume this task later.", confirmContact: "Confirm and contact provider" },
+  es: { consentTitle: "¿Quieres que VYVA contacte con este proveedor?", consentHelper: "Elegir el proveedor todavía no autoriza ningún contacto.", consentYes: "Sí, contactar", consentNotNow: "Ahora no", consentChange: "Elegir otro proveedor", methodTitle: "¿Cómo debe contactar VYVA?", methodHelper: "Elige una vía de contacto disponible.", recommended: "Recomendado", pausedTitle: "Guardado para más tarde", pausedHelper: "No se ha contactado con ningún proveedor. Puedes retomar esta tarea más tarde.", confirmContact: "Confirmar y contactar proveedor" },
+} as const;
+
 export function homeServiceCanvasCopy(locale: string) {
   const language = locale.toLowerCase().split(/[-_]/)[0];
-  return Object.prototype.hasOwnProperty.call(COPY, language) ? COPY[language as keyof typeof COPY] : COPY.en;
+  const key = Object.prototype.hasOwnProperty.call(COPY, language) ? language as keyof typeof COPY : "en";
+  return { ...COPY[key], ...CONTACT_COPY[key] };
 }
 
 function progress(current: number) {
@@ -237,6 +254,23 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
     sceneId: "home-service-options", kind: "choice", title: copy.optionsTitle, helperText: copy.optionsHelper,
     choices: (input.options ?? []).map((option) => ({ id: option.id, label: option.label, description: option.description })), secondaryAction: { label: copy.back },
   };
+  if (step === "contact_consent") return {
+    sceneId: "home-service-contact-consent", kind: "choice", title: copy.consentTitle, helperText: copy.consentHelper,
+    choices: [
+      { id: "contact_yes", label: copy.consentYes },
+      { id: "contact_not_now", label: copy.consentNotNow },
+      { id: "contact_change_provider", label: copy.consentChange },
+    ],
+  };
+  if (step === "contact_method") return {
+    sceneId: "home-service-contact-method", kind: "choice", title: copy.methodTitle, helperText: copy.methodHelper,
+    choices: (input.contactChannels ?? []).map((channel) => ({
+      id: channel.id,
+      label: channel.label,
+      description: channel.recommended ? copy.recommended : undefined,
+    })),
+    secondaryAction: { label: copy.back },
+  };
   if (step === "review") return {
     sceneId: "home-service-review", kind: "review", title: copy.reviewTitle, helperText: copy.reviewHelper,
     summaryRows: [
@@ -259,9 +293,10 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
               : copy.photoNotSent
           : copy.noPhoto,
       },
-    ], primaryAction: { label: copy.confirm, disabled: !input.selectedOption }, secondaryAction: { label: copy.change },
+    ], primaryAction: { label: copy.confirmContact, disabled: !input.selectedOption || !input.selectedContactChannel }, secondaryAction: { label: copy.change },
   };
   if (step === "waiting") return { sceneId: "home-service-waiting", kind: "waiting", title: copy.waitingTitle, helperText: copy.waitingHelper, status: "loading" };
+  if (step === "paused") return { sceneId: "home-service-paused", kind: "completed", title: copy.pausedTitle, helperText: copy.pausedHelper, status: "success" };
   if (step === "completed") return { sceneId: "home-service-completed", kind: "completed", title: copy.completedTitle, helperText: copy.completedHelper, status: "success" };
   return { sceneId: "home-service-error", kind: "blocked", title: copy.errorTitle, helperText: input.error || undefined, status: "blocked", primaryAction: { label: copy.tryAgain }, secondaryAction: { label: copy.change } };
 }

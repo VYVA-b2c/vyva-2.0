@@ -929,6 +929,11 @@ describe("ConciergeScreen action hub", () => {
     await respond("home-service-location", { choiceId: "saved_home", value: "Use my saved home", utterance: "Use my saved home" });
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-provider")).toBe(true));
     await respond("home-service-provider", { choiceId: "saved_provider", value: "Trusted Plumber", utterance: "Trusted Plumber" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-contact-consent")).toBe(true));
+    expect(confirmedBody).toBeNull();
+    await respond("home-service-contact-consent", { choiceId: "contact_yes", value: "Yes, contact them", utterance: "Yes" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-contact-method")).toBe(true));
+    await respond("home-service-contact-method", { choiceId: "email", value: "VYVA sends email", utterance: "Email" });
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-review")).toBe(true));
 
     const review = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "home-service-review")!;
@@ -942,6 +947,7 @@ describe("ConciergeScreen action hub", () => {
     expect(confirmedBody).toMatchObject({
       option_id: "home-canvas-option-1",
       channel: "email",
+      contact_authorized: true,
       share_details: { share_home_address: true },
     });
     expect((confirmedBody?.share_details as Record<string, unknown>).photo).toBeUndefined();
@@ -4024,6 +4030,7 @@ describe("ConciergeScreen action hub", () => {
         expect(body).toMatchObject({
           option_id: "option-saved-plumber",
           channel: "whatsapp",
+          contact_authorized: true,
         });
         return jsonResponse({
           attempt: { id: "attempt-home-service", channel: "whatsapp", status: "whatsapp_sent" },
@@ -4170,9 +4177,13 @@ describe("ConciergeScreen action hub", () => {
       return;
     }
     expect(screen.queryByTestId("panel-appointment-readiness")).not.toBeInTheDocument();
+    expect(screen.getByTestId("panel-home-service-contact-consent")).toHaveTextContent("Would you like VYVA to contact this provider?");
     expect(screen.queryByTestId("panel-appointment-confirmation-checkpoint")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Contact this provider");
     expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-service-contact-yes"));
+    expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
+    fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and contact provider");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => {

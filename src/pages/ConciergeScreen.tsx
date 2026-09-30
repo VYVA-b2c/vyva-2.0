@@ -2229,6 +2229,7 @@ async function confirmAppointmentAttempt(params: {
   requestId: string;
   optionId: string;
   channel: AppointmentChannel;
+  contactAuthorized?: boolean;
   shareDetails?: {
     share_home_address: boolean;
     photo?: { name: string; type: "image/jpeg" | "image/png" | "image/webp"; data_url: string };
@@ -2239,6 +2240,7 @@ async function confirmAppointmentAttempt(params: {
     body: JSON.stringify({
       option_id: params.optionId,
       channel: params.channel,
+      ...(params.contactAuthorized ? { contact_authorized: true } : {}),
       share_details: params.shareDetails,
     }),
   });
@@ -9743,6 +9745,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [appointmentOptions, setAppointmentOptions] = useState<AppointmentProviderOption[]>([]);
   const [appointmentDiscovery, setAppointmentDiscovery] = useState<AppointmentDiscoveryMeta | null>(null);
   const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
+  const [selectedHomeServiceContactChannel, setSelectedHomeServiceContactChannel] = useState<AppointmentChannel | null>(null);
+  const [homeServiceContactMethodOpen, setHomeServiceContactMethodOpen] = useState(false);
   const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(() => {
     if (mode !== "task") return null;
     const initialKey = taskEntry?.kind === "home_service" ? "home-service" : taskEntry?.appointmentKind;
@@ -10002,6 +10006,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setHomeServiceCanvasStep(progress.canvasStep as ConciergeHomeServiceCanvasStep);
       }
       setSelectedAppointmentOptionId(progress.selectedProviderOptionId ?? null);
+      setSelectedHomeServiceContactChannel((progress.selectedContactChannel as AppointmentChannel | null | undefined) ?? null);
       return;
     }
 
@@ -10072,6 +10077,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           photoName: homeServiceCanvasPhotoName,
           requestId: appointmentRequest?.id ?? null,
           selectedProviderOptionId: selectedAppointmentOptionId,
+          selectedContactChannel: selectedHomeServiceContactChannel,
         };
       case "transport":
         return {
@@ -10503,7 +10509,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     : appointmentDiscovery?.result_confidence === "medium"
       ? (isSpanish ? "Coincidencias mas cercanas" : "Closest matches")
       : (isSpanish ? "Opciones para revisar" : "Options to review");
-  const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
+  const suggestedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
+  const selectedAppointmentActionChannel = (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "home-service"
+    ? selectedHomeServiceContactChannel
+    : suggestedAppointmentActionChannel;
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
   const hasSavedMedicalProvider = profileHasSavedMedicalProvider(conciergeProfile);
@@ -10826,6 +10835,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setAppointmentOptions([]);
     setAppointmentDiscovery(null);
     setSelectedAppointmentOptionId(null);
+    setSelectedHomeServiceContactChannel(null);
+    setHomeServiceContactMethodOpen(false);
     setAppointmentAttemptResult(null);
     setAppointmentOpen(false);
     prepareConciergeRequest(message);
@@ -12262,6 +12273,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setHomeServiceType(serviceType);
     setHomeServiceIntakeAnswers({});
     setHomeServiceTextDrafts({});
+    setSelectedHomeServiceContactChannel(null);
+    setHomeServiceContactMethodOpen(false);
   }, []);
 
   const clearAppointmentAssistantState = useCallback(() => {
@@ -12282,6 +12295,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setAppointmentOptions([]);
     setAppointmentDiscovery(null);
     setSelectedAppointmentOptionId(null);
+    setSelectedHomeServiceContactChannel(null);
+    setHomeServiceContactMethodOpen(false);
     setAppointmentAttemptResult(null);
     setAppointmentNotice(null);
     setAppointmentError(null);
@@ -13280,6 +13295,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       requestId: appointmentRequest.id,
       optionId: selectedAppointmentOption.id,
       channel,
+      contactAuthorized: appointmentRequest.appointment_type === "home-service",
     });
   }
 
@@ -16221,6 +16237,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const homeServiceCanvasSelectedOption = homeServiceCanvasOptions.find((option) => option.id === selectedAppointmentOptionId)
     ?? homeServiceCanvasOptions[0]
     ?? null;
+  const homeServiceCanvasContactChannels = useMemo(() => {
+    if (!selectedAppointmentOption) return [];
+    const available = selectedAppointmentOption.available_channels;
+    const visible = available.some((channel) => channel !== "manual")
+      ? available.filter((channel) => channel !== "manual")
+      : available;
+    return visible.map((channel) => ({
+      id: channel,
+      label: appointmentChannelLabel(channel, isSpanish),
+      recommended: channel === suggestedAppointmentActionChannel,
+    }));
+  }, [isSpanish, selectedAppointmentOption, suggestedAppointmentActionChannel]);
   const homeServiceCanvasChannelLabel = selectedAppointmentActionChannel
     ? appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish)
     : "";
@@ -16244,6 +16272,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       savedProviderName: savedHomeServiceProvider,
       options: homeServiceCanvasOptions,
       selectedOption: homeServiceCanvasSelectedOption,
+      contactChannels: homeServiceCanvasContactChannels,
+      selectedContactChannel: selectedHomeServiceContactChannel,
       contactChannelLabel: homeServiceCanvasChannelLabel,
       photoWillBeSent: selectedAppointmentActionChannel === "email" && Boolean(homeServiceCanvasPhoto),
       error: homeServiceCanvasError || appointmentError,
@@ -16252,6 +16282,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentError,
     homeServiceCanvasChannelLabel,
     homeServiceCanvasCopyValue,
+    homeServiceCanvasContactChannels,
     homeServiceCanvasError,
     homeServiceCanvasMode,
     homeServiceCanvasOptions,
@@ -16264,6 +16295,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     homeServiceVisitAddress,
     savedHomeAddress,
     savedHomeServiceProvider,
+    selectedHomeServiceContactChannel,
     selectedAppointmentActionChannel,
   ]);
   const activeHomeServiceCanvasSceneRef = useVoiceCanvasController({
@@ -16300,7 +16332,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
             return;
           }
           setSelectedAppointmentOptionId(nextOption.id);
-          advanceHomeServiceCanvas(mode === "saved" ? "review" : "options");
+          setSelectedHomeServiceContactChannel(null);
+          advanceHomeServiceCanvas(mode === "saved" ? "contact_consent" : "options");
         } catch (error) {
           setHomeServiceCanvasError(error instanceof Error ? error.message : (isSpanish ? "No pude buscar proveedores." : "I could not check providers."));
           advanceHomeServiceCanvas("error");
@@ -16370,7 +16403,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         else if (homeServiceCanvasStep === "location_custom") advanceHomeServiceCanvas("location");
         else if (homeServiceCanvasStep === "provider") advanceHomeServiceCanvas("location");
         else if (homeServiceCanvasStep === "options") advanceHomeServiceCanvas("provider");
-        else if (homeServiceCanvasStep === "review") advanceHomeServiceCanvas("provider");
+        else if (homeServiceCanvasStep === "contact_method") advanceHomeServiceCanvas("contact_consent");
+        else if (homeServiceCanvasStep === "review") advanceHomeServiceCanvas("contact_method");
         else if (homeServiceCanvasStep === "error") advanceHomeServiceCanvas(homeServiceCanvasSelectedOption ? "review" : "provider");
         return;
       }
@@ -16462,6 +16496,26 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       if (homeServiceCanvasStep === "options") {
         if (!response.choiceId || !appointmentOptions.some((option) => option.id === response.choiceId)) return;
         setSelectedAppointmentOptionId(response.choiceId);
+        setSelectedHomeServiceContactChannel(null);
+        advanceHomeServiceCanvas("contact_consent");
+        return;
+      }
+      if (homeServiceCanvasStep === "contact_consent") {
+        if (response.choiceId === "contact_yes") {
+          advanceHomeServiceCanvas("contact_method");
+        } else if (response.choiceId === "contact_not_now") {
+          setSelectedHomeServiceContactChannel(null);
+          advanceHomeServiceCanvas("paused");
+        } else if (response.choiceId === "contact_change_provider") {
+          setSelectedHomeServiceContactChannel(null);
+          advanceHomeServiceCanvas(appointmentOptions.length > 1 ? "options" : "provider");
+        }
+        return;
+      }
+      if (homeServiceCanvasStep === "contact_method") {
+        const channel = response.choiceId as AppointmentChannel | undefined;
+        if (!channel || !selectedAppointmentOption?.available_channels.includes(channel)) return;
+        setSelectedHomeServiceContactChannel(channel);
         advanceHomeServiceCanvas("review");
         return;
       }
@@ -16476,6 +16530,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           requestId: appointmentRequest.id,
           optionId: selectedAppointmentOption.id,
           channel: selectedAppointmentActionChannel,
+          contactAuthorized: true,
           shareDetails: {
             share_home_address: Boolean(homeServiceVisitAddress.trim()),
             photo: selectedAppointmentActionChannel === "email" && homeServiceCanvasPhoto
@@ -20372,6 +20427,39 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </div>
                 </div>
 
+                {selectedAppointmentOption && isHomeServiceAppointment && !selectedAppointmentActionChannel && !homeServiceContactMethodOpen && (
+                  <section className="mt-6 rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] p-4" data-testid="panel-home-service-contact-consent">
+                    <h4 className="font-body text-[17px] font-black text-vyva-text-1">{homeServiceCanvasCopyValue.consentTitle}</h4>
+                    <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">{homeServiceCanvasCopyValue.consentHelper}</p>
+                    <div className="mt-4 grid gap-2">
+                      <button type="button" className="vyva-tap min-h-[48px] rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white" data-testid="button-home-service-contact-yes" onClick={() => setHomeServiceContactMethodOpen(true)}>
+                        {homeServiceCanvasCopyValue.consentYes}
+                      </button>
+                      <button type="button" className="vyva-tap min-h-[44px] rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[14px] font-bold text-vyva-purple" data-testid="button-home-service-contact-not-now" onClick={() => setAppointmentNotice(homeServiceCanvasCopyValue.pausedHelper)}>
+                        {homeServiceCanvasCopyValue.consentNotNow}
+                      </button>
+                      <button type="button" className="vyva-tap min-h-[44px] font-body text-[14px] font-bold text-vyva-text-2 underline" onClick={() => document.querySelector(".home-repair-alternatives")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                        {homeServiceCanvasCopyValue.consentChange}
+                      </button>
+                    </div>
+                  </section>
+                )}
+
+                {selectedAppointmentOption && isHomeServiceAppointment && homeServiceContactMethodOpen && !selectedAppointmentActionChannel && (
+                  <section className="mt-6 rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] p-4" data-testid="panel-home-service-contact-method">
+                    <h4 className="font-body text-[17px] font-black text-vyva-text-1">{homeServiceCanvasCopyValue.methodTitle}</h4>
+                    <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">{homeServiceCanvasCopyValue.methodHelper}</p>
+                    <div className="mt-4 grid gap-2">
+                      {homeServiceCanvasContactChannels.map((channel) => (
+                        <button key={channel.id} type="button" className="vyva-tap flex min-h-[48px] items-center justify-between rounded-[14px] border border-[#D8B4FE] bg-white px-4 text-left font-body text-[14px] font-bold text-vyva-text-1" data-testid={`button-home-service-channel-${channel.id}`} onClick={() => { setSelectedHomeServiceContactChannel(channel.id); setHomeServiceContactMethodOpen(false); }}>
+                          <span>{channel.label}</span>
+                          {channel.recommended ? <span className="text-[12px] text-vyva-purple">{homeServiceCanvasCopyValue.recommended}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {selectedAppointmentOption && selectedAppointmentActionChannel && (
                   <>
                     {!isHomeServiceAppointment && selectedAppointmentToolReadiness ? (
@@ -20386,34 +20474,19 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         testId="panel-appointment-readiness"
                       />
                     ) : null}
-                    {isHomeServiceAppointment ? (
-                      <button
-                        type="button"
-                        className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 py-3 font-body text-[16px] font-semibold leading-snug text-white transition-colors hover:bg-vyva-purple/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-vyva-purple disabled:opacity-50"
-                        data-testid="button-appointment-handle-provider"
-                        disabled={confirmAppointmentMutation.isPending}
-                        onClick={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
-                      >
-                        {confirmAppointmentMutation.isPending
-                          ? <Loader2 size={18} className="mr-2 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                          : null}
-                        {selectedAppointmentActionChannel === "manual"
-                          ? (homeServiceText(locale, "Continue with this provider"))
-                          : homeHelpCopy(locale, "contact")}
-                      </button>
-                    ) : <ActionConfirmationCheckpoint
-                      title={isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts"}
-                      summary={isSpanish
+                    <ActionConfirmationCheckpoint
+                      title={isHomeServiceAppointment ? homeServiceCanvasCopyValue.reviewTitle : (isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts")}
+                      summary={isHomeServiceAppointment ? homeServiceCanvasCopyValue.reviewHelper : (isSpanish
                         ? "VYVA puede contactar al proveedor para comprobar opciones. Nada queda reservado, pagado ni enviado como final sin tu aprobacion."
-                        : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval."}
+                        : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval.")}
                       items={selectedAppointmentConfirmationItems}
-                      primaryLabel={isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this"}
+                      primaryLabel={isHomeServiceAppointment ? homeServiceCanvasCopyValue.confirmContact : (isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this")}
                       onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
                       isPending={confirmAppointmentMutation.isPending}
                       disabled={confirmAppointmentMutation.isPending}
                       testId="panel-appointment-confirmation-checkpoint"
                       buttonTestId="button-appointment-handle-provider"
-                    />}
+                    />
                   </>
                 )}
 
@@ -20437,7 +20510,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           <button
                             key={option.id}
                             type="button"
-                            onClick={() => setSelectedAppointmentOptionId(option.id)}
+                            onClick={() => {
+                              setSelectedAppointmentOptionId(option.id);
+                              if (isHomeServiceAppointment) {
+                                setSelectedHomeServiceContactChannel(null);
+                                setHomeServiceContactMethodOpen(false);
+                              }
+                            }}
                             data-testid={`button-appointment-option-${testIdSlug(appointmentOptionName(option, isSpanish))}`}
                             className={isHomeServiceAppointment ? "vyva-tap relative w-full border-t border-current/10 py-4 pr-8 text-left font-body transition-colors hover:bg-vyva-purple/5" : `vyva-tap rounded-[14px] border px-3 py-2 text-left font-body ${
                               isSelected ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#D8B4FE] bg-white"

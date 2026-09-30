@@ -97,6 +97,7 @@ const addOptionSchema = z.object({
 const confirmAttemptSchema = z.object({
   option_id: z.string().uuid().optional(),
   channel: z.enum(APPOINTMENT_CHANNELS),
+  contact_authorized: z.boolean().optional().default(false),
   result_notes: z.string().trim().max(1000).optional(),
   share_details: z.object({
     share_home_address: z.boolean().optional().default(false),
@@ -1208,6 +1209,9 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
   const parsed = confirmAttemptSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  if (request.appointment_type === "home-service" && parsed.data.contact_authorized !== true) {
+    return res.status(400).json({ error: "Explicit permission is required before contacting this provider" });
   }
 
   const optionId = parsed.data.option_id ?? request.selected_provider_option_id ?? undefined;
