@@ -634,7 +634,7 @@ const de = {
         elena: { label: "Elena Ruiz", detail: "Stadtgärtnerin" },
         viktor: { label: "Viktor Sanz", detail: "Spielbegleiter" },
         lola: { label: "Lola Martínez", detail: "Mediterrane Köchin" },
-        amara: { label: "Amara Osei", detail: "Bewegungsbegleiterin" },
+        amara: { label: "Wellness Coach", detail: "Bewegung und Ruhe" },
         marco: { label: "Marco Reyes", detail: "Ruhebegleiter" },
         diego: { label: "Diego Salinas", detail: "Musikwissenschaftler" },
         isabel: { label: "Isabel Fuentes", detail: "Literarische Gastgeberin" },

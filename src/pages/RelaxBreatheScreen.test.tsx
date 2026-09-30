@@ -21,7 +21,7 @@ const labels: Record<string, string> = {
   "activities.relaxBreathe.safety": "If breathing feels difficult, painful, dizzy, or unusual, stop and seek help.",
   "activities.relaxBreathe.chooseTitle": "What would help now?",
   "activities.relaxBreathe.chooseBody": "Choose once. VYVA will shape the session and guide you.",
-  "activities.relaxBreathe.talkToMarco": "Talk with Marco",
+  "activities.relaxBreathe.talkToMarco": "Talk with VYVA",
   "activities.relaxBreathe.planning": "Choosing a gentle plan...",
   "activities.relaxBreathe.listening": "Listening",
   "activities.relaxBreathe.muted": "Muted",
@@ -36,7 +36,7 @@ const labels: Record<string, string> = {
   "activities.relaxBreathe.completeBody": "VYVA will remember what helped.",
   "activities.relaxBreathe.saferNext": "This may not be the right moment for breathing practice.",
   "activities.relaxBreathe.fallbackNotice": "Using a simple calm session for now.",
-  "activities.relaxBreathe.proposedTitle": "Marco suggests",
+  "activities.relaxBreathe.proposedTitle": "VYVA suggests",
   "activities.relaxBreathe.confirmStart": "Start this",
   "activities.relaxBreathe.askForChange": "Change it",
   "activities.relaxBreathe.voiceIntentHint": "Say calm, sleep, focus, easier, shorter, or stop.",
@@ -195,7 +195,7 @@ describe("RelaxBreatheScreen", () => {
     expect(screen.queryByTestId("button-relax-breathe-stage-next")).not.toBeInTheDocument();
   });
 
-  it("gets a personalized plan, saves an active session, and starts Marco listening", async () => {
+  it("gets a personalized plan, saves an active session, and starts VYVA listening", async () => {
     renderRelaxBreathe();
 
     fireEvent.click(screen.getByTestId("button-relax-breathe-intent-sleep"));

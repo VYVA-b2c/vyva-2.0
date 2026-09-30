@@ -50,12 +50,12 @@ const presentations: Record<AdvisorSlug, LocalizedAdvisorPresentation> = {
     order: 0,
     portraitSrc: wellnessPortrait,
     copy: {
-      en: { title: "Wellness Coach", detail: "Movement, energy and balance" },
-      es: { title: "Coach de bienestar", detail: "Movimiento, energia y equilibrio" },
-      de: { title: "Wellness-Coach", detail: "Bewegung, Energie und Gleichgewicht" },
-      fr: { title: "Coach bien-etre", detail: "Mouvement, energie et equilibre" },
-      it: { title: "Coach del benessere", detail: "Movimento, energia ed equilibrio" },
-      pt: { title: "Coach de bem-estar", detail: "Movimento, energia e equilibrio" },
+      en: { title: "Wellness Coach", detail: "Movement, breathing and balance" },
+      es: { title: "Coach de bienestar", detail: "Movimiento, respiracion y equilibrio" },
+      de: { title: "Wellness-Coach", detail: "Bewegung, Atmung und Gleichgewicht" },
+      fr: { title: "Coach bien-etre", detail: "Mouvement, respiration et equilibre" },
+      it: { title: "Coach del benessere", detail: "Movimento, respiro ed equilibrio" },
+      pt: { title: "Coach de bem-estar", detail: "Movimento, respiracao e equilibrio" },
     },
   },
   nora: {

@@ -179,6 +179,68 @@
     @apply vyva-tap inline-flex items-center justify-center gap-2 rounded-full border border-vyva-border bg-white px-5 py-3 font-body text-[16px] font-semibold text-vyva-text-1;
   }
 
+  .movement-guide-portrait-image {
+    transform-origin: 50% 50%;
+  }
+
+  .movement-guide-portrait-live .movement-guide-step-image {
+    animation: movement-guide-breathe 8s ease-in-out infinite;
+    will-change: transform, filter;
+  }
+
+  .movement-guide-portrait-live.motion-shoulder-roll .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-back .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-drop .movement-guide-step-image {
+    animation-name: movement-guide-shoulders;
+  }
+
+  .movement-guide-portrait-live.motion-overhead-reach .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-arms-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-breathe-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hands-return .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hand-flow .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hand-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-finger-up .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-finger-down .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-next-finger .movement-guide-step-image {
+    animation-name: movement-guide-reach;
+  }
+
+  .movement-guide-portrait-live.motion-side-change .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-weight-shift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-side-support .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-side-step .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-feet-together .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-step-return .movement-guide-step-image {
+    animation-name: movement-guide-side;
+  }
+
+  .movement-guide-portrait-live.motion-chair-front .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-chair-hold .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-knee-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-leg-lower .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-sit-ready .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-feet-under .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-stand-up .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-sit-down .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-ready .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hands-wall .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-lean .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-press .movement-guide-step-image {
+    animation-name: movement-guide-strength;
+  }
+
+  .movement-guide-portrait-live.motion-ankle-seat .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-foot-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-toe-flex .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-foot-change .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-chair-behind .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-toe-rise .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-heel-lower .movement-guide-step-image {
+    animation-name: movement-guide-feet;
+  }
+
   .vyva-severity-range {
     height: 10px;
     appearance: none;
@@ -385,6 +447,84 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@keyframes movement-guide-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.018);
+    filter: saturate(1.04) brightness(1.025);
+  }
+}
+
+@keyframes movement-guide-shoulders {
+  0%,
+  100% {
+    transform: scale(1.012) translateY(0);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.032) translateY(-10px);
+    filter: saturate(1.04) brightness(1.025);
+  }
+}
+
+@keyframes movement-guide-reach {
+  0%,
+  100% {
+    transform: scale(1.01) translateY(0);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.04) translateY(-16px);
+    filter: saturate(1.05) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-side {
+  0%,
+  100% {
+    transform: scale(1.025) translateX(-12px);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.025) translateX(12px);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-strength {
+  0%,
+  100% {
+    transform: scale(1.015) translateY(7px);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.038) translateY(-9px);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-feet {
+  0%,
+  100% {
+    transform: scale(1.025) translateY(8px) rotate(-0.2deg);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.04) translateY(-4px) rotate(0.2deg);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .movement-guide-portrait-live .movement-guide-step-image {
+    animation: none;
   }
 }
 

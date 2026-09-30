@@ -16,6 +16,8 @@ const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "health",
   "concierge",
   "brain_coach",
+  "wellness",
+  "breathing_meditation",
   "onboarding_profile",
   "companion",
   "doctor",
@@ -36,10 +38,19 @@ export function resolveVoiceContextDomain(body: Record<string, unknown>): VoiceC
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
   const advisorDomain = advisorVoiceDomain(agentSlug);
   if (advisorDomain) return advisorDomain;
+  if (agentSlug === "wellness" || agentSlug === "wellness-coach" || agentSlug === "wellness_coach") return "wellness";
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (
+    agentSlug === "breathing-meditation" ||
+    agentSlug === "breathing_meditation" ||
+    agentSlug === "meditation" ||
+    agentSlug === "breathing"
+  ) {
+    return "breathing_meditation";
+  }
   if (
     agentSlug === "onboarding-profile" ||
     agentSlug === "profile-onboarding" ||

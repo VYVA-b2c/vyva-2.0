@@ -363,7 +363,7 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("button-ask-expert-elena-ruiz")).toHaveTextContent("Elena Ruiz");
     expect(screen.getByTestId("button-ask-expert-viktor-sanz")).toHaveTextContent("Viktor Sanz");
     expect(screen.getByTestId("button-ask-expert-lola-martinez")).toHaveTextContent("Lola Martínez");
-    expect(screen.getByTestId("button-ask-expert-amara-osei")).toHaveTextContent("Amara Osei");
+    expect(screen.getByTestId("button-ask-expert-amara-osei")).toHaveTextContent("Wellness Coach");
     expect(screen.getByTestId("button-ask-expert-marco-reyes")).toHaveTextContent("Marco Reyes");
     expect(screen.getByTestId("button-ask-expert-diego-salinas")).toHaveTextContent("Diego Salinas");
     expect(screen.getByTestId("button-ask-expert-isabel-fuentes")).toHaveTextContent("Isabel Fuentes");

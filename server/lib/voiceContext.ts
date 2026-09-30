@@ -23,6 +23,7 @@ import {
   cognitiveDailyPlanItems,
   scamChecks,
 } from "../../shared/schema.js";
+import { breathingSessions } from "../../shared/breathingSchema.js";
 import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import {
@@ -53,6 +54,8 @@ export type VoiceContextDomain =
   | "health"
   | "concierge"
   | "brain_coach"
+  | "wellness"
+  | "breathing_meditation"
   | "onboarding_profile"
   | "companion"
   | "doctor"
@@ -64,6 +67,8 @@ const VOICE_CONTEXT_DOMAINS: readonly VoiceContextDomain[] = [
   "health",
   "concierge",
   "brain_coach",
+  "wellness",
+  "breathing_meditation",
   "onboarding_profile",
   "companion",
   "doctor",
@@ -83,6 +88,14 @@ type BuildVoiceContextOptions = {
     store?: HealthSemanticMemoryOutboxStore;
     now?: Date;
   };
+};
+
+type BreathingSessionContext = {
+  lastSessionAt: Date | string | null;
+  lastCompletedAt: Date | string | null;
+  lastExerciseSlug: string;
+  lastStatus: string;
+  lastDurationMinutes: number | null;
 };
 
 const SENSITIVE_LEGACY_MEMORY_DOMAINS = new Set<VoiceContextDomain>([
@@ -1234,11 +1247,29 @@ function criticalSafetyContext(input: {
 function domainAllows(domain: VoiceContextDomain, category: "medical" | "social" | "logistics" | "safety") {
   const allowed: Record<typeof category, VoiceContextDomain[]> = {
     medical: ["health", "doctor", "meds", "safety"],
-    social: ["companion", "social", "brain_coach", "concierge", "health", "doctor"],
+    social: ["companion", "social", "brain_coach", "wellness", "breathing_meditation", "concierge", "health", "doctor"],
     logistics: ["concierge", "safety", "health", "doctor", "meds"],
-    safety: ["safety", "health", "doctor", "meds", "concierge"],
+    safety: ["safety", "health", "doctor", "meds", "concierge", "wellness"],
   };
   return allowed[category].includes(domain);
+}
+
+function isWellnessContextDomain(domain: VoiceContextDomain) {
+  return domain === "wellness" || domain === "breathing_meditation";
+}
+
+function formatBreathingSessionContext(
+  session: BreathingSessionContext | null,
+  now: Date,
+) {
+  if (!session?.lastSessionAt) return "";
+  return compactLines([
+    `Last breathing/meditation session: ${formatDateTime(session.lastSessionAt)} (${formatRelativeTime(session.lastSessionAt, now)}).`,
+    session.lastExerciseSlug ? `Last exercise: ${session.lastExerciseSlug}.` : "",
+    session.lastStatus ? `Last status: ${session.lastStatus}.` : "",
+    session.lastDurationMinutes ? `Last duration: ${session.lastDurationMinutes} minutes.` : "",
+    session.lastCompletedAt ? `Last completed: ${formatDateTime(session.lastCompletedAt)} (${formatRelativeTime(session.lastCompletedAt, now)}).` : "",
+  ], 700);
 }
 
 function isOnboardingProfileDomain(domain: VoiceContextDomain) {
@@ -1272,6 +1303,7 @@ export async function buildVoiceContext(
     voiceExchangeCountRows,
     recommendationFeedbackRows,
     brainCoachSessionRows,
+    recentBreathingSessionRows,
     recentScamCheckRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
@@ -1330,6 +1362,24 @@ export async function buildVoiceContext(
           .where(eq(cognitiveSessionIndex.userId, userId))
           .orderBy(desc(cognitiveSessionIndex.playedAt))
           .limit(300)
+      : Promise.resolve([]),
+    isWellnessContextDomain(domain)
+      ? db
+          .select({
+            lastSessionAt: breathingSessions.created_at,
+            lastCompletedAt: breathingSessions.completed_at,
+            lastExerciseSlug: breathingSessions.exercise_slug,
+            lastStatus: breathingSessions.status,
+            lastDurationMinutes: breathingSessions.duration_minutes,
+          })
+          .from(breathingSessions)
+          .where(eq(breathingSessions.user_id, userId))
+          .orderBy(desc(breathingSessions.created_at))
+          .limit(1)
+          .catch((err) => {
+            console.warn("[voiceContext] breathing sessions unavailable", err);
+            return [];
+          })
       : Promise.resolve([]),
     domainAllows(domain, "safety")
       ? db
@@ -1460,6 +1510,10 @@ export async function buildVoiceContext(
         now,
       })
     : null;
+  const breathingSessionContext = isWellnessContextDomain(domain)
+    ? recentBreathingSessionRows[0] ?? null
+    : null;
+  const breathingContextSummary = formatBreathingSessionContext(breathingSessionContext, now);
   const userRow = userRows[0] ?? null;
   const latestVoiceExchange = latestVoiceExchangeRows[0] ?? null;
   const allHobbies = [...new Set([
@@ -1484,6 +1538,14 @@ export async function buildVoiceContext(
     socialInterests?.preferred_times ?? [],
   );
   const mobilityContext = valueList([mobilityLevel, livingSituation]);
+  const breathingAdaptationContext = isWellnessContextDomain(domain)
+    ? compactLines([
+        conditions.length ? `Health conditions noted: ${joinList(conditions)}.` : "",
+        mobilityContext ? `Mobility/living context: ${mobilityContext}.` : "",
+        profile?.known_allergies?.length ? "Known allergies are recorded but usually not relevant to breathing guidance." : "",
+        "Use this silently for safer seated, low-effort, optional wellness guidance. Do not recite private conditions unless the user raises them or they directly affect safety.",
+      ], 900)
+    : "";
   const localInterestOpportunities = buildLocalInterestOpportunities({
     city: profile?.city ?? "",
     region: profile?.region ?? "",
@@ -1539,6 +1601,8 @@ export async function buildVoiceContext(
     upcomingEvents.length ? `Upcoming events/reminders: ${joinList(upcomingEvents)}` : "",
     recentActivitySummary ? `Activity history: ${recentActivitySummary}` : "",
     brainCoachVoiceContext?.summary ? `Brain Coach context: ${brainCoachVoiceContext.summary}` : "",
+    breathingContextSummary ? `Breathing context: ${breathingContextSummary}` : "",
+    breathingAdaptationContext ? `Breathing adaptation context: ${breathingAdaptationContext}` : "",
     socialActivitySummary ? `Social activity: ${socialActivitySummary}` : "",
     matchingSocialRooms ? `Suggested social rooms: ${matchingSocialRooms}` : "",
     localInterestOpportunities ? `Nearby interest opportunities: ${localInterestOpportunities}` : "",
@@ -1552,6 +1616,7 @@ export async function buildVoiceContext(
     localInterestOpportunities ? "Offer Concierge to verify a nearby event or place before naming specifics." : "",
     recentActivitySummary ? "Use recent activity to suggest a balanced movement, rest, or routine step." : "",
     brainCoachVoiceContext ? "Use today's Brain Coach plan and recent cognitive history when the user wants a brain activity." : "",
+    breathingAdaptationContext ? "Use health and mobility adaptation context silently for gentle breathing guidance." : "",
     birthday ? "Use birthday context warmly only when it feels natural." : "",
   ], 1400);
   const orchestratorContext = compactLines([
@@ -1623,6 +1688,18 @@ export async function buildVoiceContext(
     time_since_last_app_visit: formatRelativeTime(appLastSeenAt, now),
     last_voice_session_at: formatDateTime(lastVoiceSessionAt),
     time_since_last_voice_session: formatRelativeTime(lastVoiceSessionAt, now),
+    last_breathing_session_at: formatDateTime(breathingSessionContext?.lastSessionAt),
+    time_since_last_breathing_session: formatRelativeTime(breathingSessionContext?.lastSessionAt, now),
+    last_breathing_completed_at: formatDateTime(breathingSessionContext?.lastCompletedAt),
+    time_since_last_breathing_completed: formatRelativeTime(breathingSessionContext?.lastCompletedAt, now),
+    last_breathing_exercise_slug: breathingSessionContext?.lastExerciseSlug ?? "",
+    last_breathing_session_status: breathingSessionContext?.lastStatus ?? "",
+    last_breathing_duration_minutes: breathingSessionContext?.lastDurationMinutes ?? "",
+    breathing_session_context: breathingContextSummary,
+    breathing_adaptation_context: breathingAdaptationContext,
+    wellness_adaptation_context: breathingAdaptationContext,
+    mobility_context: isWellnessContextDomain(domain) ? mobilityContext : "",
+    health_condition_context: isWellnessContextDomain(domain) ? joinList(conditions) : "",
     last_visit_activity: relationshipContinuityContext,
     preference_context: preferenceContext,
     app_insight_context: appInsightContext,

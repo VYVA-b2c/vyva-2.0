@@ -88,7 +88,7 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
     expect(screen.queryByText(/Tap as you/i)).not.toBeInTheDocument();
   });
 
-  it("offers Marco-guided audio while keeping audio-free as the quiet default", async () => {
+  it("offers VYVA-guided audio while keeping audio-free as the quiet default", async () => {
     apiFetchMock.mockImplementation(() => new Promise(() => {}));
     render(<BreathGarden userId="" onExit={vi.fn()} />);
     await screen.findByRole("heading", { name: "A quiet moment to breathe" });
@@ -117,7 +117,7 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
       }),
     );
     expect(screen.getByRole("button", { name: "Mute voice guidance" })).toBeEnabled();
-    expect(screen.queryByText("Preparing Marco's guidance...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Preparing VYVA guidance...")).not.toBeInTheDocument();
     expect(apiFetchMock.mock.calls.some(([url]) => url === "/api/games/tts")).toBe(false);
   });
 
