@@ -1024,13 +1024,41 @@ interface AppointmentAttemptResponse {
   attempt?: { id: string; channel: AppointmentChannel; status: string };
   pending?: { pendingId?: string; status?: string; message?: string } | null;
   communication?: { id: string; channel: string; recipient: string; status: string; provider_message_id?: string | null; error?: string } | null;
-  form_task?: { status: string; booking_url?: string | null; pending_id?: string | null; scheduled_event_id?: string | null } | null;
+  form_task?: {
+    status: string;
+    booking_url?: string | null;
+    pending_id?: string | null;
+    scheduled_event_id?: string | null;
+    scheduled_for?: string | null;
+    timezone?: string | null;
+    location?: string | null;
+    notes?: string | null;
+  } | null;
   scheduled_event?: { id: string; scheduled_for?: string; title?: string } | null;
   booking_url?: string | null;
   draft?: string | null;
   handled_by_vyva?: boolean;
   needs_booking_confirmation?: boolean;
   mission?: AppointmentMissionState;
+}
+
+interface AppointmentContactPreview {
+  version: 1;
+  revision: number;
+  channel: AppointmentChannel;
+  provider_name: string;
+  recipient: string | null;
+  message: { subject: string; body: string } | null;
+  call: { objective: string; questions: string[]; commitment_policy: string } | null;
+  booking: { url: string; submit_policy: string; commitment_policy: string } | null;
+  manual: { owner: string; next_step: string } | null;
+  share_options: { home_address: boolean; access_notes: boolean; photo: boolean };
+  prepared_at: string;
+}
+
+interface PreparedAppointmentAttempt {
+  attempt: { id: string; channel: AppointmentChannel; status: string };
+  preview: AppointmentContactPreview;
 }
 
 interface AppointmentDiscoveryMeta {
@@ -2236,18 +2264,30 @@ async function confirmAppointmentAttempt(params: {
   requestId: string;
   optionId: string;
   channel: AppointmentChannel;
+  attemptId?: string;
+  previewRevision?: number;
+  idempotencyKey?: string;
   contactAuthorized?: boolean;
+  draft?: { subject?: string; body?: string };
   shareDetails?: {
     share_home_address: boolean;
+    share_access_notes?: boolean;
     photo?: { name: string; type: "image/jpeg" | "image/png" | "image/webp"; data_url: string };
   };
 }): Promise<AppointmentAttemptResponse> {
-  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/confirm-attempt`, {
+  const endpoint = params.attemptId
+    ? `/api/appointments/attempts/${params.attemptId}/execute`
+    : `/api/appointments/requests/${params.requestId}/confirm-attempt`;
+  const res = await apiFetch(endpoint, {
     method: "POST",
     body: JSON.stringify({
       option_id: params.optionId,
       channel: params.channel,
+      ...(params.attemptId ? { attempt_id: params.attemptId } : {}),
+      ...(params.previewRevision ? { preview_revision: params.previewRevision } : {}),
+      ...(params.idempotencyKey ? { idempotency_key: params.idempotencyKey } : {}),
       ...(params.contactAuthorized ? { contact_authorized: true } : {}),
+      draft: params.draft,
       share_details: params.shareDetails,
     }),
   });
@@ -2256,6 +2296,41 @@ async function confirmAppointmentAttempt(params: {
     throw new Error(data?.error ?? "Could not confirm appointment attempt");
   }
   return await res.json() as AppointmentAttemptResponse;
+}
+
+async function prepareAppointmentAttempt(params: {
+  requestId: string;
+  optionId: string;
+  channel: AppointmentChannel;
+}): Promise<PreparedAppointmentAttempt> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/prepare-attempt`, {
+    method: "POST",
+    body: JSON.stringify({ option_id: params.optionId, channel: params.channel }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not prepare provider contact");
+  }
+  return await res.json() as PreparedAppointmentAttempt;
+}
+
+async function commitPreparedAppointmentBooking(params: {
+  attemptId: string;
+  previewRevision: number;
+}): Promise<{ scheduled_event?: unknown; status: string }> {
+  const res = await apiFetch(`/api/appointments/attempts/${params.attemptId}/commit-booking`, {
+    method: "POST",
+    body: JSON.stringify({
+      preview_revision: params.previewRevision,
+      idempotency_key: `provider-booking:${params.attemptId}:${params.previewRevision}`,
+      confirmed_terms: true,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not confirm booking");
+  }
+  return await res.json() as { scheduled_event?: unknown; status: string };
 }
 
 async function markAppointmentBooked(params: {
@@ -9754,6 +9829,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
   const [selectedHomeServiceContactChannel, setSelectedHomeServiceContactChannel] = useState<AppointmentChannel | null>(null);
   const [homeServiceContactMethodOpen, setHomeServiceContactMethodOpen] = useState(false);
+  const [preparedAppointmentAttempt, setPreparedAppointmentAttempt] = useState<PreparedAppointmentAttempt | null>(null);
+  const [appointmentContactDraft, setAppointmentContactDraft] = useState({ subject: "", body: "" });
+  const [appointmentShareApprovals, setAppointmentShareApprovals] = useState({
+    homeAddress: false,
+    accessNotes: false,
+    photo: false,
+  });
   const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(() => {
     if (mode !== "task") return null;
     const initialKey = taskEntry?.kind === "home_service" ? "home-service" : taskEntry?.appointmentKind;
@@ -10013,7 +10095,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setHomeServiceCanvasStep(progress.canvasStep as ConciergeHomeServiceCanvasStep);
       }
       setSelectedAppointmentOptionId(progress.selectedProviderOptionId ?? null);
-      setSelectedHomeServiceContactChannel((progress.selectedContactChannel as AppointmentChannel | null | undefined) ?? null);
+      // Prepared contact previews are intentionally not persisted in task progress.
+      // A resumed task must return to channel review and obtain a fresh readiness snapshot.
+      setSelectedHomeServiceContactChannel(null);
+      setPreparedAppointmentAttempt(null);
       return;
     }
 
@@ -11094,6 +11179,28 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     },
   });
 
+  const prepareAppointmentMutation = useMutation({
+    mutationFn: prepareAppointmentAttempt,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+      setPreparedAppointmentAttempt(null);
+    },
+    onSuccess: (result) => {
+      setPreparedAppointmentAttempt(result);
+      setSelectedHomeServiceContactChannel(result.preview.channel);
+      setHomeServiceContactMethodOpen(false);
+      setAppointmentContactDraft({
+        subject: result.preview.message?.subject ?? "",
+        body: result.preview.message?.body ?? "",
+      });
+      setAppointmentShareApprovals({ homeAddress: false, accessNotes: false, photo: false });
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No pude preparar el contacto." : "I could not prepare the contact."));
+    },
+  });
+
   const confirmAppointmentMutation = useMutation({
     mutationFn: confirmAppointmentAttempt,
     onMutate: () => {
@@ -11125,6 +11232,24 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar el contacto." : "I could not prepare the contact step."));
+    },
+  });
+
+  const commitPreparedBookingMutation = useMutation({
+    mutationFn: commitPreparedAppointmentBooking,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: async () => {
+      setAppointmentNotice(isSpanish ? "Reserva confirmada y guardada." : "Booking confirmed and saved.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
+      ]);
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No pude confirmar la reserva." : "I could not confirm the booking."));
     },
   });
 
@@ -13319,7 +13444,29 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       requestId: appointmentRequest.id,
       optionId: selectedAppointmentOption.id,
       channel,
+      attemptId: isHomeServiceAppointment ? preparedAppointmentAttempt?.attempt.id : undefined,
+      previewRevision: isHomeServiceAppointment ? preparedAppointmentAttempt?.preview.revision : undefined,
+      idempotencyKey: isHomeServiceAppointment && preparedAppointmentAttempt
+        ? `provider-contact:${preparedAppointmentAttempt.attempt.id}:${preparedAppointmentAttempt.preview.revision}`
+        : undefined,
       contactAuthorized: appointmentRequest.appointment_type === "home-service",
+      draft: isHomeServiceAppointment && (channel === "email" || channel === "whatsapp") ? appointmentContactDraft : undefined,
+      shareDetails: isHomeServiceAppointment ? {
+        share_home_address: appointmentShareApprovals.homeAddress,
+        share_access_notes: appointmentShareApprovals.accessNotes,
+        photo: appointmentShareApprovals.photo && homeServiceCanvasPhoto
+          ? { name: homeServiceCanvasPhoto.name, type: homeServiceCanvasPhoto.type, data_url: homeServiceCanvasPhoto.dataUrl }
+          : undefined,
+      } : undefined,
+    });
+  }
+
+  function prepareHomeServiceContactChannel(channel: AppointmentChannel) {
+    if (!appointmentRequest || !selectedAppointmentOption) return;
+    prepareAppointmentMutation.mutate({
+      requestId: appointmentRequest.id,
+      optionId: selectedAppointmentOption.id,
+      channel,
     });
   }
 
@@ -16547,12 +16694,18 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       if (homeServiceCanvasStep === "contact_method") {
         const channel = response.choiceId as AppointmentChannel | undefined;
         if (!channel || !homeServiceCanvasContactChannels.some((option) => option.id === channel)) return;
-        setSelectedHomeServiceContactChannel(channel);
-        advanceHomeServiceCanvas("review");
+        if (!appointmentRequest || !selectedAppointmentOption) return;
+        prepareAppointmentMutation.mutate({
+          requestId: appointmentRequest.id,
+          optionId: selectedAppointmentOption.id,
+          channel,
+        }, {
+          onSuccess: () => advanceHomeServiceCanvas("review"),
+        });
         return;
       }
       if (homeServiceCanvasStep === "review") {
-        if ((response.kind !== "primary" && !affirmative) || !appointmentRequest || !selectedAppointmentOption || !selectedAppointmentActionChannel) return;
+        if ((response.kind !== "primary" && !affirmative) || !appointmentRequest || !selectedAppointmentOption || !selectedAppointmentActionChannel || !preparedAppointmentAttempt) return;
         const actionRequestId = homeServiceCanvasRevision + 1;
         homeServiceActionGate.authorize(actionRequestId, homeServiceCanvasRevision);
         const controller = homeServiceActionGate.begin(actionRequestId, homeServiceCanvasRevision);
@@ -16562,10 +16715,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           requestId: appointmentRequest.id,
           optionId: selectedAppointmentOption.id,
           channel: selectedAppointmentActionChannel,
+          attemptId: preparedAppointmentAttempt.attempt.id,
+          previewRevision: preparedAppointmentAttempt.preview.revision,
+          idempotencyKey: `provider-contact:${preparedAppointmentAttempt.attempt.id}:${preparedAppointmentAttempt.preview.revision}`,
           contactAuthorized: true,
+          draft: selectedAppointmentActionChannel === "email" || selectedAppointmentActionChannel === "whatsapp"
+            ? appointmentContactDraft
+            : undefined,
           shareDetails: {
-            share_home_address: Boolean(homeServiceVisitAddress.trim()),
-            photo: selectedAppointmentActionChannel === "email" && homeServiceCanvasPhoto
+            share_home_address: appointmentShareApprovals.homeAddress,
+            share_access_notes: appointmentShareApprovals.accessNotes,
+            photo: appointmentShareApprovals.photo && selectedAppointmentActionChannel === "email" && homeServiceCanvasPhoto
               ? { name: homeServiceCanvasPhoto.name, type: homeServiceCanvasPhoto.type, data_url: homeServiceCanvasPhoto.dataUrl }
               : undefined,
           },
@@ -16590,8 +16750,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }, [
     activeHomeServiceCanvasSceneRef,
     advanceHomeServiceCanvas,
+    appointmentContactDraft,
     appointmentOptions,
     appointmentRequest,
+    appointmentShareApprovals.accessNotes,
+    appointmentShareApprovals.homeAddress,
+    appointmentShareApprovals.photo,
     confirmAppointmentMutation,
     finalizeHomeServiceCanvasProvider,
     homeServiceCanvasSelectedOption,
@@ -16607,6 +16771,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     homeServiceVisitAddress,
     isSpanish,
     openHomeServiceProviderSetup,
+    prepareAppointmentMutation,
+    preparedAppointmentAttempt,
     savedHomeAddress,
     selectedAppointmentActionChannel,
     selectedAppointmentOption,
@@ -20484,7 +20650,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">{homeServiceCanvasCopyValue.methodHelper}</p>
                     <div className="mt-4 grid gap-2">
                       {homeServiceCanvasContactChannels.map((channel) => (
-                        <button key={channel.id} type="button" className="vyva-tap flex min-h-[48px] items-center justify-between rounded-[14px] border border-[#D8B4FE] bg-white px-4 text-left font-body text-[14px] font-bold text-vyva-text-1" data-testid={`button-home-service-channel-${channel.id}`} onClick={() => { setSelectedHomeServiceContactChannel(channel.id); setHomeServiceContactMethodOpen(false); }}>
+                        <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className="vyva-tap flex min-h-[48px] items-center justify-between rounded-[14px] border border-[#D8B4FE] bg-white px-4 text-left font-body text-[14px] font-bold text-vyva-text-1 disabled:opacity-60" data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span>{channel.label}</span>
                           {channel.recommended ? <span className="text-[12px] text-vyva-purple">{homeServiceCanvasCopyValue.recommended}</span> : null}
                         </button>
@@ -20493,8 +20659,78 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   </section>
                 )}
 
-                {selectedAppointmentOption && selectedAppointmentActionChannel && (
+                {selectedAppointmentOption && selectedAppointmentActionChannel && (!isHomeServiceAppointment || preparedAppointmentAttempt) && (
                   <>
+                    {isHomeServiceAppointment && preparedAppointmentAttempt ? (
+                      <section className="mt-6 rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] p-4" data-testid="panel-home-service-contact-preview">
+                        <h4 className="font-body text-[17px] font-black text-vyva-text-1">
+                          {selectedAppointmentActionChannel === "phone"
+                            ? (isSpanish ? "Revisa la llamada" : "Review the call")
+                            : selectedAppointmentActionChannel === "booking_url"
+                              ? (isSpanish ? "Revisa la preparación de reserva" : "Review booking preparation")
+                              : selectedAppointmentActionChannel === "manual"
+                                ? (isSpanish ? "Revisión manual de VYVA" : "VYVA manual review")
+                                : (isSpanish ? "Revisa el mensaje" : "Review the message")}
+                        </h4>
+                        {preparedAppointmentAttempt.preview.recipient ? (
+                          <p className="mt-1 break-all font-body text-[13px] font-semibold text-vyva-text-2" data-testid="text-home-service-contact-recipient">
+                            {preparedAppointmentAttempt.preview.recipient}
+                          </p>
+                        ) : null}
+
+                        {preparedAppointmentAttempt.preview.message ? (
+                          <div className="mt-4 grid gap-3">
+                            {selectedAppointmentActionChannel === "email" ? (
+                              <label className="grid gap-1 font-body text-[12px] font-bold text-vyva-text-2">
+                                {isSpanish ? "Asunto" : "Subject"}
+                                <Input value={appointmentContactDraft.subject} onChange={(event) => setAppointmentContactDraft((current) => ({ ...current, subject: event.target.value }))} data-testid="input-home-service-contact-subject" />
+                              </label>
+                            ) : null}
+                            <label className="grid gap-1 font-body text-[12px] font-bold text-vyva-text-2">
+                              {isSpanish ? "Mensaje" : "Message"}
+                              <textarea value={appointmentContactDraft.body} onChange={(event) => setAppointmentContactDraft((current) => ({ ...current, body: event.target.value }))} rows={7} className="rounded-[14px] border border-[#D8B4FE] bg-white p-3 font-body text-[14px] font-medium text-vyva-text-1" data-testid="input-home-service-contact-body" />
+                            </label>
+                          </div>
+                        ) : null}
+
+                        {preparedAppointmentAttempt.preview.call ? (
+                          <div className="mt-4 font-body text-[13px] text-vyva-text-2" data-testid="panel-home-service-call-brief">
+                            <p className="font-bold text-vyva-text-1">{preparedAppointmentAttempt.preview.call.objective}</p>
+                            <ul className="mt-2 list-disc space-y-1 pl-5">{preparedAppointmentAttempt.preview.call.questions.map((question) => <li key={question}>{question}</li>)}</ul>
+                            <p className="mt-2 text-[12px] font-semibold">{preparedAppointmentAttempt.preview.call.commitment_policy}</p>
+                          </div>
+                        ) : null}
+
+                        {preparedAppointmentAttempt.preview.booking ? (
+                          <div className="mt-4 rounded-[14px] bg-white p-3 font-body text-[13px] text-vyva-text-2" data-testid="panel-home-service-booking-brief">
+                            <p className="font-bold text-vyva-text-1">{isSpanish ? "VYVA comprobará y preparará el formulario." : "VYVA will inspect and prepare the form."}</p>
+                            <p className="mt-1">{preparedAppointmentAttempt.preview.booking.commitment_policy}</p>
+                          </div>
+                        ) : null}
+
+                        {preparedAppointmentAttempt.preview.manual ? (
+                          <div className="mt-4 rounded-[14px] bg-white p-3 font-body text-[13px] text-vyva-text-2" data-testid="panel-home-service-manual-brief">
+                            <p className="font-bold text-vyva-text-1">{preparedAppointmentAttempt.preview.manual.owner}</p>
+                            <p className="mt-1">{preparedAppointmentAttempt.preview.manual.next_step}</p>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 grid gap-2 font-body text-[13px] font-semibold text-vyva-text-2">
+                          {preparedAppointmentAttempt.preview.share_options.home_address ? (
+                            <label className="flex min-h-[40px] items-start gap-3"><input className="mt-1" type="checkbox" checked={appointmentShareApprovals.homeAddress} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, homeAddress: event.target.checked }))} data-testid="checkbox-share-home-address" /><span>{isSpanish ? "Compartir dirección de la visita" : "Share visit address"}<span className="block text-[12px] font-medium text-vyva-text-3">{homeServiceVisitAddress}</span></span></label>
+                          ) : null}
+                          {preparedAppointmentAttempt.preview.share_options.access_notes ? (
+                            <label className="flex min-h-[40px] items-start gap-3"><input className="mt-1" type="checkbox" checked={appointmentShareApprovals.accessNotes} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, accessNotes: event.target.checked }))} data-testid="checkbox-share-access-notes" /><span>{isSpanish ? "Compartir notas de acceso o seguridad" : "Share access or safety notes"}<span className="block text-[12px] font-medium text-vyva-text-3">{homeServiceIntakeAnswers.access_notes === "__none__" ? "" : homeServiceIntakeAnswers.access_notes}</span></span></label>
+                          ) : null}
+                          {preparedAppointmentAttempt.preview.share_options.photo && homeServiceCanvasPhoto ? (
+                            <label className="flex min-h-[40px] items-center gap-3"><input type="checkbox" checked={appointmentShareApprovals.photo} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, photo: event.target.checked }))} data-testid="checkbox-share-home-photo" />{isSpanish ? `Adjuntar ${homeServiceCanvasPhotoName || "foto"}` : `Attach ${homeServiceCanvasPhotoName || "photo"}`}</label>
+                          ) : null}
+                        </div>
+                        <button type="button" className="mt-3 min-h-[40px] font-body text-[13px] font-bold text-vyva-purple underline" onClick={() => { setPreparedAppointmentAttempt(null); setSelectedHomeServiceContactChannel(null); setHomeServiceContactMethodOpen(true); }}>
+                          {isSpanish ? "Cambiar método" : "Change method"}
+                        </button>
+                      </section>
+                    ) : null}
                     {!isHomeServiceAppointment && selectedAppointmentToolReadiness ? (
                       <ActionReadinessPanel
                         readiness={selectedAppointmentToolReadiness}
@@ -20513,7 +20749,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         ? "VYVA puede contactar al proveedor para comprobar opciones. Nada queda reservado, pagado ni enviado como final sin tu aprobacion."
                         : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval.")}
                       items={selectedAppointmentConfirmationItems}
-                      primaryLabel={isHomeServiceAppointment ? homeServiceCanvasCopyValue.confirmContact : (isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this")}
+                      primaryLabel={isHomeServiceAppointment
+                        ? selectedAppointmentActionChannel === "phone"
+                          ? (isSpanish ? "Confirmar e iniciar llamada" : "Confirm and start call")
+                          : selectedAppointmentActionChannel === "email"
+                            ? (isSpanish ? "Confirmar y enviar email" : "Confirm and send email")
+                            : selectedAppointmentActionChannel === "whatsapp"
+                              ? (isSpanish ? "Confirmar y enviar WhatsApp" : "Confirm and send WhatsApp")
+                              : selectedAppointmentActionChannel === "booking_url"
+                                ? (isSpanish ? "Confirmar y preparar reserva" : "Confirm and prepare booking")
+                                : (isSpanish ? "Confirmar revisión manual" : "Confirm manual review")
+                        : (isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this")}
                       onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
                       isPending={confirmAppointmentMutation.isPending}
                       disabled={confirmAppointmentMutation.isPending}
@@ -20547,6 +20793,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               setSelectedAppointmentOptionId(option.id);
                               if (isHomeServiceAppointment) {
                                 setSelectedHomeServiceContactChannel(null);
+                                setPreparedAppointmentAttempt(null);
                                 setHomeServiceContactMethodOpen(false);
                               }
                             }}
@@ -20663,7 +20910,23 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               </div>
             )}
 
-            {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && (
+            {appointmentAttemptResult?.form_task?.status === "confirmed" && preparedAppointmentAttempt?.preview.channel === "booking_url" ? (
+              <section className="mt-3 rounded-[20px] border border-[#F59E0B] bg-[#FFFBEB] p-4" data-testid="panel-appointment-booking-commit">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#92400E]">{isSpanish ? "Confirmación final" : "Final confirmation"}</p>
+                <h3 className="mt-2 font-display text-[20px] font-semibold text-vyva-text-1">{isSpanish ? "Revisa antes de reservar" : "Review before booking"}</h3>
+                <dl className="mt-3 grid gap-2 font-body text-[13px] text-vyva-text-2">
+                  <div><dt className="font-bold text-vyva-text-1">{isSpanish ? "Fecha y hora" : "Date and time"}</dt><dd>{appointmentAttemptResult.form_task.scheduled_for ?? (isSpanish ? "Pendiente" : "Pending")}</dd></div>
+                  <div><dt className="font-bold text-vyva-text-1">{isSpanish ? "Lugar" : "Location"}</dt><dd>{appointmentAttemptResult.form_task.location ?? appointmentProviderAddress ?? (isSpanish ? "No indicado" : "Not provided")}</dd></div>
+                  {appointmentAttemptResult.form_task.notes ? <div><dt className="font-bold text-vyva-text-1">{isSpanish ? "Condiciones" : "Terms"}</dt><dd>{appointmentAttemptResult.form_task.notes}</dd></div> : null}
+                </dl>
+                <p className="mt-3 font-body text-[12px] font-semibold text-[#92400E]">{isSpanish ? "Este botón confirma la reserva. El permiso de contacto anterior no la confirmó." : "This button confirms the booking. Your earlier contact permission did not book it."}</p>
+                <button type="button" disabled={commitPreparedBookingMutation.isPending} onClick={() => commitPreparedBookingMutation.mutate({ attemptId: preparedAppointmentAttempt.attempt.id, previewRevision: preparedAppointmentAttempt.preview.revision })} className="vyva-tap mt-4 min-h-[48px] w-full rounded-full bg-[#0F766E] px-5 font-body text-[15px] font-black text-white disabled:opacity-60" data-testid="button-appointment-confirm-booking">
+                  {commitPreparedBookingMutation.isPending ? (isSpanish ? "Confirmando…" : "Confirming…") : (isSpanish ? "Confirmar reserva" : "Confirm booking")}
+                </button>
+              </section>
+            ) : null}
+
+            {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && !(appointmentAttemptResult.form_task?.status === "confirmed" && preparedAppointmentAttempt?.preview.channel === "booking_url") && (
               <FinalConfirmationCard
                 title={appointmentFinalReviewTitle}
                 body={appointmentFinalReviewBody}
