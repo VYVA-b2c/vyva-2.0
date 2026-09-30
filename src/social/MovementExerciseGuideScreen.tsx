@@ -331,17 +331,17 @@ function buildVoicePrompt(
   stepIndex: number,
   totalSteps: number,
   safety: string,
-  readyHint: string,
 ) {
   return [
     `Guide the user through ${title}.`,
     `Current step ${stepIndex + 1} of ${totalSteps}: ${step}`,
-    `The screen shows this photo storyboard scene: ${sceneLabel}.`,
+    `The screen shows this visual guide scene: ${sceneLabel}.`,
     `Motion cue metadata: ${motion}.`,
+    `The app owns timing, visuals, step advancement, pause/resume, and completion logging.`,
     `Do not move to a different step until the app sends new context.`,
+    `Do not ask the user to press buttons or choose the next step.`,
     `Speak warmly, slowly, and plainly.`,
-    `Keep it short, then pause so the user can move.`,
-    `End with this cue: ${readyHint}`,
+    `Say one brief cue that matches this visible step, then leave silence so the user can move.`,
     `Safety reminder: ${safety}`,
   ].join(" ");
 }
@@ -418,24 +418,38 @@ export default function MovementExerciseGuideScreen() {
 
   const voiceVariables = useCallback((nextStepIndex: number) => {
     const nextMotion = motionForStep(nextStepIndex);
+    const isFinalStep = nextStepIndex >= steps.length - 1;
     return {
       app_entrypoint: "movement_exercise_guide",
+      guidance_mode: "app_guided_visual_routine",
+      timer_authority: "app",
+      app_controls: "visuals,timer,step_advancement,pause_resume,completion_logging",
       exercise_id: exercise?.id ?? "",
       exercise_title: exercise?.title ?? "",
       exercise_benefit: exercise?.benefit ?? "",
+      wellness_routine: exercise?.id ?? "",
+      routine_id: exercise?.id ?? "",
+      routine_title: exercise?.title ?? "",
+      routine_type: session?.logType ?? "",
+      duration_seconds: Math.round(MOVEMENT_GUIDE_TOTAL_DURATION_MS / 1000),
+      step_duration_seconds: Math.round(stepDurationMs / 1000),
       current_step: steps[nextStepIndex] ?? "",
+      current_step_index: nextStepIndex,
       current_step_number: nextStepIndex + 1,
+      current_step_total: steps.length,
       step_count: steps.length,
+      is_final_step: isFinalStep,
       exercise_steps: steps.join(" | "),
       safety_line: sessionCopy.safety,
       visual_step_label: guideCopy.stepLabel(nextStepIndex + 1, steps.length),
       visual_step_text: steps[nextStepIndex] ?? "",
       visual_motion: nextMotion,
       visual_scene: sceneForStep(nextStepIndex),
-      next_visual_action: nextStepIndex >= steps.length - 1 ? guideCopy.finish : guideCopy.nextStep,
-      app_user_instruction: nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
+      next_visual_action: isFinalStep ? guideCopy.finish : guideCopy.nextStep,
+      app_user_instruction: isFinalStep ? guideCopy.finishHint : guideCopy.nextHint,
+      audio_role: "agent_spoken_guidance_only",
     };
-  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sceneForStep, sessionCopy.safety, steps]);
+  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sceneForStep, session?.logType, sessionCopy.safety, stepDurationMs, steps]);
 
   const promptForStep = useCallback(
     (nextStepIndex: number) => buildVoicePrompt(
@@ -446,13 +460,12 @@ export default function MovementExerciseGuideScreen() {
       nextStepIndex,
       steps.length,
       sessionCopy.safety,
-      nextStepIndex >= steps.length - 1 ? guideCopy.finishHint : guideCopy.nextHint,
     ),
-    [exercise?.title, guideCopy.finishHint, guideCopy.nextHint, motionForStep, sceneForStep, sessionCopy.safety, steps],
+    [exercise?.title, motionForStep, sceneForStep, sessionCopy.safety, steps],
   );
 
   const sendStepPrompt = useCallback((nextStepIndex: number) => {
-    sendContextUpdate(`Movement exercise guide context: ${JSON.stringify(voiceVariables(nextStepIndex))}`);
+    sendContextUpdate(`Authoritative movement routine state from the app: ${JSON.stringify(voiceVariables(nextStepIndex))}`);
     sendText(promptForStep(nextStepIndex), { invisibleInTranscript: true });
   }, [promptForStep, sendContextUpdate, sendText, voiceVariables]);
 

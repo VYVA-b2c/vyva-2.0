@@ -797,15 +797,29 @@ describe("RoomScreen movement room", () => {
         autoStartListening: true,
         dynamicVariables: expect.objectContaining({
           app_entrypoint: "movement_exercise_guide",
+          guidance_mode: "app_guided_visual_routine",
+          timer_authority: "app",
+          app_controls: "visuals,timer,step_advancement,pause_resume,completion_logging",
           exercise_id: "tai-chi",
           exercise_title: "Tai chi",
           exercise_benefit: "Balance practice",
+          wellness_routine: "tai-chi",
+          routine_id: "tai-chi",
+          routine_title: "Tai chi",
+          routine_type: "TaiChi",
+          duration_seconds: 600,
+          step_duration_seconds: 150,
           current_step: "Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.",
+          current_step_index: 0,
           visual_step_label: "Step 1 of 4",
+          current_step_number: 1,
+          current_step_total: 4,
+          is_final_step: false,
           visual_motion: "standing-support",
           visual_scene: "Standing tall with chair nearby",
           next_visual_action: "Next",
           safety_line: "Move gently. Stop if you feel pain, dizzy, or short of breath.",
+          audio_role: "agent_spoken_guidance_only",
         }),
       }),
     );
@@ -814,7 +828,11 @@ describe("RoomScreen movement room", () => {
       { invisibleInTranscript: true },
     );
     expect(voiceMock.sendText).toHaveBeenCalledWith(
-      expect.stringContaining("photo storyboard scene: Standing tall with chair nearby."),
+      expect.stringContaining("visual guide scene: Standing tall with chair nearby."),
+      { invisibleInTranscript: true },
+    );
+    expect(voiceMock.sendText).toHaveBeenCalledWith(
+      expect.stringContaining("The app owns timing, visuals, step advancement, pause/resume, and completion logging."),
       { invisibleInTranscript: true },
     );
   });
@@ -833,7 +851,12 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Soften your knees.");
     await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "soft-knees");
-    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Soften your knees."));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Authoritative movement routine state from the app"));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"wellness_routine\":\"tai-chi\""));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"current_step\":\"Soften your knees."));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"current_step_number\":2"));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"current_step_total\":4"));
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"timer_authority\":\"app\""));
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"visual_motion\":\"soft-knees\""));
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("\"visual_scene\":\"Knees softly bent\""));
     expect(voiceMock.sendText).toHaveBeenCalledWith(
