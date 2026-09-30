@@ -17406,11 +17406,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     card.id === homeTaskServiceCardId && homeTaskNudge
       ? {
           ...card,
-          highlighted: true,
-          highlightLabel: homeTaskNeedsAttention
-            ? (isSpanish ? "Necesita atención" : "Needs attention")
-            : (isSpanish ? "Tarea en curso" : "Task in progress"),
-          onClick: () => navigate(homeTaskNudge.detailPath),
+          nudgeLabel: homeTaskNeedsAttention
+            ? (isSpanish ? `${homeTaskNudge.title} necesita atención` : `${homeTaskNudge.title} needs attention`)
+            : (isSpanish ? `${homeTaskNudge.title} en curso` : `${homeTaskNudge.title} in progress`),
+          nudgeDetail: isSpanish ? "Continuar tu solicitud" : "Continue your request",
+          nudgeTestId: `button-concierge-task-nudge-${card.id}`,
+          onNudgeClick: () => navigate(homeTaskNudge.detailPath),
         }
       : card
   ));

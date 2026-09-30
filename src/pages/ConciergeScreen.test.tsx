@@ -296,13 +296,15 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home");
 
     const appointments = await screen.findByTestId("button-concierge-card-appointment");
-    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
-    expect(appointments).toHaveTextContent("Needs attention");
+    const nudge = await screen.findByTestId("button-concierge-task-nudge-book-appointments");
+    expect(appointments).not.toHaveAttribute("data-highlighted");
+    expect(nudge).toHaveTextContent("needs attention");
+    expect(nudge).toHaveTextContent("Continue your request");
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
     expect(screen.queryByTestId("concierge-home-task-overview")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-hero")).toBeInTheDocument();
 
-    fireEvent.click(appointments);
+    fireEvent.click(nudge);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
   });
 
@@ -319,13 +321,15 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home");
 
     const homeRepair = await screen.findByTestId("button-concierge-card-service");
-    await waitFor(() => expect(homeRepair).toHaveAttribute("data-highlighted", "true"));
-    expect(homeRepair).toHaveTextContent("Task in progress");
+    const nudge = await screen.findByTestId("button-concierge-task-nudge-get-help");
+    expect(homeRepair).not.toHaveAttribute("data-highlighted");
+    expect(nudge).toHaveTextContent("Home service in progress");
+    expect(nudge).toHaveTextContent("Continue your request");
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
     expect(screen.queryByText("Your request needs attention")).not.toBeInTheDocument();
 
     fireEvent.click(homeRepair);
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/draft%3Ahome-service-draft");
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/get-help");
   });
 
   it("opens after Home has populated the shared action cache with API envelopes", async () => {
@@ -337,7 +341,8 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home", queryClient);
 
     const appointments = await screen.findByTestId("button-concierge-card-appointment");
-    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
+    expect(await screen.findByTestId("button-concierge-task-nudge-book-appointments")).toBeInTheDocument();
+    expect(appointments).not.toHaveAttribute("data-highlighted");
   });
 
   it("shows only the provider task that needs the user's next action", async () => {
@@ -385,9 +390,10 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home");
 
     const appointments = await screen.findByTestId("button-concierge-card-appointment");
-    await waitFor(() => expect(appointments).toHaveAttribute("data-highlighted", "true"));
-    expect(appointments).toHaveTextContent("Needs attention");
-    fireEvent.click(appointments);
+    const nudge = await screen.findByTestId("button-concierge-task-nudge-book-appointments");
+    expect(appointments).not.toHaveAttribute("data-highlighted");
+    expect(nudge).toHaveTextContent("needs attention");
+    fireEvent.click(nudge);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });
 
