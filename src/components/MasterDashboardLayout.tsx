@@ -48,6 +48,10 @@ export type MasterDashboardCard = {
   chips?: string[];
   highlighted?: boolean;
   highlightLabel?: string;
+  nudgeLabel?: string;
+  nudgeDetail?: string;
+  onNudgeClick?: () => void;
+  nudgeTestId?: string;
 };
 
 export type MasterFastHelpAction = {
@@ -484,8 +488,8 @@ export default function MasterDashboardLayout({
                 ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
+              <div key={card.id} className="flex min-w-0 flex-col">
               <button
-                key={card.id}
                 type="button"
                 onClick={card.onClick}
                 data-testid={card.testId}
@@ -493,7 +497,7 @@ export default function MasterDashboardLayout({
                 aria-current={card.highlighted ? "true" : undefined}
                 data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
-                  "vyva-tap group relative rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  "vyva-tap group relative w-full flex-1 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
                     ? isHomeMasterIntentLayer
@@ -659,6 +663,30 @@ export default function MasterDashboardLayout({
                   ) : null}
                 </span>
               </button>
+              {card.nudgeLabel && card.onNudgeClick ? (
+                <button
+                  type="button"
+                  onClick={card.onNudgeClick}
+                  data-testid={card.nudgeTestId}
+                  className="vyva-tap mt-2 flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#E5D2FA] bg-[#F7F0FF] px-3 py-2.5 text-left shadow-[0_8px_18px_rgba(107,33,168,0.08)] transition-colors hover:bg-[#F1E5FF]"
+                >
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-white text-vyva-purple shadow-[0_4px_10px_rgba(107,33,168,0.10)]" aria-hidden="true">
+                    <span className="h-2.5 w-2.5 rounded-full bg-vyva-purple" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-body text-[14px] font-black leading-tight text-vyva-purple min-[390px]:text-[15px]">
+                      {card.nudgeLabel}
+                    </span>
+                    {card.nudgeDetail ? (
+                      <span className="mt-0.5 block font-body text-[12px] font-semibold leading-tight text-vyva-text-2 min-[390px]:text-[13px]">
+                        {card.nudgeDetail}
+                      </span>
+                    ) : null}
+                  </span>
+                  <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+                </button>
+              ) : null}
+              </div>
             );
           })}
         </div>
