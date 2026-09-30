@@ -53,6 +53,12 @@ import {
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
+import { evaluateConciergeChannelReadiness } from "../../shared/conciergeChannelReadiness.js";
+import { toolFromAppointmentChannel } from "../../shared/conciergeToolReadiness.js";
+import {
+  conciergeChannelReadinessForToolWithAdminSettings,
+  loadConciergeChannelReadinessFlagsWithAdminSettings,
+} from "../services/conciergeChannelReadiness.js";
 import {
   decideProviderCandidates,
   type ProviderCandidate,
@@ -716,6 +722,34 @@ function appointmentMessage(
 
 router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
 
+router.get("/contact-channel-readiness", async (_req: Request, res: Response) => {
+  try {
+    const liveChannels = APPOINTMENT_CHANNELS.filter((channel) => channel !== "manual");
+    const flags = await loadConciergeChannelReadinessFlagsWithAdminSettings();
+    const results = liveChannels.map((channel) => {
+      const readiness = evaluateConciergeChannelReadiness({
+        tool: toolFromAppointmentChannel(channel),
+        dryRun: false,
+        flags,
+      });
+      return [channel, {
+        status: readiness.status,
+        external_action_allowed: readiness.external_action_allowed,
+      }] as const;
+    });
+
+    return res.json({
+      channels: {
+        ...Object.fromEntries(results),
+        manual: { status: "manual_review", external_action_allowed: true },
+      },
+    });
+  } catch (err) {
+    console.error("[appointments GET /contact-channel-readiness]", err);
+    return res.status(503).json({ error: "Contact channel readiness is unavailable" });
+  }
+});
+
 router.get("/context", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -1220,8 +1254,21 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
   try {
     const option = await loadOptionForRequest(optionId, request.id, userId);
     if (!option) return res.status(404).json({ error: "Provider option not found" });
-    if (!option.available_channels.includes(parsed.data.channel)) {
+    if (parsed.data.channel !== "manual" && !option.available_channels.includes(parsed.data.channel)) {
       return res.status(400).json({ error: "This contact channel is not available for the provider" });
+    }
+    if (request.appointment_type === "home-service" && parsed.data.channel !== "manual") {
+      const readiness = await conciergeChannelReadinessForToolWithAdminSettings({
+        tool: toolFromAppointmentChannel(parsed.data.channel),
+        dryRun: false,
+      });
+      if (!readiness.external_action_allowed) {
+        return res.status(409).json({
+          error: "This contact method is not currently available. Choose another method or manual review.",
+          code: "contact_channel_not_ready",
+          channel: parsed.data.channel,
+        });
+      }
     }
 
     const snapshot = (option.provider_snapshot ?? {}) as Record<string, unknown>;

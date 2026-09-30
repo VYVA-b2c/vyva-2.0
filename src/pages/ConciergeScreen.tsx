@@ -1013,6 +1013,13 @@ interface AppointmentProviderOption {
   status: string;
 }
 
+interface AppointmentContactChannelReadinessResponse {
+  channels: Partial<Record<AppointmentChannel, {
+    status: string;
+    external_action_allowed: boolean;
+  }>>;
+}
+
 interface AppointmentAttemptResponse {
   attempt?: { id: string; channel: AppointmentChannel; status: string };
   pending?: { pendingId?: string; status?: string; message?: string } | null;
@@ -10471,6 +10478,22 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     return appointmentOptions[0] ?? null;
   }, [appointmentOptions, selectedAppointmentOptionId]);
 
+  const appointmentContactChannelReadinessQuery = useQuery({
+    queryKey: ["/api/appointments/contact-channel-readiness"],
+    queryFn: async (): Promise<AppointmentContactChannelReadinessResponse> => {
+      const response = await apiFetch("/api/appointments/contact-channel-readiness");
+      if (!response.ok) throw new Error("Contact channel readiness is unavailable");
+      const payload = await response.json() as AppointmentContactChannelReadinessResponse;
+      if (!payload.channels || typeof payload.channels !== "object") {
+        throw new Error("Invalid contact channel readiness response");
+      }
+      return payload;
+    },
+    enabled: Boolean(selectedAppointmentOption),
+    staleTime: 30_000,
+    retry: false,
+  });
+
   useEffect(() => {
     if (!appointmentRequest?.id || appointmentOptions.length === 0) return;
     const options = appointmentOptions.slice(0, 3).map((option, index) => {
@@ -16239,16 +16262,24 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     ?? null;
   const homeServiceCanvasContactChannels = useMemo(() => {
     if (!selectedAppointmentOption) return [];
-    const available = selectedAppointmentOption.available_channels;
-    const visible = available.some((channel) => channel !== "manual")
-      ? available.filter((channel) => channel !== "manual")
-      : available;
+    const readiness = appointmentContactChannelReadinessQuery.data?.channels;
+    const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
+      channel !== "manual" && readiness?.[channel]?.external_action_allowed === true
+    ));
+    const visible: AppointmentChannel[] = availableLiveChannels.length > 0
+      ? availableLiveChannels
+      : ["manual"];
     return visible.map((channel) => ({
       id: channel,
       label: appointmentChannelLabel(channel, isSpanish),
       recommended: channel === suggestedAppointmentActionChannel,
     }));
-  }, [isSpanish, selectedAppointmentOption, suggestedAppointmentActionChannel]);
+  }, [
+    appointmentContactChannelReadinessQuery.data?.channels,
+    isSpanish,
+    selectedAppointmentOption,
+    suggestedAppointmentActionChannel,
+  ]);
   const homeServiceCanvasChannelLabel = selectedAppointmentActionChannel
     ? appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish)
     : "";
@@ -16514,7 +16545,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       }
       if (homeServiceCanvasStep === "contact_method") {
         const channel = response.choiceId as AppointmentChannel | undefined;
-        if (!channel || !selectedAppointmentOption?.available_channels.includes(channel)) return;
+        if (!channel || !homeServiceCanvasContactChannels.some((option) => option.id === channel)) return;
         setSelectedHomeServiceContactChannel(channel);
         advanceHomeServiceCanvas("review");
         return;

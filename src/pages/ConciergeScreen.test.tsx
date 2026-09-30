@@ -837,6 +837,14 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
+      if (target === "/api/appointments/contact-channel-readiness") {
+        return jsonResponse({
+          channels: {
+            email: { status: "ready", external_action_allowed: true },
+            manual: { status: "manual_review", external_action_allowed: true },
+          },
+        });
+      }
       if (target === "/api/profile") {
         return jsonResponse({
           street: "10 Garden Lane",
@@ -4008,6 +4016,17 @@ describe("ConciergeScreen action hub", () => {
     };
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target === "/api/appointments/contact-channel-readiness") {
+        return jsonResponse({
+          channels: {
+            booking_url: { status: "not_verified", external_action_allowed: false },
+            phone: { status: "disabled", external_action_allowed: false },
+            whatsapp: { status: "ready", external_action_allowed: true },
+            email: { status: "not_configured", external_action_allowed: false },
+            manual: { status: "manual_review", external_action_allowed: true },
+          },
+        });
+      }
       if (target === "/api/profile") {
         return jsonResponse({
           street: "Calle Home 10",
@@ -4182,6 +4201,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-home-service-contact-yes"));
     expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
+    expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
+    expect(screen.queryByTestId("button-home-service-channel-booking_url")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-service-channel-email")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and contact provider");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
