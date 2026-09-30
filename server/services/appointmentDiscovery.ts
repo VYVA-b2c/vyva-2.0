@@ -153,8 +153,22 @@ export function buildAppointmentSearchQueries(input: {
     ? homeServiceTypeLabel(serviceType, input.language)
     : "";
   const searchTerms = serviceType ? homeServiceSearchTerms(serviceType).slice(0, 2).join(" ") : "";
-  if (serviceType) return localHomeServiceTerms(serviceType, input.countryCode, input.language)
-    .flatMap(term => input.countryCode ? [`${term} ${input.location}`, term] : [`${term} ${input.location}`]);
+  if (serviceType) {
+    const customService = serviceType === "other"
+      ? detail.match(/^(.{2,80}?)\s+needed(?:\.|\s|$)/i)?.[1]?.trim() ?? ""
+      : "";
+    const genericOtherLabels = new Set([
+      "other service",
+      homeServiceTypeLabel("other", input.language).toLocaleLowerCase(),
+    ]);
+    const primaryTerms = customService && !genericOtherLabels.has(customService.toLocaleLowerCase())
+      ? [customService, ...localHomeServiceTerms(serviceType, input.countryCode, input.language)]
+      : localHomeServiceTerms(serviceType, input.countryCode, input.language);
+    return Array.from(new Set(primaryTerms
+      .flatMap(term => input.countryCode ? [`${term} ${input.location}`, term] : [`${term} ${input.location}`])
+      .map(cleanText)
+      .filter(Boolean)));
+  }
   // Home-service preferences rank evidence; they are not literal trade keywords.
   const constraints = input.appointmentType === "home-service" ? "" : (input.constraints ?? []).map(cleanText).filter(Boolean).slice(0, 3).join(" ");
   const focusedDetail = cleanText([serviceLabel, searchTerms, detail, constraints].filter(Boolean).join(" "));
