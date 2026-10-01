@@ -744,7 +744,7 @@ function appointmentMessage(
         addressLine ? `${addressLine}.` : "",
         accessLine ? `${accessLine}.` : "",
         askLine,
-        "Nothing is confirmed until I approve the next step. Thank you.",
+        "Please send the available options for review. Do not reserve or book anything yet. Thank you.",
       ].filter(Boolean).join(" ")
     : [
         `Hello ${provider},`,
@@ -757,7 +757,7 @@ function appointmentMessage(
         "",
         askLine,
         "",
-        "Nothing is confirmed until I approve the next step.",
+        "Please send the available options for review. Do not reserve or book anything yet.",
         "",
         "Thank you.",
       ].join("\n");
