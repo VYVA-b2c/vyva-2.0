@@ -5,6 +5,7 @@ import { verifyProvider, incompleteVerification } from "../services/providerVeri
 import { currentVerification } from "../../shared/providerVerification.js";
 import { requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
+import { homeServiceContactSummaryLines } from "../../shared/homeServiceContactMessage.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -734,9 +735,11 @@ function appointmentMessage(
     : "Could you send available dates, times, location, price if relevant, and any preparation needed?";
   const addressLine = isHomeService && homeAddress ? `Visit address: ${homeAddress}` : "";
   const accessLine = isHomeService && accessNotes ? `Access/safety notes: ${accessNotes}` : "";
+  const wizardSummaryLines = isHomeService ? homeServiceContactSummaryLines(homeServicePayload) : [];
   const body = channel === "whatsapp"
     ? [
         `Hello ${provider}, ${requestLine}`,
+        ...wizardSummaryLines.map((line) => `${line}.`),
         `Request: ${reason}.`,
         addressLine ? `${addressLine}.` : "",
         accessLine ? `${accessLine}.` : "",
@@ -747,6 +750,7 @@ function appointmentMessage(
         `Hello ${provider},`,
         "",
         requestLine,
+        ...wizardSummaryLines,
         `Request: ${reason}`,
         addressLine,
         accessLine,
