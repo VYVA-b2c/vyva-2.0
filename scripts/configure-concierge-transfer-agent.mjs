@@ -53,7 +53,7 @@ builtInTools.transfer_to_number = {
 };
 
 const marker = "# VYVA provider connection call";
-const transferInstructions = `${marker}\nWhen provider_transfer_requires_confirmation is true:\n- You are calling the VYVA user first. Identify yourself as VYVA.\n- Briefly state the provider_name and provider_contact_objective.\n- Ask whether the user is ready to be connected now.\n- Call transfer_to_number only after a clear affirmative answer in this call. Use provider_transfer_phone as the destination.\n- If the user declines, is unsure, or does not answer, do not transfer. End the call politely.\n- Do not accept a booking, price, payment, deposit, or commercial terms on the user's behalf.`;
+const transferInstructions = `${marker}\nWhen provider_transfer_requires_confirmation is true:\n- You are calling the VYVA user first. Identify yourself as VYVA and speak in user_language.\n- Briefly state the provider_name and provider_contact_objective.\n- Ask whether the user is ready to be connected now.\n- Call transfer_to_number only after a clear affirmative answer in this call. Use provider_transfer_phone as the destination.\n- Write the provider-facing agent_message in provider_contact_language.\n- If the user declines, is unsure, or does not answer, do not transfer. End the call politely.\n- Do not accept a booking, price, payment, deposit, or commercial terms on the user's behalf.`;
 const currentPrompt = typeof prompt.prompt === "string" ? prompt.prompt.trim() : "";
 const nextPrompt = currentPrompt.includes(marker)
   ? currentPrompt

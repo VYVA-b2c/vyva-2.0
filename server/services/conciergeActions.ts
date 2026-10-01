@@ -288,6 +288,7 @@ function buildDynamicVariables(pending: PendingRow, profile: BasicProfile): Reco
     use_case: pending.use_case,
     language: normalizeLanguage(pending.language, profileLanguage),
     senior_name: firstName(profile),
+    user_language: normalizeLanguage(pending.language, profileLanguage),
   };
 
   const providerPhone = pending.provider_phone?.trim();
@@ -312,6 +313,7 @@ function buildDynamicVariables(pending: PendingRow, profile: BasicProfile): Reco
     ["preferred_time", payload.preferred_time, "string"],
     ["urgency", payload.urgency, "string"],
     ["reason", payload.reason, "string"],
+    ["provider_contact_language", payload.provider_contact_language, "string"],
   ];
 
   for (const [key, value, mode] of mappings) {

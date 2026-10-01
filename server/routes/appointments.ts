@@ -5,7 +5,8 @@ import { verifyProvider, incompleteVerification } from "../services/providerVeri
 import { currentVerification } from "../../shared/providerVerification.js";
 import { requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
-import { homeServiceContactSummaryLines } from "../../shared/homeServiceContactMessage.js";
+import { homeServiceContactSummaryLines, providerContactLanguage } from "../../shared/homeServiceContactMessage.js";
+import { languageText } from "../../shared/language.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -721,45 +722,55 @@ function appointmentMessage(
   approvedHomeServicePayload?: Record<string, unknown>,
 ) {
   const provider = optionName(option);
+  const snapshot = recordValue(option.provider_snapshot);
+  const contactLanguage = providerContactLanguage(snapshot, request.language);
+  const copy = languageText(contactLanguage, {
+    en: { subject: "Home service request", intro: "I’m VYVA, contacting you on behalf of a client who needs a home service.", ask: "Could you confirm availability, visit timing, estimated cost if possible, and anything the client should do before you arrive?", request: "Request", address: "Visit address", access: "Access/safety notes", close: "Please send the available options for review. Do not reserve or book anything yet.", thanks: "Thank you", hello: "Hello" },
+    es: { subject: "Solicitud de servicio a domicilio", intro: "Soy VYVA y contacto en nombre de un cliente que necesita un servicio a domicilio.", ask: "¿Puede confirmar disponibilidad, plazo de visita, coste estimado y cualquier preparación necesaria?", request: "Solicitud", address: "Dirección de la visita", access: "Notas de acceso o seguridad", close: "Envíe las opciones disponibles para revisarlas. No reserve ninguna cita todavía.", thanks: "Gracias", hello: "Hola" },
+    fr: { subject: "Demande de service à domicile", intro: "Je suis VYVA et je vous contacte au nom d’un client qui a besoin d’un service à domicile.", ask: "Pouvez-vous confirmer vos disponibilités, le délai d’intervention, le coût estimé et toute préparation nécessaire ?", request: "Demande", address: "Adresse de l’intervention", access: "Consignes d’accès ou de sécurité", close: "Merci d’envoyer les options disponibles pour examen. Ne réservez rien pour le moment.", thanks: "Merci", hello: "Bonjour" },
+    de: { subject: "Anfrage für einen Hausservice", intro: "Ich bin VYVA und kontaktiere Sie im Namen eines Kunden, der einen Hausservice benötigt.", ask: "Können Sie Verfügbarkeit, Termin, geschätzte Kosten und notwendige Vorbereitungen bestätigen?", request: "Anfrage", address: "Einsatzadresse", access: "Zugangs- oder Sicherheitshinweise", close: "Bitte senden Sie die verfügbaren Optionen zur Prüfung. Buchen Sie noch keinen Termin.", thanks: "Vielen Dank", hello: "Guten Tag" },
+    it: { subject: "Richiesta di servizio a domicilio", intro: "Sono VYVA e la contatto per conto di un cliente che necessita di un servizio a domicilio.", ask: "Può confermare disponibilità, tempi, costo stimato ed eventuali preparativi necessari?", request: "Richiesta", address: "Indirizzo dell’intervento", access: "Note di accesso o sicurezza", close: "Invii le opzioni disponibili per la revisione. Non prenoti ancora alcun appuntamento.", thanks: "Grazie", hello: "Buongiorno" },
+    pt: { subject: "Pedido de serviço ao domicílio", intro: "Sou a VYVA e entro em contacto em nome de um cliente que precisa de um serviço ao domicílio.", ask: "Pode confirmar disponibilidade, prazo, custo estimado e qualquer preparação necessária?", request: "Pedido", address: "Morada da visita", access: "Notas de acesso ou segurança", close: "Envie as opções disponíveis para análise. Não faça qualquer marcação por enquanto.", thanks: "Obrigado", hello: "Olá" },
+  });
   const reason = request.reason_detail?.trim() || "I would like to arrange an appointment.";
   const isHomeService = request.appointment_type === "home-service";
   const homeServicePayload = isHomeService ? approvedHomeServicePayload ?? homeServiceActionPayload(request) : {};
   const homeAddress = typeof homeServicePayload.home_address === "string" ? homeServicePayload.home_address : "";
   const accessNotes = typeof homeServicePayload.home_access_or_safety_notes === "string" ? homeServicePayload.home_access_or_safety_notes : "";
-  const subject = isHomeService ? "Home service request" : "Appointment request";
+  const subject = isHomeService ? copy.subject : "Appointment request";
   const requestLine = isHomeService
-    ? "I’m VYVA, contacting you on behalf of a client who needs a home service."
+    ? copy.intro
     : "VYVA is helping me arrange an appointment.";
   const askLine = isHomeService
-    ? "Could you confirm availability, visit timing, estimated cost if possible, and anything I should do before you arrive?"
+    ? copy.ask
     : "Could you send available dates, times, location, price if relevant, and any preparation needed?";
-  const addressLine = isHomeService && homeAddress ? `Visit address: ${homeAddress}` : "";
-  const accessLine = isHomeService && accessNotes ? `Access/safety notes: ${accessNotes}` : "";
-  const wizardSummaryLines = isHomeService ? homeServiceContactSummaryLines(homeServicePayload) : [];
+  const addressLine = isHomeService && homeAddress ? `${copy.address}: ${homeAddress}` : "";
+  const accessLine = isHomeService && accessNotes ? `${copy.access}: ${accessNotes}` : "";
+  const wizardSummaryLines = isHomeService ? homeServiceContactSummaryLines(homeServicePayload, contactLanguage) : [];
   const body = channel === "whatsapp"
     ? [
-        `Hello ${provider}, ${requestLine}`,
+        `${copy.hello} ${provider}, ${requestLine}`,
         ...wizardSummaryLines.map((line) => `${line}.`),
-        `Request: ${reason}.`,
+        `${copy.request}: ${reason}.`,
         addressLine ? `${addressLine}.` : "",
         accessLine ? `${accessLine}.` : "",
         askLine,
-        "Please send the available options for review. Do not reserve or book anything yet. Thank you.",
+        `${copy.close} ${copy.thanks}.`,
       ].filter(Boolean).join(" ")
     : [
-        `Hello ${provider},`,
+        `${copy.hello} ${provider},`,
         "",
         requestLine,
         ...wizardSummaryLines,
-        `Request: ${reason}`,
+        `${copy.request}: ${reason}`,
         addressLine,
         accessLine,
         "",
         askLine,
         "",
-        "Please send the available options for review. Do not reserve or book anything yet.",
+        copy.close,
         "",
-        "Thank you.",
+        `${copy.thanks}.`,
       ].join("\n");
 
   return { subject, body };
@@ -1310,6 +1321,7 @@ router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response)
     }
 
     const snapshot = recordValue(option.provider_snapshot);
+    const contactLanguage = providerContactLanguage(snapshot, request.language);
     const recipient = channel === "phone"
       ? snapshotText(snapshot, "phone")
       : channel === "booking_url"
@@ -1333,6 +1345,7 @@ router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response)
       revision,
       channel,
       provider_name: optionName(option),
+      contact_language: contactLanguage,
       recipient,
       message,
       call: channel === "phone" ? {
@@ -1457,6 +1470,7 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
     }
 
     const snapshot = (option.provider_snapshot ?? {}) as Record<string, unknown>;
+    const contactLanguage = providerContactLanguage(snapshot, request.language);
     const providerName = optionName(option);
     const providerPhone = snapshotText(snapshot, "phone");
     const providerEmail = snapshotText(snapshot, "email");
@@ -1554,6 +1568,7 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
+            provider_contact_language: contactLanguage,
             commitment_policy: "Collect information only. Do not accept a booking, price, deposit, or terms.",
             ...homeServicePayload,
           },
@@ -1600,7 +1615,14 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
       };
       const messageBody = [
         message.body,
-        photoAttachment ? "A photo is attached with the user's approval." : "",
+        photoAttachment ? languageText(contactLanguage, {
+          en: "A photo is attached with the user's approval.",
+          es: "Se adjunta una foto con la autorización del usuario.",
+          fr: "Une photo est jointe avec l’autorisation de l’utilisateur.",
+          de: "Ein Foto ist mit Zustimmung des Nutzers beigefügt.",
+          it: "È allegata una foto con l’autorizzazione dell’utente.",
+          pt: "É anexada uma fotografia com a autorização do utilizador.",
+        }) : "",
       ].filter(Boolean).join("\n\n");
       const [queuedCommunication] = await db
         .insert(communicationsLog)
@@ -1619,6 +1641,7 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
             appointment_type: request.appointment_type,
             flow_reference: flowReference,
             provider_name: providerName,
+            provider_contact_language: contactLanguage,
             provider_phone: providerPhone,
             provider_email: providerEmail,
             provider_whatsapp: providerWhatsapp,
