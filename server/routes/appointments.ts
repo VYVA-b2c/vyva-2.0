@@ -728,7 +728,7 @@ function appointmentMessage(
   const accessNotes = typeof homeServicePayload.home_access_or_safety_notes === "string" ? homeServicePayload.home_access_or_safety_notes : "";
   const subject = isHomeService ? "Home service request" : "Appointment request";
   const requestLine = isHomeService
-    ? "VYVA is helping me arrange a home service visit."
+    ? "I’m VYVA, contacting you on behalf of a client who needs a home service."
     : "VYVA is helping me arrange an appointment.";
   const askLine = isHomeService
     ? "Could you confirm availability, visit timing, estimated cost if possible, and anything I should do before you arrive?"
