@@ -4039,10 +4039,10 @@ describe("ConciergeScreen action hub", () => {
       if (target === "/api/appointments/contact-channel-readiness") {
         return jsonResponse({
           channels: {
-            booking_url: { status: "not_verified", external_action_allowed: false },
+            booking_url: { status: "ready", external_action_allowed: true },
             phone: { status: "disabled", external_action_allowed: false },
             whatsapp: { status: "ready", external_action_allowed: true },
-            email: { status: "not_configured", external_action_allowed: false },
+            email: { status: "ready", external_action_allowed: true },
             manual: { status: "manual_review", external_action_allowed: true },
           },
         });
@@ -4246,7 +4246,7 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
     expect(screen.queryByTestId("button-home-service-channel-booking_url")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-home-service-channel-email")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-service-channel-email")).toBeVisible();
     fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
     expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");

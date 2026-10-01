@@ -16413,7 +16413,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     const readiness = appointmentContactChannelReadinessQuery.data?.channels;
     if (!readiness) return [];
     const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
-      channel !== "manual" && readiness?.[channel]?.external_action_allowed === true
+      channel !== "manual"
+      && channel !== "booking_url"
+      && readiness?.[channel]?.external_action_allowed === true
     ));
     const visible: AppointmentChannel[] = availableLiveChannels.length > 0
       ? availableLiveChannels
