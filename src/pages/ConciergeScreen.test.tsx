@@ -976,7 +976,7 @@ describe("ConciergeScreen action hub", () => {
       contact_authorized: true,
       attempt_id: "home-canvas-attempt-1",
       preview_revision: 1,
-      share_details: { share_home_address: false, share_access_notes: false },
+      share_details: { share_home_address: true, share_access_notes: true },
     });
     expect((confirmedBody?.share_details as Record<string, unknown>).photo).toBeUndefined();
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-completed")).toBe(true));
@@ -4251,8 +4251,6 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");
     fireEvent.change(screen.getByTestId("input-home-service-contact-body"), { target: { value: "Please confirm tomorrow availability and estimated cost." } });
-    fireEvent.click(screen.getByTestId("checkbox-share-home-address"));
-    fireEvent.click(screen.getByTestId("checkbox-share-access-notes"));
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => {
