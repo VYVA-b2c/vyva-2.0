@@ -9831,6 +9831,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [homeServiceContactMethodOpen, setHomeServiceContactMethodOpen] = useState(false);
   const [preparedAppointmentAttempt, setPreparedAppointmentAttempt] = useState<PreparedAppointmentAttempt | null>(null);
   const [appointmentContactDraft, setAppointmentContactDraft] = useState({ subject: "", body: "" });
+  const [appointmentShareApprovals, setAppointmentShareApprovals] = useState({
+    homeAddress: false,
+    accessNotes: false,
+    photo: false,
+  });
   const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(() => {
     if (mode !== "task") return null;
     const initialKey = taskEntry?.kind === "home_service" ? "home-service" : taskEntry?.appointmentKind;
@@ -11189,6 +11194,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         subject: result.preview.message?.subject ?? "",
         body: result.preview.message?.body ?? "",
       });
+      setAppointmentShareApprovals({ homeAddress: false, accessNotes: false, photo: false });
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No pude preparar el contacto." : "I could not prepare the contact."));
@@ -13446,8 +13452,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       contactAuthorized: appointmentRequest.appointment_type === "home-service",
       draft: isHomeServiceAppointment && (channel === "email" || channel === "whatsapp") ? appointmentContactDraft : undefined,
       shareDetails: isHomeServiceAppointment ? {
-        share_home_address: true,
-        share_access_notes: true,
+        share_home_address: appointmentShareApprovals.homeAddress,
+        share_access_notes: appointmentShareApprovals.accessNotes,
+        photo: appointmentShareApprovals.photo && homeServiceCanvasPhoto
+          ? { name: homeServiceCanvasPhoto.name, type: homeServiceCanvasPhoto.type, data_url: homeServiceCanvasPhoto.dataUrl }
+          : undefined,
       } : undefined,
     });
   }
@@ -16723,8 +16732,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
             ? appointmentContactDraft
             : undefined,
           shareDetails: {
-            share_home_address: true,
-            share_access_notes: true,
+            share_home_address: appointmentShareApprovals.homeAddress,
+            share_access_notes: appointmentShareApprovals.accessNotes,
+            photo: appointmentShareApprovals.photo && selectedAppointmentActionChannel === "email" && homeServiceCanvasPhoto
+              ? { name: homeServiceCanvasPhoto.name, type: homeServiceCanvasPhoto.type, data_url: homeServiceCanvasPhoto.dataUrl }
+              : undefined,
           },
         }, {
           onSuccess: () => {
@@ -16750,6 +16762,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentContactDraft,
     appointmentOptions,
     appointmentRequest,
+    appointmentShareApprovals.accessNotes,
+    appointmentShareApprovals.homeAddress,
+    appointmentShareApprovals.photo,
     confirmAppointmentMutation,
     finalizeHomeServiceCanvasProvider,
     homeServiceCanvasSelectedOption,
@@ -17721,11 +17736,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     card.id === homeTaskServiceCardId && homeTaskNudge
       ? {
           ...card,
-          highlighted: true,
-          highlightLabel: homeTaskNeedsAttention
-            ? (isSpanish ? "Necesita atención" : "Needs attention")
-            : (isSpanish ? "Tarea en curso" : "Task in progress"),
-          onClick: () => navigate(homeTaskNudge.detailPath),
+          nudgeLabel: homeTaskNeedsAttention
+            ? (isSpanish ? `${homeTaskNudge.title} necesita atención` : `${homeTaskNudge.title} needs attention`)
+            : (isSpanish ? `${homeTaskNudge.title} en curso` : `${homeTaskNudge.title} in progress`),
+          nudgeDetail: isSpanish ? "Continuar tu solicitud" : "Continue your request",
+          nudgeTestId: `button-concierge-task-nudge-${card.id}`,
+          onNudgeClick: () => navigate(homeTaskNudge.detailPath),
         }
       : card
   ));
@@ -20729,6 +20745,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                           </div>
                         ) : null}
 
+                        <div className="mt-4 grid gap-2 font-body text-[13px] font-semibold text-vyva-text-2">
+                          {preparedAppointmentAttempt.preview.share_options.home_address ? (
+                            <label className="flex min-h-[40px] items-start gap-3"><input className="mt-1" type="checkbox" checked={appointmentShareApprovals.homeAddress} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, homeAddress: event.target.checked }))} data-testid="checkbox-share-home-address" /><span>{isSpanish ? "Compartir dirección de la visita" : "Share visit address"}<span className="block text-[12px] font-medium text-vyva-text-3">{homeServiceVisitAddress}</span></span></label>
+                          ) : null}
+                          {preparedAppointmentAttempt.preview.share_options.access_notes ? (
+                            <label className="flex min-h-[40px] items-start gap-3"><input className="mt-1" type="checkbox" checked={appointmentShareApprovals.accessNotes} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, accessNotes: event.target.checked }))} data-testid="checkbox-share-access-notes" /><span>{isSpanish ? "Compartir notas de acceso o seguridad" : "Share access or safety notes"}<span className="block text-[12px] font-medium text-vyva-text-3">{homeServiceIntakeAnswers.access_notes === "__none__" ? "" : homeServiceIntakeAnswers.access_notes}</span></span></label>
+                          ) : null}
+                          {preparedAppointmentAttempt.preview.share_options.photo && homeServiceCanvasPhoto ? (
+                            <label className="flex min-h-[40px] items-center gap-3"><input type="checkbox" checked={appointmentShareApprovals.photo} onChange={(event) => setAppointmentShareApprovals((current) => ({ ...current, photo: event.target.checked }))} data-testid="checkbox-share-home-photo" />{isSpanish ? `Adjuntar ${homeServiceCanvasPhotoName || "foto"}` : `Attach ${homeServiceCanvasPhotoName || "photo"}`}</label>
+                          ) : null}
+                        </div>
                         <button type="button" className="mt-3 min-h-[40px] font-body text-[13px] font-bold text-vyva-purple underline" onClick={() => { setPreparedAppointmentAttempt(null); setSelectedHomeServiceContactChannel(null); setHomeServiceContactMethodOpen(true); }}>
                           {isSpanish ? "Cambiar método" : "Change method"}
                         </button>

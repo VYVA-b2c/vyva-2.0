@@ -1335,8 +1335,8 @@ router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response)
     }
 
     const safePayload = confirmedHomeServicePayload(request, {
-      share_home_address: true,
-      share_access_notes: true,
+      share_home_address: false,
+      share_access_notes: false,
     });
     const message = channel === "email" || channel === "whatsapp"
       ? appointmentMessage(channel, option, request, safePayload)
@@ -1366,9 +1366,9 @@ router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response)
         next_step: "A VYVA operator will prepare the safest contact action and return it for confirmation.",
       } : null,
       share_options: {
-        home_address: false,
-        access_notes: false,
-        photo: false,
+        home_address: Boolean(homeServiceAddressFromPreferences(recordValue(request.preferences))),
+        access_notes: Boolean(homeServiceAccessNotesFromPreferences(recordValue(request.preferences))),
+        photo: request.appointment_type === "home-service" && channel === "email",
       },
       readiness,
       prepared_at: preparedAt,
@@ -1616,16 +1616,26 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
         subject: parsed.data.draft?.subject ?? generatedMessage.subject,
         body: parsed.data.draft?.body ?? generatedMessage.body,
       };
+      const approvedDetailCopy = languageText(contactLanguage, {
+        en: { address: "Visit address", access: "Access/safety notes", photo: "A photo is attached with the user's approval." },
+        es: { address: "Dirección de la visita", access: "Notas de acceso o seguridad", photo: "Se adjunta una foto con la autorización del usuario." },
+        fr: { address: "Adresse de l’intervention", access: "Consignes d’accès ou de sécurité", photo: "Une photo est jointe avec l’autorisation de l’utilisateur." },
+        de: { address: "Einsatzadresse", access: "Zugangs- oder Sicherheitshinweise", photo: "Ein Foto ist mit Zustimmung des Nutzers beigefügt." },
+        it: { address: "Indirizzo dell’intervento", access: "Note di accesso o sicurezza", photo: "È allegata una foto con l’autorizzazione dell’utente." },
+        pt: { address: "Morada da visita", access: "Notas de acesso ou segurança", photo: "É anexada uma fotografia com a autorização do utilizador." },
+      });
+      const approvedDetailLines = parsed.data.draft ? [
+        typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
+          ? `${approvedDetailCopy.address}: ${homeServicePayload.home_address.trim()}`
+          : "",
+        typeof homeServicePayload.home_access_or_safety_notes === "string" && homeServicePayload.home_access_or_safety_notes.trim()
+          ? `${approvedDetailCopy.access}: ${homeServicePayload.home_access_or_safety_notes.trim()}`
+          : "",
+      ].filter(Boolean) : [];
       const messageBody = [
         message.body,
-        photoAttachment ? languageText(contactLanguage, {
-          en: "A photo is attached with the user's approval.",
-          es: "Se adjunta una foto con la autorización del usuario.",
-          fr: "Une photo est jointe avec l’autorisation de l’utilisateur.",
-          de: "Ein Foto ist mit Zustimmung des Nutzers beigefügt.",
-          it: "È allegata una foto con l’autorizzazione dell’utente.",
-          pt: "É anexada uma fotografia com a autorização do utilizador.",
-        }) : "",
+        ...approvedDetailLines,
+        photoAttachment ? approvedDetailCopy.photo : "",
       ].filter(Boolean).join("\n\n");
       const [queuedCommunication] = await db
         .insert(communicationsLog)
