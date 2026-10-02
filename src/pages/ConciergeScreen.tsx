@@ -20706,12 +20706,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       </div>
                     </div>
                     <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
-                      {appointmentContactChannelReadinessQuery.isPending || appointmentProviderContactRefreshQuery.isPending ? (
+                      {appointmentContactChannelReadinessQuery.isPending || appointmentProviderContactRefreshQuery.isFetching ? (
                         <div className="rounded-[14px] border border-[#D8B4FE] bg-white px-4 py-3 font-body text-[13px] font-semibold text-vyva-text-2" data-testid="status-home-service-contact-methods-loading">
                           {homeServiceText(locale, "Checking the provider's available contact methods...")}
                         </div>
                       ) : null}
-                      {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isPending && homeServiceCanvasContactChannels.map((channel) => (
+                      {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isFetching && homeServiceCanvasContactChannels.map((channel) => (
                         <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
                             {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
