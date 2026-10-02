@@ -462,7 +462,7 @@ export default function MovementExerciseGuideScreen() {
       app_user_instruction: isFinalStep ? guideCopy.finishHint : guideCopy.nextHint,
       audio_role: "agent_spoken_guidance_only",
     };
-  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, sceneForStep, session?.logType, sessionCopy.safety, stepDurationMs, steps]);
+  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, movementLanguage, sceneForStep, session?.logType, sessionCopy.safety, stepDurationMs, steps]);
 
   const promptForStep = useCallback(
     (nextStepIndex: number) => buildVoicePrompt(
