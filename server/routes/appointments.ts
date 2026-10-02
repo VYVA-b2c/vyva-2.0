@@ -39,6 +39,7 @@ import { dispatchCommunicationsByIds } from "../services/communicationDispatcher
 import {
   appointmentOptionIdentity,
   discoverAppointmentProviderOptions,
+  refreshAppointmentProviderContact,
   type AppointmentSearchLocation,
 } from "../services/appointmentDiscovery.js";
 import {
@@ -1237,6 +1238,38 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
 });
 
 const activeProviderChecks = new Set<string>();
+router.post("/requests/:id/options/:optionId/refresh-contact", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || typeof req.params.optionId !== "string") {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+
+  const request = await loadRequestForUser(req.params.id, userId);
+  if (!request) return res.status(404).json({ error: "Request not found" });
+  const option = await loadOptionForRequest(req.params.optionId, request.id, userId);
+  if (!option) return res.status(404).json({ error: "Provider not found" });
+  if (option.provider_source !== "external") return res.json({ option, refreshed: false });
+
+  const refreshed = await refreshAppointmentProviderContact({
+    snapshot: recordValue(option.provider_snapshot),
+    appointmentType: request.appointment_type,
+    language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+  });
+  if (!refreshed) return res.json({ option, refreshed: false });
+
+  const [updated] = await db.update(appointmentProviderOptions).set({
+    provider_snapshot: refreshed.snapshot,
+    available_channels: refreshed.availableChannels,
+    updated_at: new Date(),
+  }).where(and(
+    eq(appointmentProviderOptions.id, option.id),
+    eq(appointmentProviderOptions.user_id, userId),
+  )).returning();
+
+  return res.json({ option: updated ?? option, refreshed: true });
+});
+
 router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });

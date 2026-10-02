@@ -3,6 +3,7 @@ import {
   appointmentOptionIdentity,
   buildAppointmentSearchQueries,
   discoverAppointmentProviderOptions,
+  refreshAppointmentProviderContact,
   reservationSystemLinksFor,
   normalizeSearchAddress,
 } from "./appointmentDiscovery.js";
@@ -28,6 +29,44 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("refreshes a selected external provider phone before contact methods are shown", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      expect(url.pathname).toContain("/place/details/");
+      expect(url.searchParams.get("place_id")).toBe("provider-place-id");
+      return jsonResponse({
+        status: "OK",
+        result: {
+          international_phone_number: "+34 956 123 456",
+          website: "https://provider.example",
+          url: "https://maps.google.com/?cid=provider",
+          opening_hours: { open_now: true },
+        },
+      });
+    });
+
+    const refreshed = await refreshAppointmentProviderContact({
+      appointmentType: "home-service",
+      language: "en",
+      snapshot: {
+        place_id: "provider-place-id",
+        name: "Provider",
+        phone: null,
+        website_url: "https://provider.example",
+      },
+    });
+
+    expect(refreshed?.snapshot).toMatchObject({
+      phone: "+34 956 123 456",
+      website_url: "https://provider.example/",
+      booking_url: null,
+      open_now: true,
+    });
+    expect(refreshed?.availableChannels).toEqual(["phone", "manual"]);
+  });
+
   it("falls back to an explicit postcode area without changing the visit address or accepting US results", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
