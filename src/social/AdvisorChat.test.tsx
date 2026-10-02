@@ -342,9 +342,11 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
+    expect(screen.getByText("Wellness Coach")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Move gently today" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voice guide/i })).toBeInTheDocument();
     expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-advisor-message")).not.toBeInTheDocument();
     expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();

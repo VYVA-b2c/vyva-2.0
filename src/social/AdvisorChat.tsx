@@ -164,7 +164,7 @@ function MovementCoachRoutineShortcuts({
       className="mt-5 rounded-[24px] border border-[#D7E8DB] bg-[#F8FCF8] p-4 text-left"
       data-testid="movement-coach-routines"
     >
-      <h2 className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
+      <h2 className="font-body text-[19px] font-black leading-tight text-[#24152F]">
         {copy.routineTitle}
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
@@ -181,10 +181,10 @@ function MovementCoachRoutineShortcuts({
             >
               <img src={visual.image} alt="" className="h-24 w-full object-cover min-[390px]:h-28" />
               <span className="block px-3 py-2.5">
-                <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
+                <span className="block font-body text-[14px] font-black leading-tight text-[#24152F]">
                   {card.title}
                 </span>
-                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-vyva-text-2">
+                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-[#6F6474]">
                   {card.benefit}
                 </span>
                 <span className="sr-only">
@@ -575,28 +575,44 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           ) : showIntro ? (
             <section className="mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]" data-testid="advisor-intro">
               <div className="px-5 pb-5 pt-5">
-                <div className="flex items-center gap-4">
-                  <AdvisorAvatar
-                    iconKey={advisor.iconKey}
-                    chipBg={advisor.chipBg}
-                    iconColor={advisor.iconColor}
-                    portraitSrc={advisorPresentation?.portraitSrc}
-                    className="h-[86px] w-[86px] rounded-full ring-1 ring-[#E8DFF0]"
-                    size={42}
-                    strokeWidth={2.3}
-                  />
-                  <div className="min-w-0 pt-1">
-                    <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                      {isMovementCoach ? "VYVA wellness" : "Your expert"}
+                {isMovementCoach ? (
+                  <div className="rounded-[24px] bg-[#F7F1FF] px-4 py-4">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
+                      VYVA wellness
                     </p>
-                    <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
-                      {advisorPresentation?.title ?? advisorDisplayName}
+                    <h1 className="mt-1 font-body text-[28px] font-black leading-[1.02] text-[#24152F] min-[390px]:text-[30px]">
+                      Move gently today
                     </h1>
+                    <p className="mt-2 font-body text-[16px] font-bold leading-snug text-[#6F6474]">
+                      Choose a routine, or let VYVA guide you by voice.
+                    </p>
                   </div>
-                </div>
-                <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
-                  {helpStatement}
-                </p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <AdvisorAvatar
+                        iconKey={advisor.iconKey}
+                        chipBg={advisor.chipBg}
+                        iconColor={advisor.iconColor}
+                        portraitSrc={advisorPresentation?.portraitSrc}
+                        className="h-[86px] w-[86px] rounded-full ring-1 ring-[#E8DFF0]"
+                        size={42}
+                        strokeWidth={2.3}
+                      />
+                      <div className="min-w-0 pt-1">
+                        <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
+                          Your expert
+                        </p>
+                        <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
+                          {advisorPresentation?.title ?? advisorDisplayName}
+                        </h1>
+                      </div>
+                    </div>
+                    <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
+                      {helpStatement}
+                    </p>
+                  </>
+                )}
                 <div className="mt-5 grid gap-3">
                   <button
                     type="button"
@@ -678,7 +694,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {showIntro ? (
+        {showIntro && !isMovementCoach ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
@@ -703,7 +719,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               {isSending ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <Send size={22} strokeWidth={2.5} aria-hidden="true" />}
             </button>
           </form>
-        ) : (
+        ) : !showIntro ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto w-full max-w-5xl border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
@@ -751,7 +767,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               </button>
             </div>
           </form>
-        )}
+        ) : null}
       </main>
     </>
   );
