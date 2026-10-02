@@ -355,6 +355,7 @@ describe("AdvisorChat", () => {
     fireEvent.click(screen.getByTestId("button-movement-coach-routine-chair-yoga"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/morning-movement/exercises/chair-yoga");
     expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/social-rooms/experts/amara\"");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
