@@ -337,11 +337,14 @@ function buildVoicePrompt(
     `Current step ${stepIndex + 1} of ${totalSteps}: ${step}`,
     `The screen shows this visual guide scene: ${sceneLabel}.`,
     `Motion cue metadata: ${motion}.`,
+    `The purple instruction screen is showing now; briefly explain this step before the visual movement begins.`,
     `The app owns timing, visuals, step advancement, pause/resume, and completion logging.`,
     `Do not move to a different step until the app sends new context.`,
     `Do not ask the user to press buttons or choose the next step.`,
+    `The user may be quiet because they are moving; silence is expected.`,
+    `Do not ask "are you there", do not check whether the user is still there, and do not fill quiet time with extra questions.`,
     `Speak warmly, slowly, and plainly.`,
-    `Say one brief cue that matches this visible step, then leave silence so the user can move.`,
+    `Say one brief explanation and one gentle cue that matches this step, then let the user move quietly until the app sends the next step.`,
     `Safety reminder: ${safety}`,
   ].join(" ");
 }
@@ -372,6 +375,7 @@ export default function MovementExerciseGuideScreen() {
     stopVoice,
     sendText,
     sendContextUpdate,
+    setMicrophoneMuted,
     isConnecting,
     lastError: voiceError,
   } = useVyvaVoice();
@@ -500,17 +504,18 @@ export default function MovementExerciseGuideScreen() {
       await startVoice(promptForStep(nextStepIndex), undefined, {
         agentSlug: "wellness",
         roomSlug: "morning-movement",
-        autoStartListening: true,
+        autoStartListening: false,
         dynamicVariables: voiceVariables(nextStepIndex),
       });
-      sendStepPrompt(nextStepIndex);
+      sendContextUpdate(`Authoritative movement routine state from the app: ${JSON.stringify(voiceVariables(nextStepIndex))}`);
+      setMicrophoneMuted(true);
       setRunState("guiding");
     } catch {
       setRunState("blocked");
     } finally {
       setAudioStarting(false);
     }
-  }, [exercise, promptForStep, sendStepPrompt, session, startVoice, stepIndex, voiceVariables]);
+  }, [exercise, promptForStep, sendContextUpdate, session, setMicrophoneMuted, startVoice, stepIndex, voiceVariables]);
 
   useEffect(() => {
     if (!exercise || !session || autoStartAttempted) return;

@@ -14,6 +14,7 @@ const voiceMock = vi.hoisted(() => ({
   sendContextUpdate: vi.fn(),
   beginUserTurn: vi.fn(),
   endUserTurn: vi.fn(),
+  setMicrophoneMuted: vi.fn(),
   status: "idle" as "idle" | "connecting" | "connected",
 }));
 const apiFetchMock = vi.fn();
@@ -57,6 +58,7 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
     transcript: [],
     beginUserTurn: voiceMock.beginUserTurn,
     endUserTurn: voiceMock.endUserTurn,
+    setMicrophoneMuted: voiceMock.setMicrophoneMuted,
   }),
 }));
 
@@ -796,7 +798,7 @@ describe("RoomScreen movement room", () => {
       expect.objectContaining({
         agentSlug: "wellness",
         roomSlug: "morning-movement",
-        autoStartListening: true,
+        autoStartListening: false,
         dynamicVariables: expect.objectContaining({
           app_entrypoint: "movement_exercise_guide",
           guidance_mode: "app_guided_visual_routine",
@@ -825,18 +827,21 @@ describe("RoomScreen movement room", () => {
         }),
       }),
     );
-    expect(voiceMock.sendText).toHaveBeenCalledWith(
-      expect.stringContaining("Current step 1 of 4"),
-      { invisibleInTranscript: true },
+    expect(voiceMock.startVoice).toHaveBeenCalledWith(
+      expect.stringContaining("The purple instruction screen is showing now"),
+      undefined,
+      expect.any(Object),
     );
-    expect(voiceMock.sendText).toHaveBeenCalledWith(
-      expect.stringContaining("visual guide scene: Standing tall with chair nearby."),
-      { invisibleInTranscript: true },
+    expect(voiceMock.startVoice).toHaveBeenCalledWith(
+      expect.stringContaining("Do not ask \"are you there\""),
+      undefined,
+      expect.any(Object),
     );
-    expect(voiceMock.sendText).toHaveBeenCalledWith(
-      expect.stringContaining("The app owns timing, visuals, step advancement, pause/resume, and completion logging."),
-      { invisibleInTranscript: true },
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(
+      expect.stringContaining("\"current_step\":\"Stand with feet flat and shoulders relaxed. Keep a chair nearby if helpful.\""),
     );
+    expect(voiceMock.setMicrophoneMuted).toHaveBeenCalledWith(true);
+    expect(voiceMock.sendText).not.toHaveBeenCalled();
   });
 
   it("sends updated voice context when advancing a connected guide", async () => {
