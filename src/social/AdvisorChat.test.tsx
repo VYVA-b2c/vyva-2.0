@@ -343,13 +343,17 @@ describe("AdvisorChat", () => {
     renderChat("/social-rooms/experts/amara");
 
     expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Voice guide/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Talk by voice/i })).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-start-voice")).toHaveTextContent("");
+    expect(screen.queryByText("Speak naturally with VYVA")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
     expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
-    expect(screen.getByTestId("button-movement-coach-routine-sit-to-stand")).toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-coach-routine-seated-strength")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^button-movement-coach-routine-/)).toHaveLength(4);
+    expect(screen.getByTestId("button-movement-coach-all-routines")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-calm-breathing")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-movement-coach-routine-chair-yoga"));

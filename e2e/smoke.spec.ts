@@ -7,6 +7,23 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+test("wellness compact intro shows routines beside an icon-only voice control", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 780, height: 980 });
+  await mockApi(page, true);
+  await page.route("**/api/advisors/amara/session?*", route => fulfillJson(route, 200, {
+    language: "en", introRequired: true, session: null, messages: [],
+    advisor: { slug: "amara", name: "Wellness", role: "Coach", shortRole: "Movement and calm",
+      intro: "Movement, breathing, energy, and balance.", starter: "Pick a gentle wellness routine.",
+      disclaimerText: "Stop if you feel pain, dizzy, or short of breath.", sortOrder: 5,
+      iconKey: "coach", chipBg: "#E8F7EF", iconColor: "#0A7C4E", recencyLabel: "Never talked", sessionCount: 0, lastMessageAt: null },
+  }));
+  await page.goto("/social-rooms/experts/amara");
+  await expect(page.getByTestId("movement-coach-routines")).toBeVisible();
+  await expect(page.locator("#vyva-launch")).toBeHidden();
+  await expect(page.getByTestId("button-advisor-start-voice")).toHaveText("");
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("wellness-compact.png"), fullPage: true });
+});
 type OpenedWindowRecord = { url: string; target?: string; features?: string };
 
 async function fulfillJson(route: Route, status: number, body: unknown) {

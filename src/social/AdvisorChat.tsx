@@ -23,6 +23,7 @@ import { getAdvisorCopy, isAdvisorSlug } from "../../shared/advisors";
 import { AdvisorAvatar } from "./AdvisorIcons";
 import {
   MOVEMENT_EXERCISE_VISUALS,
+  MOVEMENT_FEATURED_EXERCISE_IDS,
   getMovementExerciseCards,
   getMovementExerciseLanguage,
   type MovementExerciseCardId,
@@ -33,15 +34,6 @@ import {
 } from "./movementCoachAdvisor";
 import { getAdvisorPresentation } from "./advisorPresentation";
 import SocialStyles from "./SocialStyles";
-
-const MOVEMENT_COACH_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = [
-  "chair-yoga",
-  "tai-chi",
-  "seated-strength",
-  "calm-breathing",
-  "sit-to-stand",
-  "shoulder-release",
-];
 
 type AdvisorVoiceControls = {
   startVoice: ReturnType<typeof useVyvaVoice>["startVoice"];
@@ -156,12 +148,12 @@ function MovementCoachRoutineShortcuts({
 }) {
   const movementLanguage = getMovementExerciseLanguage(language);
   const copy = getMovementCoachCopy(language);
-  const featuredIds = new Set(MOVEMENT_COACH_FEATURED_EXERCISE_IDS);
+  const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
   const cards = getMovementExerciseCards(movementLanguage).filter((card) => featuredIds.has(card.id));
 
   return (
     <section
-      className="mt-5 rounded-[24px] border border-[#D7E8DB] bg-[#F8FCF8] p-4 text-left"
+      className="mt-5 text-left"
       data-testid="movement-coach-routines"
     >
       <h2 className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
@@ -573,9 +565,25 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               {ui?.empty ?? "Your experts are not available right now."}
             </section>
           ) : showIntro ? (
-            <section className="mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]" data-testid="advisor-intro">
-              <div className="px-5 pb-5 pt-5">
-                <div className="flex items-center gap-4">
+            <section className={isMovementCoach ? "mx-auto w-full max-w-3xl" : "mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]"} data-testid="advisor-intro">
+              <div className={isMovementCoach ? "py-2" : "px-5 pb-5 pt-5"}>
+                {isMovementCoach ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <h1 className="min-w-0 font-body text-[24px] font-black leading-tight">
+                      {advisorPresentation?.title ?? advisorDisplayName}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() => void handleStartSession("voice")}
+                      className="vyva-tap flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-sm"
+                      data-testid="button-advisor-start-voice"
+                      aria-label={ui?.micIdle ?? "Talk by voice"}
+                      title={ui?.micIdle ?? "Talk by voice"}
+                    >
+                      <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : <div className="flex items-center gap-4">
                   <AdvisorAvatar
                     iconKey={advisor.iconKey}
                     chipBg={advisor.chipBg}
@@ -593,8 +601,8 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                       {advisorPresentation?.title ?? advisorDisplayName}
                     </h1>
                   </div>
-                </div>
-                <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
+                </div>}
+                {!isMovementCoach && <><p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
                   {helpStatement}
                 </p>
                 <div className="mt-5 grid gap-3">
@@ -610,7 +618,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     <span className="mt-4 block font-body text-[21px] font-black leading-tight">{isMovementCoach ? "Voice guide" : "Voice chat"}</span>
                     <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-white/80">Speak naturally with VYVA</span>
                   </button>
-                </div>
+                </div></>}
                 {isMovementCoach ? (
                   <MovementCoachRoutineShortcuts
                     language={language}
@@ -678,7 +686,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {showIntro ? (
+        {showIntro && isMovementCoach ? null : showIntro ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
