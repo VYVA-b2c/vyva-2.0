@@ -332,6 +332,47 @@ function optionChannels(phone: string | null, bookingUrl: string | null): Appoin
   return channels;
 }
 
+export async function refreshAppointmentProviderContact(input: {
+  snapshot: Record<string, unknown>;
+  appointmentType: string;
+  language?: string | null;
+}): Promise<{ snapshot: Record<string, unknown>; availableChannels: AppointmentChannel[] } | null> {
+  const placeId = cleanText(input.snapshot.place_id);
+  const key = getGooglePlacesApiKey();
+  if (!placeId || !key) return null;
+
+  const details = await fetchGooglePlaceDetails(placeId, key, cleanText(input.language) || "es").catch(() => null);
+  if (!details) return null;
+
+  const existingPhone = cleanText(input.snapshot.phone) || null;
+  const phone = cleanText(details.international_phone_number)
+    || cleanText(details.formatted_phone_number)
+    || existingPhone;
+  const existingWebsite = safeUrl(input.snapshot.website_url);
+  const website = safeUrl(details.website) || existingWebsite;
+  const existingBookingUrl = safeUrl(input.snapshot.booking_url);
+  const bookingUrl = input.appointmentType === "home-service"
+    ? null
+    : existingBookingUrl || website;
+
+  return {
+    snapshot: {
+      ...input.snapshot,
+      phone,
+      website_url: website,
+      booking_url: bookingUrl,
+      maps_url: safeUrl(details.url) || safeUrl(input.snapshot.maps_url),
+      opening_status: summarizeOpeningHours(details, cleanText(input.language) || "es")
+        || input.snapshot.opening_status
+        || null,
+      opening_hours_text: details.opening_hours?.weekday_text ?? input.snapshot.opening_hours_text ?? [],
+      open_now: details.opening_hours?.open_now ?? input.snapshot.open_now ?? null,
+      contact_details_refreshed_at: new Date().toISOString(),
+    },
+    availableChannels: optionChannels(phone, bookingUrl),
+  };
+}
+
 function placeIdentity(place: GooglePlaceSearchResult): string {
   return place.place_id ?? `${normalize(place.name)}|${normalize(place.formatted_address)}`;
 }
