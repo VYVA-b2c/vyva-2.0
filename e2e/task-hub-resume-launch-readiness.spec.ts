@@ -88,7 +88,7 @@ async function setupTaskHubApi(page: Page, options: {
   });
 }
 
-test("task hub resumes a local shopping Canvas draft without writing", async ({
+test("task hub resumes a saved shopping request without writing", async ({
   page,
 }) => {
   const unsafeCalls: string[] = [];
@@ -98,11 +98,10 @@ test("task hub resumes a local shopping Canvas draft without writing", async ({
   await page.goto("/task-hub-resume-canvas.html?task=draft%3Alocal-canvas-shopping");
 
   await expect(page.getByTestId("concierge-task-continuation")).toContainText(
-    "Shopping Canvas",
+    "Continue where you left off",
   );
-  await expect(page.getByTestId("concierge-task-continuation")).toContainText(
-    "Ready to confirm",
-  );
+  await expect(page.getByTestId("concierge-task-detail")).not.toContainText("Shopping Canvas");
+  await expect(page.getByTestId("button-concierge-task-primary-action")).toHaveText("Continue request");
   await page.getByTestId("button-concierge-task-primary-action").click();
 
   await expect(page.getByTestId("task-hub-harness-path")).toHaveText(
@@ -198,7 +197,7 @@ test("task hub detail exit and responsive long labels stay safe", async ({
 
   await page.goto("/task-hub-resume-canvas.html?task=pending%3Along-shopping-1");
   await expect(page.getByTestId("concierge-task-detail")).toBeVisible();
-  await page.getByTestId("button-concierge-task-exit").click();
+  await page.getByRole("button", { name: "All tasks", exact: true }).click();
   await expect(page.getByTestId("task-hub-harness-path")).toHaveText(
     "/concierge/tasks",
   );
