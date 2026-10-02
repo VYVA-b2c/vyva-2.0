@@ -3,10 +3,13 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
 import { currentVerification } from "../../shared/providerVerification.js";
-import { requestDisplayLanguage } from "../../shared/language.js";
+import { languageText, requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
 import { homeServiceContactSummaryLines, providerContactLanguage } from "../../shared/homeServiceContactMessage.js";
-import { languageText } from "../../shared/language.js";
+import {
+  providerServiceWhatsappTemplateSid,
+  providerServiceWhatsappTemplateVariables,
+} from "../lib/providerServiceWhatsappTemplate.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -1652,6 +1655,15 @@ async function executeAppointmentAttempt(req: Request, res: Response, preparedAt
             provider_snapshot: snapshot,
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
+            ...(channel === "whatsapp" && request.appointment_type === "home-service" ? {
+              content_sid: providerServiceWhatsappTemplateSid(contactLanguage),
+              content_variables: providerServiceWhatsappTemplateVariables({
+                language: contactLanguage,
+                providerName,
+                payload: homeServicePayload,
+                reason: request.reason_detail,
+              }),
+            } : {}),
           },
         })
         .returning();
