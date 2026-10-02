@@ -125,6 +125,7 @@ function adapterInput(spec: ChannelSpec, overrides: Record<string, unknown> = {}
     payload: spec.payload,
     providerName: "QA Provider",
     providerPhone: spec.providerPhone ?? null,
+    userPhone: "+12025550199",
     pendingId: "pending-1",
     userId: "user-1",
     summary: "QA Concierge action",
@@ -222,6 +223,54 @@ describe("Concierge action adapters", () => {
       expect(result.blocker, spec.channel).toContain("adapter_payload_missing_provider_contact");
       expect(globalThis.fetch, spec.channel).not.toHaveBeenCalled();
     }
+  });
+
+  it("calls the user first and supplies the provider as a dynamic ElevenLabs transfer destination", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "phone_call");
+    if (!spec) throw new Error("Missing phone-call channel spec");
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-id";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-id";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      conversation_id: "conv-transfer-1",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, {
+      userPhone: "+12025550199",
+      providerPhone: "+12025550100",
+      dynamicVariables: { language: "en" },
+    }));
+
+    expect(result).toMatchObject({ status: "sent", result_id: "conv-transfer-1" });
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      to_number: "+12025550199",
+      conversation_initiation_client_data: {
+        dynamic_variables: {
+          language: "en",
+          provider_transfer_phone: "+12025550100",
+          provider_name: "QA Provider",
+          provider_transfer_requires_confirmation: "true",
+        },
+      },
+    });
+  });
+
+  it("blocks a transfer call when the user has no phone number", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "phone_call");
+    if (!spec) throw new Error("Missing phone-call channel spec");
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-id";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-id";
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, { userPhone: null }));
+
+    expect(result).toMatchObject({
+      status: "blocked",
+      blocker: "user_phone_required_for_transfer_call",
+      external_action_allowed: false,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("sends live email through the owned pilot adapter only after confirmation", async () => {

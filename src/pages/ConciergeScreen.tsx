@@ -3644,13 +3644,13 @@ function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean
     case "booking_url":
       return isSpanish ? "VYVA rellena formulario" : "VYVA fills form";
     case "phone":
-      return isSpanish ? "VYVA llama" : "VYVA calls";
+      return isSpanish ? "VYVA te llama y te conecta" : "VYVA calls you and connects you";
     case "whatsapp":
       return isSpanish ? "VYVA envia WhatsApp" : "VYVA sends WhatsApp";
     case "email":
       return isSpanish ? "VYVA envia email" : "VYVA sends email";
     case "manual":
-      return isSpanish ? "VYVA gestiona" : "VYVA handles it";
+      return isSpanish ? "Pedir revisión al equipo de VYVA" : "Ask the VYVA team to review";
     default:
       return channel;
   }
@@ -16411,20 +16411,29 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const homeServiceCanvasContactChannels = useMemo(() => {
     if (!selectedAppointmentOption) return [];
     const readiness = appointmentContactChannelReadinessQuery.data?.channels;
+    if (!readiness) return [];
     const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
-      channel !== "manual" && readiness?.[channel]?.external_action_allowed === true
+      channel !== "manual"
+      && channel !== "booking_url"
+      && readiness?.[channel]?.external_action_allowed === true
     ));
     const visible: AppointmentChannel[] = availableLiveChannels.length > 0
       ? availableLiveChannels
       : ["manual"];
     return visible.map((channel) => ({
       id: channel,
-      label: appointmentChannelLabel(channel, isSpanish),
+      label: channel === "manual"
+        ? homeServiceText(locale, "Ask VYVA support to prepare the contact")
+        : homeServiceText(locale, appointmentChannelLabel(channel, isSpanish)),
+      description: channel === "manual"
+        ? homeServiceText(locale, "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
+        : undefined,
       recommended: channel === suggestedAppointmentActionChannel,
     }));
   }, [
     appointmentContactChannelReadinessQuery.data?.channels,
     isSpanish,
+    locale,
     selectedAppointmentOption,
     suggestedAppointmentActionChannel,
   ]);
@@ -20646,14 +20655,34 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 )}
 
                 {selectedAppointmentOption && isHomeServiceAppointment && homeServiceContactMethodOpen && !selectedAppointmentActionChannel && (
-                  <section className="mt-6 rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] p-4" data-testid="panel-home-service-contact-method">
-                    <h4 className="font-body text-[17px] font-black text-vyva-text-1">{homeServiceCanvasCopyValue.methodTitle}</h4>
-                    <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">{homeServiceCanvasCopyValue.methodHelper}</p>
-                    <div className="mt-4 grid gap-2">
+                  <section className="relative mt-6 overflow-hidden rounded-[26px] border border-[#D7B4FA] bg-[linear-gradient(145deg,#FFFFFF_0%,#FCF7FF_48%,#F4E9FF_100%)] p-5 shadow-[0_20px_48px_rgba(91,33,151,0.12)] sm:p-6" data-testid="panel-home-service-contact-method">
+                    <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-vyva-purple/10 blur-2xl" aria-hidden="true" />
+                    <div className="relative flex items-start gap-3">
+                      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-vyva-purple text-white shadow-[0_10px_24px_rgba(116,33,186,0.25)]">
+                        <MessageCircle size={21} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="font-body text-[11px] font-black uppercase tracking-[0.14em] text-vyva-purple">{homeServiceText(locale, "Contact options")}</p>
+                        <h4 className="mt-0.5 font-body text-[20px] font-black leading-tight text-vyva-text-1">{homeServiceCanvasCopyValue.methodTitle}</h4>
+                        <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">{homeServiceCanvasCopyValue.methodHelper}</p>
+                      </div>
+                    </div>
+                    <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
+                      {appointmentContactChannelReadinessQuery.isPending ? (
+                        <div className="rounded-[14px] border border-[#D8B4FE] bg-white px-4 py-3 font-body text-[13px] font-semibold text-vyva-text-2" data-testid="status-home-service-contact-methods-loading">
+                          {homeServiceText(locale, "Checking the provider's available contact methods...")}
+                        </div>
+                      ) : null}
                       {homeServiceCanvasContactChannels.map((channel) => (
-                        <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className="vyva-tap flex min-h-[48px] items-center justify-between rounded-[14px] border border-[#D8B4FE] bg-white px-4 text-left font-body text-[14px] font-bold text-vyva-text-1 disabled:opacity-60" data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
-                          <span>{channel.label}</span>
-                          {channel.recommended ? <span className="text-[12px] text-vyva-purple">{homeServiceCanvasCopyValue.recommended}</span> : null}
+                        <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
+                          <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
+                            {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[15px] font-black text-vyva-text-1">{channel.label}</span>
+                            {channel.description ? <span className="mt-1 block text-[12px] font-semibold leading-snug text-vyva-text-2">{channel.description}</span> : <span className="mt-1 block text-[12px] font-semibold text-vyva-text-3">{homeServiceText(locale, "Review before sending")}</span>}
+                          </span>
+                          {channel.recommended ? <span className="self-start rounded-full bg-vyva-purple px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">{homeServiceCanvasCopyValue.recommended}</span> : <ChevronDown className="-rotate-90 text-vyva-purple/60 transition-transform group-hover:translate-x-0.5" size={17} aria-hidden="true" />}
                         </button>
                       ))}
                     </div>

@@ -83,6 +83,7 @@ interface BasicProfile {
   id: string;
   full_name: string | null;
   preferred_name: string | null;
+  phone_number: string | null;
   date_of_birth: string | null;
   language: string;
   language_preference: string | null;
@@ -287,7 +288,11 @@ function buildDynamicVariables(pending: PendingRow, profile: BasicProfile): Reco
     use_case: pending.use_case,
     language: normalizeLanguage(pending.language, profileLanguage),
     senior_name: firstName(profile),
+    user_language: normalizeLanguage(pending.language, profileLanguage),
   };
+
+  const providerPhone = pending.provider_phone?.trim();
+  if (providerPhone) dynamicVariables.provider_transfer_phone = providerPhone;
 
   const dob = asString(profile.date_of_birth);
   if (dob) dynamicVariables.date_of_birth = dob;
@@ -308,6 +313,7 @@ function buildDynamicVariables(pending: PendingRow, profile: BasicProfile): Reco
     ["preferred_time", payload.preferred_time, "string"],
     ["urgency", payload.urgency, "string"],
     ["reason", payload.reason, "string"],
+    ["provider_contact_language", payload.provider_contact_language, "string"],
   ];
 
   for (const [key, value, mode] of mappings) {
@@ -335,6 +341,7 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
       id: profiles.id,
       full_name: profiles.full_name,
       preferred_name: profiles.preferred_name,
+      phone_number: profiles.phone_number,
       date_of_birth: profiles.date_of_birth,
       language: profiles.language,
       language_preference: profiles.language_preference,
@@ -350,6 +357,7 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
     id: userId,
     full_name: null,
     preferred_name: null,
+    phone_number: null,
     date_of_birth: null,
     language: "es",
     language_preference: null,
@@ -855,6 +863,7 @@ async function runConfirmedConciergeActionAdapter(
     payload: pending.action_payload ?? {},
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
+    userPhone: profile.phone_number,
     pendingId: pending.id,
     userId: pending.user_id,
     summary: pending.action_summary,
@@ -983,6 +992,7 @@ async function queueConfirmedConciergeAction(
         payload: pending.action_payload ?? {},
         providerName: pending.provider_name,
         providerPhone: pending.provider_phone,
+        userPhone: profile.phone_number,
         pendingId: pending.id,
         userId: pending.user_id,
         summary: pending.action_summary,

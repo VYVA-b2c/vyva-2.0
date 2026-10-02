@@ -49,6 +49,7 @@ export type ConciergeActionAdapterInput = {
   payload?: Record<string, unknown> | null;
   providerName?: string | null;
   providerPhone?: string | null;
+  userPhone?: string | null;
   pendingId?: string | null;
   userId?: string | null;
   summary?: string | null;
@@ -408,12 +409,22 @@ async function executeOwnedEmailLive(input: ConciergeActionAdapterInput): Promis
 async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<ConciergeActionAdapterResult> {
   const channel = "phone_call";
   const config = outboundPhoneConfig();
-  const toNumber = conciergeProviderContactForChannel(channel, input);
+  const providerNumber = conciergeProviderContactForChannel(channel, input);
+  const userNumber = input.userPhone?.trim() ?? "";
 
   if (!config.apiKey) return failedResult(input, channel, "Missing ElevenLabs API key.");
   if (!config.agentId) return failedResult(input, channel, "Missing ElevenLabs concierge caller agent ID.");
   if (!config.agentPhoneNumberId) return failedResult(input, channel, "Missing ElevenLabs concierge phone number ID.");
-  if (!toNumber) return failedResult(input, channel, "Missing provider phone number for outbound call.");
+  if (!providerNumber) return failedResult(input, channel, "Missing provider phone number for call transfer.");
+  if (!userNumber) return blockedResult(input, channel, "user_phone_required_for_transfer_call");
+
+  const dynamicVariables = {
+    ...(input.dynamicVariables ?? {}),
+    provider_transfer_phone: providerNumber,
+    provider_name: input.providerName?.trim() || "the provider",
+    provider_contact_objective: input.summary?.trim() || "Discuss the requested service",
+    provider_transfer_requires_confirmation: "true",
+  };
 
   const response = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
     method: "POST",
@@ -424,9 +435,12 @@ async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<Con
     body: JSON.stringify({
       agent_id: config.agentId,
       agent_phone_number_id: config.agentPhoneNumberId,
-      to_number: toNumber,
+      // The user is the first call leg. The ElevenLabs agent confirms they are
+      // ready, then uses its dynamic transfer_to_number rule to conference in
+      // the provider. Never dial the provider as the initial outbound leg.
+      to_number: userNumber,
       conversation_initiation_client_data: {
-        dynamic_variables: input.dynamicVariables ?? {},
+        dynamic_variables: dynamicVariables,
       },
     }),
   });
@@ -441,7 +455,7 @@ async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<Con
     input,
     channel,
     text(data.conversation_id) ?? text(data.callSid) ?? null,
-    text(data.message) ?? "outbound_call_started",
+    text(data.message) ?? "transfer_call_started",
   );
 }
 
