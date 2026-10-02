@@ -22,8 +22,7 @@ async function openConciergeTask(page: Page, taskId: string) {
   await page.goto("/concierge", { waitUntil: "domcontentloaded" });
   const taskNudge = page.getByTestId(/^button-concierge-task-nudge-/);
   await expect(taskNudge).toBeVisible({ timeout: 20_000 });
-  await expect(taskNudge).toContainText("needs attention");
-  await expect(taskNudge).toContainText("Continue your request");
+  await expect(taskNudge).toContainText(/Review|Add information/);
   await expect(page.locator('[data-highlighted="true"]')).toHaveCount(0);
   await taskNudge.click();
   await expect(page).toHaveURL(new RegExp(`/concierge/tasks/pending%3A${taskId}$`));
@@ -153,6 +152,16 @@ async function mockApi(
     }
 
     if (signedIn && url.pathname === "/api/concierge/tasks") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+
+    if (signedIn && url.pathname === "/api/concierge/notifications/reminders/dismissed") {
+      await fulfillJson(route, 200, {});
+      return;
+    }
+
+    if (signedIn && ["/api/concierge/actions/pending", "/api/concierge/actions/sessions"].includes(url.pathname)) {
       await fulfillJson(route, 200, { items: [] });
       return;
     }
@@ -377,6 +386,50 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
   await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+for (const width of [390, 1280]) {
+  test(`concierge reminder dismissal persists and keeps service navigation separate at ${width}px`, async ({ page }, testInfo) => {
+    await mockApi(page, true);
+    await page.setViewportSize({ width, height: 900 });
+    const dismissals: Record<string, string> = {};
+    const draft = {
+      id: "saved-plumber", user_id: "user-1", kind: "home_service",
+      entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
+      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      created_at: "2026-10-02T10:00:00Z", updated_at: "2026-10-02T10:00:00Z",
+    };
+    await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: [draft] }));
+    await page.route("**/api/concierge/notifications/reminders/**", async route => {
+      if (route.request().method() === "POST") {
+        const input = route.request().postDataJSON();
+        dismissals[input.taskKey] = input.revision;
+      }
+      await fulfillJson(route, 200, dismissals);
+    });
+    await page.goto("/concierge");
+    const reminder = page.getByTestId("button-concierge-task-nudge-get-help");
+    await expect(reminder).toContainText("Plumber");
+    await expect(reminder).toContainText("Continue request");
+    await expect(page.getByTestId("button-concierge-card-service")).not.toContainText("Continue request");
+    await reminder.click({ trial: true });
+    await expect(page.locator("#vyva-launch")).toBeHidden();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`reminder-${width}.png`), fullPage: true });
+    await page.getByTestId("button-concierge-card-service").click();
+    await expect(page).toHaveURL(/\/concierge\/get-help$/);
+    await expect(page.getByTestId("get-help-nudge")).toContainText("Plumber: Continue request");
+    await page.goto("/concierge");
+    await page.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
+    await expect(reminder).toHaveCount(0);
+    expect(Object.keys(dismissals)).toEqual(["draft:saved-plumber"]);
+    await page.reload();
+    await expect(page.getByTestId("button-concierge-card-service")).toBeVisible();
+    await expect(reminder).toHaveCount(0);
+    await page.getByTestId("button-concierge-card-service").click();
+    await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+    await expect(page.getByTestId("get-help-nudge")).toHaveCount(0);
+  });
+}
 
 test("concierge prepared email task requires review, final confirmation, and saved outcome", async ({ page }) => {
   await mockApi(page, true);

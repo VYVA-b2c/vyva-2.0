@@ -22,6 +22,30 @@ type NotificationRow = {
   created_at: Date | string;
 };
 
+export async function listConciergeReminderDismissals(userId: string, database: Pool = pool) {
+  const result = await database.query<{ task_key: string; revision: string }>(
+    "select task_key, revision from concierge_reminder_dismissals where user_id = $1", [userId],
+  );
+  return Object.fromEntries(result.rows.map(row => [row.task_key, row.revision]));
+}
+
+export async function dismissConciergeReminder(input: { userId: string; taskKey: string; revision: string }, database: Pool = pool) {
+  await database.query(`
+    with dismissed as (
+      insert into concierge_reminder_dismissals (user_id, task_key, revision)
+      values ($1, $2, $3)
+      on conflict (user_id, task_key) do update
+        set revision = excluded.revision, dismissed_at = now()
+      returning user_id, task_key
+    )
+    update concierge_task_notifications n
+    set read_at = coalesce(n.read_at, now()), updated_at = now()
+    from dismissed d
+    where n.user_id = d.user_id and 'pending:' || n.pending_id::text = d.task_key
+      and n.created_at <= now()
+  `, [input.userId, input.taskKey, input.revision]);
+}
+
 function dateString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }

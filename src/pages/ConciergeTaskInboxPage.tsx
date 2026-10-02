@@ -13,6 +13,8 @@ import {
   Search,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { homeServiceText } from "../../shared/homeServiceText";
+import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
 import { apiFetch } from "@/lib/queryClient";
 import {
   normalizeConciergeActionEnvelope,
@@ -584,6 +586,8 @@ function TaskDetail({
   onPrimaryAction: () => void;
 }) {
   const date = formatDate(item.updatedAt, language);
+  const copy = (text: string) => homeServiceText(language, text);
+  const reminder = conciergeTaskReminder(item, language);
   const providerReplyResolution = parseConciergeProviderReplyResolution(
     item.actionPayload?.provider_reply_resolution,
   );
@@ -607,48 +611,27 @@ function TaskDetail({
         className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-1 font-body text-[14px] font-black text-vyva-text-2"
       >
         <ArrowLeft size={19} aria-hidden="true" />
-        {isSpanish ? "Todas las tareas" : "All tasks"}
+        {copy("All tasks")}
       </button>
 
       <header className="mt-2 border-b border-vyva-border pb-5">
-        <p className="font-body text-[12px] font-black uppercase text-vyva-purple">{item.statusLabel}</p>
-        <h1 className="mt-2 font-body text-[28px] font-black leading-tight text-vyva-text-1">{item.title}</h1>
-        <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{item.summary}</p>
+        <p className="font-body text-[12px] font-black uppercase text-vyva-purple">{copy(item.source === "draft" ? "Saved request" : item.statusLabel)}</p>
+        <h1 className="mt-2 font-body text-[28px] font-black leading-tight text-vyva-text-1">{copy(item.title)}</h1>
+        {item.source !== "draft" && <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{copy(item.summary)}</p>}
       </header>
 
       <section
         className="border-b border-vyva-border py-5"
         data-testid="concierge-task-continuation"
-        aria-label={isSpanish ? "Progreso del Canvas" : "Canvas progress"}
+        aria-label={copy("Your request")}
       >
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-body text-[16px] font-black text-vyva-text-1">
-            {isSpanish ? "Continuar Canvas" : "Continue Canvas"}
+            {item.source === "draft" ? copy("Continue where you left off") : copy(item.continuation.actionLabel)}
           </h2>
-          <span className="rounded-full bg-[#F4F0FF] px-2 py-1 font-body text-[11px] font-black text-vyva-purple">
-            {item.continuation.stateLabel}
-          </span>
         </div>
-        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="min-w-0">
-            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Tipo" : "Task type"}
-            </dt>
-            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
-              {item.continuation.flowLabel}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Estado" : "Status"}
-            </dt>
-            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
-              {item.continuation.stateLabel}
-            </dd>
-          </div>
-        </dl>
         <p className="mt-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-          {item.continuation.helperText}
+          {copy(item.continuation.helperText)}
         </p>
       </section>
 
@@ -740,19 +723,11 @@ function TaskDetail({
             className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
             data-testid="button-concierge-task-primary-action"
           >
-            {item.primaryActionLabel}
+            {item.source === "draft" && !item.continuation.stale ? reminder.action : copy(item.primaryActionLabel)}
             <ChevronRight size={19} aria-hidden="true" />
           </button>
         )
       ) : null}
-      <button
-        type="button"
-        onClick={onBack}
-        className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-lg border border-vyva-border bg-white px-5 font-body text-[15px] font-black text-vyva-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vyva-purple focus-visible:ring-offset-2"
-        data-testid="button-concierge-task-exit"
-      >
-        {isSpanish ? "Volver a tareas" : "Back to tasks"}
-      </button>
     </div>
   );
 }

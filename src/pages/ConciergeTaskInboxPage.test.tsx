@@ -168,11 +168,10 @@ describe("ConciergeTaskInboxPage", () => {
 
     renderPage("/concierge/tasks/draft%3Alocal-canvas-shopping");
 
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
-    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review and confirm");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Continue where you left off");
+    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Canvas");
+    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Task type");
+    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Continue request");
 
     apiFetchMock.mockClear();
     fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
@@ -196,10 +195,8 @@ describe("ConciergeTaskInboxPage", () => {
 
     renderPage("/concierge/tasks/draft%3Alocal-canvas-refill-active");
 
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Refill Canvas");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Draft");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Continue where you left off");
+    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Canvas");
 
     apiFetchMock.mockClear();
     fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
@@ -214,10 +211,8 @@ describe("ConciergeTaskInboxPage", () => {
     fireEvent.click(await screen.findByTestId("concierge-inbox-task-pending:reply-1"));
 
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Provider reply");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Needs information");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Respond");
+    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Task type");
     expect(screen.getByTestId("concierge-task-provider-reply")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getByTestId("concierge-task-decision")).toHaveTextContent("Prepared an answer for the clinic.");
     expect(screen.getByTestId("concierge-task-more-details")).not.toHaveAttribute("open");
@@ -261,7 +256,7 @@ describe("ConciergeTaskInboxPage", () => {
     task.focus();
     expect(task).toHaveFocus();
     fireEvent.click(task);
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("View status");
   });
 
   it("surfaces stale blocked tasks and resumes through the safe Concierge path", async () => {
@@ -289,7 +284,7 @@ describe("ConciergeTaskInboxPage", () => {
     });
 
     renderPage("/concierge/tasks/pending%3Aexpired-ride");
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Needs refresh");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Review safely");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Nothing happens without a fresh confirmation.");
     expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review safely");
 
@@ -303,7 +298,7 @@ describe("ConciergeTaskInboxPage", () => {
 
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
     apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-exit"));
+    fireEvent.click(screen.getByRole("button", { name: "All tasks" }));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
     expect(await screen.findByTestId("concierge-task-inbox")).toBeInTheDocument();
@@ -505,7 +500,7 @@ describe("ConciergeTaskInboxPage", () => {
 
     renderPage("/concierge/tasks/pending%3Aconfirmed-reply-1");
     expect(await screen.findByTestId("button-concierge-task-complete-reply")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Review reply");
     expect(completionBody).toBeNull();
 
     fireEvent.click(screen.getByTestId("button-concierge-task-complete-reply"));

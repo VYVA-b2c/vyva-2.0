@@ -299,8 +299,7 @@ describe("ConciergeScreen task navigation", () => {
     const appointments = await screen.findByTestId("button-concierge-card-appointment");
     const nudge = await screen.findByTestId("button-concierge-task-nudge-book-appointments");
     expect(appointments).not.toHaveAttribute("data-highlighted");
-    expect(nudge).toHaveTextContent("needs attention");
-    expect(nudge).toHaveTextContent("Continue your request");
+    expect(nudge).toHaveTextContent("Review request");
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
     expect(screen.queryByTestId("concierge-home-task-overview")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-hero")).toBeInTheDocument();
@@ -324,8 +323,8 @@ describe("ConciergeScreen task navigation", () => {
     const homeRepair = await screen.findByTestId("button-concierge-card-service");
     const nudge = await screen.findByTestId("button-concierge-task-nudge-get-help");
     expect(homeRepair).not.toHaveAttribute("data-highlighted");
-    expect(nudge).toHaveTextContent("Home service in progress");
-    expect(nudge).toHaveTextContent("Continue your request");
+    expect(nudge).toHaveTextContent("Home service");
+    expect(nudge).toHaveTextContent("Continue request");
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
     expect(screen.queryByText("Your request needs attention")).not.toBeInTheDocument();
 
@@ -393,7 +392,7 @@ describe("ConciergeScreen task navigation", () => {
     const appointments = await screen.findByTestId("button-concierge-card-appointment");
     const nudge = await screen.findByTestId("button-concierge-task-nudge-book-appointments");
     expect(appointments).not.toHaveAttribute("data-highlighted");
-    expect(nudge).toHaveTextContent("needs attention");
+    expect(nudge).toHaveTextContent("Review reply");
     fireEvent.click(nudge);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });

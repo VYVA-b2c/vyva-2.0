@@ -169,7 +169,7 @@ describe("Concierge task inbox", () => {
     });
 
     expect(findConciergeTaskInboxItem(inbox, "draft", rideReady.id)?.continuation)
-      .toMatchObject({ flow: "ride", state: "ready_to_confirm", sceneLabel: "Review", actionLabel: "Review and confirm" });
+      .toMatchObject({ flow: "ride", state: "draft", sceneLabel: "Review", actionLabel: "Continue" });
     expect(findConciergeTaskInboxItem(inbox, "draft", appointmentDraft.id)?.continuation)
       .toMatchObject({ flow: "appointment", state: "draft", sceneLabel: "Reason", actionLabel: "Continue" });
     expect(findConciergeTaskInboxItem(inbox, "pending", "shopping-waiting")?.continuation)
