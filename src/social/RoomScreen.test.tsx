@@ -291,6 +291,9 @@ function renderRoom(initialEntry: RoomInitialEntry = "/social-rooms/morning-move
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<><MovementExerciseGuideScreen /><LocationProbe /></>} />
+        <Route path="/dev/social-rooms/morning-movement/exercises/:exerciseId" element={<><MovementExerciseGuideScreen /><LocationProbe /></>} />
+        <Route path="/social-rooms/experts/amara" element={<LocationProbe />} />
+        <Route path="/dev/home-master/community" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<RoomScreen />} />
         <Route path="/activity" element={<LocationProbe />} />
       </Routes>
@@ -555,6 +558,7 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-exercise-guide")).toBeInTheDocument();
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/morning-movement/exercises/chair-yoga");
     expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/social-rooms/morning-movement\"");
     expect(screen.getByTestId("movement-exercise-guide")).toHaveTextContent("Chair yoga");
     expect(screen.getByTestId("movement-guide-status")).toHaveTextContent("Audio guide is live");
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
@@ -846,6 +850,24 @@ describe("RoomScreen movement room", () => {
     expect(voiceMock.sendText).not.toHaveBeenCalled();
   });
 
+  it("returns from a routine to the Wellness Coach instead of the old Movement room", async () => {
+    renderRoom("/social-rooms/morning-movement/exercises/chair-yoga");
+    await flushAsyncEffects();
+
+    fireEvent.click(screen.getByTestId("button-movement-guide-back-room"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/amara");
+  });
+
+  it("returns from a dev routine preview to the Home Master community preview", async () => {
+    renderRoom("/dev/social-rooms/morning-movement/exercises/chair-yoga");
+    await flushAsyncEffects();
+
+    fireEvent.click(screen.getByTestId("button-movement-guide-back-room"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/dev/home-master/community");
+  });
+
   it("sends updated voice context when advancing a connected guide", async () => {
     vi.useFakeTimers();
     voiceMock.status = "connected";
@@ -910,7 +932,7 @@ describe("RoomScreen movement room", () => {
 
     fireEvent.click(screen.getByTestId("button-movement-guide-back-room"));
 
-    await waitFor(() => expect(screen.getByTestId("movement-room-exercise-library")).toHaveTextContent("Choose a gentle activity"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/amara"));
   });
 
   it("repeats the last Movement room exercise from My gentle week", async () => {

@@ -29,7 +29,8 @@ import {
   type MovementStepMotion,
 } from "./movementExercises";
 
-const MOVEMENT_ROOM_PATH = "/social-rooms/morning-movement";
+const WELLNESS_COACH_PATH = "/social-rooms/experts/amara";
+const DEV_WELLNESS_COACH_PATH = "/dev/home-master/community";
 const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
 const EMPTY_MOVEMENT_STEPS: string[] = [];
 const MOVEMENT_GUIDE_TOTAL_DURATION_MS = 10 * 60 * 1000;
@@ -356,6 +357,10 @@ function formatGuideTime(milliseconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function safeInternalReturnPath(value: unknown) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : null;
+}
+
 export default function MovementExerciseGuideScreen() {
   const { exerciseId } = useParams<{ exerciseId: string }>();
   const navigate = useNavigate();
@@ -411,8 +416,10 @@ export default function MovementExerciseGuideScreen() {
   const currentSceneLabel = sceneForStep(stepIndex);
   const currentStepImage = exercise && visual ? getMovementStepImage(exercise.id, stepIndex, currentStepMotion) ?? visual.image : "";
   const currentStepVideo = exercise ? getMovementStepVideo(exercise.id, stepIndex, currentStepMotion) : undefined;
-  const routeState = location.state as { autoStartVoiceGuide?: unknown } | null;
+  const routeState = location.state as { autoStartVoiceGuide?: unknown; returnTo?: unknown } | null;
   const hasAutoStartIntent = routeState?.autoStartVoiceGuide === true;
+  const guideReturnPath = safeInternalReturnPath(routeState?.returnTo)
+    ?? (location.pathname.startsWith("/dev/") ? DEV_WELLNESS_COACH_PATH : WELLNESS_COACH_PATH);
   const browserHasUserActivation = (() => {
     if (typeof navigator === "undefined") return true;
     const userActivation = (navigator as Navigator & { userActivation?: { hasBeenActive?: boolean } }).userActivation;
@@ -495,8 +502,8 @@ export default function MovementExerciseGuideScreen() {
 
   const goBackToRoom = useCallback(() => {
     stopVoice();
-    navigate(MOVEMENT_ROOM_PATH);
-  }, [navigate, stopVoice]);
+    navigate(guideReturnPath);
+  }, [guideReturnPath, navigate, stopVoice]);
 
   const startVyvaGuide = useCallback(async (nextStepIndex = stepIndex) => {
     if (!exercise || !session) return;
@@ -572,7 +579,7 @@ export default function MovementExerciseGuideScreen() {
 
     if (name === "stop_wellness_routine") {
       stopVoice();
-      navigate("/social-rooms/experts/amara");
+      navigate(guideReturnPath);
       return {
         ok: true,
         code: "routine_stopped",
@@ -608,7 +615,7 @@ export default function MovementExerciseGuideScreen() {
       summary: `Wellness routine changed by voice: ${target?.title ?? routineId} (${routineId}).`,
       path: `/social-rooms/morning-movement/exercises/${routineId}`,
     });
-    navigate(`/social-rooms/morning-movement/exercises/${routineId}`, { state: { autoStartVoiceGuide: true } });
+    navigate(`/social-rooms/morning-movement/exercises/${routineId}`, { state: { autoStartVoiceGuide: true, returnTo: guideReturnPath } });
     return {
       ok: true,
       code: name === "adapt_wellness_routine" ? "routine_adapted" : "routine_started",
@@ -618,7 +625,7 @@ export default function MovementExerciseGuideScreen() {
       session_state: "routine_opening",
       ...(adaptation ? { adaptation } : {}),
     };
-  }, [exercise, language, movementLanguage, navigate, startVyvaGuide, stepIndex, stopVoice]);
+  }, [exercise, guideReturnPath, language, movementLanguage, navigate, startVyvaGuide, stepIndex, stopVoice]);
 
   useEffect(() => subscribeWellnessVoiceTools(handleWellnessVoiceTool), [handleWellnessVoiceTool]);
 
@@ -638,12 +645,12 @@ export default function MovementExerciseGuideScreen() {
       saveLastMovementExerciseId(exercise.id);
       saveMovementWeekLogDates(addMovementWeekLogDate(loadMovementWeekLogDates()));
       stopVoice();
-      navigate(MOVEMENT_ROOM_PATH, { state: { movementExerciseLoggedId: exercise.id } });
+      navigate(guideReturnPath, { state: { movementExerciseLoggedId: exercise.id } });
     } catch {
       setLogStatus("error");
       setRunState("paused");
     }
-  }, [exercise, logStatus, navigate, session, stopVoice]);
+  }, [exercise, guideReturnPath, logStatus, navigate, session, stopVoice]);
 
   useEffect(() => {
     if (!exercise || !session || !isVisualGuideRunning || logStatus === "saving") return undefined;
