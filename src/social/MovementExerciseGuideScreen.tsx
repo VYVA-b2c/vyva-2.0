@@ -428,6 +428,8 @@ export default function MovementExerciseGuideScreen() {
       guidance_mode: "app_guided_visual_routine",
       timer_authority: "app",
       app_controls: "visuals,timer,step_advancement,pause_resume,completion_logging",
+      activity_language: movementLanguage,
+      language: movementLanguage,
       exercise_id: exercise?.id ?? "",
       exercise_title: exercise?.title ?? "",
       exercise_benefit: exercise?.benefit ?? "",

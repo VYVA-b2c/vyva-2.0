@@ -804,6 +804,8 @@ describe("RoomScreen movement room", () => {
           guidance_mode: "app_guided_visual_routine",
           timer_authority: "app",
           app_controls: "visuals,timer,step_advancement,pause_resume,completion_logging",
+          activity_language: "en",
+          language: "en",
           exercise_id: "tai-chi",
           exercise_title: "Tai chi",
           exercise_benefit: "Balance practice",
