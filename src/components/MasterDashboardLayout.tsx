@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucide-react";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -52,6 +52,10 @@ export type MasterDashboardCard = {
   nudgeDetail?: string;
   onNudgeClick?: () => void;
   nudgeTestId?: string;
+  onNudgeDismiss?: () => void;
+  nudgeDismissLabel?: string;
+  nudgeDismissPending?: boolean;
+  nudgeError?: string;
 };
 
 export type MasterFastHelpAction = {
@@ -488,7 +492,7 @@ export default function MasterDashboardLayout({
                 ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
-              <div key={card.id} className="flex min-w-0 flex-col">
+              <div key={card.id} className={`flex min-w-0 flex-col ${card.nudgeLabel ? `overflow-hidden rounded-[22px] border ${usesDarkCanonicalCards ? "border-white/15 bg-white/[0.06]" : "border-vyva-border bg-white"}` : ""}`}>
               <button
                 type="button"
                 onClick={card.onClick}
@@ -497,6 +501,7 @@ export default function MasterDashboardLayout({
                 aria-current={card.highlighted ? "true" : undefined}
                 data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
+                  card.nudgeLabel ? "!rounded-none !border-0 !shadow-none hover:!translate-y-0" : "",
                   "vyva-tap group relative w-full flex-1 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
@@ -664,11 +669,12 @@ export default function MasterDashboardLayout({
                 </span>
               </button>
               {card.nudgeLabel && card.onNudgeClick ? (
+                <div className="flex items-center border-t border-vyva-border">
                 <button
                   type="button"
                   onClick={card.onNudgeClick}
                   data-testid={card.nudgeTestId}
-                  className="vyva-tap mt-2 flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#E5D2FA] bg-[#F7F0FF] px-3 py-2.5 text-left shadow-[0_8px_18px_rgba(107,33,168,0.08)] transition-colors hover:bg-[#F1E5FF]"
+                  className="vyva-tap flex min-h-[58px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#F1E5FF]"
                 >
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-white text-vyva-purple shadow-[0_4px_10px_rgba(107,33,168,0.10)]" aria-hidden="true">
                     <span className="h-2.5 w-2.5 rounded-full bg-vyva-purple" />
@@ -685,7 +691,10 @@ export default function MasterDashboardLayout({
                   </span>
                   <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
                 </button>
+                {card.onNudgeDismiss && <button type="button" onClick={card.onNudgeDismiss} disabled={card.nudgeDismissPending} aria-label={card.nudgeDismissLabel} title={card.nudgeDismissLabel} className="vyva-tap flex h-11 w-11 shrink-0 items-center justify-center text-vyva-purple"><X size={18} aria-hidden="true" /></button>}
+                </div>
               ) : null}
+              {card.nudgeError && <p role="alert" className="px-3 pb-2 text-sm text-vyva-text-2">{card.nudgeError}</p>}
               </div>
             );
           })}

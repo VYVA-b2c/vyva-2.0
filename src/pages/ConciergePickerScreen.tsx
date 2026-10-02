@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
+import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -449,17 +451,15 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   const isSpanish = language.split("-")[0].toLowerCase() === "es";
   const config = buildCategoryConfigs(isSpanish)[category];
   const [blockedOption, setBlockedOption] = useState<PickerOptionConfig | null>(null);
-  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
-    try { return sessionStorage.getItem("concierge:get-help:nudge-dismissed") === "true"; } catch { return false; }
-  });
+  const reminderDismissals = useConciergeReminderDismissals(category === "get-help" && !backPath.startsWith("/dev/"));
   const taskNudgeQuery = useQuery({
     queryKey: ["concierge-get-help-nudge", language],
-    enabled: category === "get-help" && !backPath.startsWith("/dev/") && !nudgeDismissed,
+    enabled: category === "get-help" && !backPath.startsWith("/dev/"),
     queryFn: async () => {
       const [drafts, pending, completed] = await Promise.all([
         listConciergeTaskDrafts(), fetchConciergeTaskPendingItems(), fetchConciergeTaskCompletedSessions(),
       ]);
-      return buildConciergeTaskInbox({ drafts, pending, completed, isSpanish });
+      return buildConciergeTaskInbox({ drafts, pending, completed, isSpanish: false });
     },
     retry: false,
     staleTime: 0,
@@ -549,7 +549,11 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     pt: ["O seu pedido precisa de atenção", "Continuar o seu pedido", "Adicionar um prestador de confiança", "Fechar"],
   };
   const nudgeLabels = nudgeCopy[language.split("-")[0]] ?? nudgeCopy.en;
-  const showNudge = category === "get-help" && !nudgeDismissed && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
+  const reminderTask = attentionTask ?? draftTask;
+  const reminder = reminderTask ? conciergeTaskReminder(reminderTask, language) : null;
+  const reminderKey = reminder?.taskKey ?? "setup:trusted-provider";
+  const reminderRevision = reminder?.revision ?? "1";
+  const showNudge = category === "get-help" && reminderDismissals.ready && !reminderDismissals.hidden(reminderKey, reminderRevision) && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
 
   return (
     <CanonicalDetailFlowShell
@@ -570,20 +574,19 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
       {showNudge && (
         <aside className={`mb-4 flex items-center gap-1 rounded-[22px] border px-3 py-2 ${isDark ? "border-white/[0.14] bg-white/[0.06] text-[#FFF8FF]" : "border-[#E9DDF5] bg-[#FAF7FF] text-vyva-text-1"}`} data-testid="get-help-nudge">
           <button type="button" className="vyva-tap flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl text-left font-body text-[15px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B98CFF]" onClick={() => {
-            const task = attentionTask ?? draftTask;
-            if (task) navigate(attentionTask ? task.detailPath : task.resumePath);
+            if (reminder) navigate(reminder.path);
             else if (providerOption) setBlockedOption(providerOption);
           }}>
             <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${isDark ? "bg-[#B98CFF]/15 text-[#D7B8FF]" : "bg-[#F1E8FF] text-vyva-purple"}`}><HeartHandshake size={20} aria-hidden="true" /></span>
-            <span className="min-w-0 flex-1 break-words">{nudgeLabels[nudgeKind!]}</span>
+            <span className="min-w-0 flex-1 break-words">{reminder ? `${reminder.title}: ${reminder.action}` : nudgeLabels[nudgeKind!]}</span>
             <ChevronRight size={18} className={`shrink-0 ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`} aria-hidden="true" />
           </button>
           <button type="button" className={`vyva-tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors ${isDark ? "text-[#CFC4D8] hover:bg-white/10" : "text-[#75667E] hover:bg-[#F1E8FF]"}`} aria-label={nudgeLabels[3]} title={nudgeLabels[3]} onClick={() => {
-            setNudgeDismissed(true);
-            try { sessionStorage.setItem("concierge:get-help:nudge-dismissed", "true"); } catch { /* Dismiss still works for this visit. */ }
+            reminderDismissals.dismiss(reminderKey, reminderRevision);
           }}><X size={20} aria-hidden="true" /></button>
         </aside>
       )}
+      {reminderDismissals.error && <p role="alert">{homeServiceText(language, "Could not dismiss reminder. Try again.")}</p>}
       {profileError && <div role="alert" className="mb-4 text-vyva-text-1">
         <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
         <button type="button" disabled={profileFetching} className="min-h-11 text-vyva-purple underline" onClick={() => void retryProfile()}>{homeServiceText(language, "Retry")}</button>

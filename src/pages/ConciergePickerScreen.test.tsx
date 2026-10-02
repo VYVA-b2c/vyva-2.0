@@ -6,6 +6,7 @@ import ConciergePickerScreen from "./ConciergePickerScreen";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const apiFetchMock = vi.fn();
+let dismissedReminders: Record<string, string> = {};
 const currentLocale = vi.hoisted(() => ({ language: "en" }));
 const nudgeInbox = vi.hoisted(() => ({ needs_you: [] as unknown[], waiting: [], completed: [] }));
 vi.mock("@/lib/conciergeTaskDrafts", () => ({ listConciergeTaskDrafts: async () => [] }));
@@ -16,7 +17,15 @@ vi.mock("@/lib/conciergeTaskInbox", () => ({
 }));
 
 vi.mock("@/lib/queryClient", () => ({
-  apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+  apiFetch: (url: string, options?: RequestInit) => {
+    if (url.endsWith("/reminders/dismissed")) return Promise.resolve(jsonResponse(dismissedReminders));
+    if (url.endsWith("/reminders/dismiss")) {
+      const input = JSON.parse(String(options?.body));
+      dismissedReminders[input.taskKey] = input.revision;
+      return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    return apiFetchMock(url, options);
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -103,6 +112,7 @@ describe("ConciergePickerScreen", () => {
   beforeEach(() => {
     currentLocale.language = "en";
     sessionStorage.clear();
+    dismissedReminders = {};
     nudgeInbox.needs_you = [];
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
   });
@@ -129,23 +139,26 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
   });
 
-  it("prioritises attention over a draft and dismisses the nudge for this session", async () => {
+  it("prioritises attention and preserves dismissal after remounting", async () => {
     nudgeInbox.needs_you = [
-      { continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" },
-      { continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" },
+      { key: "draft:one", source: "draft", title: "Plumber", continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" },
+      { key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" },
     ];
-    renderPicker("get-help");
-    expect(await screen.findByRole("button", { name: "Your request needs attention" })).toBeInTheDocument();
-    expect(screen.queryByText("Continue your request")).not.toBeInTheDocument();
+    const view = renderPicker("get-help");
+    expect(await screen.findByRole("button", { name: "Plumber: Add information" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByTestId("get-help-nudge")).not.toBeInTheDocument());
+    expect(dismissedReminders["pending:attention"]).toBeTruthy();
+    view.unmount();
+    renderPicker("get-help");
+    await waitForPickerReady("button-concierge-picker-home-repair");
     expect(screen.queryByTestId("get-help-nudge")).not.toBeInTheDocument();
-    expect(sessionStorage.getItem("concierge:get-help:nudge-dismissed")).toBe("true");
   });
 
   it("resumes a home-service draft through its existing route", async () => {
-    nudgeInbox.needs_you = [{ continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" }];
+    nudgeInbox.needs_you = [{ key: "draft:one", source: "draft", title: "Plumber", continuation: { flow: "home_service", state: "draft" }, resumePath: "/concierge/task/draft" }];
     renderPicker("get-help");
-    fireEvent.click(await screen.findByRole("button", { name: "Continue your request" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Plumber: Continue request" }));
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/draft");
   });
 

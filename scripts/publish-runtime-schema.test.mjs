@@ -40,6 +40,7 @@ test("publishes scheduled support before enrollments and verifies before commit"
   assert.match(migrations[0], /0019_scheduled_support.sql$/);
   assert.match(migrations[1], /0060_cognitive_assessment_program_enrollments.sql$/);
   assert.ok(migrations.some((name) => name.endsWith("0085_publish_triage_report_columns.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0104_concierge_reminder_dismissals.sql")));
   for (const migration of migrations) {
     assert.ok(readFileSync(new URL(`../migrations/${migration.split("/").at(-1)}`, import.meta.url), "utf8").length);
   }

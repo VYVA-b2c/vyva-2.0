@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
+import { buildConciergeTaskInbox } from "@/lib/conciergeTaskInbox";
+import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
 import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { homeHelpCopy } from "../../shared/homeHelpCopy";
@@ -9672,6 +9675,7 @@ type ConciergeScreenProps = {
 };
 
 const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenProps) => {
+  const reminderDismissals = useConciergeReminderDismissals(mode !== "task" && !previewBasePath);
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -17732,16 +17736,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         canvasSummary: activeActionCanvasState,
       }
     : null;
-  const homeTaskNeedsAttention = homeActiveTask && (
-    homeActiveTask.canvasState === "collecting"
-    || homeActiveTask.canvasState === "ready_to_review"
-    || homeActiveTask.canvasState === "awaiting_confirmation"
-    || homeActiveTask.canvasState === "needs_user_input"
-    || homeActiveTask.canvasState === "failed"
-    || homeActiveTask.providerStatus === "action_needed"
-    || homeActiveTask.providerStatus === "reply_received"
-  ) ? homeActiveTask : null;
-  const homeTaskNudge = homeActiveTask;
+  const reminderInbox = buildConciergeTaskInbox({ drafts: savedTaskDrafts, pending: pendingActions, completed: [], isSpanish: false });
+  const reminderItem = [...reminderInbox.needs_you, ...reminderInbox.waiting].find(item => item.detailPath === homeActiveTask?.detailPath);
+  const homeReminder = reminderItem ? conciergeTaskReminder(reminderItem, language) : null;
+  const homeTaskNudge = reminderDismissals.ready && homeReminder && !reminderDismissals.hidden(homeReminder.taskKey, homeReminder.revision) ? homeReminder : null;
   const homeTaskFlowReference = activeSavedTaskExecutionTask?.flow_reference
     ?? activeActionExecutionTask?.flow_reference
     ?? (activeSavedTask?.action ? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]) : "")
@@ -17774,12 +17772,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     card.id === homeTaskServiceCardId && homeTaskNudge
       ? {
           ...card,
-          nudgeLabel: homeTaskNeedsAttention
-            ? (isSpanish ? `${homeTaskNudge.title} necesita atención` : `${homeTaskNudge.title} needs attention`)
-            : (isSpanish ? `${homeTaskNudge.title} en curso` : `${homeTaskNudge.title} in progress`),
-          nudgeDetail: isSpanish ? "Continuar tu solicitud" : "Continue your request",
+          nudgeLabel: homeTaskNudge.title,
+          nudgeDetail: homeTaskNudge.action,
           nudgeTestId: `button-concierge-task-nudge-${card.id}`,
-          onNudgeClick: () => navigate(homeTaskNudge.detailPath),
+          onNudgeClick: () => navigate(homeTaskNudge.path),
+          onNudgeDismiss: () => reminderDismissals.dismiss(homeTaskNudge.taskKey, homeTaskNudge.revision),
+          nudgeDismissLabel: homeServiceText(language, "Dismiss reminder"),
+          nudgeDismissPending: reminderDismissals.pending,
+          nudgeError: reminderDismissals.error ? homeServiceText(language, "Could not dismiss reminder. Try again.") : undefined,
         }
       : card
   ));
