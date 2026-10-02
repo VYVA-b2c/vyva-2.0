@@ -679,6 +679,8 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-guide-step-intro")).toBeInTheDocument();
     await advanceMovementGuideIntro();
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "seated-tall");
+    expect(screen.getByTestId("movement-exercise-step-media-frame")).toHaveClass("aspect-video");
+    expect(screen.getByTestId("movement-exercise-step-media-frame")).toHaveClass("sm:aspect-auto");
     expect(screen.getByTestId("movement-exercise-step-video")).toHaveAttribute("src", getMovementStepVideo("chair-yoga", 0, "seated-tall"));
     expect(screen.queryByTestId("movement-guide-motion-cue")).not.toBeInTheDocument();
 
