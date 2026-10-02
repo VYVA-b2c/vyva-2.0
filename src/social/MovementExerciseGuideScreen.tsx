@@ -29,7 +29,8 @@ import {
   type MovementStepMotion,
 } from "./movementExercises";
 
-const MOVEMENT_ROOM_PATH = "/social-rooms/morning-movement";
+const WELLNESS_COACH_PATH = "/social-rooms/experts/amara";
+const DEV_WELLNESS_COACH_PATH = "/dev/home-master/community";
 const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
 const EMPTY_MOVEMENT_STEPS: string[] = [];
 const MOVEMENT_GUIDE_TOTAL_DURATION_MS = 10 * 60 * 1000;
@@ -337,11 +338,14 @@ function buildVoicePrompt(
     `Current step ${stepIndex + 1} of ${totalSteps}: ${step}`,
     `The screen shows this visual guide scene: ${sceneLabel}.`,
     `Motion cue metadata: ${motion}.`,
+    `The purple instruction screen is showing now; briefly explain this step before the visual movement begins.`,
     `The app owns timing, visuals, step advancement, pause/resume, and completion logging.`,
     `Do not move to a different step until the app sends new context.`,
     `Do not ask the user to press buttons or choose the next step.`,
+    `The user may be quiet because they are moving; silence is expected.`,
+    `Do not ask "are you there", do not check whether the user is still there, and do not fill quiet time with extra questions.`,
     `Speak warmly, slowly, and plainly.`,
-    `Say one brief cue that matches this visible step, then leave silence so the user can move.`,
+    `Say one brief explanation and one gentle cue that matches this step, then let the user move quietly until the app sends the next step.`,
     `Safety reminder: ${safety}`,
   ].join(" ");
 }
@@ -351,6 +355,10 @@ function formatGuideTime(milliseconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function safeInternalReturnPath(value: unknown) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : null;
 }
 
 export default function MovementExerciseGuideScreen() {
@@ -372,6 +380,7 @@ export default function MovementExerciseGuideScreen() {
     stopVoice,
     sendText,
     sendContextUpdate,
+    setMicrophoneMuted,
     isConnecting,
     lastError: voiceError,
   } = useVyvaVoice();
@@ -407,8 +416,10 @@ export default function MovementExerciseGuideScreen() {
   const currentSceneLabel = sceneForStep(stepIndex);
   const currentStepImage = exercise && visual ? getMovementStepImage(exercise.id, stepIndex, currentStepMotion) ?? visual.image : "";
   const currentStepVideo = exercise ? getMovementStepVideo(exercise.id, stepIndex, currentStepMotion) : undefined;
-  const routeState = location.state as { autoStartVoiceGuide?: unknown } | null;
+  const routeState = location.state as { autoStartVoiceGuide?: unknown; returnTo?: unknown } | null;
   const hasAutoStartIntent = routeState?.autoStartVoiceGuide === true;
+  const guideReturnPath = safeInternalReturnPath(routeState?.returnTo)
+    ?? (location.pathname.startsWith("/dev/") ? DEV_WELLNESS_COACH_PATH : WELLNESS_COACH_PATH);
   const browserHasUserActivation = (() => {
     if (typeof navigator === "undefined") return true;
     const userActivation = (navigator as Navigator & { userActivation?: { hasBeenActive?: boolean } }).userActivation;
@@ -424,6 +435,8 @@ export default function MovementExerciseGuideScreen() {
       guidance_mode: "app_guided_visual_routine",
       timer_authority: "app",
       app_controls: "visuals,timer,step_advancement,pause_resume,completion_logging",
+      activity_language: movementLanguage,
+      language: movementLanguage,
       exercise_id: exercise?.id ?? "",
       exercise_title: exercise?.title ?? "",
       exercise_benefit: exercise?.benefit ?? "",
@@ -489,8 +502,8 @@ export default function MovementExerciseGuideScreen() {
 
   const goBackToRoom = useCallback(() => {
     stopVoice();
-    navigate(MOVEMENT_ROOM_PATH);
-  }, [navigate, stopVoice]);
+    navigate(guideReturnPath);
+  }, [guideReturnPath, navigate, stopVoice]);
 
   const startVyvaGuide = useCallback(async (nextStepIndex = stepIndex) => {
     if (!exercise || !session) return;
@@ -500,17 +513,18 @@ export default function MovementExerciseGuideScreen() {
       await startVoice(promptForStep(nextStepIndex), undefined, {
         agentSlug: "wellness",
         roomSlug: "morning-movement",
-        autoStartListening: true,
+        autoStartListening: false,
         dynamicVariables: voiceVariables(nextStepIndex),
       });
-      sendStepPrompt(nextStepIndex);
+      sendContextUpdate(`Authoritative movement routine state from the app: ${JSON.stringify(voiceVariables(nextStepIndex))}`);
+      setMicrophoneMuted(true);
       setRunState("guiding");
     } catch {
       setRunState("blocked");
     } finally {
       setAudioStarting(false);
     }
-  }, [exercise, promptForStep, sendStepPrompt, session, startVoice, stepIndex, voiceVariables]);
+  }, [exercise, promptForStep, sendContextUpdate, session, setMicrophoneMuted, startVoice, stepIndex, voiceVariables]);
 
   useEffect(() => {
     if (!exercise || !session || autoStartAttempted) return;
@@ -565,7 +579,7 @@ export default function MovementExerciseGuideScreen() {
 
     if (name === "stop_wellness_routine") {
       stopVoice();
-      navigate("/social-rooms/experts/amara");
+      navigate(guideReturnPath);
       return {
         ok: true,
         code: "routine_stopped",
@@ -601,7 +615,7 @@ export default function MovementExerciseGuideScreen() {
       summary: `Wellness routine changed by voice: ${target?.title ?? routineId} (${routineId}).`,
       path: `/social-rooms/morning-movement/exercises/${routineId}`,
     });
-    navigate(`/social-rooms/morning-movement/exercises/${routineId}`, { state: { autoStartVoiceGuide: true } });
+    navigate(`/social-rooms/morning-movement/exercises/${routineId}`, { state: { autoStartVoiceGuide: true, returnTo: guideReturnPath } });
     return {
       ok: true,
       code: name === "adapt_wellness_routine" ? "routine_adapted" : "routine_started",
@@ -611,7 +625,7 @@ export default function MovementExerciseGuideScreen() {
       session_state: "routine_opening",
       ...(adaptation ? { adaptation } : {}),
     };
-  }, [exercise, language, movementLanguage, navigate, startVyvaGuide, stepIndex, stopVoice]);
+  }, [exercise, guideReturnPath, language, movementLanguage, navigate, startVyvaGuide, stepIndex, stopVoice]);
 
   useEffect(() => subscribeWellnessVoiceTools(handleWellnessVoiceTool), [handleWellnessVoiceTool]);
 
@@ -631,12 +645,12 @@ export default function MovementExerciseGuideScreen() {
       saveLastMovementExerciseId(exercise.id);
       saveMovementWeekLogDates(addMovementWeekLogDate(loadMovementWeekLogDates()));
       stopVoice();
-      navigate(MOVEMENT_ROOM_PATH, { state: { movementExerciseLoggedId: exercise.id } });
+      navigate(guideReturnPath, { state: { movementExerciseLoggedId: exercise.id } });
     } catch {
       setLogStatus("error");
       setRunState("paused");
     }
-  }, [exercise, logStatus, navigate, session, stopVoice]);
+  }, [exercise, guideReturnPath, logStatus, navigate, session, stopVoice]);
 
   useEffect(() => {
     if (!exercise || !session || !isVisualGuideRunning || logStatus === "saving") return undefined;

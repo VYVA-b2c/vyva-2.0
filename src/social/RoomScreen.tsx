@@ -2693,8 +2693,10 @@ const RoomScreen = () => {
   }, []);
 
   const openMovementExerciseCard = useCallback((exerciseId: MovementExerciseCardId) => {
-    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, { state: { autoStartVoiceGuide: true } });
-  }, [navigate]);
+    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, {
+      state: { autoStartVoiceGuide: true, returnTo: location.pathname },
+    });
+  }, [location.pathname, navigate]);
 
   const selectMovementComfortLevel = useCallback((comfortLevel: MovementComfortLevelId) => {
     setMovementComfortLevel(comfortLevel);

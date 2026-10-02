@@ -62,7 +62,10 @@ export default function MovementStepAnimation({
       data-motion={motion}
       aria-label={`${stepLabel}: ${instruction}`}
     >
-      <div className="relative h-[320px] w-full overflow-hidden bg-[#EEF7F9] sm:h-[460px] lg:h-[500px]">
+      <div
+        className="relative aspect-video w-full overflow-hidden bg-[#EEF7F9] sm:aspect-auto sm:h-[460px] lg:h-[500px]"
+        data-testid="movement-exercise-step-media-frame"
+      >
         {video ? (
           <video
             ref={videoRef}

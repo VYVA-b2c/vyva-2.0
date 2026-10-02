@@ -278,9 +278,11 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
       summary: `Wellness routine selected by ${source}: ${routine?.title ?? exerciseId} (${exerciseId}). The app should guide this routine visually and VYVA should follow the screen state.`,
       path: `/social-rooms/morning-movement/exercises/${exerciseId}`,
     });
-    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, { state: { autoStartVoiceGuide: true } });
+    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, {
+      state: { autoStartVoiceGuide: true, returnTo: location.pathname },
+    });
     return routine;
-  }, [navigate, wellnessRoutineCards]);
+  }, [location.pathname, navigate, wellnessRoutineCards]);
 
   const handleWellnessVoiceTool = useCallback((name: WellnessVoiceToolName, parameters: Record<string, unknown>): WellnessVoiceToolResult => {
     if (!isMovementCoach) {
