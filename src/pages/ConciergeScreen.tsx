@@ -17780,7 +17780,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           nudgeTestId: `button-concierge-task-nudge-${card.id}`,
           onNudgeClick: () => navigate(homeTaskNudge.path),
           onNudgeDismiss: () => reminderDismissals.dismissMany(homeTaskNudge.aliases.map(taskKey => ({ taskKey, revision: homeTaskNudge.revision }))),
-          nudgeContent: visibleHomeReminders.length > 0 ? <ConciergeRequestUpdates navigationTestId={`button-concierge-task-nudge-${card.id}`} reminders={visibleHomeReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /> : undefined,
+          nudgeContent: visibleHomeReminders.length > 0 ? <ConciergeRequestUpdates embedded navigationTestId={`button-concierge-task-nudge-${card.id}`} reminders={visibleHomeReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /> : undefined,
           nudgeDismissLabel: homeServiceText(language, "Dismiss reminder"),
           nudgeDismissPending: reminderDismissals.pending,
           nudgeError: reminderDismissals.error ? homeServiceText(language, "Could not dismiss reminder. Try again.") : undefined,
