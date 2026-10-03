@@ -50,3 +50,13 @@ it("keeps the reminder visible if persistence fails", async () => {
   expect(button).toBeVisible();
   expect(saved).toEqual({});
 });
+
+it("honors older dismissals for saved work but permits a new provider event", async () => {
+  saved = { "draft:one": "legacy-hash" };
+  const view = render(<QueryClientProvider client={new QueryClient()}><Surface name="Saved work" revision="saved-request" /></QueryClientProvider>);
+  await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+  expect(screen.queryByText("Saved work")).not.toBeInTheDocument();
+  view.unmount();
+  render(<QueryClientProvider client={new QueryClient()}><Surface name="New reply" revision="reply:new-event" /></QueryClientProvider>);
+  expect(await screen.findByText("New reply")).toBeVisible();
+});

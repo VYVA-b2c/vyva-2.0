@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DeleteConciergeRequest } from "@/components/DeleteConciergeRequest";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -148,6 +149,7 @@ function TaskRow({
 }) {
   const date = formatDate(item.updatedAt, language);
   return (
+    <div className="flex items-center border-b border-vyva-border">
     <button
       type="button"
       onClick={onOpen}
@@ -183,6 +185,8 @@ function TaskRow({
       </div>
       <ChevronRight size={20} className="flex-shrink-0 text-vyva-text-3" aria-hidden="true" />
     </button>
+    <DeleteConciergeRequest taskKey={item.draftId ? `draft:${item.draftId}` : item.pendingId ? `pending:${item.pendingId}` : item.key} title={item.title} language={language} />
+    </div>
   );
 }
 
@@ -615,6 +619,7 @@ function TaskDetail({
       </button>
 
       <header className="mt-2 border-b border-vyva-border pb-5">
+        <div className="float-right"><DeleteConciergeRequest taskKey={item.draftId ? `draft:${item.draftId}` : item.pendingId ? `pending:${item.pendingId}` : item.key} title={item.title} language={language} onDeleted={onBack} /></div>
         <p className="font-body text-[12px] font-black uppercase text-vyva-purple">{copy(item.source === "draft" ? "Saved request" : item.statusLabel)}</p>
         <h1 className="mt-2 font-body text-[28px] font-black leading-tight text-vyva-text-1">{copy(item.title)}</h1>
         {item.source !== "draft" && <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{copy(item.summary)}</p>}

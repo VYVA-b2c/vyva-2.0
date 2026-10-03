@@ -516,7 +516,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
         data-home-master-theme={isDark ? "dark" : "light"}
       >
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
-          <div className="flex items-center gap-3">
+          <div className={isMovementCoach && showIntro ? "mx-auto grid max-w-3xl grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3" : "flex items-center gap-3"}>
             <button
               type="button"
               onClick={() => navigate("/social-rooms/experts")}
@@ -526,7 +526,23 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
             >
               <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
             </button>
-            {advisor ? (
+            {advisor && isMovementCoach && showIntro ? (
+              <>
+                <h1 className="min-w-0 text-center font-body text-[24px] font-black leading-tight text-vyva-text-1">
+                  {advisorPresentation?.title ?? advisorDisplayName}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => void handleStartSession("voice")}
+                  className="vyva-tap flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#D8B4FE] bg-[#6B21A8] text-white shadow-sm"
+                  data-testid="button-advisor-start-voice"
+                  aria-label={ui?.micIdle ?? "Talk by voice"}
+                  title={ui?.micIdle ?? "Talk by voice"}
+                >
+                  <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              </>
+            ) : advisor ? (
               <>
                 <AdvisorAvatar
                   iconKey={advisor.iconKey}
@@ -567,23 +583,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           ) : showIntro ? (
             <section className={isMovementCoach ? "mx-auto w-full max-w-3xl" : "mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]"} data-testid="advisor-intro">
               <div className={isMovementCoach ? "py-2" : "px-5 pb-5 pt-5"}>
-                {isMovementCoach ? (
-                  <div className="flex items-center justify-between gap-4">
-                    <h1 className="min-w-0 font-body text-[24px] font-black leading-tight">
-                      {advisorPresentation?.title ?? advisorDisplayName}
-                    </h1>
-                    <button
-                      type="button"
-                      onClick={() => void handleStartSession("voice")}
-                      className="vyva-tap flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-sm"
-                      data-testid="button-advisor-start-voice"
-                      aria-label={ui?.micIdle ?? "Talk by voice"}
-                      title={ui?.micIdle ?? "Talk by voice"}
-                    >
-                      <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : <div className="flex items-center gap-4">
+                {!isMovementCoach && <div className="flex items-center gap-4">
                   <AdvisorAvatar
                     iconKey={advisor.iconKey}
                     chipBg={advisor.chipBg}

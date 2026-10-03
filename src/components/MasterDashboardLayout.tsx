@@ -56,6 +56,7 @@ export type MasterDashboardCard = {
   nudgeDismissLabel?: string;
   nudgeDismissPending?: boolean;
   nudgeError?: string;
+  nudgeContent?: ReactNode;
 };
 
 export type MasterFastHelpAction = {
@@ -668,7 +669,7 @@ export default function MasterDashboardLayout({
                   ) : null}
                 </span>
               </button>
-              {card.nudgeLabel && card.onNudgeClick ? (
+              {card.nudgeContent ?? (card.nudgeLabel && card.onNudgeClick ? (
                 <div className="flex items-center border-t border-vyva-border">
                 <button
                   type="button"
@@ -693,7 +694,7 @@ export default function MasterDashboardLayout({
                 </button>
                 {card.onNudgeDismiss && <button type="button" onClick={card.onNudgeDismiss} disabled={card.nudgeDismissPending} aria-label={card.nudgeDismissLabel} title={card.nudgeDismissLabel} className="vyva-tap flex h-11 w-11 shrink-0 items-center justify-center text-vyva-purple"><X size={18} aria-hidden="true" /></button>}
                 </div>
-              ) : null}
+              ) : null)}
               {card.nudgeError && <p role="alert" className="px-3 pb-2 text-sm text-vyva-text-2">{card.nudgeError}</p>}
               </div>
             );

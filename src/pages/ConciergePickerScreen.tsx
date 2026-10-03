@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
-import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
+import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
+import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -549,6 +550,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     pt: ["O seu pedido precisa de atenção", "Continuar o seu pedido", "Adicionar um prestador de confiança", "Fechar"],
   };
   const nudgeLabels = nudgeCopy[language.split("-")[0]] ?? nudgeCopy.en;
+  const visibleReminders = visibleConciergeReminders(homeTasks, language, reminderDismissals.hidden);
   const reminderTask = attentionTask ?? draftTask;
   const reminder = reminderTask ? conciergeTaskReminder(reminderTask, language) : null;
   const reminderKey = reminder?.taskKey ?? "setup:trusted-provider";
@@ -571,7 +573,8 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
         />
       }
     >
-      {showNudge && (
+      {category === "get-help" && reminderDismissals.ready && !blockedOption && visibleReminders.length > 0 && <div data-testid="get-help-nudge"><ConciergeRequestUpdates reminders={visibleReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /></div>}
+      {showNudge && !reminder && (
         <aside className={`mb-4 flex items-center gap-1 rounded-[22px] border px-3 py-2 ${isDark ? "border-white/[0.14] bg-white/[0.06] text-[#FFF8FF]" : "border-[#E9DDF5] bg-[#FAF7FF] text-vyva-text-1"}`} data-testid="get-help-nudge">
           <button type="button" className="vyva-tap flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl text-left font-body text-[15px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B98CFF]" onClick={() => {
             if (reminder) navigate(reminder.path);

@@ -7,6 +7,73 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+for (const width of [390, 1280]) {
+  test(`delete request confirms and persists at ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height: 844 });
+    await mockApi(page, true);
+    let deleted = false;
+    let busy = true;
+    const draft = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", user_id: "user-smoke", kind: "home_service",
+      entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
+      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: deleted ? [] : [draft] }));
+    await page.route(`**/api/concierge/tasks/${draft.id}`, async route => {
+      expect(route.request().method()).toBe("DELETE");
+      if (busy) return fulfillJson(route, 409, { error: "Busy" });
+      deleted = true;
+      await fulfillJson(route, 200, { task: { ...draft, status: "deleted" } });
+    });
+    await page.goto("/concierge/get-help");
+    await page.getByRole("button", { name: "Delete request: Plumber" }).click();
+    await page.getByRole("button", { name: "Keep request", exact: true }).click();
+    expect(deleted).toBe(false);
+    await page.getByRole("button", { name: "Delete request: Plumber" }).click();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath("delete-confirmation.png"), fullPage: true, animations: "disabled" });
+    await page.getByRole("button", { name: "Delete request", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("being processed");
+    busy = false;
+    await page.getByRole("button", { name: "Delete request", exact: true }).click();
+    await expect(page.getByTestId("request-updates")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+    await expect(page.getByTestId("request-updates")).toHaveCount(0);
+    expect(deleted).toBe(true);
+  });
+}
+test("request updates group and dismiss together without returning on reload", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, true);
+  const dismissals: Record<string, string> = {};
+  const drafts = ["plumber", "electrician"].map((serviceType, index) => ({
+    id: `saved-${index}`, user_id: "user-smoke", kind: "home_service",
+    entry_payload: { kind: "home_service" }, progress_payload: { serviceType },
+    stage: "details", status: "active", linked_pending_id: null, language: "en",
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  }));
+  await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: drafts }));
+  await page.route("**/api/concierge/notifications/reminders/**", async route => {
+    if (route.request().method() === "POST") {
+      const input = route.request().postDataJSON();
+      dismissals[input.taskKey] = input.revision;
+    }
+    await fulfillJson(route, 200, dismissals);
+  });
+  await page.goto("/concierge/get-help");
+  await page.getByRole("button", { name: "2 requests to review" }).click();
+  await expect(page.getByRole("button", { name: "Plumber: Continue request" })).toBeVisible();
+  await expect(page.locator("#vyva-launch")).toBeHidden();
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("request-updates.png"), fullPage: true });
+  await page.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
+  await expect(page.getByTestId("request-updates")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+  await expect(page.getByTestId("request-updates")).toHaveCount(0);
+  expect(Object.keys(dismissals)).toHaveLength(2);
+});
 test("wellness compact intro shows routines beside an icon-only voice control", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 780, height: 980 });
   await mockApi(page, true);
