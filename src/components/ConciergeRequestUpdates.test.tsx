@@ -12,6 +12,15 @@ const reminders = ["Plumber", "Electrician"].map((title, index) => ({
   revision: `reply:${index}`, legacyRevision: "old", hasUpdate: true, path: `/concierge/tasks/pending%3A${index}`,
 }));
 describe("request update summary", () => {
+  it("insets embedded reminders without adding an empty footer", () => {
+    render(<MemoryRouter><ConciergeRequestUpdates embedded reminders={reminders} language="en" dismiss={vi.fn()} pending={false} /></MemoryRouter>);
+    expect(screen.getByTestId("request-updates")).toHaveClass("px-4", "md:px-5", "border-t");
+    expect(screen.getByTestId("request-updates")).not.toHaveClass("mb-4", "border-b");
+    const toggle = screen.getByRole("button", { name: "2 requests have updates" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle.querySelector("svg")).toHaveClass("rotate-90");
+  });
   it("groups requests and dismisses the current snapshot, including identity aliases", () => {
     const dismiss = vi.fn();
     render(<MemoryRouter><ConciergeRequestUpdates reminders={reminders} language="en" dismiss={dismiss} pending={false} /></MemoryRouter>);
