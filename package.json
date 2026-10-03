@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite\"",
+    "predev:replit": "npm run db:concierge-dismissals",
     "dev:replit": "cross-env PORT=5000 NODE_ENV=development tsx server/index.ts",
+    "db:concierge-dismissals": "node scripts/apply-concierge-dismissals-schema.mjs",
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "preview:adherence": "node scripts/preview-adherence-report.mjs",
