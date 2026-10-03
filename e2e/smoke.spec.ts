@@ -41,9 +41,10 @@ for (const width of [390, 1280]) {
     let busy = true;
     const draft = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", user_id: "user-smoke", kind: "home_service",
       entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
-      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      stage: "details", status: "active", linked_pending_id: "delete-pending", language: "en",
       created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: deleted ? [] : [draft] }));
+    await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: deleted ? [] : [{ id: "delete-pending", use_case: "home_service", status: "pending", action_payload: {} }] }));
     await page.route(`**/api/concierge/tasks/${draft.id}`, async route => {
       expect(route.request().method()).toBe("DELETE");
       if (busy) return fulfillJson(route, 409, { error: "Busy" });
@@ -75,10 +76,11 @@ test("request updates group and dismiss together without returning on reload", a
   const drafts = ["plumber", "electrician"].map((serviceType, index) => ({
     id: `saved-${index}`, user_id: "user-smoke", kind: "home_service",
     entry_payload: { kind: "home_service" }, progress_payload: { serviceType },
-    stage: "details", status: "active", linked_pending_id: null, language: "en",
+    stage: "details", status: "active", linked_pending_id: `pending-${index}`, language: "en",
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }));
   await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: drafts }));
+  await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: drafts.map(draft => ({ id: draft.linked_pending_id, use_case: "home_service", status: "pending", action_payload: {} })) }));
   await page.route("**/api/concierge/notifications/reminders/**", async route => {
     if (route.request().method() === "POST") {
       const input = route.request().postDataJSON();
@@ -88,7 +90,7 @@ test("request updates group and dismiss together without returning on reload", a
   });
   await page.goto("/concierge/get-help");
   await page.getByRole("button", { name: "2 requests to review" }).click();
-  await expect(page.getByRole("button", { name: "Plumber: Continue request" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plumber: Review request" })).toBeVisible();
   await expect(page.locator("#vyva-launch")).toBeHidden();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("request-updates.png"), fullPage: true });
@@ -97,7 +99,7 @@ test("request updates group and dismiss together without returning on reload", a
   await page.reload();
   await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
   await expect(page.getByTestId("request-updates")).toHaveCount(0);
-  expect(Object.keys(dismissals)).toHaveLength(2);
+  expect(Object.keys(dismissals).sort()).toEqual(["draft:saved-0", "draft:saved-1", "pending:pending-0", "pending:pending-1"]);
 });
 test("wellness compact intro shows routines beside an icon-only voice control", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 780, height: 980 });
@@ -504,10 +506,11 @@ for (const width of [390, 1280]) {
     const draft = {
       id: "saved-plumber", user_id: "user-1", kind: "home_service",
       entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
-      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      stage: "details", status: "active", linked_pending_id: "pending-plumber", language: "en",
       created_at: "2026-10-02T10:00:00Z", updated_at: "2026-10-02T10:00:00Z",
     };
     await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: [draft] }));
+    await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: [{ id: "pending-plumber", use_case: "home_service", status: "pending", action_payload: {}, action_summary: "Review the plumbing request.", provider_name: "Saved plumber", requested_tool: "email", active_tool: "email", language: "en" }] }));
     await page.route("**/api/concierge/notifications/reminders/**", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
@@ -518,19 +521,19 @@ for (const width of [390, 1280]) {
     await page.goto("/concierge");
     const reminder = page.getByTestId("button-concierge-task-nudge-get-help");
     await expect(reminder).toContainText("Plumber");
-    await expect(reminder).toContainText("Continue request");
-    await expect(page.getByTestId("button-concierge-card-service")).not.toContainText("Continue request");
+    await expect(reminder).toContainText("Review request");
+    await expect(page.getByTestId("button-concierge-card-service")).not.toContainText("Review request");
     await reminder.click({ trial: true });
     await expect(page.locator("#vyva-launch")).toBeHidden();
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`reminder-${width}.png`), fullPage: true });
     await page.getByTestId("button-concierge-card-service").click();
     await expect(page).toHaveURL(/\/concierge\/get-help$/);
-    await expect(page.getByTestId("get-help-nudge")).toContainText("Plumber: Continue request");
+    await expect(page.getByTestId("get-help-nudge")).toContainText("Plumber: Review request");
     await page.goto("/concierge");
     await page.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
     await expect(reminder).toHaveCount(0);
-    expect(Object.keys(dismissals)).toEqual(["draft:saved-plumber"]);
+    expect(Object.keys(dismissals).sort()).toEqual(["draft:saved-plumber", "pending:pending-plumber"]);
     await page.reload();
     await expect(page.getByTestId("button-concierge-card-service")).toBeVisible();
     await expect(reminder).toHaveCount(0);
