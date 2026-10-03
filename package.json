@@ -54,6 +54,7 @@
     "preview:symptom-flow": "cross-env NODE_ENV=development PORT=8125 DATABASE_URL=postgresql://127.0.0.1:1/vyva_local_preview tsx scripts/preview-symptom-flow.ts",
     "test:e2e": "playwright test",
     "test": "node scripts/run-vitest.mjs",
+    "test:concierge-whatsapp": "cross-env DATABASE_URL=postgresql://127.0.0.1:1/test VITEST_CHUNK_TIMEOUT_MS=900000 node scripts/run-vitest.mjs --project=server --no-file-parallelism server/services/conciergeWhatsappAdapter.test.ts server/services/conciergeActionAdapters.test.ts server/services/conciergeChannelReadiness.test.ts server/services/communicationDispatcher.whatsapp.test.ts server/services/communicationDispatcher.resend.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

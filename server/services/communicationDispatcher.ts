@@ -261,7 +261,7 @@ async function sendSms(item: Communication) {
   return postTwilioForm("Messages", params);
 }
 
-export function buildWhatsappMessageParams(item: Communication) {
+export function buildWhatsappMessageParams(item: Pick<Communication, "recipient" | "body" | "metadata">) {
   const metadata = metadataRecord(item.metadata);
   const contentSid = metadataString(metadata, "content_sid");
   const contentVariables = metadata.content_variables;
@@ -281,7 +281,7 @@ export function buildWhatsappMessageParams(item: Communication) {
   return params;
 }
 
-async function sendWhatsapp(item: Communication) {
+export async function sendWhatsapp(item: Pick<Communication, "recipient" | "body" | "metadata">) {
   const from = process.env.TWILIO_WHATSAPP_FROM ?? process.env.TWILIO_WHATSAPP_FROM_NUMBER;
   const messagingServiceSid = process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID;
   if (!messagingServiceSid && !from) throw new Error("WhatsApp sender is not configured");

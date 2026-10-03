@@ -9,6 +9,7 @@ import {
   conciergeProviderContactForChannel,
 } from "../../shared/conciergeAdapterPayloadContract.js";
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
+import { ownedConciergeWhatsappEnabled, sendConciergeWhatsapp } from "./conciergeWhatsappAdapter.js";
 import {
   conciergeEmailPilotRecipientBlocker,
   isOwnedConciergeEmailAdapterEnabled,
@@ -469,6 +470,17 @@ async function executeLive(input: ConciergeActionAdapterInput, channel: Concierg
 
   if (channel === "phone_call") return executePhoneLive(input);
   if (channel === "email" && isOwnedConciergeEmailAdapterEnabled()) return executeOwnedEmailLive(input);
+  if (channel === "whatsapp" && ownedConciergeWhatsappEnabled()) {
+    const recipient = conciergeProviderContactForChannel(channel, input);
+    const message = text(input.payload?.whatsapp_message);
+    if (!recipient || !message) return blockedResult(input, channel, "whatsapp_recipient_and_message_required");
+    try {
+      const result = await sendConciergeWhatsapp(recipient, message);
+      return sentResult(input, channel, result.sid ?? null, result.status ?? "accepted");
+    } catch (error) {
+      return failedResult(input, channel, error instanceof Error ? error.message : String(error));
+    }
+  }
   return postJsonAdapterEndpoint(input, channel);
 }
 

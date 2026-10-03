@@ -33,6 +33,8 @@ function resetChannelEnv() {
     "CONCIERGE_EMAIL_CHANNEL_VERIFIED",
     "CONCIERGE_WHATSAPP_CHANNEL_READY",
     "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+    "CONCIERGE_WHATSAPP_ADAPTER",
+    "CONCIERGE_WHATSAPP_PILOT_RECIPIENTS",
     "CONCIERGE_WHATSAPP_CHANNEL_VERIFIED",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_READY",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
@@ -153,6 +155,29 @@ describe("admin Concierge channel readiness", () => {
     })).rejects.toThrow(/required setup has not been configured/i);
 
     expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("recognizes the existing Twilio sender without enabling live WhatsApp or exposing secrets", async () => {
+    process.env.CONCIERGE_WHATSAPP_ADAPTER = "twilio";
+    process.env.TWILIO_ACCOUNT_SID = "test-account-secret";
+    process.env.TWILIO_AUTH_TOKEN = "test-token-secret";
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+12025550100";
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    const snapshot = await buildAdminConciergeChannelReadinessSnapshot();
+    expect(snapshot.channels.find((channel) => channel.channel === "whatsapp")).toMatchObject({
+      configured: true,
+      verified: false,
+      ready: false,
+      external_action_allowed: false,
+      adapter_setup: {
+        source: "environment",
+        live_endpoint_reference: "TWILIO_WHATSAPP",
+        credential_reference: "TWILIO_AUTH_TOKEN",
+      },
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("test-account-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("test-token-secret");
   });
 
   it("stores adapter setup references without marking the channel live-ready", async () => {

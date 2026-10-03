@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("../db.js", () => ({ db: {} }));
+vi.mock("./callbackOnboarding.js", () => ({ queueDueCallbackOnboardingCalls: vi.fn() }));
+vi.mock("./cognitiveAssessmentReminders.js", () => ({ queueDueCognitiveAssessmentReminders: vi.fn() }));
+vi.mock("./lifecycle.js", () => ({ queueDueConsentCalls: vi.fn() }));
 import { buildWhatsappMessageParams } from "./communicationDispatcher.js";
 
 function communication(overrides: Record<string, unknown> = {}) {
