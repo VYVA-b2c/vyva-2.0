@@ -24,7 +24,18 @@ type NotificationRow = {
 
 export async function listConciergeReminderDismissals(userId: string, database: Pool = pool) {
   const result = await database.query<{ task_key: string; revision: string }>(
-    "select task_key, revision from concierge_reminder_dismissals where user_id = $1", [userId],
+    `select distinct on (identity.task_key) identity.task_key, dismissal.revision
+     from concierge_reminder_dismissals dismissal
+     left join concierge_task_drafts draft on draft.user_id = dismissal.user_id
+       and (dismissal.task_key = 'draft:' || draft.id::text
+         or dismissal.task_key = 'pending:' || draft.linked_pending_id::text)
+     cross join lateral unnest(array[
+       dismissal.task_key,
+       case when draft.id is not null then 'draft:' || draft.id::text end,
+       case when draft.linked_pending_id is not null then 'pending:' || draft.linked_pending_id::text end
+     ]) as identity(task_key)
+     where dismissal.user_id = $1 and identity.task_key is not null
+     order by identity.task_key, dismissal.dismissed_at desc`, [userId],
   );
   return Object.fromEntries(result.rows.map(row => [row.task_key, row.revision]));
 }

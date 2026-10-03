@@ -23,6 +23,7 @@ import { getAdvisorCopy, isAdvisorSlug } from "../../shared/advisors";
 import { AdvisorAvatar } from "./AdvisorIcons";
 import {
   MOVEMENT_EXERCISE_VISUALS,
+  MOVEMENT_FEATURED_EXERCISE_IDS,
   getMovementExerciseCards,
   getMovementExerciseLanguage,
   type MovementExerciseCardId,
@@ -33,15 +34,6 @@ import {
 } from "./movementCoachAdvisor";
 import { getAdvisorPresentation } from "./advisorPresentation";
 import SocialStyles from "./SocialStyles";
-
-const MOVEMENT_COACH_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = [
-  "chair-yoga",
-  "tai-chi",
-  "seated-strength",
-  "calm-breathing",
-  "sit-to-stand",
-  "shoulder-release",
-];
 
 type AdvisorVoiceControls = {
   startVoice: ReturnType<typeof useVyvaVoice>["startVoice"];
@@ -156,15 +148,15 @@ function MovementCoachRoutineShortcuts({
 }) {
   const movementLanguage = getMovementExerciseLanguage(language);
   const copy = getMovementCoachCopy(language);
-  const featuredIds = new Set(MOVEMENT_COACH_FEATURED_EXERCISE_IDS);
+  const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
   const cards = getMovementExerciseCards(movementLanguage).filter((card) => featuredIds.has(card.id));
 
   return (
     <section
-      className="mt-5 rounded-[24px] border border-[#D7E8DB] bg-[#F8FCF8] p-4 text-left"
+      className="mt-5 text-left"
       data-testid="movement-coach-routines"
     >
-      <h2 className="font-body text-[19px] font-black leading-tight text-[#24152F]">
+      <h2 className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
         {copy.routineTitle}
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
@@ -181,10 +173,10 @@ function MovementCoachRoutineShortcuts({
             >
               <img src={visual.image} alt="" className="h-24 w-full object-cover min-[390px]:h-28" />
               <span className="block px-3 py-2.5">
-                <span className="block font-body text-[14px] font-black leading-tight text-[#24152F]">
+                <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
                   {card.title}
                 </span>
-                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-[#6F6474]">
+                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-vyva-text-2">
                   {card.benefit}
                 </span>
                 <span className="sr-only">
@@ -524,7 +516,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
         data-home-master-theme={isDark ? "dark" : "light"}
       >
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
-          <div className="flex items-center gap-3">
+          <div className={isMovementCoach && showIntro ? "mx-auto grid max-w-3xl grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3" : "flex items-center gap-3"}>
             <button
               type="button"
               onClick={() => navigate("/social-rooms/experts")}
@@ -534,7 +526,23 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
             >
               <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
             </button>
-            {advisor ? (
+            {advisor && isMovementCoach && showIntro ? (
+              <>
+                <h1 className="min-w-0 text-center font-body text-[24px] font-black leading-tight text-vyva-text-1">
+                  {advisorPresentation?.title ?? advisorDisplayName}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => void handleStartSession("voice")}
+                  className="vyva-tap flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#D8B4FE] bg-[#6B21A8] text-white shadow-sm"
+                  data-testid="button-advisor-start-voice"
+                  aria-label={ui?.micIdle ?? "Talk by voice"}
+                  title={ui?.micIdle ?? "Talk by voice"}
+                >
+                  <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              </>
+            ) : advisor ? (
               <>
                 <AdvisorAvatar
                   iconKey={advisor.iconKey}
@@ -573,46 +581,30 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               {ui?.empty ?? "Your experts are not available right now."}
             </section>
           ) : showIntro ? (
-            <section className="mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]" data-testid="advisor-intro">
-              <div className="px-5 pb-5 pt-5">
-                {isMovementCoach ? (
-                  <div className="rounded-[24px] bg-[#F7F1FF] px-4 py-4">
-                    <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                      VYVA wellness
+            <section className={isMovementCoach ? "mx-auto w-full max-w-3xl" : "mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]"} data-testid="advisor-intro">
+              <div className={isMovementCoach ? "py-2" : "px-5 pb-5 pt-5"}>
+                {!isMovementCoach && <div className="flex items-center gap-4">
+                  <AdvisorAvatar
+                    iconKey={advisor.iconKey}
+                    chipBg={advisor.chipBg}
+                    iconColor={advisor.iconColor}
+                    portraitSrc={advisorPresentation?.portraitSrc}
+                    className="h-[86px] w-[86px] rounded-full ring-1 ring-[#E8DFF0]"
+                    size={42}
+                    strokeWidth={2.3}
+                  />
+                  <div className="min-w-0 pt-1">
+                    <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
+                      {isMovementCoach ? "VYVA wellness" : "Your expert"}
                     </p>
-                    <h1 className="mt-1 font-body text-[28px] font-black leading-[1.02] text-[#24152F] min-[390px]:text-[30px]">
-                      Move gently today
+                    <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
+                      {advisorPresentation?.title ?? advisorDisplayName}
                     </h1>
-                    <p className="mt-2 font-body text-[16px] font-bold leading-snug text-[#6F6474]">
-                      Choose a routine, or let VYVA guide you by voice.
-                    </p>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-4">
-                      <AdvisorAvatar
-                        iconKey={advisor.iconKey}
-                        chipBg={advisor.chipBg}
-                        iconColor={advisor.iconColor}
-                        portraitSrc={advisorPresentation?.portraitSrc}
-                        className="h-[86px] w-[86px] rounded-full ring-1 ring-[#E8DFF0]"
-                        size={42}
-                        strokeWidth={2.3}
-                      />
-                      <div className="min-w-0 pt-1">
-                        <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                          Your expert
-                        </p>
-                        <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
-                          {advisorPresentation?.title ?? advisorDisplayName}
-                        </h1>
-                      </div>
-                    </div>
-                    <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
-                      {helpStatement}
-                    </p>
-                  </>
-                )}
+                </div>}
+                {!isMovementCoach && <><p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
+                  {helpStatement}
+                </p>
                 <div className="mt-5 grid gap-3">
                   <button
                     type="button"
@@ -626,7 +618,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     <span className="mt-4 block font-body text-[21px] font-black leading-tight">{isMovementCoach ? "Voice guide" : "Voice chat"}</span>
                     <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-white/80">Speak naturally with VYVA</span>
                   </button>
-                </div>
+                </div></>}
                 {isMovementCoach ? (
                   <MovementCoachRoutineShortcuts
                     language={language}
@@ -694,7 +686,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {showIntro && !isMovementCoach ? (
+        {showIntro && isMovementCoach ? null : showIntro ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
@@ -719,7 +711,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               {isSending ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <Send size={22} strokeWidth={2.5} aria-hidden="true" />}
             </button>
           </form>
-        ) : !showIntro ? (
+        ) : (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto w-full max-w-5xl border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
@@ -767,7 +759,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               </button>
             </div>
           </form>
-        ) : null}
+        )}
       </main>
     </>
   );

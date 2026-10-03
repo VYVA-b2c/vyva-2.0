@@ -145,8 +145,8 @@ describe("ConciergePickerScreen", () => {
       { key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" },
     ];
     const view = renderPicker("get-help");
-    expect(await screen.findByRole("button", { name: "Plumber: Add information" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(await screen.findByRole("button", { name: "2 requests to review" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss reminder" }));
     await waitFor(() => expect(screen.queryByTestId("get-help-nudge")).not.toBeInTheDocument());
     expect(dismissedReminders["pending:attention"]).toBeTruthy();
     view.unmount();

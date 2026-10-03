@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
 import { buildConciergeTaskInbox } from "@/lib/conciergeTaskInbox";
-import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
+import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
+import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
 import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { homeHelpCopy } from "../../shared/homeHelpCopy";
@@ -107,6 +108,7 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
+import { HomeServicePicker } from "@/components/concierge/HomeServicePicker";
 import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -17739,7 +17741,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const reminderInbox = buildConciergeTaskInbox({ drafts: savedTaskDrafts, pending: pendingActions, completed: [], isSpanish: false });
   const reminderItem = [...reminderInbox.needs_you, ...reminderInbox.waiting].find(item => item.detailPath === homeActiveTask?.detailPath);
   const homeReminder = reminderItem ? conciergeTaskReminder(reminderItem, language) : null;
-  const homeTaskNudge = reminderDismissals.ready && homeReminder && !reminderDismissals.hidden(homeReminder.taskKey, homeReminder.revision) ? homeReminder : null;
+  const visibleHomeReminders = visibleConciergeReminders(reminderInbox.needs_you, language, reminderDismissals.hidden);
+  const homeTaskNudge = reminderDismissals.ready ? (visibleHomeReminders.find(item => item.taskKey === homeReminder?.taskKey) ?? visibleHomeReminders[0] ?? null) : null;
   const homeTaskFlowReference = activeSavedTaskExecutionTask?.flow_reference
     ?? activeActionExecutionTask?.flow_reference
     ?? (activeSavedTask?.action ? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]) : "")
@@ -17776,7 +17779,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           nudgeDetail: homeTaskNudge.action,
           nudgeTestId: `button-concierge-task-nudge-${card.id}`,
           onNudgeClick: () => navigate(homeTaskNudge.path),
-          onNudgeDismiss: () => reminderDismissals.dismiss(homeTaskNudge.taskKey, homeTaskNudge.revision),
+          onNudgeDismiss: () => reminderDismissals.dismissMany(homeTaskNudge.aliases.map(taskKey => ({ taskKey, revision: homeTaskNudge.revision }))),
+          nudgeContent: visibleHomeReminders.length > 0 ? <ConciergeRequestUpdates navigationTestId={`button-concierge-task-nudge-${card.id}`} reminders={visibleHomeReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /> : undefined,
           nudgeDismissLabel: homeServiceText(language, "Dismiss reminder"),
           nudgeDismissPending: reminderDismissals.pending,
           nudgeError: reminderDismissals.error ? homeServiceText(language, "Could not dismiss reminder. Try again.") : undefined,
@@ -20427,31 +20431,21 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     )}
                     </>
                   ) : (
-                    <div className="order-1 mt-3" data-testid="panel-home-service-service-picker">
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {HOME_SERVICE_TYPES.map((service) => (
-                          <PurpleModalOption
-                            key={service.key}
-                            onClick={() => {
-                              setHomeServiceType(service.key);
-                              setHomeServiceIntakeOrigin((current) => current || "app");
-                              setHomeServiceIntakeAnswers({});
-                              setHomeServiceTextDrafts({});
-                              setAppointmentRequest(null);
-                              setAppointmentOptions([]);
-                              setAppointmentDiscovery(null);
-                              setAppointmentAttemptResult(null);
-                              setAppointmentNotice(null);
-                              setAppointmentError(null);
-                            }}
-                            data-testid={`button-home-service-type-${service.key}`}
-                            className="min-h-[72px] !rounded-lg px-3 text-[16px]"
-                          >
-                            {homeServiceTypeLabel(service.key, locale)}
-                          </PurpleModalOption>
-                        ))}
-                      </div>
-                    </div>
+                    <HomeServicePicker
+                      language={locale}
+                      onSelect={(service) => {
+                        setHomeServiceType(service);
+                        setHomeServiceIntakeOrigin((current) => current || "app");
+                        setHomeServiceIntakeAnswers({});
+                        setHomeServiceTextDrafts({});
+                        setAppointmentRequest(null);
+                        setAppointmentOptions([]);
+                        setAppointmentDiscovery(null);
+                        setAppointmentAttemptResult(null);
+                        setAppointmentNotice(null);
+                        setAppointmentError(null);
+                      }}
+                    />
                   )}
                 </div>
               </div>

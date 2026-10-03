@@ -192,6 +192,7 @@ router.get("/pending", async (req: Request, res: Response) => {
         from concierge_pending
         where user_id = $1
           and status in ('pending', 'calling')
+          and action_payload ->> 'request_deleted_at' is null
         order by confirmed_at desc nulls last, expires_at desc nulls last
         limit 20
       `,
@@ -236,6 +237,8 @@ router.get("/sessions", async (req: Request, res: Response) => {
           completed_at
         from concierge_sessions
         where user_id = $1
+          and not exists (select 1 from concierge_pending cp where cp.id = concierge_sessions.pending_id
+            and cp.action_payload ->> 'request_deleted_at' is not null)
         order by completed_at desc nulls last
         limit 20
       `,

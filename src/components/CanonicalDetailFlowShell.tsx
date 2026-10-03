@@ -142,6 +142,7 @@ type CanonicalDetailFlowShellProps = {
   contentTestId?: string;
   backTestId?: string;
   frameClassName?: string;
+  titleId?: string;
 };
 
 const shellSurface = {
@@ -167,6 +168,7 @@ export function CanonicalDetailFlowShell({
   contentTestId = "canonical-detail-flow-content",
   backTestId = "button-prototype-back",
   frameClassName = "",
+  titleId,
 }: CanonicalDetailFlowShellProps) {
   const { isDark: prefersDark } = useHomeMasterTheme();
   const isDark = appearance === "adaptive" && prefersDark;
@@ -203,7 +205,7 @@ export function CanonicalDetailFlowShell({
               <span className="sr-only">Back</span>
             </button>
             <div className="min-w-0 text-center">
-              <h1 className="truncate font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+              <h1 id={titleId} className="truncate font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
                 {shellContract.headerTitle}
               </h1>
             </div>

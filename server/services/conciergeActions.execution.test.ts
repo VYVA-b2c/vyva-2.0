@@ -11,6 +11,8 @@ const dbMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../db.js", () => dbMock);
+// Lock lifecycle and concurrent deletion are tested in conciergeRequestDeletion.test.ts.
+vi.mock("./conciergeRequestLock.js", () => ({ withConciergeRequestLock: (_key: string, work: () => Promise<unknown>) => work() }));
 
 import {
   completePendingConciergeAction,
@@ -79,7 +81,7 @@ function passedChannelSettingsRow(channel: string, overrides: Record<string, unk
 }
 
 function lastUpdatedPayload() {
-  const updateCall = dbMock.pool.query.mock.calls.find(([sql]) => String(sql).includes("update concierge_pending"));
+  const updateCall = dbMock.pool.query.mock.calls.filter(([sql]) => String(sql).includes("update concierge_pending")).at(-1);
   expect(updateCall).toBeTruthy();
   const rawPayload = updateCall?.[1]?.[2];
   expect(typeof rawPayload).toBe("string");
@@ -145,6 +147,14 @@ describe("confirmed Concierge action execution", () => {
     process.env = { ...originalEnv };
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
+  });
+
+  it.each(["cancelled", "deleted"])("never starts or reconfirms a %s request", async state => {
+    mockPendingRow({ id: "request", user_id: "user-1", status: state === "cancelled" ? "cancelled" : "pending",
+      action_payload: state === "deleted" ? { request_deleted_at: "2026-10-03T10:00:00Z" } : {} });
+    await expect(startPendingConciergeAction("request", "user-1")).rejects.toThrow("cannot be started");
+    await expect(confirmPendingConciergeActionReview("request", "user-1")).rejects.toThrow("cannot be confirmed");
+    expect(dbMock.pool.query.mock.calls.some(([sql]) => String(sql).includes("update concierge_pending"))).toBe(false);
   });
 
   it("confirms a manual admin handoff into the operator queue without external execution", async () => {

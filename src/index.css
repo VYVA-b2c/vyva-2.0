@@ -1162,10 +1162,10 @@
 .home-repair-results details[open] > summary svg { transform: rotate(180deg); }
 .home-repair-alternatives button > span:first-child { font-size: 16px; font-weight: 600; }
 .home-repair-alternatives button > span:not(:first-child) { font-size: 14px; line-height: 1.5; font-weight: 400; }
-.home-repair-page [data-testid="panel-home-service-service-picker"] > div {
+.home-repair-page details[data-testid="panel-home-service-service-picker"] > div {
   grid-template-columns: minmax(0, 1fr);
 }
-.home-repair-page [data-testid="panel-home-service-service-picker"] button {
+.home-repair-page details[data-testid="panel-home-service-service-picker"] button {
   text-align: left;
   justify-content: flex-start;
   padding: 20px;
