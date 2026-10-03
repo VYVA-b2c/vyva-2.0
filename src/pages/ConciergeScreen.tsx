@@ -108,6 +108,7 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
+import { HomeServicePicker } from "@/components/concierge/HomeServicePicker";
 import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -20392,31 +20393,21 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     )}
                     </>
                   ) : (
-                    <div className="order-1 mt-3" data-testid="panel-home-service-service-picker">
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {HOME_SERVICE_TYPES.map((service) => (
-                          <PurpleModalOption
-                            key={service.key}
-                            onClick={() => {
-                              setHomeServiceType(service.key);
-                              setHomeServiceIntakeOrigin((current) => current || "app");
-                              setHomeServiceIntakeAnswers({});
-                              setHomeServiceTextDrafts({});
-                              setAppointmentRequest(null);
-                              setAppointmentOptions([]);
-                              setAppointmentDiscovery(null);
-                              setAppointmentAttemptResult(null);
-                              setAppointmentNotice(null);
-                              setAppointmentError(null);
-                            }}
-                            data-testid={`button-home-service-type-${service.key}`}
-                            className="min-h-[72px] !rounded-lg px-3 text-[16px]"
-                          >
-                            {homeServiceTypeLabel(service.key, locale)}
-                          </PurpleModalOption>
-                        ))}
-                      </div>
-                    </div>
+                    <HomeServicePicker
+                      language={locale}
+                      onSelect={(service) => {
+                        setHomeServiceType(service);
+                        setHomeServiceIntakeOrigin((current) => current || "app");
+                        setHomeServiceIntakeAnswers({});
+                        setHomeServiceTextDrafts({});
+                        setAppointmentRequest(null);
+                        setAppointmentOptions([]);
+                        setAppointmentDiscovery(null);
+                        setAppointmentAttemptResult(null);
+                        setAppointmentNotice(null);
+                        setAppointmentError(null);
+                      }}
+                    />
                   )}
                 </div>
               </div>

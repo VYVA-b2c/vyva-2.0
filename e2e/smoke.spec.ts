@@ -7,6 +7,31 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+for (const theme of ["light", "dark"]) {
+  for (const width of [390, 1280]) {
+    test(`home service picker matches canonical layout ${theme} ${width}px`, async ({ page }, testInfo) => {
+      test.setTimeout(60_000);
+      await page.setViewportSize({ width, height: 900 });
+      await mockApi(page, true);
+      await page.addInitScript(value => localStorage.setItem("vyva:home-master-theme:v1", value), theme);
+      const draft = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", user_id: "user-smoke", kind: "home_service",
+        entry_payload: { kind: "home_service" }, progress_payload: {}, stage: "details", status: "active",
+        linked_pending_id: null, language: "en", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      await page.route(`**/api/concierge/tasks/${draft.id}`, route => fulfillJson(route, 200, { task: draft }));
+      await page.goto(`/concierge/task/${draft.id}`);
+      const panel = page.getByTestId("panel-appointment-assistant");
+      await expect(panel).toHaveAttribute("data-header-contract", "detail.voice-touch");
+      await expect(panel.getByRole("heading", { name: "Choose a service" })).toBeVisible();
+      await expect(panel.getByTestId("panel-home-service-service-picker").getByRole("button")).toHaveCount(6);
+      await expect(panel.getByTestId("button-canonical-voice")).toBeVisible();
+      await expect(page.locator("#vyva-launch")).toBeHidden();
+      await expectNoHorizontalOverflow(page);
+      await page.screenshot({ path: testInfo.outputPath("canonical-service-picker.png"), fullPage: true, animations: "disabled" });
+      await panel.getByRole("button", { name: "Plumber", exact: true }).click();
+      await expect(panel.getByRole("heading", { name: "Plumber", exact: true })).toBeVisible();
+    });
+  }
+}
 for (const width of [390, 1280]) {
   test(`delete request confirms and persists at ${width}px`, async ({ page }, testInfo) => {
     test.setTimeout(60_000);
