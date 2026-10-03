@@ -347,6 +347,7 @@ describe("AdvisorChat", () => {
     expect(screen.getByTestId("button-advisor-start-voice")).toHaveTextContent("");
     expect(screen.queryByText("Speak naturally with VYVA")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-advisor-message")).not.toBeInTheDocument();
     expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();

@@ -2319,6 +2319,17 @@ async function prepareAppointmentAttempt(params: {
   return await res.json() as PreparedAppointmentAttempt;
 }
 
+async function refreshAppointmentProviderContact(params: {
+  requestId: string;
+  optionId: string;
+}): Promise<AppointmentOptionResponse & { refreshed?: boolean }> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/options/${params.optionId}/refresh-contact`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Could not refresh provider contact details");
+  return await res.json() as AppointmentOptionResponse & { refreshed?: boolean };
+}
+
 async function commitPreparedAppointmentBooking(params: {
   attemptId: string;
   previewRevision: number;
@@ -10569,6 +10580,33 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     }
     return appointmentOptions[0] ?? null;
   }, [appointmentOptions, selectedAppointmentOptionId]);
+
+  const selectedProviderPlaceId = appointmentSnapshotText(selectedAppointmentOption, "place_id");
+  const appointmentProviderContactRefreshQuery = useQuery({
+    queryKey: ["/api/appointments/provider-contact-refresh", appointmentRequest?.id, selectedAppointmentOption?.id],
+    queryFn: () => refreshAppointmentProviderContact({
+      requestId: appointmentRequest!.id,
+      optionId: selectedAppointmentOption!.id,
+    }),
+    enabled: Boolean(
+      homeServiceCanvasMode
+      && appointmentRequest?.id
+      && selectedAppointmentOption?.id
+      && selectedAppointmentOption.provider_source === "external"
+      && selectedProviderPlaceId
+      && (homeServiceCanvasStep === "contact_consent" || homeServiceCanvasStep === "contact_method")
+    ),
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    const refreshedOption = appointmentProviderContactRefreshQuery.data?.option;
+    if (!refreshedOption) return;
+    setAppointmentOptions((current) => current.map((option) => (
+      option.id === refreshedOption.id ? refreshedOption : option
+    )));
+  }, [appointmentProviderContactRefreshQuery.data?.option]);
 
   const appointmentContactChannelReadinessQuery = useQuery({
     queryKey: ["/api/appointments/contact-channel-readiness"],
@@ -20662,12 +20700,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       </div>
                     </div>
                     <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
-                      {appointmentContactChannelReadinessQuery.isPending ? (
+                      {appointmentContactChannelReadinessQuery.isPending || appointmentProviderContactRefreshQuery.isFetching ? (
                         <div className="rounded-[14px] border border-[#D8B4FE] bg-white px-4 py-3 font-body text-[13px] font-semibold text-vyva-text-2" data-testid="status-home-service-contact-methods-loading">
                           {homeServiceText(locale, "Checking the provider's available contact methods...")}
                         </div>
                       ) : null}
-                      {homeServiceCanvasContactChannels.map((channel) => (
+                      {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isFetching && homeServiceCanvasContactChannels.map((channel) => (
                         <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
                             {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}

@@ -784,10 +784,13 @@ export function buildConciergeTaskInbox(input: {
   const safeNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
   const pendingById = new Map(input.pending.map((item) => [item.id, item]));
   const linkedPendingIds = new Set<string>();
-  const activeItems = input.drafts.map((draft) => {
+  // A saved wizard draft is resumable progress, not an active task. It only
+  // belongs in the task inbox once it is attached to a real pending action.
+  const activeItems = input.drafts.flatMap((draft) => {
     const pending = draft.linked_pending_id ? pendingById.get(draft.linked_pending_id) ?? null : null;
-    if (pending) linkedPendingIds.add(pending.id);
-    return activeItem({ draft, pending, isSpanish, nowMs: safeNowMs });
+    if (!pending) return [];
+    linkedPendingIds.add(pending.id);
+    return [activeItem({ draft, pending, isSpanish, nowMs: safeNowMs })];
   });
   for (const pending of input.pending) {
     if (!linkedPendingIds.has(pending.id)) activeItems.push(activeItem({ draft: null, pending, isSpanish, nowMs: safeNowMs }));

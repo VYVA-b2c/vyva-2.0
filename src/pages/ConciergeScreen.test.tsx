@@ -308,7 +308,7 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
   });
 
-  it("nudges an ongoing task on its matching service without showing a generic alert", async () => {
+  it("does not nudge an unfinished draft as an active task", async () => {
     mockConciergeLists([], [], [{
       id: "home-service-draft",
       kind: "home_service",
@@ -321,10 +321,8 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home");
 
     const homeRepair = await screen.findByTestId("button-concierge-card-service");
-    const nudge = await screen.findByTestId("button-concierge-task-nudge-get-help");
     expect(homeRepair).not.toHaveAttribute("data-highlighted");
-    expect(nudge).toHaveTextContent("Home service");
-    expect(nudge).toHaveTextContent("Continue request");
+    expect(screen.queryByTestId("button-concierge-task-nudge-get-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
     expect(screen.queryByText("Your request needs attention")).not.toBeInTheDocument();
 

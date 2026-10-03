@@ -31,7 +31,6 @@ import {
   type ConciergeTaskInboxItem,
   type ConciergeTaskPendingItem,
 } from "@/lib/conciergeTaskInbox";
-import { readLocalConciergeCanvasTaskItems } from "@/lib/conciergeLocalCanvasTasks";
 import {
   conciergeTaskInboxPath,
   parseConciergeTaskInboxKey,
@@ -765,18 +764,9 @@ export default function ConciergeTaskInboxPage() {
     completed: completedQuery.data ?? [],
     isSpanish,
   }), [completedQuery.data, draftsQuery.data, isSpanish, pendingQuery.data]);
-  const localCanvasItems = useMemo(() => readLocalConciergeCanvasTaskItems(isSpanish), [isSpanish]);
-  const combinedInbox = useMemo(() => {
-    if (localCanvasItems.length === 0) return inbox;
-    return {
-      needs_you: [...localCanvasItems.filter((item) => item.group === "needs_you"), ...inbox.needs_you],
-      waiting: [...localCanvasItems.filter((item) => item.group === "waiting"), ...inbox.waiting],
-      completed: [...localCanvasItems.filter((item) => item.group === "completed"), ...inbox.completed],
-    };
-  }, [inbox, localCanvasItems]);
   const parsedKey = useMemo(() => parseConciergeTaskInboxKey(taskKey), [taskKey]);
   const selectedItem = parsedKey
-    ? findConciergeTaskInboxItem(combinedInbox, parsedKey.source, parsedKey.id)
+    ? findConciergeTaskInboxItem(inbox, parsedKey.source, parsedKey.id)
     : null;
   const isLoading = draftsQuery.isLoading || pendingQuery.isLoading || completedQuery.isLoading;
   const hasError = draftsQuery.isError || pendingQuery.isError || completedQuery.isError;
@@ -866,7 +856,7 @@ export default function ConciergeTaskInboxPage() {
 
   return (
     <InboxList
-      inbox={combinedInbox}
+      inbox={inbox}
       language={language}
       isSpanish={isSpanish}
       onBack={() => navigate("/concierge")}

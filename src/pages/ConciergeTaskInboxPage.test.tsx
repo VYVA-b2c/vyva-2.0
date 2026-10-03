@@ -4,8 +4,6 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeTaskInboxPage from "./ConciergeTaskInboxPage";
 import { apiFetch } from "@/lib/queryClient";
-import { emptyRefillDraft } from "@/components/voice-canvas/refillCanvasMachine";
-import { emptyShoppingDraft } from "@/components/voice-canvas/shoppingCanvasMachine";
 import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution";
 
 vi.mock("@/i18n", () => ({
@@ -150,11 +148,10 @@ describe("ConciergeTaskInboxPage", () => {
     expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
   });
 
-  it("shows a local shopping Canvas draft and resumes it on the Shopping screen", async () => {
+  it("does not promote local wizard progress into the task inbox", async () => {
     sessionStorage.setItem("vyva.shoppingDelivery.v1", JSON.stringify({
       step: "review",
       draft: {
-        ...emptyShoppingDraft,
         items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
         fulfillment: "delivery",
         location: "Home",
@@ -166,44 +163,10 @@ describe("ConciergeTaskInboxPage", () => {
       revision: 3,
     }));
 
-    renderPage("/concierge/tasks/draft%3Alocal-canvas-shopping");
+    renderPage();
 
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Continue where you left off");
-    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Canvas");
-    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Task type");
-    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Continue request");
-
-    apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
-    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"shopping"');
-    expect(apiFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("shows a legacy local refill draft and routes it into the inventory tracker", async () => {
-    sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
-      step: "quantity",
-      draft: {
-        ...emptyRefillDraft,
-        medicationName: "Metformin",
-        strength: "500 mg",
-        providerName: "Saved pharmacy",
-      },
-      requestId: 0,
-    }));
-
-    renderPage("/concierge/tasks/draft%3Alocal-canvas-refill-active");
-
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Continue where you left off");
-    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Canvas");
-
-    apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/refills");
-    expect(screen.getByTestId("location-state")).toHaveTextContent("{}");
-    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("concierge-inbox-group-needs_you")).not.toHaveTextContent("Shopping or delivery");
+    expect(screen.queryByText("1 item saved. Review before preparing any request.")).not.toBeInTheDocument();
   });
 
   it("opens a focused detail, keeps More details closed, and resumes the exact saved task", async () => {
