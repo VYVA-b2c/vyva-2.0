@@ -1,9 +1,34 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../db.js", () => ({ db: {} }));
 vi.mock("./callbackOnboarding.js", () => ({ queueDueCallbackOnboardingCalls: vi.fn() }));
 vi.mock("./cognitiveAssessmentReminders.js", () => ({ queueDueCognitiveAssessmentReminders: vi.fn() }));
 vi.mock("./lifecycle.js", () => ({ queueDueConsentCalls: vi.fn() }));
-import { buildWhatsappMessageParams } from "./communicationDispatcher.js";
+import { buildWhatsappMessageParams, sendWhatsapp } from "./communicationDispatcher.js";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+it.each([
+  ["", "", "", "whatsapp:+12025550100", null],
+  ["whatsapp:+12025550102", "", "", "whatsapp:+12025550102", null],
+  ["", "+12025550103", "", "whatsapp:+12025550103", null],
+  ["", "", "MG-test", null, "MG-test"],
+])("resolves WhatsApp sender precedence (%s, %s, %s)", async (primary, alternate, service, expectedFrom, expectedService) => {
+  vi.stubEnv("TWILIO_ACCOUNT_SID", "AC-test");
+  vi.stubEnv("TWILIO_AUTH_TOKEN", "test-token");
+  vi.stubEnv("TWILIO_FROM_NUMBER", "+12025550100");
+  vi.stubEnv("TWILIO_WHATSAPP_FROM", primary);
+  vi.stubEnv("TWILIO_WHATSAPP_FROM_NUMBER", alternate);
+  vi.stubEnv("TWILIO_WHATSAPP_MESSAGING_SERVICE_SID", service);
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ sid: "SM-test", status: "queued" }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await sendWhatsapp(communication());
+  const params = new URLSearchParams(fetchMock.mock.calls[0][1].body);
+  expect(params.get("From")).toBe(expectedFrom);
+  expect(params.get("MessagingServiceSid")).toBe(expectedService);
+});
 
 function communication(overrides: Record<string, unknown> = {}) {
   return {

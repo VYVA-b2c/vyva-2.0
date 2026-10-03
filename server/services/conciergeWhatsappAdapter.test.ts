@@ -8,10 +8,22 @@ beforeEach(() => {
   vi.stubEnv("TWILIO_ACCOUNT_SID", "test-account");
   vi.stubEnv("TWILIO_AUTH_TOKEN", "test-token");
   vi.stubEnv("TWILIO_WHATSAPP_FROM", "whatsapp:+12025550100");
+  vi.stubEnv("TWILIO_WHATSAPP_FROM_NUMBER", "");
+  vi.stubEnv("TWILIO_WHATSAPP_MESSAGING_SERVICE_SID", "");
+  vi.stubEnv("TWILIO_FROM_NUMBER", "");
   vi.stubEnv("CONCIERGE_WHATSAPP_PILOT_RECIPIENTS", "+12025550101");
   send.mockReset().mockResolvedValue({ sid: "SM-test", status: "queued" });
 });
 afterEach(() => vi.unstubAllEnvs());
+it("recognises the existing shared Twilio sender key", () => {
+  vi.stubEnv("TWILIO_WHATSAPP_FROM", "");
+  vi.stubEnv("TWILIO_FROM_NUMBER", "+12025550100");
+  expect(ownedConciergeWhatsappConfigured()).toBe(true);
+});
+it("rejects configuration without any sender", () => {
+  vi.stubEnv("TWILIO_WHATSAPP_FROM", "");
+  expect(ownedConciergeWhatsappConfigured()).toBe(false);
+});
 it("reuses the existing sender for an approved pilot recipient", async () => {
   expect(ownedConciergeWhatsappConfigured()).toBe(true);
   expect(await sendConciergeWhatsapp("+12025550101", "Test")).toEqual({ sid: "SM-test", status: "queued" });
