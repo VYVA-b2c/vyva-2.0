@@ -14,7 +14,6 @@ import type {
   CognitiveAssessmentSaveResponseRequest,
   CognitiveAssessmentStartSessionResponse,
 } from "../../shared/cognitiveAssessmentRunner";
-import { buildStoryRecallScoringFields } from "../../shared/cognitiveStoryRecallScoring";
 
 const SESSION_STORAGE_KEY = "vyva_cognitive_assessment_session_id";
 
@@ -188,15 +187,8 @@ function buildInitialState(task: CognitiveAssessmentRunnerTask | null): FormStat
   return { text: "" };
 }
 
-function scoreTextAnswer(value: unknown) {
-  const words = countWords(value);
-  return {
-    text: text(value),
-    word_count: words,
-    score: words > 0 ? 1 : 0,
-  };
-}
-
+// Raw responses only. Scoring happens on the server, in
+// shared/cognitiveAssessmentScoring.ts, for every input mode.
 export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState: FormState): Record<string, unknown> {
   const content = asRecord(task.content);
 
@@ -210,19 +202,16 @@ export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState
         answer: text(answers[promptKey]),
       };
     });
-    const answeredCount = responseItems.filter((item) => item.answer).length;
     return {
       items: responseItems,
-      answered_count: answeredCount,
-      score: answeredCount,
-      max_score: items.length,
+      answered_count: responseItems.filter((item) => item.answer).length,
     };
   }
 
   if (task.id.includes("story_recall")) {
     return {
       text: text(formState.text),
-      ...buildStoryRecallScoringFields(formState.text, content.idea_units),
+      word_count: countWords(formState.text),
       title: text(content.title),
       delayed: Boolean(content.delayed),
       no_recall: Boolean(formState.storyNoRecall),
@@ -230,26 +219,15 @@ export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState
   }
 
   if (task.id.includes("fluency")) {
-    const words = splitWords(formState.text);
-    const unique = Array.from(new Set(words.map((word) => word.toLocaleLowerCase())));
     return {
-      words,
-      unique_responses: unique,
-      score: unique.length,
+      words: splitWords(formState.text),
       prompt: text(content.letter) || text(content.category),
     };
   }
 
   if (task.id === "digit_span") {
-    const forward = numberValue(formState.forwardSpan, 0);
-    const backward = numberValue(formState.backwardSpan, 0);
     return {
-      longest_span_forward: forward,
-      longest_span_backward: backward,
       trials: asArray(formState.digitTrials),
-      scoring_method: "guided_digit_span",
-      score: forward + backward,
-      max_score: 17,
     };
   }
 
@@ -265,26 +243,18 @@ export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState
         answer: text(answers[itemId]),
       };
     });
-    const answeredCount = responses.filter((response) => response.answer).length;
     return {
       responses,
       item_bank_ids: task.itemBankIds ?? [],
-      answered_count: answeredCount,
-      score: answeredCount,
-      max_score: responses.length * 2,
+      answered_count: responses.filter((response) => response.answer).length,
     };
   }
 
   if (task.id === "clock_drawing") {
     const placedHour = text(formState.clockHour) ? numberValue(formState.clockHour, 0) : null;
     const placedMinute = text(formState.clockMinute) ? numberValue(formState.clockMinute, 0) : null;
-    const clockText = text(formState.text) || (placedHour !== null && placedMinute !== null
-      ? `Placed clock hands at ${placedHour}:${String(placedMinute).padStart(2, "0")}.`
-      : "");
     return {
-      text: clockText,
-      word_count: countWords(clockText),
-      score: placedHour !== null && placedMinute !== null ? 1 : 0,
+      text: text(formState.text),
       target_time: text(content.target_time),
       placed_hour: placedHour,
       placed_minute: placedMinute,
@@ -296,27 +266,16 @@ export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState
   if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) {
     const answers = asRecord(formState.answers);
     const items = asArray(content.items).map((item) => asRecord(item));
-    const scale = asArray(content.scale).map((item) => asRecord(item));
-    const responseItems = items.map((item) => {
-      const itemId = text(item.id);
-      const value = numberValue(answers[itemId], 0);
-      const scaleItem = scale.find((entry) => numberValue(entry.value, Number.NaN) === value);
-      return {
-        id: itemId,
-        text: text(item.text),
-        value,
-        label: text(scaleItem?.label),
-      };
-    });
-    const score = responseItems.reduce((sum, item) => sum + item.value, 0);
     return {
       instrument: text(content.instrument, task.id),
-      answers: responseItems,
-      score,
+      answers: items.map((item) => {
+        const itemId = text(item.id);
+        return { id: itemId, value: answeredValue(answers[itemId]) ? numberValue(answers[itemId], 0) : null };
+      }),
     };
   }
 
-  return scoreTextAnswer(formState.text);
+  return { text: text(formState.text) };
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {

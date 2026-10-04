@@ -153,7 +153,9 @@ Deliberate architectural split — don't "fix" it without asking.
 - Readiness: `server/lib/cognitiveAssessmentReadiness.ts`
 - Runner API: `server/routes/cognitiveAssessment.ts`
 - Runner UI: `src/pages/CognitiveAssessmentRunnerPage.tsx`
-- Scoring: `shared/cognitiveStoryRecallScoring.ts` (everything else is inline in the runner)
+- Scoring: `shared/cognitiveAssessmentScoring.ts` — the only scorer. The server
+  scores every response on save from the content it served; clients send raw
+  answers only. Voice must go through the same function.
 - Trends: `server/lib/cognitiveAssessmentTrends.ts`
 - Report UI: `src/pages/CognitiveAssessmentReportPage.tsx`
 - Admin upload validation: `shared/contentBulkUpload.ts`
@@ -173,10 +175,14 @@ Verify from inside Replit whether these tables physically exist despite not
 being tracked — the tracking table has proven unreliable. If they don't
 exist, the games are writing into nothing.
 
-**2. Scoring is mostly completion, not correctness.** `scoring_config` is
-never read. Orientation and similarities score non-empty fields; clock scores
-"both dropdowns chosen"; fluency counts any unique string. Move scoring into
-one shared module before the voice path — see the content audit §2.
+**2. Scoring — moved into one module (`cc_scoring_v2`), gaps remain.**
+Orientation, similarities, clock, fluency, digit span and questionnaires are now
+scored for correctness on the server (migration 0105 aligns `scoring_config`).
+Still open: story idea units are the legacy word-dump lists (scored, but
+`needs_review`); semantic fluency has no validity lists (`needs_review`);
+similarities match against the flawed example lists (unmatched answers held for
+review); no review queue reads `needs_review` yet; a PHQ-2 `threshold_met` flag
+is stored but nothing acts on it.
 
 **3. No abandonment write path.** `cc_sessions.abandon_task_id` exists and
 nothing writes to it. Cheap fix. Do it before real users arrive.
@@ -204,7 +210,7 @@ after 3 prior sessions using min–max, which flags pure noise ~50% of the time.
 |---|---|
 | PHQ-2 (`mood_screen`) | **Public domain.** Pfizer released the PHQ family. No permission needed. Keep attribution. |
 | Lawton IADL (`function_iadl`) | GSA holds copyright. Verify commercial terms. |
-| `wechsler_logical_memory_adapted` | Cosmetic only — stories are original content. The label implies a lineage that doesn't exist. **Rename to `narrative_recall_idea_units`.** |
+| `wechsler_logical_memory_adapted` | Cosmetic only — stories are original content. Renamed to `narrative_recall_idea_units` in migration 0105. |
 | Sunderland (clock drawing) | Scoring method reference, not reproduced items. Fine. |
 | Word lists (CERAD / RAVLT) | Not sourced. Licensing conversation in progress. |
 | Digit span sequences | Provenance undocumented. |
