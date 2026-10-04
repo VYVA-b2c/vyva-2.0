@@ -88,6 +88,29 @@ describe("provider decision engine", () => {
     expect(open.uncertainties).toContain("Availability is not confirmed");
     expect(evaluate(null).score).toBe(evaluate(false).score);
   });
+
+  it("ranks providers open today first for urgent work without excluding closed-today alternatives", () => {
+    const options = [
+      tradeCandidate({ id: "closed-today", name: "Closed Today Plumber", openToday: false }),
+      tradeCandidate({ id: "open-today", name: "Open Today Plumber", openToday: true }),
+      tradeCandidate({ id: "hours-unknown", name: "Unknown Hours Plumber", openToday: null }),
+    ];
+    const result = decideProviderCandidates(options, { ...homeRequest, urgency: "today", maxResults: 5 });
+
+    expect(result.ranked.map(item => item.candidate.id)).toEqual(["open-today", "closed-today", "hours-unknown"]);
+    expect(result.ranked).toHaveLength(3);
+    expect(result.ranked[0].reasons).toContain("Business is open today");
+    expect(result.ranked.find(item => item.candidate.id === "closed-today")?.uncertainties).toContain("Business is closed today");
+  });
+
+  it("does not apply today's hours preference to flexible work", () => {
+    const options = [
+      tradeCandidate({ id: "closed-today", name: "Closed Today Plumber", openToday: false }),
+      tradeCandidate({ id: "open-today", name: "Open Today Plumber", openToday: true }),
+    ];
+    const result = decideProviderCandidates(options, { ...homeRequest, urgency: "flexible", maxResults: 5 });
+    expect(result.ranked[0].score).toBe(result.ranked[1].score);
+  });
   it("excludes a primary medical provider from an electrician search", () => {
     const result = decideProviderCandidates([
       candidate({ id: "quiron", name: "Quiron", category: "doctor_clinic", preferred: true }),

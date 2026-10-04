@@ -67,6 +67,30 @@ describe("appointment discovery", () => {
     expect(refreshed?.availableChannels).toEqual(["phone", "manual"]);
   });
 
+  it("uses the provider's local weekday when deriving open-today", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-04T23:30:00.000Z"));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ name: "Night Plumber", place_id: "night", types: ["plumber"], business_status: "OPERATIONAL", geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      return jsonResponse({ status: "OK", result: {
+        address_components: spain,
+        utc_offset_minutes: 120,
+        opening_hours: {
+          open_now: false,
+          periods: [{ open: { day: 1 }, close: { day: 1 } }],
+        },
+      } });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { city: "Marbella", countryCode: "ES" } });
+    expect(result.options[0].provider_snapshot.open_today).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("falls back to an explicit postcode area without changing the visit address or accepting US results", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");

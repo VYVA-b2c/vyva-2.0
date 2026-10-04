@@ -55,9 +55,11 @@ type GooglePlaceDetails = {
   international_phone_number?: string;
   website?: string;
   url?: string;
+  utc_offset_minutes?: number;
   opening_hours?: {
     open_now?: boolean;
     weekday_text?: string[];
+    periods?: Array<{ open?: { day?: number }; close?: { day?: number } }>;
   };
 };
 
@@ -302,7 +304,7 @@ async function fetchGoogleTextSearch(query: string, key: string, language: strin
 async function fetchGooglePlaceDetails(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
   const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", `address_components,formatted_phone_number,international_phone_number,website,url,opening_hours${includePrice ? ",price_level" : ""}`);
+  url.searchParams.set("fields", `address_components,formatted_phone_number,international_phone_number,website,url,opening_hours,utc_offset_minutes${includePrice ? ",price_level" : ""}`);
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
@@ -330,6 +332,28 @@ function optionChannels(phone: string | null, bookingUrl: string | null): Appoin
   if (phone) channels.push("phone");
   channels.push("manual");
   return channels;
+}
+
+function providerLocalWeekday(details: GooglePlaceDetails, now = new Date()): number | null {
+  const offset = details.utc_offset_minutes;
+  if (typeof offset !== "number" || !Number.isFinite(offset)) return null;
+  return new Date(now.getTime() + offset * 60_000).getUTCDay();
+}
+
+function isOpenToday(details: GooglePlaceDetails | null, now = new Date()): boolean | null {
+  const hours = details?.opening_hours;
+  if (!hours) return null;
+  if (hours.open_now === true) return true;
+  const today = providerLocalWeekday(details, now);
+  if (today == null) return null;
+  if (Array.isArray(hours.periods) && hours.periods.length > 0) {
+    return hours.periods.some(period => period.open?.day === today);
+  }
+  const weekday = hours.weekday_text?.[(today + 6) % 7];
+  if (!weekday) return null;
+  return !/\b(closed|cerrado|cerrada|ferme|ferm[eé]e|geschlossen|chiuso|chiusa|fechado|fechada)\b/i.test(
+    weekday.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+  );
 }
 
 export async function refreshAppointmentProviderContact(input: {
@@ -524,6 +548,7 @@ export async function discoverAppointmentProviderOptions(input: {
           opening_status: summarizeOpeningHours(detail, language),
           opening_hours_text: detail?.opening_hours?.weekday_text ?? [],
           open_now: detail?.opening_hours?.open_now ?? null,
+          open_today: isOpenToday(detail),
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,
