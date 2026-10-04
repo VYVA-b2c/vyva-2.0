@@ -162,6 +162,17 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/draft");
   });
 
+  it("keeps Get Help as the landing page and links active work to all requests", async () => {
+    nudgeInbox.needs_you = [{ key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" }];
+    nudgeInbox.waiting = [{ key: "pending:waiting", source: "pending", title: "Electrician", continuation: { flow: "home_service", state: "waiting" }, detailPath: "/concierge/tasks/pending/waiting" }];
+    renderPicker("get-help");
+
+    expect(await screen.findByTestId("concierge-picker-options")).toBeInTheDocument();
+    expect(await screen.findByTestId("get-help-requests-entry")).toHaveTextContent("2 active requests");
+    fireEvent.click(screen.getByTestId("button-get-help-see-all-requests"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
+  });
+
   it("inherits the persisted dark theme", () => {
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
     renderPicker("get-help");

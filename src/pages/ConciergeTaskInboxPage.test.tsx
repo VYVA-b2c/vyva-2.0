@@ -222,7 +222,7 @@ describe("ConciergeTaskInboxPage", () => {
     expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("View status");
   });
 
-  it("surfaces stale blocked tasks and resumes through the safe Concierge path", async () => {
+  it("keeps stale provider work in the focused request view instead of opening the legacy workspace", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
       if (target === "/api/concierge/tasks" || target === "/api/concierge/actions/sessions") {
@@ -247,13 +247,11 @@ describe("ConciergeTaskInboxPage", () => {
     });
 
     renderPage("/concierge/tasks/pending%3Aexpired-ride");
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Review safely");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("View request");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Nothing happens without a fresh confirmation.");
-    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review safely");
-
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/expired-ride");
-    expect(screen.getByTestId("location-state")).toHaveTextContent('"conciergePendingId":"expired-ride"');
+    expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("concierge-task-status-message")).toHaveTextContent("stays here");
+    expect(screen.getByTestId("location-path")).not.toHaveTextContent("/concierge/task/expired-ride");
   });
 
   it("lets users exit a detail card without writing or losing the task", async () => {

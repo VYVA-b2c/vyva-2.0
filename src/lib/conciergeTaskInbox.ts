@@ -248,7 +248,7 @@ function continuationActionLabel(input: {
   isSpanish: boolean;
 }): string {
   const { state, providerStatus, stale, isSpanish } = input;
-  if (stale) return isSpanish ? "Revisar con cuidado" : "Review safely";
+  if (stale) return isSpanish ? "Ver solicitud" : "View request";
   if (providerStatus === "action_needed") return isSpanish ? "Responder" : "Respond";
   if (providerStatus === "reply_received") return isSpanish ? "Revisar respuesta" : "Review reply";
   if (state === "completed") return isSpanish ? "Usar de nuevo" : "Use again";
