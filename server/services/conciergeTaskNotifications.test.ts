@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createConciergeTaskNotificationWithClient } from "./conciergeTaskNotifications";
+import { createConciergeTaskNotificationWithClient, dismissConciergeReminder, listConciergeReminderDismissals } from "./conciergeTaskNotifications";
 
 const input = {
   userId: "user-1",
@@ -11,6 +11,20 @@ const input = {
 };
 
 describe("Concierge task notification delivery", () => {
+  it("scopes persisted dismissal to the account and reuses notification read state", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ task_key: "pending:one", revision: "v1" }] });
+    const database = { query } as never;
+    await dismissConciergeReminder({ userId: "user-1", taskKey: "pending:one", revision: "v1" }, database);
+    expect(query.mock.calls[0][1]).toEqual(["user-1", "pending:one", "v1"]);
+    expect(query.mock.calls[0][0]).toContain("on conflict (user_id, task_key)");
+    expect(query.mock.calls[0][0]).toContain("n.user_id = d.user_id");
+    expect(query.mock.calls[0][0]).not.toContain("delete");
+    await expect(listConciergeReminderDismissals("user-1", database)).resolves.toEqual({ "pending:one": "v1" });
+    expect(query.mock.calls[1][1]).toEqual(["user-1"]);
+    expect(query.mock.calls[1][0]).toContain("draft.user_id = dismissal.user_id");
+    expect(query.mock.calls[1][0]).toContain("draft.linked_pending_id");
+    expect(query.mock.calls[1][0]).toContain("dismissal.dismissed_at desc");
+  });
   it("creates one visible alert and relies on a unique dedupe key for retries", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce({ rows: [{ concierge_task_notifications_enabled: true }] })

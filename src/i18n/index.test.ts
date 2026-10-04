@@ -210,10 +210,10 @@ describe("language persistence", () => {
 
   it("keeps Relax & Breathe page copy localized without falling back to English", () => {
     const expected = {
-      es: ["Relajarse y respirar", "Iniciar guia de Marco", "Respira despacio"],
-      fr: ["Se detendre et respirer", "Demarrer le guide Marco", "Respirer lentement"],
-      it: ["Rilassati e respira", "Avvia guida Marco", "Respira lentamente"],
-      pt: ["Relaxe e respire", "Iniciar guia Marco", "Respirar devagar"],
+      es: ["Relajarse y respirar", "Iniciar guia de VYVA", "Respira despacio"],
+      fr: ["Se detendre et respirer", "Demarrer le guide VYVA", "Respirer lentement"],
+      it: ["Rilassati e respira", "Avvia guida VYVA", "Respira lentamente"],
+      pt: ["Relaxe e respire", "Iniciar guia VYVA", "Respirar devagar"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

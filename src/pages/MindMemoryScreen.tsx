@@ -15,6 +15,10 @@ import { BRAIN_COACH_MODULES, getBrainCoachActivitiesForModule } from "@/games/b
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { cn } from "@/lib/utils";
+import { CANONICAL_MENU_HEADER_CLASS } from "@/design/canonicalMenuTypography";
+import { useQuery } from "@tanstack/react-query";
+import type { BrainCoachProgress } from "@/lib/brainCoachReport";
+import { brainCoachSessionBadge, latestCompletedSessionForModule } from "@/games/brainCoachModuleProgress";
 
 const MODULE_CHIPS = {
   memory: { background: "#F1EAFF", color: "#7C3AED" },
@@ -28,6 +32,10 @@ export default function MindMemoryScreen() {
   const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
+  const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
+    queryKey: ["/api/games/progress"],
+    retry: false,
+  });
   const mindPresentation = useScreenPresentation({
     screenId: "mind",
     presentationFamilyId: BRAIN_COACH_ACTIVITY_FLOW_ID,
@@ -75,7 +83,7 @@ export default function MindMemoryScreen() {
             <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
           </button>
 
-          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+          <h1 className={`truncate text-center text-inherit ${CANONICAL_MENU_HEADER_CLASS}`}>
             {t("home.master.cards.mindMemoryShortTitle", "Brain Power")}
           </h1>
 
@@ -101,6 +109,8 @@ export default function MindMemoryScreen() {
         >
           {BRAIN_COACH_MODULES.map((module) => {
             const activityCount = getBrainCoachActivitiesForModule(module.id).length;
+            const latestSession = latestCompletedSessionForModule(brainCoachProgress, module.id);
+            const progressBadge = latestSession ? brainCoachSessionBadge(latestSession) : null;
             const chip = MODULE_CHIPS[module.id];
 
             return (
@@ -116,8 +126,11 @@ export default function MindMemoryScreen() {
                 iconColor={module.tone.iconColor}
                 borderColor={module.tone.borderColor}
                 badge={(
-                  <span data-testid={`${module.testId}-status`}>
-                    {t("mindMemory.library.activityCount", "{{count}} activities", { count: activityCount }).replace(
+                  <span
+                    data-testid={`${module.testId}-status`}
+                    aria-label={progressBadge?.accessible}
+                  >
+                    {progressBadge?.compact ?? t("mindMemory.library.activityCount", "{{count}} activities", { count: activityCount }).replace(
                       "{{count}}",
                       String(activityCount),
                     )}

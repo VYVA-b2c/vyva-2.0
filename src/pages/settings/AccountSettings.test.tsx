@@ -171,7 +171,7 @@ describe("AccountSettings", () => {
     expect(container.querySelector("#phone")).not.toHaveAttribute("placeholder", "+44 7700 900 123");
   });
 
-  it("uses compact Home Master voice chrome on the dev profile account surface", async () => {
+  it("uses the canonical profile shell on the dev profile account surface", async () => {
     mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
     queryClient.setQueryData(["/api/profile"], profileResponse());
     renderAccountSettings("/dev/home-master/profile/account");
@@ -180,12 +180,11 @@ describe("AccountSettings", () => {
     expect(screen.queryByTestId("onboarding-companion-mode-chip")).not.toBeInTheDocument();
     expect(screen.queryByText("Your details")).not.toBeInTheDocument();
     expect(screen.queryByText("Required basics")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Account details" })).toBeInTheDocument();
+    expect(screen.getByTestId("account-details-canonical-screen")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-profile-account-voice")).toHaveAccessibleName(
-      "Return to VYVA voice mode"
+      "Talk to VYVA about account details"
     );
-
-    fireEvent.click(screen.getByTestId("button-home-profile-account-voice"));
-    expect(screen.getByText("Home Master")).toBeInTheDocument();
   });
 
   it("shows the sign-in email without putting it into the editable profile email field", async () => {

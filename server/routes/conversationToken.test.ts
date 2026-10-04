@@ -163,6 +163,21 @@ describe("conversation token agent resolution", () => {
     });
   });
 
+  it("never falls back to the default voice agent for Concierge", () => {
+    process.env.ELEVENLABS_COMPANION_AGENT_ID = "agent_companion";
+    process.env.ELEVENLABS_AGENT_ID = "agent_default";
+
+    const unresolved = resolveSocialAgentId("concierge");
+
+    expect(unresolved.agentId).toBeUndefined();
+    expect(unresolved.expectedKeys).toContain("ELEVENLABS_CONCIERGE_AGENT_ID");
+    expect(unresolved.expectedKeys).not.toContain("ELEVENLABS_COMPANION_AGENT_ID");
+    expect(unresolved.expectedKeys).not.toContain("ELEVENLABS_AGENT_ID");
+
+    process.env.ELEVENLABS_CONCIERGE_AGENT_ID = "agent_concierge";
+    expect(resolveSocialAgentId("concierge").agentId).toBe("agent_concierge");
+  });
+
   it("checks readiness with the same agent resolution without creating a signed URL", async () => {
     process.env.ELEVENLABS_CONCIERGE_AGENT_ID = "agent_concierge";
     process.env.ELEVENLABS_API_KEY = "test-key";

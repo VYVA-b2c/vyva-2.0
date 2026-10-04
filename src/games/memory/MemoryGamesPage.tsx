@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useBrainCoachNavigate as useNavigate } from "@/hooks/useBrainCoachNavigate";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
@@ -29,6 +29,7 @@ const MemoryGamesPage = () => {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [manualPlans, setManualPlans] = useState<Record<MemoryGameType, Recommendation>>({} as Record<MemoryGameType, Recommendation>);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -103,11 +104,13 @@ const MemoryGamesPage = () => {
         />
       )}
     >
+      <section id="memory-game-choices" className="grid grid-cols-2 gap-3 pb-28" data-scene-layout="activity_grid">
       <CanonicalBrainCoachActivityCard
         type="button"
         variant="featured"
         className="w-full"
         dense
+        tile
         showArrow={false}
         onClick={() => recommendation && openPlan(recommendation)}
         disabled={!recommendation || loading}
@@ -122,9 +125,8 @@ const MemoryGamesPage = () => {
       />
 
       {showExerciseChoices ? (
-        <section className="mt-5" data-scene-layout="activity_grid">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {availableMemoryActivities.map((activity) => {
+        <>
+            {(expanded ? availableMemoryActivities : availableMemoryActivities.slice(0, 3)).map((activity) => {
               const plan = activity.memoryGameType ? manualPlans[activity.memoryGameType] : null;
               const copy = getBrainCoachActivityDisplay(activity, t);
               const title = activity.memoryGameType ? getGameTitle(activity.memoryGameType, language) : copy.title;
@@ -134,6 +136,7 @@ const MemoryGamesPage = () => {
                   type="button"
                   variant="compact"
                   dense
+                  tile
                   showArrow={false}
                   onClick={() => {
                     if (activity.memoryGameType && plan) {
@@ -155,9 +158,21 @@ const MemoryGamesPage = () => {
                 />
               );
             })}
-          </div>
-        </section>
+        </>
       ) : null}
+      {availableMemoryActivities.length > 3 && (
+        <button
+          type="button"
+          className="col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-full border border-vyva-purple/25 px-5 py-3 font-semibold text-vyva-purple"
+          aria-expanded={expanded}
+          aria-controls="memory-game-choices"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {t(expanded ? "common.showFewerGames" : "common.showMoreGames")}
+          {expanded ? <ChevronUp size={20} aria-hidden="true" /> : <ChevronDown size={20} aria-hidden="true" />}
+        </button>
+      )}
+      </section>
     </BrainCoachFlowShell>
   );
 };

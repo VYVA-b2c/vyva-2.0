@@ -11,6 +11,8 @@ import {
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
+const whatsappSend = vi.hoisted(() => vi.fn());
+vi.mock("./communicationDispatcher.js", () => ({ sendWhatsapp: whatsappSend }));
 
 type ChannelSpec = {
   channel: ConciergeProductionChannel;
@@ -79,6 +81,8 @@ function clearConciergeEnv() {
     "CONCIERGE_PHONE_CALL_CHANNEL_CONFIGURED",
     "CONCIERGE_EMAIL_CHANNEL_CONFIGURED",
     "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+    "CONCIERGE_WHATSAPP_ADAPTER",
+    "CONCIERGE_WHATSAPP_PILOT_RECIPIENTS",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
     "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
@@ -125,6 +129,7 @@ function adapterInput(spec: ChannelSpec, overrides: Record<string, unknown> = {}
     payload: spec.payload,
     providerName: "QA Provider",
     providerPhone: spec.providerPhone ?? null,
+    userPhone: "+12025550199",
     pendingId: "pending-1",
     userId: "user-1",
     summary: "QA Concierge action",
@@ -139,6 +144,7 @@ describe("Concierge action adapters", () => {
   beforeEach(() => {
     clearConciergeEnv();
     globalThis.fetch = vi.fn();
+    whatsappSend.mockReset();
   });
 
   afterEach(() => {
@@ -158,6 +164,31 @@ describe("Concierge action adapters", () => {
       expect(result, spec.channel).toEqual({ status: "pass", blocker: null });
     }
 
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps confirmation, live readiness and dry-run gates on the owned WhatsApp path", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "whatsapp")!;
+    process.env.CONCIERGE_WHATSAPP_ADAPTER = "twilio";
+    process.env.CONCIERGE_WHATSAPP_PILOT_RECIPIENTS = spec.qaTarget;
+    process.env.TWILIO_ACCOUNT_SID = "test-account";
+    process.env.TWILIO_AUTH_TOKEN = "test-token";
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+12025550100";
+    for (const overrides of [
+      { userConfirmed: false },
+      { channelReadiness: readiness(spec, { adminEnabled: false }) },
+      { channelReadiness: readiness(spec, { verified: false }) },
+    ]) {
+      expect(await executeConciergeActionAdapter(adapterInput(spec, overrides)))
+        .toMatchObject({ status: "blocked", external_action_allowed: false });
+    }
+    expect(await executeConciergeActionAdapter(adapterInput(spec, { mode: "dry_run", dryRun: true })))
+      .toMatchObject({ status: "simulated", external_action_allowed: false });
+    expect(whatsappSend).not.toHaveBeenCalled();
+    whatsappSend.mockResolvedValue({ sid: "SM-pilot", status: "queued" });
+    expect(await executeConciergeActionAdapter(adapterInput(spec)))
+      .toMatchObject({ status: "sent", result_id: "SM-pilot" });
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -222,6 +253,54 @@ describe("Concierge action adapters", () => {
       expect(result.blocker, spec.channel).toContain("adapter_payload_missing_provider_contact");
       expect(globalThis.fetch, spec.channel).not.toHaveBeenCalled();
     }
+  });
+
+  it("calls the user first and supplies the provider as a dynamic ElevenLabs transfer destination", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "phone_call");
+    if (!spec) throw new Error("Missing phone-call channel spec");
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-id";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-id";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      conversation_id: "conv-transfer-1",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, {
+      userPhone: "+12025550199",
+      providerPhone: "+12025550100",
+      dynamicVariables: { language: "en" },
+    }));
+
+    expect(result).toMatchObject({ status: "sent", result_id: "conv-transfer-1" });
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      to_number: "+12025550199",
+      conversation_initiation_client_data: {
+        dynamic_variables: {
+          language: "en",
+          provider_transfer_phone: "+12025550100",
+          provider_name: "QA Provider",
+          provider_transfer_requires_confirmation: "true",
+        },
+      },
+    });
+  });
+
+  it("blocks a transfer call when the user has no phone number", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "phone_call");
+    if (!spec) throw new Error("Missing phone-call channel spec");
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-id";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-id";
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, { userPhone: null }));
+
+    expect(result).toMatchObject({
+      status: "blocked",
+      blocker: "user_phone_required_for_transfer_call",
+      external_action_allowed: false,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("sends live email through the owned pilot adapter only after confirmation", async () => {

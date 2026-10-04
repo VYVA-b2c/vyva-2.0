@@ -6,6 +6,8 @@ const pt = {
     more: "Mais",
   },
   common: {
+    showMoreGames: "Mais",
+    showFewerGames: "Mostrar menos",
     back: "Voltar",
     continue: "Continuar",
     start: "Comecar",
@@ -630,7 +632,7 @@ const pt = {
         elena: { label: "Elena Ruiz", detail: "Jardineira urbana" },
         viktor: { label: "Viktor Sanz", detail: "Companheiro de jogos" },
         lola: { label: "Lola Martínez", detail: "Chef mediterrânea" },
-        amara: { label: "Amara Osei", detail: "Guia de movimento" },
+        amara: { label: "Wellness Coach", detail: "Movimento e calma" },
         marco: { label: "Marco Reyes", detail: "Guia de calma" },
         diego: { label: "Diego Salinas", detail: "Musicólogo" },
         isabel: { label: "Isabel Fuentes", detail: "Anfitriã literária" },
@@ -806,9 +808,9 @@ const pt = {
       breatheIn: "Inspire",
       breatheOut: "Expire",
       safety: "Se respirar parecer dificil, doloroso ou invulgar, pare e procure ajuda.",
-      startGuide: "Iniciar guia Marco",
+      startGuide: "Iniciar guia VYVA",
       guideStarting: "A iniciar...",
-      guideLive: "O guia Marco esta ativo",
+      guideLive: "O guia VYVA esta ativo",
       replay: "Repetir",
       back: "Voltar",
       next: "Seguinte",
@@ -1478,7 +1480,7 @@ const pt = {
       drawHint: "Deslize o dedo pelo caminho de que se lembra",
       done: "Pronto",
       resultGreat: "Otimo trabalho, explorador!",
-      resultTry: "Quase la! Tente de novo amanha.",
+      resultTry: "Tente de novo",
       accuracy: "Precisao",
       streak: "Sequencia",
       score: "Pontuacao",
@@ -1752,6 +1754,16 @@ const pt = {
     },
   },
   concierge: {
+    master: { picker: { getHelp: {
+      title: "Obter ajuda",
+      voiceContext: "Pergunte de que ajuda a pessoa precisa. Não contacte nem reserve ninguém sem confirmação.",
+      options: {
+        homeRepair: "Reparações domésticas", homeRepairDetail: "Canalizador, eletricista, limpeza",
+        healthcare: "Saúde", healthcareDetail: "Encontrar um especialista ou apoio de saúde",
+        adminService: "Apoio administrativo", adminServiceDetail: "Formulários, cartas e burocracia",
+        homeCare: "Apoio domiciliário", homeCareDetail: "Comparar cuidadores ou lares",
+      },
+    } } },
     fastHelp: {
       ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro. Pergunte destino e horario, prepare opcoes claras e nao reserve nada sem a minha confirmacao.",
       actions: {

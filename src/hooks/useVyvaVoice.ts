@@ -36,6 +36,7 @@ import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { TRIAGE_VITAL_SIGNAL_MAP } from "../../shared/vitalsAcquisition";
 import { dispatchOnboardingElevenLabsOutput } from "@/lib/onboardingElevenLabsRuntimeAdapter";
 import { requestNumberMemoryVoiceTool, type NumberMemoryVoiceToolName } from "@/lib/numberMemoryVoiceBridge";
+import { requestWellnessVoiceTool, type WellnessVoiceToolName } from "@/lib/wellnessVoiceBridge";
 import {
   selectSpeechVoice,
   supportsSpeechPlayback,
@@ -861,7 +862,8 @@ function isAgentVoiceDebugEvent(payload: unknown) {
 
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
-  if (agentSlug === "amara" || agentSlug === "nora") return "health";
+  if (agentSlug === "amara" || agentSlug === "wellness" || agentSlug === "wellness-coach" || agentSlug === "wellness_coach") return "wellness";
+  if (agentSlug === "nora") return "health";
   if (agentSlug === "diego") return "safety";
   if (agentSlug === "sabio" || agentSlug === "marta") return "concierge";
   if (agentSlug === "tomas" || agentSlug === "elena" || agentSlug === "ines") return "companion";
@@ -869,6 +871,9 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (agentSlug === "breathing-meditation" || agentSlug === "breathing_meditation" || agentSlug === "meditation" || agentSlug === "breathing") {
+    return "breathing_meditation";
+  }
   if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
   if (agentSlug === "onboarding-profile") return "onboarding_profile";
@@ -1047,6 +1052,7 @@ function useVyvaVoiceController() {
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
   const userVoiceUtteranceSequenceRef = useRef(0);
   const userVoiceUtteranceCorrelationsRef = useRef<Map<string, UserVoiceUtteranceCorrelation>>(new Map());
+  const conciergeMemoryRefreshedRef = useRef(false);
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -1493,6 +1499,7 @@ function useVyvaVoiceController() {
       streamingVyvaTranscriptRef.current = "";
       streamingVyvaTranscriptShouldAppendRef.current = false;
       userVoiceUtteranceCorrelationsRef.current.clear();
+      conciergeMemoryRefreshedRef.current = false;
       setLastError(null);
       setLastErrorCode(null);
       if (isOnboardingVoiceStart(options)) {
@@ -1743,6 +1750,17 @@ function useVyvaVoiceController() {
               "number_memory_not_sure",
             ] satisfies NumberMemoryVoiceToolName[]).map((name) => [name, async (parameters: unknown) => {
               const result = await requestNumberMemoryVoiceTool(name, toolParameters(parameters));
+              return JSON.stringify(result);
+            }])),
+            ...Object.fromEntries(([
+              "select_wellness_routine",
+              "start_wellness_routine",
+              "pause_wellness_routine",
+              "resume_wellness_routine",
+              "stop_wellness_routine",
+              "adapt_wellness_routine",
+            ] satisfies WellnessVoiceToolName[]).map((name) => [name, async (parameters: unknown) => {
+              const result = await requestWellnessVoiceTool(name, toolParameters(parameters));
               return JSON.stringify(result);
             }])),
             sync_dr_ai_screen: async (parameters: unknown) => {
@@ -2178,6 +2196,31 @@ function useVyvaVoiceController() {
                 canvasProvenance: correlation?.canvasProvenance ?? null,
                 allowCanvasProvenanceFallback: false,
               });
+              if (resolvedDomain === "concierge" && !conciergeMemoryRefreshedRef.current) {
+                conciergeMemoryRefreshedRef.current = true;
+                void apiFetch("/api/voice-context", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    domain: "concierge",
+                    session_id: voiceSessionId,
+                    conversation_id: voiceSessionId,
+                    memory_query: message,
+                    memory_refresh: true,
+                    ...(resolvedAppEntrypoint ? { app_entrypoint: resolvedAppEntrypoint } : {}),
+                    ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
+                  }),
+                }).then(async (response) => {
+                  if (!response.ok || !isCurrentSession()) return;
+                  const context = await response.json() as VoiceContextResponse;
+                  const memoryBlock = dynamicString(context.dynamic_variables, "memory_block");
+                  if (!memoryBlock || memoryBlock === "(no memory retrieved)") return;
+                  conversationRef.current?.sendContextualUpdate(
+                    `Relevant saved VYVA memory for the user's current request:\n${memoryBlock}`,
+                  );
+                }).catch((error) => {
+                  console.warn("[VYVA] Concierge memory refresh unavailable:", error);
+                });
+              }
               return;
             }
             streamingVyvaTranscriptRef.current = "";

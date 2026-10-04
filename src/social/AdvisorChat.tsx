@@ -1,10 +1,18 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Info, Loader2, MessageCircle, Mic, Send, Square } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, Info, Loader2, Mic, Send, Share2, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { recordAgentContextUpdate } from "@/lib/agentAppContext";
+import {
+  routineIdFromWellnessToolParameters,
+  subscribeWellnessVoiceTools,
+  type WellnessVoiceToolName,
+  type WellnessVoiceToolResult,
+} from "@/lib/wellnessVoiceBridge";
 import type {
   AdvisorMessage,
   AdvisorMessageResponse,
@@ -15,6 +23,7 @@ import { getAdvisorCopy, isAdvisorSlug } from "../../shared/advisors";
 import { AdvisorAvatar } from "./AdvisorIcons";
 import {
   MOVEMENT_EXERCISE_VISUALS,
+  MOVEMENT_FEATURED_EXERCISE_IDS,
   getMovementExerciseCards,
   getMovementExerciseLanguage,
   type MovementExerciseCardId,
@@ -25,13 +34,6 @@ import {
 } from "./movementCoachAdvisor";
 import { getAdvisorPresentation } from "./advisorPresentation";
 import SocialStyles from "./SocialStyles";
-
-const MOVEMENT_COACH_FEATURED_EXERCISE_IDS: MovementExerciseCardId[] = [
-  "chair-yoga",
-  "tai-chi",
-  "seated-strength",
-  "sit-to-stand",
-];
 
 type AdvisorVoiceControls = {
   startVoice: ReturnType<typeof useVyvaVoice>["startVoice"];
@@ -44,8 +46,24 @@ type AdvisorVoiceControls = {
 
 type ConversationMode = "voice" | "text";
 
+// Set by a caller navigating here as a hand-off from elsewhere (e.g. another
+// advisor, or a screen that already gathered context), via router state:
+// navigate(path, { state: { handoffMessage: "..." } as AdvisorHandoffState }).
+export type AdvisorHandoffState = { handoffMessage?: string };
+
 function asHelpStatement(detail: string) {
   return `I can help with ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+}
+
+// What Sabio (Senior Home Finder) actually told the user — the assistant's
+// own synthesis, not the raw back-and-forth — is what's worth sharing.
+export function buildSeniorHomeFinderShareSummary(messages: AdvisorMessage[]): string {
+  return messages
+    .filter((message) => message.role === "assistant")
+    .map((message) => message.text.trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 6000);
 }
 
 const previewUi = {
@@ -126,24 +144,21 @@ function MovementCoachRoutineShortcuts({
 }: {
   language: string;
   onOpenLibrary: () => void;
-  onOpenRoutine: (exerciseId: string) => void;
+  onOpenRoutine: (exerciseId: MovementExerciseCardId) => void;
 }) {
   const movementLanguage = getMovementExerciseLanguage(language);
   const copy = getMovementCoachCopy(language);
-  const featuredIds = new Set(MOVEMENT_COACH_FEATURED_EXERCISE_IDS);
+  const featuredIds = new Set(MOVEMENT_FEATURED_EXERCISE_IDS);
   const cards = getMovementExerciseCards(movementLanguage).filter((card) => featuredIds.has(card.id));
 
   return (
     <section
-      className="mt-5 rounded-[24px] border border-[#D7E8DB] bg-[#F8FCF8] p-4 text-left"
+      className="mt-5 text-left"
       data-testid="movement-coach-routines"
     >
       <h2 className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
         {copy.routineTitle}
       </h2>
-      <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-        {copy.routineBody}
-      </p>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
         {cards.map((card) => {
           const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
@@ -160,6 +175,9 @@ function MovementCoachRoutineShortcuts({
               <span className="block px-3 py-2.5">
                 <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
                   {card.title}
+                </span>
+                <span className="mt-1 block font-body text-[12px] font-bold leading-tight text-vyva-text-2">
+                  {card.benefit}
                 </span>
                 <span className="sr-only">
                   {card.benefit}
@@ -186,8 +204,12 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const apiSlug = isAdvisorSlug(agentSlug) ? agentSlug : (preview ? "nora" : null);
   const isMovementCoach = isMovementCoachSlug(agentSlug);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const [searchParams] = useSearchParams();
   const starterPrompt = (searchParams.get("starter") ?? "").trim().slice(0, 2000);
+  const handoffState = location.state as AdvisorHandoffState | null;
+  const handoffMessage = typeof handoffState?.handoffMessage === "string" ? handoffState.handoffMessage.trim().slice(0, 2000) : "";
   const { language } = useLanguage();
   const voice = useVyvaVoice() as AdvisorVoiceControls;
   const [session, setSession] = useState<AdvisorSessionSummary | null>(null);
@@ -196,6 +218,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const [sendError, setSendError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [introDismissed, setIntroDismissed] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "sharing" | "copied" | "error">("idle");
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
 
@@ -220,7 +243,8 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   const advisor = advisorData?.advisor;
   const advisorDisplayName = advisor ? `${advisor.name} ${advisor.role}` : "";
   const advisorPresentation = advisor ? getAdvisorPresentation(advisor.slug, language) : null;
-  const helpStatement = advisorPresentation ? asHelpStatement(advisorPresentation.detail) : advisor?.intro ?? "";
+  const defaultHelpStatement = advisorPresentation ? asHelpStatement(advisorPresentation.detail) : advisor?.intro ?? "";
+  const helpStatement = handoffMessage || defaultHelpStatement;
   const ui = advisorData?.ui;
   const isAdvisorLoading = !preview && isLoading;
   const isAdvisorError = !preview && isError;
@@ -229,6 +253,69 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return [...messages, ...voiceMessages];
   }, [messages, voice.status, voice.transcript]);
   const showIntro = Boolean(advisor && advisorData?.introRequired && !introDismissed && messages.length === 0);
+  const isSeniorHomeFinder = apiSlug === "sabio";
+  const canShareShortlist = isSeniorHomeFinder && !preview && messages.some((message) => message.role === "assistant");
+  const wellnessRoutineCards = useMemo(
+    () => getMovementExerciseCards(getMovementExerciseLanguage(language)),
+    [language],
+  );
+  const wellnessAvailableRoutines = useMemo(
+    () => wellnessRoutineCards.map((card) => `${card.id}:${card.title}`).join(" | "),
+    [wellnessRoutineCards],
+  );
+
+  const openWellnessRoutine = useCallback((exerciseId: MovementExerciseCardId, source: "touch" | "voice") => {
+    const routine = wellnessRoutineCards.find((card) => card.id === exerciseId);
+    recordAgentContextUpdate({
+      summary: `Wellness routine selected by ${source}: ${routine?.title ?? exerciseId} (${exerciseId}). The app should guide this routine visually and VYVA should follow the screen state.`,
+      path: `/social-rooms/morning-movement/exercises/${exerciseId}`,
+    });
+    navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`, {
+      state: { autoStartVoiceGuide: true, returnTo: location.pathname },
+    });
+    return routine;
+  }, [location.pathname, navigate, wellnessRoutineCards]);
+
+  const handleWellnessVoiceTool = useCallback((name: WellnessVoiceToolName, parameters: Record<string, unknown>): WellnessVoiceToolResult => {
+    if (!isMovementCoach) {
+      return { ok: false, code: "not_on_wellness_hub", activity: "wellness_routine" };
+    }
+
+    if (name === "pause_wellness_routine" || name === "resume_wellness_routine" || name === "stop_wellness_routine") {
+      return {
+        ok: true,
+        code: "wellness_hub_idle",
+        activity: "wellness_routine",
+        session_state: "routine_picker",
+      };
+    }
+
+    let routineId = routineIdFromWellnessToolParameters(parameters, language);
+    const adaptation = typeof parameters.adaptation === "string" ? parameters.adaptation.trim().toLowerCase() : "";
+    if (!routineId && name === "adapt_wellness_routine") {
+      if (adaptation.includes("calm") || adaptation.includes("breath")) routineId = "calm-breathing";
+      else if (adaptation.includes("seated") || adaptation.includes("easy") || adaptation.includes("easier")) routineId = "chair-yoga";
+    }
+    if (!routineId) {
+      return {
+        ok: false,
+        code: "routine_not_recognized",
+        activity: "wellness_routine",
+        session_state: "routine_picker",
+      };
+    }
+
+    const routine = openWellnessRoutine(routineId, "voice");
+    return {
+      ok: true,
+      code: name === "select_wellness_routine" ? "routine_selected" : "routine_started",
+      activity: "wellness_routine",
+      routine_id: routineId,
+      routine_title: routine?.title ?? routineId,
+      session_state: "routine_opening",
+      ...(adaptation ? { adaptation } : {}),
+    };
+  }, [isMovementCoach, language, openWellnessRoutine]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -236,24 +323,79 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     scroller.scrollTop = scroller.scrollHeight;
   }, [liveMessages.length, showIntro]);
 
+  useEffect(() => {
+    if (shareStatus !== "copied" && shareStatus !== "error") return;
+    const timer = window.setTimeout(() => setShareStatus("idle"), 3000);
+    return () => window.clearTimeout(timer);
+  }, [shareStatus]);
+
+  useEffect(() => {
+    if (!isMovementCoach) return undefined;
+    return subscribeWellnessVoiceTools(handleWellnessVoiceTool);
+  }, [handleWellnessVoiceTool, isMovementCoach]);
+
   const startVoiceForAdvisor = () => {
     if (!apiSlug || !advisor || preview) return;
+    const isWellness = isMovementCoach;
+    const title = advisorPresentation?.title ?? advisorDisplayName;
+    const role = advisorPresentation?.detail ?? advisor.role;
+    const wellnessContext = isWellness
+      ? [
+          "Wellness Coach hub.",
+          "The user can use touch, voice, or both.",
+          "Visible screen: routine picker.",
+          `Available routines: ${wellnessAvailableRoutines}.`,
+          "If the user asks for a routine by voice, call the matching wellness client tool so the app opens the same routine a tap would open.",
+          "Use select_wellness_routine or start_wellness_routine with routine_id when the user's choice is clear.",
+        ].join(" ")
+      : `${title}. ${role}.`;
     void Promise.resolve(
       voice.startVoice(
-        `${advisorPresentation?.title ?? advisorDisplayName}. ${advisorPresentation?.detail ?? advisor.role}.`,
+        wellnessContext,
         getAdvisorCopy(apiSlug, language).systemPrompt,
         {
-          agentSlug: apiSlug,
+          agentSlug: isWellness ? "wellness" : apiSlug,
           autoStartListening: true,
           dynamicVariables: {
-            app_entrypoint: "ask_an_expert_chat",
+            app_entrypoint: isWellness ? "wellness_coach_hub" : "ask_an_expert_chat",
+            visible_screen: isWellness ? "wellness_routine_picker" : "advisor_chat",
+            session_state: isWellness ? "routine_picker" : "chat",
             advisor_slug: apiSlug,
-            advisor_name: advisorPresentation?.title ?? advisor.name,
-            advisor_role: advisorPresentation?.detail ?? advisor.role,
+            advisor_name: title,
+            advisor_role: role,
+            ...(isWellness ? {
+              wellness_available_routines: wellnessAvailableRoutines,
+              wellness_ui_control_contract: "Touch and voice control the same app state. For clear spoken routine choices, call select_wellness_routine or start_wellness_routine. The app owns navigation, timer, visual steps, pause/resume/stop state, and selected routine context.",
+            } : {}),
           },
         },
       ),
     ).catch(() => {});
+  };
+
+  const handleShareShortlist = async () => {
+    if (!canShareShortlist) return;
+    const summary = buildSeniorHomeFinderShareSummary(messages);
+    if (!summary) return;
+    setShareStatus("sharing");
+    try {
+      const response = await apiFetch("/api/advisors/sabio/share", {
+        method: "POST",
+        body: JSON.stringify({ name: advisor?.name ?? "", language, summary }),
+      });
+      if (!response.ok) throw new Error("share failed");
+      const payload = await response.json() as { token: string };
+      const shareUrl = `${window.location.origin}/shared/senior-home/${payload.token}`;
+      if (navigator.share) {
+        await navigator.share({ url: shareUrl, title: "Senior Home Finder shortlist" });
+        setShareStatus("idle");
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareStatus("copied");
+      }
+    } catch (error) {
+      setShareStatus(error instanceof Error && error.name === "AbortError" ? "idle" : "error");
+    }
   };
 
   const handleStartSession = async (mode: ConversationMode) => {
@@ -345,7 +487,10 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return (
       <>
         <SocialStyles />
-        <main className="vyva-page pb-[120px]">
+        <main
+          className="advisor-chat-theme vyva-page pb-[120px]"
+          data-home-master-theme={isDark ? "dark" : "light"}
+        >
           <button
             type="button"
             onClick={() => navigate("/social-rooms/experts")}
@@ -365,9 +510,13 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
   return (
     <>
       <SocialStyles />
-      <main className={`vyva-page flex min-h-[calc(100vh-90px)] flex-col bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] ${showIntro ? "pb-[120px]" : "pb-[200px]"}`} data-testid="advisor-chat-screen">
+      <main
+        className={`advisor-chat-theme vyva-page flex min-h-[calc(100vh-90px)] flex-col ${isDark ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]" : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"} ${showIntro ? "pb-[120px]" : "pb-[200px]"}`}
+        data-testid="advisor-chat-screen"
+        data-home-master-theme={isDark ? "dark" : "light"}
+      >
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
-          <div className="flex items-center gap-3">
+          <div className={isMovementCoach && showIntro ? "mx-auto grid max-w-3xl grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3" : "flex items-center gap-3"}>
             <button
               type="button"
               onClick={() => navigate("/social-rooms/experts")}
@@ -377,7 +526,23 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
             >
               <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
             </button>
-            {advisor ? (
+            {advisor && isMovementCoach && showIntro ? (
+              <>
+                <h1 className="min-w-0 text-center font-body text-[24px] font-black leading-tight text-vyva-text-1">
+                  {advisorPresentation?.title ?? advisorDisplayName}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => void handleStartSession("voice")}
+                  className="vyva-tap flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#D8B4FE] bg-[#6B21A8] text-white shadow-sm"
+                  data-testid="button-advisor-start-voice"
+                  aria-label={ui?.micIdle ?? "Talk by voice"}
+                  title={ui?.micIdle ?? "Talk by voice"}
+                >
+                  <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              </>
+            ) : advisor ? (
               <>
                 <AdvisorAvatar
                   iconKey={advisor.iconKey}
@@ -416,9 +581,9 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
               {ui?.empty ?? "Your experts are not available right now."}
             </section>
           ) : showIntro ? (
-            <section className="mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]" data-testid="advisor-intro">
-              <div className="px-5 pb-5 pt-5">
-                <div className="flex items-center gap-4">
+            <section className={isMovementCoach ? "mx-auto w-full max-w-3xl" : "mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]"} data-testid="advisor-intro">
+              <div className={isMovementCoach ? "py-2" : "px-5 pb-5 pt-5"}>
+                {!isMovementCoach && <div className="flex items-center gap-4">
                   <AdvisorAvatar
                     iconKey={advisor.iconKey}
                     chipBg={advisor.chipBg}
@@ -430,17 +595,17 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   />
                   <div className="min-w-0 pt-1">
                     <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                      Your expert
+                      {isMovementCoach ? "VYVA wellness" : "Your expert"}
                     </p>
                     <h1 className="mt-1 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px]">
                       {advisorPresentation?.title ?? advisorDisplayName}
                     </h1>
                   </div>
-                </div>
-                <p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
+                </div>}
+                {!isMovementCoach && <><p className="mt-4 font-body text-[17px] font-bold leading-snug text-vyva-text-2">
                   {helpStatement}
                 </p>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-3">
                   <button
                     type="button"
                     onClick={() => void handleStartSession("voice")}
@@ -450,27 +615,15 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
                       <Mic size={25} strokeWidth={2.5} aria-hidden="true" />
                     </span>
-                    <span className="mt-4 block font-body text-[21px] font-black leading-tight">Voice chat</span>
+                    <span className="mt-4 block font-body text-[21px] font-black leading-tight">{isMovementCoach ? "Voice guide" : "Voice chat"}</span>
                     <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-white/80">Speak naturally with VYVA</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => composerInputRef.current?.focus()}
-                    className="vyva-tap group min-h-[152px] rounded-[24px] border border-[#E8E2F0] bg-[#FBF7F0] px-5 py-5 text-left shadow-[0_10px_24px_rgba(63,45,35,0.06)] transition-transform hover:-translate-y-0.5 active:scale-[0.985]"
-                    data-testid="button-advisor-start-chat"
-                  >
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1EAFB] text-[#6B21A8] ring-1 ring-[#E7DDF3]">
-                      <MessageCircle size={25} strokeWidth={2.5} aria-hidden="true" />
-                    </span>
-                    <span className="mt-4 block font-body text-[21px] font-black leading-tight text-vyva-text-1">Text chat</span>
-                    <span className="mt-1 block font-body text-[14px] font-bold leading-snug text-vyva-text-2">Write at your own pace</span>
-                  </button>
-                </div>
+                </div></>}
                 {isMovementCoach ? (
                   <MovementCoachRoutineShortcuts
                     language={language}
                     onOpenLibrary={() => navigate("/social-rooms/morning-movement")}
-                    onOpenRoutine={(exerciseId) => navigate(`/social-rooms/morning-movement/exercises/${exerciseId}`)}
+                    onOpenRoutine={(exerciseId) => openWellnessRoutine(exerciseId, "touch")}
                   />
                 ) : null}
                 {sendError ? (
@@ -489,12 +642,32 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
                   message={{
                     id: "starter",
                     role: "assistant",
-                    text: starterPrompt || advisor.starter,
+                    text: handoffMessage || starterPrompt || advisor.starter,
                     source: "text",
                     createdAt: new Date().toISOString(),
                   }}
                 />
               )}
+              {canShareShortlist ? (
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => void handleShareShortlist()}
+                    disabled={shareStatus === "sharing"}
+                    className="vyva-tap mt-1 flex min-h-[48px] items-center gap-2 rounded-full border border-[#E8E2F0] bg-white px-4 font-body text-[15px] font-black text-[#6B21A8] shadow-sm disabled:opacity-60"
+                    data-testid="button-advisor-share-shortlist"
+                  >
+                    {shareStatus === "sharing" ? (
+                      <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                    ) : shareStatus === "copied" ? (
+                      <Check size={18} aria-hidden="true" />
+                    ) : (
+                      <Share2 size={18} aria-hidden="true" />
+                    )}
+                    {shareStatus === "copied" ? "Link copied" : shareStatus === "error" ? "Could not share. Try again." : "Share this with family"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -513,7 +686,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {showIntro ? (
+        {showIntro && isMovementCoach ? null : showIntro ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"

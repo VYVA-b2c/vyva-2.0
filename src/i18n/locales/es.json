@@ -1313,8 +1313,8 @@
           "detail": "Chef mediterránea"
         },
         "amara": {
-          "label": "Amara Osei",
-          "detail": "Guía de movimiento"
+          "label": "Wellness Coach",
+          "detail": "Movimiento y calma"
         },
         "marco": {
           "label": "Marco Reyes",
@@ -2506,3 +2506,4 @@
     "sendNow": "Enviar alerta ahora"
   }
 }
+

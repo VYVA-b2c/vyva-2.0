@@ -525,13 +525,17 @@ export default function ListenClosely({ userId, onExit }) {
   const resultState = sessionResult?.userState ?? userState ?? getDefaultListenCloselyUserState(userId ?? "");
   const resultIsGood = Number(sessionResult?.score ?? 0) >= 650;
   const modeLabel = normalizedSoundscape?.mode === "count_compare"
-    ? t("games.listenClosely.modeCompare", "Count compare")
+    ? t("games.listenClosely.modeCompare", "Compare sounds")
     : normalizedSoundscape?.mode === "oddball"
       ? t("games.listenClosely.modeOddball", "Odd sound")
       : t("games.listenClosely.modeFind", "Find it");
   const introInstruction = normalizedSoundscape?.mode === "oddball"
     ? t("games.listenClosely.tapSpecialShort", "Tap only for this sound.")
     : t("games.listenClosely.tapTargetShort", "Tap when you hear it.");
+  const compareInstruction = t(
+    "games.listenClosely.instructionCompare",
+    "Listen to both sounds. At the end, choose which one you heard more often.",
+  );
   const tutorialRespond = isCompareMode
     ? t("games.listenClosely.tutorialChoose", "Choose more")
     : t("games.listenClosely.tutorialTap", "Tap when heard");
@@ -599,6 +603,9 @@ export default function ListenClosely({ userId, onExit }) {
                   </p>
                   <p className="mt-1.5 font-display text-[24px] font-semibold leading-tight" style={{ color: BRAND.teal }}>
                     {t("games.listenClosely.whichMore", "Which sound happened more?")}
+                  </p>
+                  <p className="mx-auto mt-2 max-w-[560px] text-[16px] font-semibold leading-relaxed" style={{ color: BRAND.muted }}>
+                    {compareInstruction}
                   </p>
                   <div className="mx-auto mt-4 grid max-w-[560px] gap-3 sm:grid-cols-2">
                     {[targetLabel, secondTargetLabel].map((label) => (

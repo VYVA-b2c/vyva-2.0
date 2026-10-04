@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucide-react";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { CANONICAL_MENU_ITEM_TITLE_CLASS } from "@/design/canonicalMenuTypography";
 
 type MasterTone = {
   iconBg: string;
@@ -46,6 +48,15 @@ export type MasterDashboardCard = {
   chips?: string[];
   highlighted?: boolean;
   highlightLabel?: string;
+  nudgeLabel?: string;
+  nudgeDetail?: string;
+  onNudgeClick?: () => void;
+  nudgeTestId?: string;
+  onNudgeDismiss?: () => void;
+  nudgeDismissLabel?: string;
+  nudgeDismissPending?: boolean;
+  nudgeError?: string;
+  nudgeContent?: ReactNode;
 };
 
 export type MasterFastHelpAction = {
@@ -82,8 +93,9 @@ export type MasterDashboardHero = {
 type MasterDashboardLayoutProps = {
   hero: MasterDashboardHero;
   cards: MasterDashboardCard[];
-  fastHelpTitle: string;
-  fastHelpActions: MasterFastHelpAction[];
+  showFastHelp?: boolean;
+  fastHelpTitle?: string;
+  fastHelpActions?: MasterFastHelpAction[];
   launcherVariant?: "default" | "homeMaster";
   intentLayer?: boolean;
   cardSectionTitle?: string;
@@ -103,6 +115,7 @@ type MasterDashboardLayoutProps = {
   showCards?: boolean;
   heroLayoutVariant?: "dashboard" | "canonicalMenu";
   cardLayoutVariant?: "dashboard" | "canonicalActionGrid";
+  cardChevronVariant?: "circle" | "plain";
   fastHelpLayoutVariant?: "dashboard" | "canonicalActionGrid";
   modeSwitcher?: ReactNode;
   isDarkMode?: boolean;
@@ -134,8 +147,9 @@ const twoLineClampStyle: CSSProperties = {
 export default function MasterDashboardLayout({
   hero,
   cards,
+  showFastHelp = true,
   fastHelpTitle,
-  fastHelpActions,
+  fastHelpActions = [],
   launcherVariant = "default",
   intentLayer = false,
   cardSectionTitle,
@@ -154,26 +168,29 @@ export default function MasterDashboardLayout({
   showCards = showLauncher,
   heroLayoutVariant = "dashboard",
   cardLayoutVariant = "dashboard",
+  cardChevronVariant = "circle",
   fastHelpLayoutVariant = "dashboard",
   modeSwitcher,
-  isDarkMode = false,
+  isDarkMode,
   presentationAttributes,
   presentationClassName,
   children,
 }: MasterDashboardLayoutProps) {
+  const { isDark: persistedDarkMode } = useHomeMasterTheme();
+  const resolvedDarkMode = isDarkMode ?? persistedDarkMode;
   const heroTone = hero.tone ?? defaultHeroTone;
   const isVoiceAction = hero.action.kind === "voice";
   const isHomeMaster = launcherVariant === "homeMaster";
-  const isHomeMasterDark = isHomeMaster && isDarkMode;
+  const isHomeMasterDark = isHomeMaster && resolvedDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
   const isHomeMasterTopLevelCards = isHomeMaster && !isHomeMasterIntentLayer;
   const isHomeMasterSingleSurface = isHomeMaster && showHero && !showCards;
   const usesCanonicalMenuHero = !isHomeMaster && heroLayoutVariant === "canonicalMenu";
   const usesCanonicalCardGrid = !isHomeMaster && cardLayoutVariant === "canonicalActionGrid";
   const usesCanonicalFastHelp = !isHomeMaster && fastHelpLayoutVariant === "canonicalActionGrid";
-  const usesDarkCanonicalHero = isDarkMode && usesCanonicalMenuHero;
-  const usesDarkCanonicalCards = isDarkMode && usesCanonicalCardGrid;
-  const usesDarkCanonicalFastHelp = isDarkMode && usesCanonicalFastHelp;
+  const usesDarkCanonicalHero = resolvedDarkMode && usesCanonicalMenuHero;
+  const usesDarkCanonicalCards = resolvedDarkMode && usesCanonicalCardGrid;
+  const usesDarkCanonicalFastHelp = resolvedDarkMode && usesCanonicalFastHelp;
   const allowMessageControls = !(isHomeMaster && isVoiceAction);
   const hasMessageAction = allowMessageControls && Boolean(hero.messageActionLabel && hero.onMessageAction);
   const hasMessageDismiss = allowMessageControls && Boolean(hero.onMessageDismiss);
@@ -249,7 +266,7 @@ export default function MasterDashboardLayout({
       ].join(" ")}
       {...(presentationAttributes ?? {})}
       data-testid={testId}
-      data-home-master-theme={isHomeMasterDark ? "dark" : "light"}
+      data-home-master-theme={resolvedDarkMode ? "dark" : "light"}
       data-home-master-intent-layer={isHomeMasterIntentLayer ? "true" : "false"}
     >
       {modeSwitcher}
@@ -445,7 +462,7 @@ export default function MasterDashboardLayout({
             isHomeMaster
               ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-4 lg:gap-5")
               : usesCanonicalCardGrid
-                ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:grid-cols-2 md:gap-4"
+                ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 md:gap-4"
                 : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"
           }
           data-card-layout={usesCanonicalCardGrid ? "canonical-action-grid" : "dashboard-grid"}
@@ -476,8 +493,8 @@ export default function MasterDashboardLayout({
                 ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
+              <div key={card.id} className={`flex min-w-0 flex-col ${card.nudgeLabel ? `overflow-hidden rounded-[22px] border ${usesDarkCanonicalCards ? "border-white/15 bg-white/[0.06]" : "border-vyva-border bg-white"}` : ""}`}>
               <button
-                key={card.id}
                 type="button"
                 onClick={card.onClick}
                 data-testid={card.testId}
@@ -485,7 +502,8 @@ export default function MasterDashboardLayout({
                 aria-current={card.highlighted ? "true" : undefined}
                 data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
-                  "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  card.nudgeLabel ? "!rounded-none !border-0 !shadow-none hover:!translate-y-0" : "",
+                  "vyva-tap group relative w-full flex-1 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
                     ? isHomeMasterIntentLayer
@@ -515,13 +533,13 @@ export default function MasterDashboardLayout({
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                   ...(card.highlighted
                     ? {
-                        borderTopColor: card.tone.iconColor,
-                        borderRightColor: card.tone.iconColor,
-                        borderBottomColor: card.tone.iconColor,
-                        borderLeftColor: card.tone.iconColor,
-                        boxShadow: `0 12px 28px ${card.tone.iconColor}22`,
-                        outlineColor: card.tone.iconColor,
-                        "--tw-ring-color": card.tone.iconColor,
+                        borderTopColor: "#D69A20",
+                        borderRightColor: "#D69A20",
+                        borderBottomColor: "#D69A20",
+                        borderLeftColor: "#D69A20",
+                        boxShadow: "0 12px 28px rgba(214,154,32,0.20)",
+                        outlineColor: "#D69A20",
+                        "--tw-ring-color": "#D69A20",
                       } as CSSProperties
                     : {}),
                 }}
@@ -565,7 +583,7 @@ export default function MasterDashboardLayout({
                     <span
                       className={[
                         "block font-body text-[17px] font-black leading-tight min-[390px]:text-[18px]",
-                        usesCanonicalCardGrid ? "font-display text-[20px] font-semibold leading-[1.03] min-[390px]:text-[21px] md:text-[24px]" : "",
+                        usesCanonicalCardGrid ? `truncate ${CANONICAL_MENU_ITEM_TITLE_CLASS}` : "",
                         usesDarkCanonicalCards ? "text-[#F9F4FF]" : "text-vyva-text-1",
                       ].join(" ")}
                       data-testid={card.testId ? `${card.testId}-title` : undefined}
@@ -609,15 +627,18 @@ export default function MasterDashboardLayout({
                     aria-hidden="true"
                   />
                 ) : null}
-                {usesCanonicalCardGrid ? (
+                {usesCanonicalCardGrid && cardChevronVariant === "circle" ? (
                   <span className="grid h-[34px] w-[34px] place-items-center rounded-full text-white" style={{ background: card.tone.iconColor }} aria-hidden="true">
                     <ChevronRight size={18} strokeWidth={2.5} />
                   </span>
                 ) : null}
+                {usesCanonicalCardGrid && cardChevronVariant === "plain" ? (
+                  <ChevronRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+                ) : null}
                 {card.highlighted && card.highlightLabel ? (
                   <span
                     className="absolute right-9 top-2.5 max-w-[42%] truncate rounded-full px-2 py-1 font-body text-[9px] font-black leading-none min-[390px]:right-10 min-[390px]:text-[10px] sm:right-11"
-                    style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
+                    style={{ background: "#FFF4CF", color: "#A16207" }}
                   >
                     {card.highlightLabel}
                   </span>
@@ -648,6 +669,34 @@ export default function MasterDashboardLayout({
                   ) : null}
                 </span>
               </button>
+              {card.nudgeContent ?? (card.nudgeLabel && card.onNudgeClick ? (
+                <div className="flex items-center border-t border-vyva-border">
+                <button
+                  type="button"
+                  onClick={card.onNudgeClick}
+                  data-testid={card.nudgeTestId}
+                  className="vyva-tap flex min-h-[58px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#F1E5FF]"
+                >
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-white text-vyva-purple shadow-[0_4px_10px_rgba(107,33,168,0.10)]" aria-hidden="true">
+                    <span className="h-2.5 w-2.5 rounded-full bg-vyva-purple" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-body text-[14px] font-black leading-tight text-vyva-purple min-[390px]:text-[15px]">
+                      {card.nudgeLabel}
+                    </span>
+                    {card.nudgeDetail ? (
+                      <span className="mt-0.5 block font-body text-[12px] font-semibold leading-tight text-vyva-text-2 min-[390px]:text-[13px]">
+                        {card.nudgeDetail}
+                      </span>
+                    ) : null}
+                  </span>
+                  <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+                </button>
+                {card.onNudgeDismiss && <button type="button" onClick={card.onNudgeDismiss} disabled={card.nudgeDismissPending} aria-label={card.nudgeDismissLabel} title={card.nudgeDismissLabel} className="vyva-tap flex h-11 w-11 shrink-0 items-center justify-center text-vyva-purple"><X size={18} aria-hidden="true" /></button>}
+                </div>
+              ) : null)}
+              {card.nudgeError && <p role="alert" className="px-3 pb-2 text-sm text-vyva-text-2">{card.nudgeError}</p>}
+              </div>
             );
           })}
         </div>
@@ -671,7 +720,7 @@ export default function MasterDashboardLayout({
 
       {beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
-      {showLauncher && !isHomeMaster ? <section
+      {showLauncher && !isHomeMaster && showFastHelp ? <section
         className={[
           usesCanonicalFastHelp
             ? "mt-3 min-[390px]:mt-3.5"

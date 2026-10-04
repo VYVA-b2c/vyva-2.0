@@ -53,23 +53,27 @@ function defaultUserState(userId) {
   };
 }
 
-function practiceMap(language) {
+const PRACTICE_ROUTES = [
+  [{ col: 0, row: 0 }, { col: 1, row: 0 }, { col: 2, row: 0 }, { col: 2, row: 1 }, { col: 2, row: 2 }],
+  [{ col: 3, row: 0 }, { col: 2, row: 0 }, { col: 2, row: 1 }, { col: 1, row: 1 }, { col: 1, row: 2 }],
+  [{ col: 0, row: 3 }, { col: 0, row: 2 }, { col: 1, row: 2 }, { col: 1, row: 1 }, { col: 2, row: 1 }],
+  [{ col: 3, row: 3 }, { col: 2, row: 3 }, { col: 1, row: 3 }, { col: 1, row: 2 }, { col: 0, row: 2 }],
+  [{ col: 1, row: 0 }, { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 }, { col: 3, row: 2 }],
+  [{ col: 2, row: 3 }, { col: 2, row: 2 }, { col: 1, row: 2 }, { col: 0, row: 2 }, { col: 0, row: 1 }],
+];
+
+function practiceMap(language, routeIndex = 0) {
+  const normalizedIndex = ((routeIndex % PRACTICE_ROUTES.length) + PRACTICE_ROUTES.length) % PRACTICE_ROUTES.length;
   return {
     id: null,
     grid_cols: 4,
     grid_rows: 4,
-    route_nodes: [
-      { col: 0, row: 0 },
-      { col: 1, row: 0 },
-      { col: 2, row: 0 },
-      { col: 2, row: 1 },
-      { col: 2, row: 2 },
-    ],
+    route_nodes: PRACTICE_ROUTES[normalizedIndex],
     step_count: 5,
     difficulty_tier: 1,
     blocked_cells: [],
     landmark_cells: [],
-    memorise_seconds: 15,
+    memorise_seconds: 5,
     language,
     is_active: true,
   };
@@ -205,6 +209,8 @@ export default function SpatialNavigator({ userId, onExit }) {
   const isDrawingRef = useRef(false);
   const sessionSavedRef = useRef(false);
   const latestRef = useRef({ screen: "loading", map: null });
+  const shownMapIdsRef = useRef(new Set());
+  const practiceRouteIndexRef = useRef(0);
 
   const [screen, setScreen] = useState("loading");
   const [map, setMap] = useState(null);
@@ -218,7 +224,7 @@ export default function SpatialNavigator({ userId, onExit }) {
   const [savingResult, setSavingResult] = useState(false);
 
   const route = useMemo(() => routeFor(map), [map]);
-  const memoriseSeconds = Math.max(1, Number(map?.memorise_seconds ?? 5));
+  const memoriseSeconds = Math.min(5, Math.max(1, Number(map?.memorise_seconds ?? 5)));
   const countdownRatio = screen === "memorise" ? Math.max(0, Math.min(1, countdown / memoriseSeconds)) : 1;
 
   useEffect(() => {
@@ -248,7 +254,11 @@ export default function SpatialNavigator({ userId, onExit }) {
   }, [userId]);
 
   const loadMap = useCallback(async (state) => {
-    if (!userId) return practiceMap(gameLanguage);
+    if (!userId) {
+      const selected = practiceMap(gameLanguage, practiceRouteIndexRef.current);
+      practiceRouteIndexRef.current = (practiceRouteIndexRef.current + 1) % PRACTICE_ROUTES.length;
+      return selected;
+    }
 
     const tier = Number(state?.current_tier ?? 1);
     const start = localDayStart();
@@ -266,6 +276,7 @@ export default function SpatialNavigator({ userId, onExit }) {
     const playedToday = (todaySessions ?? [])
       .map((session) => session.map_id)
       .filter(Boolean);
+    const excludedMapIds = [...new Set([...playedToday, ...shownMapIdsRef.current])];
 
     const languageOrder = [...new Set([gameLanguage, "es", "en", "de"])];
 
@@ -278,13 +289,17 @@ export default function SpatialNavigator({ userId, onExit }) {
         .eq("language", mapLanguage)
         .limit(80);
 
-      if (playedToday.length) {
-        query = query.not("id", "in", `(${playedToday.join(",")})`);
+      if (excludedMapIds.length) {
+        query = query.not("id", "in", `(${excludedMapIds.join(",")})`);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      if (data?.length) return data[Math.floor(Math.random() * data.length)];
+      if (data?.length) {
+        const selected = data[Math.floor(Math.random() * data.length)];
+        if (selected.id) shownMapIdsRef.current.add(selected.id);
+        return selected;
+      }
     }
 
     for (const mapLanguage of languageOrder) {
@@ -316,10 +331,17 @@ export default function SpatialNavigator({ userId, onExit }) {
         }
       }
 
-      return [...maps].sort((a, b) => (lastPlayed.get(a.id) ?? 0) - (lastPlayed.get(b.id) ?? 0))[0];
+      const unseenMaps = maps.filter((candidate) => !shownMapIdsRef.current.has(candidate.id));
+      const candidates = unseenMaps.length ? unseenMaps : maps;
+      if (!unseenMaps.length) shownMapIdsRef.current.clear();
+      const selected = [...candidates].sort((a, b) => (lastPlayed.get(a.id) ?? 0) - (lastPlayed.get(b.id) ?? 0))[0];
+      if (selected?.id) shownMapIdsRef.current.add(selected.id);
+      return selected;
     }
 
-    return practiceMap(gameLanguage);
+    const selected = practiceMap(gameLanguage, practiceRouteIndexRef.current);
+    practiceRouteIndexRef.current = (practiceRouteIndexRef.current + 1) % PRACTICE_ROUTES.length;
+    return selected;
   }, [gameLanguage, userId]);
 
   const loadGame = useCallback(async () => {
@@ -339,7 +361,9 @@ export default function SpatialNavigator({ userId, onExit }) {
     } catch {
       const fallbackState = defaultUserState(userId);
       setUserState(fallbackState);
-      setMap(practiceMap(gameLanguage));
+      const selected = practiceMap(gameLanguage, practiceRouteIndexRef.current);
+      practiceRouteIndexRef.current = (practiceRouteIndexRef.current + 1) % PRACTICE_ROUTES.length;
+      setMap(selected);
       setLoadNote(text.practiceNote);
       setScreen("intro");
     }
@@ -363,7 +387,9 @@ export default function SpatialNavigator({ userId, onExit }) {
       setScreen("intro");
     } catch {
       setUserState(baseState);
-      setMap(practiceMap(gameLanguage));
+      const selected = practiceMap(gameLanguage, practiceRouteIndexRef.current);
+      practiceRouteIndexRef.current = (practiceRouteIndexRef.current + 1) % PRACTICE_ROUTES.length;
+      setMap(selected);
       setLoadNote(text.practiceNote);
       setScreen("intro");
     }
@@ -382,7 +408,7 @@ export default function SpatialNavigator({ userId, onExit }) {
       const width = container.getBoundingClientRect().width || 360;
       const compactResult = screen === "result" && window.innerWidth <= 520;
       const maxSize = screen === "result" ? (compactResult ? 220 : 300) : 480;
-      const minSize = screen === "result" ? (compactResult ? 200 : 240) : 320;
+      const minSize = screen === "result" ? (compactResult ? 200 : 240) : 220;
       setCanvasSize(Math.max(minSize, Math.min(width, maxSize)));
     };
 
@@ -530,8 +556,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     setSessionResult(null);
     sessionSavedRef.current = false;
     setScreen("memorise");
-    startCountdown(Number(map.memorise_seconds ?? 5));
-  }, [map, startCountdown]);
+    startCountdown(memoriseSeconds);
+  }, [map, memoriseSeconds, startCountdown]);
 
   function getCellFromTouch(touch, canvasRect, cellSize) {
     if (!map) return null;
@@ -817,6 +843,9 @@ export default function SpatialNavigator({ userId, onExit }) {
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
+  const canProgress = resultAccuracy >= 60;
+  const primaryResultLabel = canProgress ? continueLabel : text.playAgain;
+  const primaryResultAction = canProgress ? loadGame : loadSameLevelGame;
   const winProgress = Math.min(3, Number(userState?.consecutive_wins ?? 0));
 
   if (screen === "loading") {
@@ -917,11 +946,9 @@ export default function SpatialNavigator({ userId, onExit }) {
             { label: text.score, value: sessionResult?.score ?? 0 },
             { label: text.level, value: `${text.level} ${resultTier}` },
           ]}
-          continueLabel={continueLabel}
-          replayLabel={text.playAgain}
+          continueLabel={primaryResultLabel}
           anotherLabel={text.playAnotherGame}
-          onContinue={loadGame}
-          onReplay={loadSameLevelGame}
+          onContinue={primaryResultAction}
           onAnother={handleExit}
           details={
             <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
@@ -1081,7 +1108,7 @@ const spatialStyles = `
   .spatial-canvas-wrap {
     width: 100%;
     max-width: 480px;
-    min-width: 320px;
+    min-width: 0;
     margin: 20px auto 0;
     display: flex;
     justify-content: center;
@@ -1098,6 +1125,7 @@ const spatialStyles = `
 
   .spatial-canvas {
     display: block;
+    box-sizing: border-box;
     border-radius: 20px;
     border: 3px solid #E5E3DF;
     background: ${BACKGROUND};

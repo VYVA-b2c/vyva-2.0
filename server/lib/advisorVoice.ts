@@ -7,7 +7,7 @@ import type { VoiceContextDomain } from "./voiceContext.js";
  * generic social context.
  */
 const ADVISOR_DOMAINS: Record<AdvisorSlug, VoiceContextDomain> = {
-  amara: "health",
+  amara: "wellness",
   nora: "health",
   tomas: "companion",
   elena: "companion",

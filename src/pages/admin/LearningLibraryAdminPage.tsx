@@ -811,8 +811,8 @@ export default function LearningLibraryAdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F2EB] px-5 py-6 text-[#2f2135]">
-      <div className="mx-auto w-full max-w-7xl">
+    <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#F7F2EB] px-3 py-6 text-[#2f2135] sm:px-5">
+      <div className="mx-auto w-full min-w-0 max-w-7xl">
         <AdminPageHeader
           title="Learning library"
           subtitle="Create, review, publish, and archive curated lessons for Learn Something New."
@@ -1020,8 +1020,8 @@ export default function LearningLibraryAdminPage() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+        <section className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_150px_150px_150px_150px]">
               <label className="relative block">
                 <Search className="absolute left-3 top-3 text-[#8b7a73]" size={16} />
@@ -1332,7 +1332,7 @@ export default function LearningLibraryAdminPage() {
               </Field>
             </div>
 
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <div className="mt-5 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
               {editorMessage ? (
                 <p
                   className="rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 text-sm font-black text-[#5b4a46] sm:col-span-3"

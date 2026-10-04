@@ -6,6 +6,8 @@ const fr = {
     more: "Plus",
   },
   common: {
+    showMoreGames: "Plus",
+    showFewerGames: "Afficher moins",
     back: "Retour",
     continue: "Continuer",
     start: "Commencer",
@@ -630,7 +632,7 @@ const fr = {
         elena: { label: "Elena Ruiz", detail: "Jardinière urbaine" },
         viktor: { label: "Viktor Sanz", detail: "Compagnon de jeux" },
         lola: { label: "Lola Martínez", detail: "Cheffe méditerranéenne" },
-        amara: { label: "Amara Osei", detail: "Guide de mouvement" },
+        amara: { label: "Wellness Coach", detail: "Mouvement et calme" },
         marco: { label: "Marco Reyes", detail: "Guide de calme" },
         diego: { label: "Diego Salinas", detail: "Musicologue" },
         isabel: { label: "Isabel Fuentes", detail: "Hôte littéraire" },
@@ -1013,9 +1015,9 @@ const fr = {
       breatheIn: "Inspirez",
       breatheOut: "Expirez",
       safety: "Si respirer semble difficile, douloureux ou inhabituel, arretez-vous et demandez de l'aide.",
-      startGuide: "Demarrer le guide Marco",
+      startGuide: "Demarrer le guide VYVA",
       guideStarting: "Demarrage...",
-      guideLive: "Le guide Marco est actif",
+      guideLive: "Le guide VYVA est actif",
       replay: "Rejouer",
       back: "Retour",
       next: "Suivant",
@@ -1773,7 +1775,7 @@ const fr = {
       drawHint: "Glissez le doigt sur le chemin dont vous vous souvenez",
       done: "Termine",
       resultGreat: "Beau travail, explorateur!",
-      resultTry: "Vous y etes presque! Reessayez demain.",
+      resultTry: "Reessayez",
       accuracy: "Precision",
       streak: "Serie",
       score: "Score",
@@ -2048,6 +2050,16 @@ const fr = {
     },
   },
   concierge: {
+    master: { picker: { getHelp: {
+      title: "Obtenir de l'aide",
+      voiceContext: "Demandez de quelle aide la personne a besoin. Ne contactez personne et ne réservez rien sans confirmation.",
+      options: {
+        homeRepair: "Dépannage à domicile", homeRepairDetail: "Plombier, électricien, ménage",
+        healthcare: "Santé", healthcareDetail: "Trouver un spécialiste ou une aide médicale",
+        adminService: "Aide administrative", adminServiceDetail: "Formulaires, courriers et démarches",
+        homeCare: "Aide à domicile", homeCareDetail: "Comparer les aidants ou les établissements",
+      },
+    } } },
     fastHelp: {
       ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
       actions: {

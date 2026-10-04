@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mic, SendHorizonal } from "lucide-react";
 import { useSpeechRecognition } from "@/games/memory/useSpeechRecognition";
+import { cn } from "@/lib/utils";
 
 export default function DualInput({
   value,
@@ -15,6 +16,7 @@ export default function DualInput({
   voiceUnavailableLabel,
   language,
   disabled = false,
+  compact = false,
 }) {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [editedAfterVoice, setEditedAfterVoice] = useState(false);
@@ -76,7 +78,10 @@ export default function DualInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={2}
-            className="min-h-[96px] w-full resize-y rounded-[22px] border-2 border-[#E7D8F3] bg-white px-5 py-4 font-body text-[22px] font-semibold leading-snug text-[#2B2233] outline-none placeholder:text-[#9B8AA3] focus:border-[#6B21A8] focus:ring-4 focus:ring-purple-100 disabled:bg-[#F5F0EA] sm:min-h-[72px]"
+            className={cn(
+              "w-full resize-y rounded-[22px] border-2 border-[#E7D8F3] bg-white px-5 py-4 font-body font-semibold leading-snug text-[#2B2233] outline-none placeholder:text-[#9B8AA3] focus:border-[#6B21A8] focus:ring-4 focus:ring-purple-100 disabled:bg-[#F5F0EA]",
+              compact ? "min-h-[76px] text-[20px]" : "min-h-[96px] text-[22px] sm:min-h-[72px]",
+            )}
           />
         </label>
 
@@ -86,21 +91,27 @@ export default function DualInput({
           disabled={disabled || !isSupported}
           aria-label={isSupported ? dictateLabel : voiceUnavailableLabel}
           title={isSupported ? dictateLabel : voiceUnavailableLabel}
-          className="flex h-[72px] w-[72px] items-center justify-center justify-self-center rounded-[22px] text-white shadow-vyva-card transition-transform active:scale-[0.98] disabled:opacity-50 sm:justify-self-auto"
+          className={cn(
+            "flex items-center justify-center justify-self-center rounded-[22px] text-white shadow-vyva-card transition-transform active:scale-[0.98] disabled:opacity-50 sm:justify-self-auto",
+            compact ? "h-16 w-16" : "h-[72px] w-[72px]",
+          )}
           style={{ background: isListening ? "#0F766E" : "#F59E0B" }}
         >
           <Mic size={30} strokeWidth={2.5} aria-hidden="true" />
         </button>
       </div>
 
-      <div className="mt-2 min-h-[32px] px-2 text-left font-body text-[20px] font-semibold italic text-[#776A82]">
+      <div className={cn("mt-2 px-2 text-left font-body font-semibold italic text-[#776A82]", compact ? "min-h-6 text-[16px]" : "min-h-[32px] text-[20px]")}>
         {interimTranscript || (isListening ? listeningLabel : "")}
       </div>
 
       <button
         type="submit"
         disabled={disabled || !String(value ?? "").trim()}
-        className="mt-2 flex min-h-[72px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 font-body text-[24px] font-black text-white shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-50"
+        className={cn(
+          "mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 font-body font-black text-white shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-50",
+          compact ? "min-h-16 text-[21px]" : "min-h-[72px] text-[24px]",
+        )}
       >
         <SendHorizonal size={26} aria-hidden="true" />
         {submitLabel}
@@ -114,7 +125,10 @@ export default function DualInput({
             onSkip();
           }}
           disabled={disabled}
-          className="mt-3 min-h-[64px] rounded-full px-5 font-body text-[22px] font-extrabold text-[#6B21A8] underline underline-offset-4 disabled:opacity-50"
+          className={cn(
+            "mt-3 rounded-full px-5 font-body font-extrabold text-[#6B21A8] underline underline-offset-4 disabled:opacity-50",
+            compact ? "min-h-12 text-[18px]" : "min-h-[64px] text-[22px]",
+          )}
         >
           {skipLabel}
         </button>

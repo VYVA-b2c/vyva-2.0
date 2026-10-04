@@ -198,6 +198,10 @@ describe("SOS service actions", () => {
 });
 
 describe("app shell route layout", () => {
+  beforeEach(() => {
+    window.localStorage.removeItem("vyva:home-master-theme:v1");
+  });
+
   it.each([
     ["/", "wide"],
     ["/menu", "wide"],
@@ -215,6 +219,8 @@ describe("app shell route layout", () => {
     ["/chat", "fullscreen"],
     ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
+    ["/social-rooms/morning-movement/exercises/chair-yoga", "fullscreen"],
+    ["/dev/social-rooms/morning-movement/exercises/chair-yoga", "fullscreen"],
     ["/attention-boosters/rhythm-tap", "fullscreen"],
     ["/dual-task-walk", "fullscreen"],
     ["/profiles/select", "compact"],
@@ -282,7 +288,9 @@ describe("app shell route layout", () => {
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 
-  it("gives Benefits its own topbar and keeps its B2C surface light", () => {
+  it("gives Benefits its own topbar and inherits the persisted dark theme", () => {
+    window.localStorage.setItem("vyva:home-master-theme:v1", "dark");
+
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/benefits"]}>
         <AppShell>
@@ -292,7 +300,10 @@ describe("app shell route layout", () => {
     );
 
     expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "light");
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "dark");
+    expect(screen.getByTestId("app-shell").className).toContain(
+      "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]",
+    );
     expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 
@@ -353,6 +364,21 @@ describe("app shell route layout", () => {
     expect(shell.className).toContain(
       "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]",
     );
+  });
+
+  it("lets the dev movement guide own the full screen without the global header or dock", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/social-rooms/morning-movement/exercises/chair-yoga"]}>
+        <AppShell>
+          <div>Movement guide content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-layout", "fullscreen");
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+    expect(screen.getByText("Movement guide content").closest("main")).not.toHaveClass("pt-[64px]");
   });
 
   it.each([

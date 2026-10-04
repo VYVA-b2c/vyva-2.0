@@ -59,6 +59,7 @@ export const conciergeTaskProgressPayloadSchema = z.object({
   shortlistIds: z.array(z.string().max(200)).max(50).optional(),
   requestId: z.string().max(200).nullable().optional(),
   selectedProviderOptionId: z.string().max(200).nullable().optional(),
+  selectedContactChannel: z.enum(["booking_url", "phone", "whatsapp", "email", "manual"]).nullable().optional(),
   crossPillarIdempotencyKey: z.string().max(300).optional(),
 }).strict();
 

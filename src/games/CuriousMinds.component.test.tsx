@@ -55,6 +55,32 @@ describe("Curious Minds component", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
+  it("loads preview content without requiring an authenticated API request", async () => {
+    window.localStorage.setItem("curiousMinds:tutorialSeen:v1:preview-user", "true");
+
+    render(
+      <CuriousMinds
+        userId="preview-user"
+        onExit={vi.fn()}
+        previewData={{
+          state: getDefaultCuriousMindsUserState("preview-user"),
+          hook: {
+            id: "preview-hook",
+            fact_prompt: "Why do flamingos often stand on one leg?",
+            fact_answer: "It helps them rest while using less energy.",
+          },
+          prompt: {
+            id: "preview-prompt",
+            prompt_text: "How many different uses can you think of for an umbrella?",
+          },
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Why do flamingos often stand on one leg?" })).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it("shows the tutorial once and reopens it from Instructions", async () => {
     apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
       state: getDefaultCuriousMindsUserState("user-1"),

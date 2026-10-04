@@ -291,7 +291,7 @@ test.describe("home master visual contract", () => {
     expect(menuShellBox).not.toBeNull();
     expect(menuShellBox!.width).toBeGreaterThanOrEqual(840);
     expect(menuShellBox!.width).toBeLessThanOrEqual(880);
-    expect(columns).toBe(4);
+    expect(columns).toBe(2);
     await expect(dock).toBeVisible();
 
     const gridBox = await page.getByTestId("menu-tile-grid").boundingBox();
@@ -308,7 +308,10 @@ test.describe("home master visual contract", () => {
     const titleTops = await page.locator('[data-testid$="-title"]').evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().top),
     );
-    expect(Math.max(...titleTops) - Math.min(...titleTops)).toBeLessThan(2);
+    expect(titleTops).toHaveLength(4);
+    expect(Math.abs(titleTops[0] - titleTops[1])).toBeLessThan(2);
+    expect(Math.abs(titleTops[2] - titleTops[3])).toBeLessThan(2);
+    expect(titleTops[2]).toBeGreaterThan(titleTops[0]);
     const detailsAreScreenReaderOnly = await page.locator('[data-testid$="-detail"]').evaluateAll((elements) =>
       elements.every((element) => {
         const style = getComputedStyle(element);

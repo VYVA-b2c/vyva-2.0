@@ -39,13 +39,13 @@ describe("MenuScreen", () => {
     expect(grid).toHaveTextContent("Concierge");
     expect(grid).toHaveTextContent("Check-ins & medicines");
     expect(grid).toHaveTextContent("Memory, focus & calm");
-    expect(grid).toHaveTextContent("Rooms & support");
+    expect(grid).toHaveTextContent("Experts & support");
     expect(grid).toHaveTextContent("Everyday help");
     expect(screen.getByTestId("menu-shell")).toHaveClass("lg:max-w-[900px]");
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
-      "/social-rooms",
+      "/social-rooms/experts",
       "/concierge",
     ]);
     expect(screen.getByTestId("menu-tile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
@@ -62,12 +62,24 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
+  it("routes Community and Concierge to their canonical destinations", () => {
+    const community = renderMenu();
+
+    fireEvent.click(screen.getByTestId("menu-tile-community"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/social-rooms/experts");
+    community.unmount();
+
+    renderMenu();
+    fireEvent.click(screen.getByTestId("menu-tile-concierge"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/concierge");
+  });
+
   it("can override tile paths for the isolated Home/Nav design preview", () => {
     renderMenu({
       tilePathOverrides: {
         health: "/dev/home-master/health",
         brain: "/dev/home-master/brain",
-        community: "/dev/home-master/community",
+        community: "/dev/home-master/community-team",
         concierge: "/dev/home-master/concierge",
       },
     });
@@ -143,23 +155,25 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("button-menu-profile")).toBeInTheDocument();
   });
 
-  it("uses the canonical My Health action-grid rhythm across breakpoints", () => {
+  it("uses the large canonical action grid shared with My Health", () => {
     renderMenu();
 
     const grid = screen.getByTestId("menu-tile-grid");
     const firstTile = screen.getByTestId("menu-tile-health");
 
-    expect(grid).toHaveClass("grid-cols-1", "gap-4");
-    expect(grid).toHaveClass("md:grid-cols-2");
-    expect(grid).toHaveClass("md:gap-5");
-    expect(grid).not.toHaveClass("lg:grid-cols-4");
-    expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
-    expect(firstTile).toHaveClass("grid-cols-[56px_minmax(0,1fr)_auto]");
-    expect(firstTile).toHaveClass("md:grid-cols-[64px_minmax(0,1fr)_auto]");
-    expect(firstTile).toHaveClass("rounded-[26px]", "md:p-5");
-    expect(screen.getByTestId("menu-tile-health-title")).toHaveClass("text-[20px]", "md:text-[24px]");
+    expect(grid).toHaveClass("grid", "grid-cols-1", "gap-4", "md:grid-cols-2", "md:gap-5");
+    expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]", "w-full", "rounded-[26px]");
+    expect(screen.getByTestId("menu-tile-health-title")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("menu-tile-health-title")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
+    expect(screen.getByTestId("menu-tile-health-title")).not.toHaveClass("truncate");
+    expect(screen.getByTestId("menu-tile-health-title").parentElement).toHaveClass("vyva-home-master-fixed-type");
+    expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveTextContent("Check-ins & medicines");
+    expect(screen.getByTestId("menu-tile-health-detail-text")).toHaveClass("sr-only");
     expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("sr-only");
+    expect(firstTile).toHaveAccessibleName("My Health. Check-ins & medicines");
     expect(firstTile.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
+    expect(firstTile.querySelector("svg.lucide-chevron-right")).toBeInTheDocument();
+    expect(firstTile.querySelector("svg.lucide-arrow-up-right")).toBeInTheDocument();
   });
 
   it("matches the Home master responsive shell width without becoming fixed-width", () => {

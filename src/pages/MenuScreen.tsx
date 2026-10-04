@@ -23,6 +23,10 @@ import { HomeMasterActionControl, HomeMasterProfileControl, HomeMasterTopbar } f
 import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
+import {
+  CANONICAL_MENU_HEADER_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 type MenuTile = {
   id: "health" | "brain" | "community" | "concierge";
@@ -53,8 +57,8 @@ const MENU_TILES: MenuTile[] = [
   {
     id: "community",
     title: "Community",
-    detail: "Rooms & support",
-    path: "/social-rooms",
+    detail: "Experts & support",
+    path: "/social-rooms/experts",
     icon: Users,
     iconAccent: "link",
   },
@@ -183,7 +187,7 @@ export default function MenuScreen({
             compact
           />
           <div className="flex h-9 items-center justify-center sm:h-10">
-            <h1 className={["sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold", isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
+            <h1 className={["sr-only md:not-sr-only", CANONICAL_MENU_HEADER_CLASS, isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
               Menu
             </h1>
           </div>
@@ -335,43 +339,62 @@ export default function MenuScreen({
           </div>
         ) : null}
 
-        <div className="mt-7 lg:mt-0 lg:flex lg:flex-1 lg:items-center" data-testid="menu-grid-stage">
-          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:[grid-template-columns:repeat(4,minmax(0,1fr))]" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+        <div className="mt-7" data-testid="menu-grid-stage">
+          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" aria-label="VYVA main menu" data-testid="menu-tile-grid">
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
+              const title = tile.id === "brain" ? t("home.master.cards.mindMemoryShortTitle", "Brain Power") : tile.title;
               return (
                 <button
                   key={tile.id}
                   type="button"
                   className={[
-                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5 lg:flex lg:min-h-[120px] lg:flex-col lg:items-start lg:gap-2 lg:p-4",
+                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
                     isDark
                       ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
-                      : "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
+                      : "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_10px_24px_rgba(36,28,48,0.05)]",
                   ].join(" ")}
                   data-testid={`menu-tile-${tile.id}`}
                   onClick={() => navigate(destination)}
+                  aria-label={`${title}. ${tile.detail}`}
                 >
                   <span
                     className={[
-                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start lg:h-11 lg:w-11 lg:rounded-[16px]",
+                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
                       isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
                     ].join(" ")}
                   >
-                    <VyvaIcon icon={Icon} accent={tile.iconAccent} size={27} strokeWidth={2.35} tone="brand" />
+                    <VyvaIcon icon={Icon} accent={tile.iconAccent} size={29} strokeWidth={2.55} tone="brand" />
                   </span>
-                  <span className="min-w-0 self-center md:self-start lg:w-full">
-                    <span data-testid={`menu-tile-${tile.id}-title`} className="block font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px] lg:truncate lg:text-[18px]">
-                      {tile.id === "brain" ? t("home.master.cards.mindMemoryShortTitle", "Brain Power") : tile.title}
+                  <span className="vyva-home-master-fixed-type min-w-0 self-center md:self-start">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className={`block whitespace-normal break-words ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
+                      {title}
+                    </span>
+                    <span
+                      data-testid={`menu-tile-${tile.id}-detail-text`}
+                      className="sr-only"
+                    >
+                      {tile.detail}
                     </span>
                     <span data-testid={`menu-tile-${tile.id}-detail`} className="sr-only">
                       {tile.detail}
                     </span>
                   </span>
-                  <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end lg:hidden" aria-hidden="true">
-                    <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
+                  <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
+                    <ArrowUpRight
+                      size={20}
+                      strokeWidth={2.35}
+                      className={isDark ? "text-[#DCCFEF]" : "text-[#B6AAB8]"}
+                      aria-hidden="true"
+                    />
                   </span>
+                  <ChevronRight
+                    size={20}
+                    strokeWidth={2.5}
+                    className={["flex-shrink-0 md:hidden", isDark ? "text-[#DCCFEF]" : "text-vyva-purple"].join(" ")}
+                    aria-hidden="true"
+                  />
                 </button>
               );
             })}

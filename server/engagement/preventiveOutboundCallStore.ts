@@ -73,6 +73,7 @@ export type PreventiveOutboundCallAttemptRecord = Readonly<{
   cancellationCompletedAt: Date | null;
   cancellationStatus: "requested" | "accepted" | "failed" | "uncertain" | null;
   cancellationReason: string | null;
+  requestedAt: Date | null;
 }>;
 
 export type PreventiveOutboundCallClaim =
@@ -231,6 +232,11 @@ export interface PreventiveOutboundCallStore {
     reason: string;
     now: Date;
   }): Promise<void>;
+  listRecentAttempts(input: {
+    userId: string;
+    profileId: string;
+    since: Date;
+  }): Promise<PreventiveOutboundCallAttemptRecord[]>;
 }
 
 type PgQueryResult<T> = { rows: T[]; rowCount?: number | null };
@@ -287,6 +293,7 @@ type AttemptRow = {
   cancellation_completed_at: Date | string | null;
   cancellation_status: "requested" | "accepted" | "failed" | "uncertain" | null;
   cancellation_reason: string | null;
+  requested_at?: Date | string | null;
 };
 
 function asDate(value: Date | string | null | undefined): Date | null {
@@ -367,6 +374,7 @@ function attemptFromRow(row: AttemptRow): PreventiveOutboundCallAttemptRecord {
     cancellationCompletedAt: asDate(row.cancellation_completed_at),
     cancellationStatus: row.cancellation_status,
     cancellationReason: row.cancellation_reason,
+    requestedAt: asDate(row.requested_at),
   };
 }
 
@@ -468,7 +476,7 @@ const ATTEMPT_COLUMNS = `id, call_key, user_id, profile_id, schedule_occurrence_
   flow_entry_claim_token, flow_entry_claim_expires_at,
   flow_entry_evidence_reference, flow_entry_failure_reason,
   cancellation_requested_at, cancellation_completed_at,
-  cancellation_status, cancellation_reason`;
+  cancellation_status, cancellation_reason, requested_at`;
 
 export class PostgresPreventiveOutboundCallStore implements PreventiveOutboundCallStore {
   constructor(private readonly connection = new LazyPostgresConnection()) {}
@@ -1251,6 +1259,28 @@ export class PostgresPreventiveOutboundCallStore implements PreventiveOutboundCa
       )
     );
   }
+
+  async listRecentAttempts(input: {
+    userId: string;
+    profileId: string;
+    since: Date;
+  }): Promise<PreventiveOutboundCallAttemptRecord[]> {
+    try {
+      return await this.connection.withClient(async (client) => {
+        const result = await client.query<AttemptRow>(
+          `select ${ATTEMPT_COLUMNS}
+             from preventive_outbound_call_attempts
+            where user_id = $1 and profile_id = $2 and requested_at >= $3
+            order by requested_at desc
+            limit 200`,
+          [input.userId, input.profileId, input.since],
+        );
+        return result.rows.map(attemptFromRow);
+      });
+    } catch {
+      return [];
+    }
+  }
 }
 
 export class InMemoryPreventiveOutboundCallStore implements PreventiveOutboundCallStore {
@@ -1479,6 +1509,7 @@ export class InMemoryPreventiveOutboundCallStore implements PreventiveOutboundCa
       cancellationCompletedAt: null,
       cancellationStatus: null,
       cancellationReason: null,
+      requestedAt: input.now,
     };
     this.saveAttempt(attempt);
     return { outcome: "acquired", attempt };
@@ -1687,6 +1718,20 @@ export class InMemoryPreventiveOutboundCallStore implements PreventiveOutboundCa
 
   snapshotAttempts(): PreventiveOutboundCallAttemptRecord[] {
     return Array.from(this.attemptsByKey.values());
+  }
+
+  async listRecentAttempts(input: {
+    userId: string;
+    profileId: string;
+    since: Date;
+  }): Promise<PreventiveOutboundCallAttemptRecord[]> {
+    return Array.from(this.attemptsByKey.values())
+      .filter((attempt) =>
+        attempt.userId === input.userId &&
+        attempt.profileId === input.profileId &&
+        (attempt.requestedAt?.getTime() ?? 0) >= input.since.getTime())
+      .sort((left, right) => (right.requestedAt?.getTime() ?? 0) - (left.requestedAt?.getTime() ?? 0))
+      .slice(0, 200);
   }
 }
 

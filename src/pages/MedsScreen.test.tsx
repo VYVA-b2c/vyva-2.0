@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/queryClient";
-import MedsScreen from "./MedsScreen";
+import MedsScreen, { formatRelativeDoseTime } from "./MedsScreen";
 
 const labels: Record<string, string> = {
   "common.back": "Back",
@@ -21,7 +22,7 @@ const labels: Record<string, string> = {
   "meds.dashboard.priorityEmptySub": "Add medicines to start tracking today.",
   "meds.dashboard.priorityNextTitleOne": "1 dose left today",
   "meds.dashboard.priorityNextTitleMany": "{{count}} doses left today",
-  "meds.dashboard.priorityNextSub": "Next: {{medicine}} at {{time}}.",
+  "meds.dashboard.priorityNextSub": "Next: {{medicine}} {{time}}.",
   "meds.dashboard.confirmNext": "Mark as taken",
   "meds.master.heroEyebrow": "Medication",
   "meds.master.todayTitle": "Your medicines today",
@@ -159,6 +160,7 @@ type TestInteractionResponse = {
 
 type RenderOptions = {
   route?: string;
+  componentProps?: ComponentProps<typeof MedsScreen>;
   myMedicines?: TestMyMedicine[];
   interactions?: TestInteractionResponse;
   refills?: {
@@ -263,7 +265,7 @@ function renderMedsScreen(medications: TestMedication[] = [], safety = safetyRes
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[options.route ?? "/meds"]}>
-        <MedsScreen />
+        <MedsScreen {...options.componentProps} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -279,30 +281,23 @@ describe("MedsScreen medication home and detail screens", () => {
     vi.unstubAllGlobals();
   });
 
+  it("describes scheduled doses relative to the current time", () => {
+    const now = new Date(2026, 8, 27, 17, 25, 0, 0);
+    expect(formatRelativeDoseTime("20:00", now)).toBe("in 2 hr 35 min");
+    expect(formatRelativeDoseTime("17:25", now)).toBe("due now");
+    expect(formatRelativeDoseTime("17:05", now)).toBe("overdue by 20 min");
+    expect(formatRelativeDoseTime("anytime", now)).toBe("today");
+  });
+
   it("puts today's medicine status and a clear empty-state action first", async () => {
     renderMedsScreen();
 
     expect(await screen.findByTestId("meds-master-hero")).toHaveTextContent("Your medicines today");
-    expect(screen.getByTestId("section-meds-primary-actions")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-meds-primary-actions")).not.toBeInTheDocument();
     expect(screen.getByTestId("section-meds-dashboard")).toBeInTheDocument();
     expect(await screen.findByText("No medicine plan yet")).toBeInTheDocument();
     expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Add medicines to start tracking today.");
     expect(screen.getByTestId("button-meds-dashboard-add-empty")).toHaveTextContent("Add your first medicine");
-
-    expect(screen.getByTestId("button-meds-primary-my-medicines")).toHaveTextContent("My Medicines");
-    expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("History & progress");
-    expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
-    expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Drug combinations");
-    expect(
-      within(screen.getByTestId("section-meds-primary-actions"))
-        .getAllByRole("button")
-        .map((button) => button.getAttribute("data-testid")),
-    ).toEqual([
-      "button-meds-primary-my-medicines",
-      "button-meds-primary-interactions",
-      "button-meds-primary-refills",
-      "button-meds-primary-adherence",
-    ]);
 
     expect(screen.queryByTestId("section-my-medicines")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-check-interactions")).not.toBeInTheDocument();
@@ -311,31 +306,31 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.queryByTestId("section-meds-dashboard-tips")).not.toBeInTheDocument();
   });
 
-  it("routes primary cards to dedicated screens including the refill inventory tracker", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Metformin",
-        dosage: "500mg",
-        frequency: "twice_daily",
-        scheduled_times: ["08:00", "20:00"],
-        takenToday: false,
-        takenCountToday: 1,
-        scheduledCountToday: 2,
+  it("renders the streamlined profile medication hub with profile-safe navigation", async () => {
+    renderMedsScreen([{
+      id: "med-1",
+      medication_name: "Metformin",
+      dosage: "500 mg",
+      frequency: "twice_daily",
+      scheduled_times: ["08:00", "20:00"],
+      takenToday: false,
+      takenCountToday: 1,
+      scheduledCountToday: 2,
+    }], safetyResponse(), {
+      route: "/dev/home-master/profile/medicines",
+      componentProps: {
+        backPath: "/dev/home-master/profile",
+        routeBase: "/dev/home-master/profile/medicines",
+        profileContext: true,
       },
-    ]);
+    });
 
-    fireEvent.click(await screen.findByTestId("button-meds-primary-my-medicines"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/my-medicines");
+    expect(await screen.findByRole("heading", { name: "My Medication" })).toBeInTheDocument();
+    expect(screen.queryByTestId("section-medication-timeline")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-medication-list-summary")).toHaveTextContent("My medicines");
 
-    fireEvent.click(screen.getByTestId("button-meds-primary-adherence"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
-
-    fireEvent.click(screen.getByTestId("button-meds-primary-interactions"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/interactions");
-
-    fireEvent.click(screen.getByTestId("button-meds-primary-refills"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/refills");
+    fireEvent.click(screen.getByRole("button", { name: /Metformin/i }));
+    expect(mocks.navigate).toHaveBeenCalledWith("/dev/home-master/profile/medicines/my-medicines");
   });
 
   it("shows My Medicines as its own screen and keeps add choices separate from the list", async () => {
@@ -380,7 +375,7 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.queryByTestId("list-my-medicines-active")).not.toBeInTheDocument();
   });
 
-  it("shows one safe refill alert with update and question actions", async () => {
+  it("shows one focused refill alert with a single update action", async () => {
     renderMedsScreen([], safetyResponse(), {
       refills: {
         permissions: { manage_inventory: true, receive_refill_alerts: true },
@@ -401,7 +396,7 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(alert).toHaveTextContent("Metformin needs a refill this week");
     expect(alert).toHaveTextContent("VYVA never orders or contacts anyone");
     expect(within(alert).getByRole("button", { name: "Update supply" })).toBeInTheDocument();
-    expect(within(alert).getByRole("button", { name: "Ask any question" })).toBeInTheDocument();
+    expect(within(alert).queryByRole("button", { name: "Ask any question" })).not.toBeInTheDocument();
 
     fireEvent.click(within(alert).getByRole("button", { name: "Update supply" }));
     expect(mocks.navigate).toHaveBeenCalledWith("/meds/refills");
@@ -478,7 +473,7 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.queryByTestId("button-med-interaction-later-0")).not.toBeInTheDocument();
   });
 
-  it("keeps the primary taken action visible and leaves Not now unrecorded", async () => {
+  it("keeps the primary taken action visible and leaves Snooze unrecorded", async () => {
     renderMedsScreen([
       {
         id: "med-1",
@@ -492,10 +487,10 @@ describe("MedsScreen medication home and detail screens", () => {
       },
     ]);
 
-    expect(await screen.findByText("1 dose left today")).toBeInTheDocument();
-    expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Next: Metformin at 08:00.");
+    expect(await screen.findByTestId("metric-meds-due")).toHaveTextContent("1 dose left");
     expect(screen.getByTestId("button-confirm-next-med")).toHaveTextContent("Mark as taken");
 
+    expect(screen.getByTestId("button-meds-dashboard-not-now")).toHaveTextContent("Snooze");
     fireEvent.click(screen.getByTestId("button-meds-dashboard-not-now"));
     expect(screen.getByTestId("status-dose-deferred")).toHaveTextContent("No dose was recorded or changed");
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/meds/adherence-report/confirm", expect.anything());

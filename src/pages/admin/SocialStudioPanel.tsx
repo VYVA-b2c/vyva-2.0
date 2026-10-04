@@ -56,6 +56,7 @@ type StudioContent = {
 
 type ReadinessItem = {
   channel: SocialStudioChannel;
+  language?: string;
   state: "ready" | "needs_action" | "approved";
   issues: string[];
 };
@@ -83,6 +84,7 @@ type StudioForm = {
   audienceType: AudienceType;
   targetAudienceId: string;
   language: string;
+  languages: string[];
   tone: Tone;
   channels: SocialStudioChannel[];
   ctaLabel: string;
@@ -102,6 +104,15 @@ const CHANNELS: Array<{ value: SocialStudioChannel; label: string; detail: strin
 ];
 
 const CHANNEL_LABELS = Object.fromEntries(CHANNELS.map((item) => [item.value, item.label])) as Record<SocialStudioChannel, string>;
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+];
+const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((item) => [item.value, item.label])) as Record<string, string>;
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[150px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 
@@ -112,6 +123,7 @@ function initialForm(): StudioForm {
     audienceType: "both",
     targetAudienceId: "",
     language: "en",
+    languages: ["en"],
     tone: "warm",
     channels: CHANNELS.map((item) => item.value),
     ctaLabel: "Open VYVA",
@@ -201,6 +213,8 @@ function ChannelCard({
   onCopy: () => void;
 }) {
   const channel = CHANNELS.find((item) => item.value === content.channel) ?? CHANNELS[0];
+  const variantSuffix = content.language === "en" ? "" : `-${content.language}`;
+  const variantTestId = `${content.channel}${variantSuffix}`;
   const Icon = channel.icon;
   const studio = metadataRecord(metadataRecord(content.designJson).socialStudio);
   const hashtags = Array.isArray(studio.hashtags) ? studio.hashtags.map(String).join(" ") : "";
@@ -220,13 +234,13 @@ function ChannelCard({
   }, [mediaAsset]);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#eadfd5] bg-white shadow-sm" data-testid={`social-studio-channel-${content.channel}`}>
+    <article className="overflow-hidden rounded-2xl border border-[#eadfd5] bg-white shadow-sm" data-testid={`social-studio-channel-${variantTestId}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0e7df] bg-[#fffaf4] p-4">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700"><Icon size={18} aria-hidden="true" /></span>
           <div>
             <h3 className="font-black text-[#241133]">{channel.label}</h3>
-            <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{channel.detail}</p>
+            <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{channel.detail} · {LANGUAGE_LABELS[content.language] ?? content.language}</p>
           </div>
         </div>
         <StatusPill state={readiness.state} />
@@ -249,11 +263,11 @@ function ChannelCard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Preview copy</p>
             <div className="flex flex-wrap gap-2">
-              {!editingCopy ? <button type="button" onClick={() => { setDraftSubject(content.subject ?? ""); setDraftBody(content.body); setEditingCopy(true); }} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#eadfd5] bg-white px-2.5 text-xs font-black text-purple-700" disabled={busy} data-testid={`button-social-studio-edit-${content.channel}`}><Pencil size={13} /> Edit</button> : null}
-              <button type="button" onClick={onRegenerateCopy} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 text-xs font-black text-purple-800" disabled={busy} data-testid={`button-social-studio-regenerate-${content.channel}`}>
+              {!editingCopy ? <button type="button" onClick={() => { setDraftSubject(content.subject ?? ""); setDraftBody(content.body); setEditingCopy(true); }} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#eadfd5] bg-white px-2.5 text-xs font-black text-purple-700" disabled={busy} data-testid={`button-social-studio-edit-${variantTestId}`}><Pencil size={13} /> Edit</button> : null}
+              <button type="button" onClick={onRegenerateCopy} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 text-xs font-black text-purple-800" disabled={busy} data-testid={`button-social-studio-regenerate-${variantTestId}`}>
                 <RefreshCw size={13} /> Regenerate
               </button>
-              <button type="button" onClick={onCopy} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#eadfd5] bg-white px-2.5 text-xs font-black text-purple-700" disabled={busy} data-testid={`button-social-studio-copy-${content.channel}`}>
+              <button type="button" onClick={onCopy} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#eadfd5] bg-white px-2.5 text-xs font-black text-purple-700" disabled={busy} data-testid={`button-social-studio-copy-${variantTestId}`}>
                 <Copy size={13} /> Copy
               </button>
             </div>
@@ -261,9 +275,9 @@ function ChannelCard({
           {editingCopy ? (
             <div className="mt-2 grid gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3">
               {content.subject ? <input className={inputClass} value={draftSubject} onChange={(event) => setDraftSubject(event.target.value)} aria-label={`${channel.label} subject`} /> : null}
-              <textarea className={textareaClass} value={draftBody} onChange={(event) => setDraftBody(event.target.value)} aria-label={`${channel.label} copy`} />
+              <textarea className={textareaClass} value={draftBody} onChange={(event) => setDraftBody(event.target.value)} aria-label={content.language === "en" ? `${channel.label} copy` : `${channel.label} ${LANGUAGE_LABELS[content.language] ?? content.language} copy`} />
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => { onSaveCopy(content.subject ? draftSubject : null, draftBody); setEditingCopy(false); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-save-${content.channel}`}><Check size={13} /> Save copy</button>
+                <button type="button" onClick={() => { onSaveCopy(content.subject ? draftSubject : null, draftBody); setEditingCopy(false); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-save-${variantTestId}`}><Check size={13} /> Save copy</button>
                 <button type="button" onClick={() => setEditingCopy(false)} className="inline-flex min-h-9 items-center rounded-lg border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46]" disabled={busy}>Cancel</button>
               </div>
             </div>
@@ -286,11 +300,11 @@ function ChannelCard({
           {mediaAsset ? (
             <div className="mt-3 grid gap-2">
               <Field label="Alt text">
-                <input className={inputClass} value={altText} onChange={(event) => setAltText(event.target.value)} data-testid={`input-social-studio-alt-${content.channel}`} />
+                <input className={inputClass} value={altText} onChange={(event) => setAltText(event.target.value)} data-testid={`input-social-studio-alt-${variantTestId}`} />
               </Field>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => onSaveAltText(altText)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" disabled={busy}><Check size={13} /> Save alt text</button>
-                {!imageApproved ? <button type="button" onClick={onApproveImage} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-image-${content.channel}`}><CheckCircle2 size={13} /> Approve image</button> : null}
+                {!imageApproved ? <button type="button" onClick={onApproveImage} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-image-${variantTestId}`}><CheckCircle2 size={13} /> Approve image</button> : null}
                 <button type="button" onClick={onRegenerateImage} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800" disabled={busy}><RefreshCw size={13} /> Regenerate image</button>
               </div>
             </div>
@@ -299,7 +313,7 @@ function ChannelCard({
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0e7df] pt-3">
           <div className="flex flex-wrap gap-1.5">{readiness.issues.map((issue) => <span key={issue} className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">{issue}</span>)}</div>
-          {!isCopyApproved ? <button type="button" onClick={onApproveCopy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-copy-${content.channel}`}><CheckCircle2 size={13} /> Approve copy</button> : <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> Copy approved</span>}
+          {!isCopyApproved ? <button type="button" onClick={onApproveCopy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-copy-${variantTestId}`}><CheckCircle2 size={13} /> Approve copy</button> : <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> Copy approved</span>}
         </div>
       </div>
     </article>
@@ -312,9 +326,8 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
   const [feedback, setFeedback] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  const contentByChannel = useMemo(() => new Map((studioPackage?.content ?? []).map((item) => [item.channel, item])), [studioPackage?.content]);
   const mediaByContentId = useMemo(() => new Map((studioPackage?.mediaAssets ?? []).map((item) => [item.contentAssetId ?? item.id, item])), [studioPackage?.mediaAssets]);
-  const readinessByChannel = useMemo(() => new Map((studioPackage?.readiness ?? []).map((item) => [item.channel, item])), [studioPackage?.readiness]);
+  const readinessByVariant = useMemo(() => new Map((studioPackage?.readiness ?? []).map((item) => [`${item.channel}:${item.language ?? "en"}`, item])), [studioPackage?.readiness]);
   const allApproved = Boolean(studioPackage?.readiness.length && studioPackage.readiness.every((item) => item.state === "approved"));
 
   function updateForm<K extends keyof StudioForm>(key: K, value: StudioForm[K]) {
@@ -326,6 +339,19 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
       ...current,
       channels: current.channels.includes(channel) ? current.channels.filter((item) => item !== channel) : [...current.channels, channel],
     }));
+  }
+
+  function toggleLanguage(language: string) {
+    setForm((current) => {
+      const languages = current.languages.includes(language)
+        ? current.languages.filter((item) => item !== language)
+        : [...current.languages, language];
+      return {
+        ...current,
+        languages: languages.length ? languages : ["en"],
+        language: languages.includes("en") ? "en" : languages[0] ?? "en",
+      };
+    });
   }
 
   async function refreshReadiness(campaignId: string) {
@@ -356,7 +382,7 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
         }),
       });
       setStudioPackage(response);
-      setFeedback(response.note || `Created ${response.content.length} channel drafts. Review and approve each one below.`);
+      setFeedback(response.note || `Created ${response.content.length} localized channel variants. Review and approve each one below.`);
       await onCreated?.();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "The social package could not be generated.");
@@ -506,7 +532,7 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
       const studio = metadataRecord(metadataRecord(content.designJson).socialStudio);
       const hashtags = Array.isArray(studio.hashtags) ? studio.hashtags.map(String).join(" ") : "";
       const mediaAsset = mediaByContentId.get(content.id);
-      lines.push(`## ${CHANNEL_LABELS[content.channel]}`, "", `Approval: ${content.status === "approved" ? "Approved" : "Needs approval"}`);
+      lines.push(`## ${CHANNEL_LABELS[content.channel]} · ${LANGUAGE_LABELS[content.language] || content.language}`, "", `Approval: ${content.status === "approved" ? "Approved" : "Needs approval"}`);
       if (content.subject) lines.push(`Subject: ${content.subject}`);
       if (studio.hook) lines.push(`Hook: ${String(studio.hook)}`);
       lines.push("", content.body.trim(), "");
@@ -574,7 +600,7 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Campaign name"><input className={inputClass} value={form.campaignName} onChange={(event) => updateForm("campaignName", event.target.value)} placeholder="Spring partner outreach" data-testid="input-social-studio-campaign-name" /></Field>
-            <Field label="Language"><select className={inputClass} value={form.language} onChange={(event) => updateForm("language", event.target.value)}><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="it">Italian</option><option value="pt">Portuguese</option></select></Field>
+            <Field label="Languages"><div className="grid gap-1.5 rounded-xl border border-[#E5D8CA] bg-white p-2.5 sm:max-h-44 sm:overflow-y-auto">{LANGUAGES.map((language) => { const selected = form.languages.includes(language.value); return <label key={language.value} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold ${selected ? "bg-purple-50 text-purple-900" : "text-[#5b4a46]"}`}><input type="checkbox" checked={selected} onChange={() => toggleLanguage(language.value)} className="h-4 w-4 accent-purple-700" data-testid={`checkbox-social-studio-language-${language.value}`} /><span>{language.label}</span>{language.value === "en" ? <span className="ml-auto text-[10px] font-black uppercase tracking-[0.08em] text-purple-700">Default</span> : null}</label>; })}</div><span className="mt-1 block text-xs font-semibold text-[#7d6b65]">English is the source language. Each selected language creates a separate reviewable version.</span></Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Audience"><select className={inputClass} value={form.audienceType} onChange={(event) => updateForm("audienceType", event.target.value as AudienceType)}><option value="b2c">Families and caregivers</option><option value="b2b">Partners and providers</option><option value="both">Both audiences</option></select></Field>
@@ -616,11 +642,11 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
                   <div><p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Generated package</p><h3 className="mt-1 text-2xl font-black text-[#241133]">{studioPackage.campaign.name}</h3><p className="mt-1 text-sm font-semibold text-[#7d6b65]">{studioPackage.source === "openai" ? "AI draft" : "Safe fallback draft"} · {formatDate(studioPackage.campaign.scheduleStartsAt)}</p></div>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black ${studioPackage.campaign.status === "scheduled" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}><CalendarCheck2 size={13} /> {studioPackage.campaign.status}</span>
                 </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Channels</p><p className="mt-1 text-xl font-black text-[#241133]">{studioPackage.content.length}</p></div><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Approved</p><p className="mt-1 text-xl font-black text-[#241133]">{studioPackage.readiness.filter((item) => item.state === "approved").length}/{studioPackage.readiness.length}</p></div><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Publish mode</p><p className="mt-1 text-sm font-black text-[#241133]">Manual social posting</p></div></div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Variants</p><p className="mt-1 text-xl font-black text-[#241133]">{studioPackage.content.length}</p></div><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Approved</p><p className="mt-1 text-xl font-black text-[#241133]">{studioPackage.readiness.filter((item) => item.state === "approved").length}/{studioPackage.readiness.length}</p></div><div className="rounded-xl bg-[#fbf8f5] p-3"><p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Publish mode</p><p className="mt-1 text-sm font-black text-[#241133]">Manual social posting</p></div></div>
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-bold text-[#7d6b65]">Approve copy and images separately. Scheduling stays locked until every selected channel is approved.</p><div className="flex flex-wrap gap-2"><button type="button" onClick={exportRunSheet} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800" data-testid="button-social-studio-export"><Download size={15} /> Export run sheet</button><button type="button" onClick={() => void schedulePackage()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={!allApproved || busyAction !== null || studioPackage.campaign.status === "scheduled"} data-testid="button-social-studio-schedule"><CalendarCheck2 size={15} /> {busyAction === "schedule" ? "Scheduling..." : studioPackage.campaign.status === "scheduled" ? "Scheduled" : "Schedule campaign"}</button></div></div>
               </div>
               {studioPackage.content.map((content) => {
-                const readiness = readinessByChannel.get(content.channel) ?? { channel: content.channel, state: "needs_action" as const, issues: ["Readiness is not available yet."] };
+                const readiness = readinessByVariant.get(`${content.channel}:${content.language}`) ?? { channel: content.channel, language: content.language, state: "needs_action" as const, issues: ["Readiness is not available yet."] };
                 const mediaAsset = mediaByContentId.get(content.id);
                 return <ChannelCard key={content.id} content={content} readiness={readiness} mediaAsset={mediaAsset} busy={busyAction !== null} onApproveCopy={() => void approveCopy(content)} onSaveCopy={(subject, body) => void saveCopy(content, subject, body)} onRegenerateCopy={() => void regenerateCopy(content)} onApproveImage={() => mediaAsset && void approveImage(mediaAsset, content.channel)} onRegenerateImage={() => void regenerateImage(content)} onSaveAltText={(altText) => mediaAsset && void saveAltText(mediaAsset, altText, content.channel)} onCopy={() => void copyContent(content)} />;
               })}

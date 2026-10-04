@@ -5,6 +5,7 @@ import BottomNav from "./BottomNav";
 
 const mocks = vi.hoisted(() => ({
   translations: {} as Record<string, string>,
+  isDark: false,
 }));
 
 vi.mock("@/i18n", () => ({
@@ -14,7 +15,7 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("@/hooks/useHomeMasterTheme", () => ({
-  useHomeMasterTheme: () => ({ isDark: false }),
+  useHomeMasterTheme: () => ({ isDark: mocks.isDark }),
 }));
 
 function LocationProbe() {
@@ -37,6 +38,7 @@ function renderBottomNav(initialPath = "/") {
 describe("BottomNav", () => {
   beforeEach(() => {
     mocks.translations = {};
+    mocks.isDark = false;
   });
 
   it("renders exactly Home, SOS and My Reports", () => {
@@ -103,6 +105,15 @@ describe("BottomNav", () => {
     const dock = screen.getByRole("navigation");
     expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]");
     expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
+  });
+
+  it("uses the dark floating canonical dock throughout Concierge", () => {
+    mocks.isDark = true;
+    renderBottomNav("/dev/concierge-canonical-preview");
+
+    const dock = screen.getByRole("navigation");
+    expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]", "bg-[#21172B]/[0.98]");
+    expect(screen.getByTestId("nav-tab-home").querySelector('[data-vyva-icon="utility"]')).toHaveAttribute("stroke", "#FFFFFF");
   });
 
   it("uses the floating preview dock and preview destinations on development Brain hubs", () => {

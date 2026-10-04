@@ -2,6 +2,15 @@ import { BRAIN_COACH_MAX_LEVEL } from "./shared/brainCoachProgression";
 
 export type FaceNameRecallMode = "name_to_face" | "face_to_name";
 
+export const FACE_NAME_ADVANCE_ACCURACY = 75;
+
+export function selectFreshFaceNameGroup<T extends { id: string }>(pool: T[], count: number, previousIds: string[]) {
+  const unique = [...new Map(pool.map((person) => [person.id, person])).values()];
+  const previous = new Set(previousIds);
+  // Prefer new people without changing an established face/name association.
+  return [...unique.filter((person) => !previous.has(person.id)), ...unique.filter((person) => previous.has(person.id))].slice(0, count);
+}
+
 export type FaceNameRecallLogEntry = {
   persona_id: string;
   mode: FaceNameRecallMode;
@@ -20,13 +29,8 @@ export function getFaceNameFaceCount(tier: number) {
   return 4;
 }
 
-export function getFaceNameStudySeconds(tier: number) {
-  if (tier >= 18) return 22;
-  if (tier >= 14) return 25;
-  if (tier >= 10) return 30;
-  if (tier >= 6) return 35;
-  if (tier >= 3) return 40;
-  return 45;
+export function getFaceNameStudySeconds() {
+  return 10;
 }
 
 export function getFaceNameRecallModes(tier: number): FaceNameRecallMode[] {

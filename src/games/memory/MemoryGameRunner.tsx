@@ -1358,8 +1358,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       const score = getScore(plan.level, accuracy, sequenceTotalMistakes, durationSeconds);
       setCompletionMetrics({ score, accuracy, mistakes: sequenceTotalMistakes, durationSeconds });
       setCompletionDetails(null);
-
-      let active = true;
+      setFinished(true);
       async function completeGame() {
         setSaving(true);
         try {
@@ -1377,16 +1376,13 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             language,
           });
         } finally {
-          if (active) {
+          if (isMountedRef.current) {
             setSaving(false);
-            setFinished(true);
           }
         }
       }
       void completeGame();
-      return () => {
-        active = false;
-      };
+      return;
     }
 
     if (plan.gameType === "word_recall" && completionMetrics && !finished) {
@@ -1675,53 +1671,38 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     const tutorialPair = tutorialPairs[0];
 
     return renderBrainRunnerScreen("tutorial", "tutorial", "card_example", (
-      <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          type="button"
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 rounded-[24px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[28px] sm:p-5">
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple shadow-vyva-card">
-              <Grid2x2 size={27} />
-            </div>
-            <p className="inline-flex rounded-full bg-[#FEF3C7] px-4 py-2 text-[16px] font-black text-[#92400E]">
+      <div className="mx-auto w-full max-w-[680px] px-5 pb-28 pt-5 sm:px-8">
+        <section aria-labelledby="visual-memory-tutorial-title">
+          <div className="flex items-center gap-2 text-vyva-purple">
+            <Grid2x2 size={20} aria-hidden="true" />
+            <p className="text-[14px] font-semibold">
               {getVisualMemoryProgressLabel(plan.level, language)}
             </p>
           </div>
-          <h2 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[36px]">
+          <h2 id="visual-memory-tutorial-title" className="mt-3 font-display text-[26px] font-semibold leading-tight text-vyva-text-1">
             {t("memory.visualTutorialTitle", "Find the pairs")}
           </h2>
-          <p className="mx-auto mt-1 max-w-[38ch] text-[17px] font-semibold leading-snug text-vyva-text-2 sm:text-[18px]">
-            {t("memory.visualTutorialLead", "Turn over two cards at a time.")}
-          </p>
-
-          <div className="mt-4 grid gap-2 text-left sm:grid-cols-3">
-            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+          <div className="mt-3 divide-y divide-vyva-border text-left">
+            <div className="flex min-h-[96px] flex-wrap items-center gap-x-5 gap-y-3 py-3">
               <div className="flex items-center gap-2" aria-hidden="true">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">1</span>
                 <TutorialMemoryCard />
               </div>
-              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+              <p className="min-w-[140px] flex-1 text-[16px] font-semibold leading-snug text-vyva-text-1">
                 {t("memory.visualTutorialFirst", "Turn over one card")}
               </p>
             </div>
-            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+            <div className="flex min-h-[96px] flex-wrap items-center gap-x-5 gap-y-3 py-3">
               <div className="flex items-center gap-1.5" aria-hidden="true">
                 <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">2</span>
                 <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
                 <TutorialMemoryCard />
               </div>
-              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+              <p className="min-w-[140px] flex-1 text-[16px] font-semibold leading-snug text-vyva-text-1">
                 {t("memory.visualTutorialSecond", "Then turn over a second card")}
               </p>
             </div>
-            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#ECFDF5] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+            <div className="flex min-h-[96px] flex-wrap items-center gap-x-5 gap-y-3 py-3">
               <div className="flex items-center gap-1.5" aria-hidden="true">
                 <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-[15px] font-black text-white">3</span>
                 <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
@@ -1730,20 +1711,20 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                   <Check size={17} strokeWidth={3} />
                 </span>
               </div>
-              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+              <p className="min-w-[140px] flex-1 text-[16px] font-semibold leading-snug text-vyva-text-1">
                 {t("memory.visualTutorialFinish", "Same picture? The pair stays open")}
               </p>
             </div>
           </div>
 
-          <div className="mt-3 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
+          <div className="mt-4 text-[15px] leading-relaxed text-vyva-text-2">
             {t("memory.visualTutorialGoal", "Find all {count} pairs to finish. There is no timer.", { count: tutorialPairs.length })}
           </div>
 
           <button
             type="button"
             onClick={closeVisualMemoryInstructions}
-            className="mt-4 inline-flex min-h-[60px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 text-[21px] font-black text-white shadow-vyva-card"
+            className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 py-3 text-[18px] font-bold text-white shadow-vyva-card"
           >
             {t("memory.startVisualLevel", "Start Level {level}", { level: plan.level })}
           </button>
@@ -1915,7 +1896,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
           continueLabel={isWordRecallResult ? wordRecallUi.anotherRound : t("brainGames.resultActions.continue")}
           nextLevelLabel={canOpenNextLevel ? (isWordRecallResult ? wordRecallUi.anotherRound : nextLevelLabel) : undefined}
           nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
-          replayLabel={!isWordRecallResult ? t("brainGames.resultActions.playAgain") : undefined}
+          replayLabel={!isWordRecallResult && !canOpenNextLevel ? t("brainGames.resultActions.playAgain") : undefined}
           anotherLabel={isWordRecallResult ? wordRecallUi.playAnotherGame : t("brainGames.resultActions.moreGames", "More games")}
           assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
           assessmentReturnHint={
@@ -1925,7 +1906,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
           }
           onContinue={isWordRecallResult ? () => openWordRecallTheme(wordRecallThemeId) : openRecommended}
           onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-          onReplay={!isWordRecallResult ? () => void openSameGame() : undefined}
+          onReplay={!isWordRecallResult && !canOpenNextLevel ? () => void openSameGame() : undefined}
           onAnother={backToList}
           onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
           disabled={actionLoading !== null}
@@ -2391,11 +2372,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
         <section className="overflow-hidden rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
-                <Route size={14} />
-                {t("memory.sequenceWatchShort", "Watch order")}
-              </div>
-              <h2 className="mt-3 max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">{gamePrompt}</h2>
+              <h2 className="pt-2 font-display text-[24px] font-semibold leading-tight text-vyva-text-1" aria-live="polite">{sequenceInstruction}</h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {sequenceTutorialSeen ? (
@@ -2414,19 +2391,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("common.level")} ${plan.level}`}</span>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${sequenceProgress}/${expectedSequence.length}`}</span>
             <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("memory.mistakes")} ${sequenceTotalMistakes}`}</span>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${durationSeconds}s`}</span>
           </div>
 
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-          </div>
-
-          {voiceGameContextPanel}
-
-          <div className="mt-3 rounded-[18px] border border-[#EADFF8] bg-white p-4 sm:rounded-[22px]">
-            <p className="text-[17px] font-semibold leading-snug text-vyva-text-1 sm:text-[18px]">{sequenceInstruction}</p>
-            <p className="mt-1.5 text-[14px] leading-[1.45] text-vyva-text-2 sm:text-[15px]">{sequenceSupportText}</p>
+          <div>
+            <p className="sr-only">{sequenceSupportText}</p>
             {sequenceStatus === "wrong" && (
               <div className="mt-3 rounded-[16px] border border-[#F3C6CE] bg-[#FFF2F4] px-4 py-3 text-[15px] font-medium text-[#9F1239]">
                 {t("memory.sequenceWrong")}
@@ -2440,10 +2409,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             {sequenceReady && (
               <button
                 onClick={replaySequence}
-                className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#D8C7F3] bg-white px-4 py-2.5 text-[14px] font-semibold text-vyva-purple shadow-vyva-card sm:text-[15px]"
+                aria-label={t("memory.sequenceWatchAgain")}
+                title={t("memory.sequenceWatchAgain")}
+                className="mt-3 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#D8C7F3] bg-white text-vyva-purple"
               >
                 <RotateCcw size={16} />
-                {t("memory.sequenceWatchAgain")}
               </button>
             )}
           </div>

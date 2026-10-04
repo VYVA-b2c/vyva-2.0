@@ -230,9 +230,10 @@ export default function DietSection() {
   };
 
   return (
-    <PhoneFrame subtitle="Dietary preferences" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Dietary information" showBack onBack={() => navigate("/onboarding/profile/group/health")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          hideTitle
           icon={Utensils}
           title="Food preferences"
           kicker="Comfort at meals"
@@ -316,7 +317,6 @@ export default function DietSection() {
             {saving ? "Saving..." : "Save dietary preferences"}
           </Button>
           </OnboardingCompanionTarget>
-          <button data-testid="button-diet-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
       {speakItOpen ? (

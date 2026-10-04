@@ -39,6 +39,14 @@ describe("StatusBar home master variant", () => {
     vi.useRealTimers();
   });
 
+  it("opens the canonical profile overview from the standard header", () => {
+    render(<StatusBar />);
+
+    fireEvent.click(screen.getByTestId("button-my-profile"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/onboarding/profile");
+  });
+
   it("keeps the header minimal and opens display controls from the gear", () => {
     render(<StatusBar variant="homeMaster" />);
 

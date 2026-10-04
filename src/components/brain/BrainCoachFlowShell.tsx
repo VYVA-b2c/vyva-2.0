@@ -214,8 +214,8 @@ export function BrainCoachActivityShell({
       )}>
         {showHeader ? (
           <div className={cn(
-            "sticky top-0 z-40 -mx-3 px-3 py-1 backdrop-blur-xl",
-            usesDarkSurface ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
+            "sticky top-0 z-40 isolate -mx-3 px-3 py-1",
+            usesDarkSurface ? "bg-[#1A1122]" : "bg-[#F8EEFF]",
           )}>
             <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
               <button

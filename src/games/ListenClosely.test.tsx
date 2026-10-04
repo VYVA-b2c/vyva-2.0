@@ -50,7 +50,12 @@ describe("Listen Closely", () => {
     expect(
       screen.getByText(/Which sound happened more\?|Listen for/),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Listen to both sounds. At the end, choose which one happened more.")).not.toBeInTheDocument();
+    if (screen.queryByText("Which sound happened more?")) {
+      expect(
+        screen.getByText("Listen to both sounds. At the end, choose which one you heard more often."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Compare sounds")).toBeInTheDocument();
+    }
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[52px]");
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));

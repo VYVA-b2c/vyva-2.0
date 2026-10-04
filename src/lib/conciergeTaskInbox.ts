@@ -1,4 +1,5 @@
 import type { ConciergeTaskDraft } from "../../shared/conciergeTaskDrafts";
+import { homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake";
 import {
   conciergeProviderReplySnapshot,
   type ConciergeProviderTaskStatus,
@@ -107,6 +108,7 @@ export type ConciergeTaskInboxItem = {
   details: ConciergeTaskInboxDetail[];
   completedTemplate: ConciergeTaskCompletedSession | null;
   continuation: ConciergeTaskContinuation;
+  savedResults?: boolean;
 };
 
 export type ConciergeTaskInbox = Record<ConciergeTaskInboxGroup, ConciergeTaskInboxItem[]>;
@@ -208,11 +210,11 @@ function continuationFlowFor(input: {
 
 function flowLabel(flow: ConciergeTaskContinuationFlow, isSpanish: boolean): string {
   const labels: Record<ConciergeTaskContinuationFlow, [string, string]> = {
-    ride: ["Ride Canvas", "Canvas de transporte"],
-    appointment: ["Appointment Canvas", "Canvas de citas"],
-    home_service: ["Home service Canvas", "Canvas del hogar"],
-    refill: ["Refill Canvas", "Canvas de farmacia"],
-    shopping: ["Shopping Canvas", "Canvas de compras"],
+    ride: ["Ride", "Transporte"],
+    appointment: ["Appointment", "Cita"],
+    home_service: ["Home service", "Servicio a domicilio"],
+    refill: ["Pharmacy", "Farmacia"],
+    shopping: ["Shopping", "Compras"],
     provider_reply: ["Provider reply", "Respuesta del proveedor"],
     provider_contact: ["Provider search", "Busqueda de proveedor"],
     document: ["Document task", "Tarea de documentos"],
@@ -252,7 +254,7 @@ function continuationActionLabel(input: {
   if (state === "completed") return isSpanish ? "Usar de nuevo" : "Use again";
   if (state === "waiting") return isSpanish ? "Ver estado" : "View status";
   if (state === "needs_info") return isSpanish ? "Agregar datos" : "Add information";
-  if (state === "ready_to_confirm") return isSpanish ? "Revisar y confirmar" : "Review and confirm";
+  if (state === "ready_to_confirm") return isSpanish ? "Revisar solicitud" : "Review request";
   if (state === "blocked") return isSpanish ? "Revisar tarea" : "Review task";
   return isSpanish ? "Continuar" : "Continue";
 }
@@ -281,8 +283,8 @@ function continuationHelperText(input: {
   }
   if (state === "ready_to_confirm") {
     return isSpanish
-      ? "Revisa el resumen. La accion externa sigue bloqueada hasta que confirmes."
-      : "Review the summary. The external action stays blocked until you confirm.";
+      ? "Revisa los datos antes de decidir si quieres continuar."
+      : "Review the details before deciding whether to proceed.";
   }
   if (state === "completed") {
     return isSpanish
@@ -370,7 +372,7 @@ function continuationStateFromDraft(
   if (draft.status === "completed") return "completed";
   const step = text(draft.progress_payload.canvasStep);
   const normalized = step || draft.stage;
-  if (["review", "option_review", "pending_confirm"].includes(normalized)) return "ready_to_confirm";
+  if (["review", "option_review", "pending_confirm"].includes(normalized)) return "draft";
   if (["waiting", "searching", "contacting", "saving", "completing"].includes(normalized)) return "waiting";
   if (["blocked", "error", "emergency", "urgent", "cancelled"].includes(normalized)) return "blocked";
   return "draft";
@@ -673,7 +675,8 @@ function activeItem(input: {
     || draft?.updated_at
     || draft?.created_at
     || null;
-  const title = draft
+  const service = draft?.kind === "home_service" && draft.progress_payload.serviceType ? normalizeHomeServiceType(draft.progress_payload.serviceType) : null;
+  const title = service ? homeServiceTypeLabel(service, isSpanish ? "es" : "en") : draft
     ? conciergeTaskEntryTitle(entry, isSpanish)
     : titleForUseCase(pending!.use_case, payload, isSpanish);
   const fallbackSummary = draft
@@ -693,7 +696,7 @@ function activeItem(input: {
     group,
     title,
     summary,
-    statusLabel: statusCopy(group, snapshot?.status ?? null, isSpanish),
+    statusLabel: !pending && draft ? (isSpanish ? "Solicitud guardada" : "Saved request") : statusCopy(group, snapshot?.status ?? null, isSpanish),
     providerName,
     updatedAt,
     detailPath: conciergeTaskInboxItemPath(source, id),
@@ -707,6 +710,7 @@ function activeItem(input: {
     details: detailsFor(providerName, payload, updatedAt, isSpanish),
     completedTemplate: null,
     continuation,
+    savedResults: Boolean(draft?.progress_payload.requestId && draft.stage === "review"),
   };
 }
 
@@ -780,10 +784,13 @@ export function buildConciergeTaskInbox(input: {
   const safeNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
   const pendingById = new Map(input.pending.map((item) => [item.id, item]));
   const linkedPendingIds = new Set<string>();
-  const activeItems = input.drafts.map((draft) => {
+  // A saved wizard draft is resumable progress, not an active task. It only
+  // belongs in the task inbox once it is attached to a real pending action.
+  const activeItems = input.drafts.flatMap((draft) => {
     const pending = draft.linked_pending_id ? pendingById.get(draft.linked_pending_id) ?? null : null;
-    if (pending) linkedPendingIds.add(pending.id);
-    return activeItem({ draft, pending, isSpanish, nowMs: safeNowMs });
+    if (!pending) return [];
+    linkedPendingIds.add(pending.id);
+    return [activeItem({ draft, pending, isSpanish, nowMs: safeNowMs })];
   });
   for (const pending of input.pending) {
     if (!linkedPendingIds.has(pending.id)) activeItems.push(activeItem({ draft: null, pending, isSpanish, nowMs: safeNowMs }));

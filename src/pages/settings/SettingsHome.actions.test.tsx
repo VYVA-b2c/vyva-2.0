@@ -5,7 +5,6 @@ import SettingsHome from "./SettingsHome";
 
 const toastMock = vi.fn();
 const logoutMock = vi.fn();
-const profileHeroMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
@@ -14,15 +13,9 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@/components/onboarding/PhoneFrame", () => ({
-  PhoneFrame: ({ children }: { children: React.ReactNode }) => <div data-testid="phone-frame">{children}</div>,
-}));
-
-vi.mock("@/components/onboarding/ProfileSectionHero", () => ({
-  ProfileSectionHero: (props: { title: string; badges?: unknown[] }) => {
-    profileHeroMock(props);
-    return <header data-testid="settings-hero">{props.title}</header>;
-  },
+vi.mock("@/components/CanonicalDetailFlowShell", () => ({
+  CanonicalDetailFlowShell: ({ children, shellContract }: { children: React.ReactNode; shellContract: { headerTitle: string } }) => <div data-testid="settings-canonical-screen"><h1>{shellContract.headerTitle}</h1>{children}</div>,
+  CanonicalVoiceButton: () => <button type="button">Talk to VYVA</button>,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -48,20 +41,29 @@ afterEach(() => {
   vi.restoreAllMocks();
   toastMock.mockClear();
   logoutMock.mockClear();
-  profileHeroMock.mockClear();
 });
 
 describe("SettingsHome action rows", () => {
-  it("keeps the Settings hero free of section chips", () => {
+  it("uses the canonical Settings shell without the legacy profile hero", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
         <SettingsHome />
       </MemoryRouter>,
     );
 
-    const props = profileHeroMock.mock.calls[0]?.[0];
-    expect(props).toEqual(expect.objectContaining({ title: "settings.home.title" }));
-    expect(props).not.toHaveProperty("badges");
+    expect(screen.getByTestId("settings-canonical-screen")).toHaveTextContent("Settings");
+    expect(screen.queryByTestId("settings-hero")).not.toBeInTheDocument();
+  });
+
+  it("does not duplicate Profile inside Settings", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
+        <SettingsHome />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("button-settings-profile")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Notifications & support" })).toBeInTheDocument();
   });
 
   it("turns delete account into a safe support request action", () => {

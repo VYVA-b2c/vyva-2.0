@@ -6,6 +6,8 @@ const de = {
     more: "Mehr",
   },
   common: {
+    showMoreGames: "Mehr",
+    showFewerGames: "Weniger anzeigen",
     back: "Zuruck",
     continue: "Weiter",
     start: "Starten",
@@ -632,7 +634,7 @@ const de = {
         elena: { label: "Elena Ruiz", detail: "Stadtgärtnerin" },
         viktor: { label: "Viktor Sanz", detail: "Spielbegleiter" },
         lola: { label: "Lola Martínez", detail: "Mediterrane Köchin" },
-        amara: { label: "Amara Osei", detail: "Bewegungsbegleiterin" },
+        amara: { label: "Wellness Coach", detail: "Bewegung und Ruhe" },
         marco: { label: "Marco Reyes", detail: "Ruhebegleiter" },
         diego: { label: "Diego Salinas", detail: "Musikwissenschaftler" },
         isabel: { label: "Isabel Fuentes", detail: "Literarische Gastgeberin" },
@@ -1568,7 +1570,7 @@ const de = {
       drawHint: "Ziehe den Finger uber den Weg, an den du dich erinnerst",
       done: "Fertig",
       resultGreat: "Sehr gut gemacht, Entdecker!",
-      resultTry: "Fast geschafft! Versuche es morgen wieder.",
+      resultTry: "Versuche es noch einmal",
       accuracy: "Genauigkeit",
       streak: "Serie",
       score: "Punkte",
@@ -1842,6 +1844,16 @@ const de = {
     },
   },
   concierge: {
+    master: { picker: { getHelp: {
+      title: "Hilfe erhalten",
+      voiceContext: "Fragen Sie, welche Hilfe benötigt wird. Kontaktieren oder buchen Sie niemanden ohne Bestätigung.",
+      options: {
+        homeRepair: "Reparaturen zu Hause", homeRepairDetail: "Klempner, Elektriker, Reinigung",
+        healthcare: "Gesundheit", healthcareDetail: "Facharzt oder medizinische Hilfe finden",
+        adminService: "Verwaltungshilfe", adminServiceDetail: "Formulare, Briefe und Behördenangelegenheiten",
+        homeCare: "Häusliche Betreuung", homeCareDetail: "Betreuungskräfte oder Pflegeheime vergleichen",
+      },
+    } } },
     fastHelp: {
       ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen zu finden. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestatigung.",
       actions: {
