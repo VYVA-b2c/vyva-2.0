@@ -22,8 +22,10 @@
 
 import "dotenv/config";
 import pg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { readFileSync, readdirSync } from "fs";
-import { execSync, spawnSync } from "child_process";
+import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -204,38 +206,36 @@ async function detectAndApplyDrift() {
   }
 
   try {
-    const result = spawnSync(
-      process.platform === "win32" ? "npx.cmd" : "npx",
-      ["drizzle-kit", "migrate", `--config=${DRIZZLE_CONFIG}`],
-      {
-        env: { ...process.env, NO_COLOR: "1" },
-        encoding: "utf8",
-      }
-    );
-
-    const output = [result.stdout, result.stderr]
-      .filter(Boolean)
-      .join("")
-      .trim();
-    if (output) console.log(output);
-
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      const error = new Error(
-        `drizzle-kit migrate exited with status ${result.status ?? "unknown"}`
-      );
-      error.status = result.status;
-      error.signal = result.signal;
-      throw error;
+    const migrationPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 1,
+    });
+    try {
+      const db = drizzle(migrationPool);
+      await migrate(db, {
+        migrationsFolder: MIGRATIONS_DIR,
+        migrationsTable: "__drizzle_migrations",
+        migrationsSchema: "drizzle",
+      });
+    } finally {
+      await migrationPool.end();
     }
-
     console.log("  drizzle-kit migrate: done");
   } catch (err) {
-    console.error(
-      "  drizzle-kit migrate FAILED:",
-      `status=${err.status ?? "unknown"}`,
-      `signal=${err.signal ?? "none"}`
-    );
+    console.error("  drizzle migration FAILED:");
+    console.error(err?.stack || err?.message || err);
+    for (const field of [
+      "code",
+      "detail",
+      "hint",
+      "schema",
+      "table",
+      "column",
+      "constraint",
+      "position",
+    ]) {
+      if (err?.[field]) console.error(`  ${field}: ${err[field]}`);
+    }
     throw new Error("Schema drift migration failed. See error above.");
   }
 }
