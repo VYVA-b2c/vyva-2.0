@@ -23,7 +23,7 @@
 import "dotenv/config";
 import pg from "pg";
 import { readFileSync, readdirSync } from "fs";
-import { execSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -204,10 +204,31 @@ async function detectAndApplyDrift() {
   }
 
   try {
-    execSync(
-      `npx drizzle-kit migrate --config=${DRIZZLE_CONFIG}`,
-      { stdio: "inherit" }
+    const result = spawnSync(
+      process.platform === "win32" ? "npx.cmd" : "npx",
+      ["drizzle-kit", "migrate", `--config=${DRIZZLE_CONFIG}`],
+      {
+        env: { ...process.env, NO_COLOR: "1" },
+        encoding: "utf8",
+      }
     );
+
+    const output = [result.stdout, result.stderr]
+      .filter(Boolean)
+      .join("")
+      .trim();
+    if (output) console.log(output);
+
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      const error = new Error(
+        `drizzle-kit migrate exited with status ${result.status ?? "unknown"}`
+      );
+      error.status = result.status;
+      error.signal = result.signal;
+      throw error;
+    }
+
     console.log("  drizzle-kit migrate: done");
   } catch (err) {
     console.error(
