@@ -11,13 +11,16 @@ tracking signal, in English. Done before any voice work, as the brief asked.
 | Fluency prompts, orientation forms — seeded in `0050` | Yes |
 | Every runner string — `src/pages/CognitiveAssessmentRunnerPage.tsx`, labels in `server/routes/cognitiveAssessment.ts` | Yes |
 | Item selection, scoring, trend gating | Yes |
-| **120 stories, 60 similarities (EN)** | **No.** They were bulk-uploaded through the admin page and only exist in Replit Postgres. They are not in the repo or in the Supabase project. |
+| **120 stories, 60 similarities (EN)** | **No.** They were bulk-uploaded through the admin page into the **Production** database; Development has none until `scripts/copy-cc-item-bank-prod-to-dev.mjs --apply` runs. They are not in the repo or in the Supabase project. |
 
 So the two questions the brief cares most about — whether the stories are 120
 distinct items or one template, and whether tier-5 similarities can be
-answered — **can't be answered yet**. Run this from the Replit Shell:
+answered — **can't be answered yet**. Run this from the Replit Shell (copy
+Production → Development first, then export from Development):
 
 ```
+node scripts/copy-cc-item-bank-prod-to-dev.mjs          # dry run
+node scripts/copy-cc-item-bank-prod-to-dev.mjs --apply
 node scripts/export-cc-content-audit.mjs en
 ```
 

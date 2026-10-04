@@ -49,6 +49,14 @@ environment is wrong, not the code.
 The Supabase project named "VYVA" holds no `cc_*` tables — Cognitive Compass
 data lives only in Replit Postgres.
 
+**The `cc_item_bank` content was loaded into Production, not Development.**
+Production holds 935 rows (per language: 120 stories, 60 similarities,
+3 phonemic, 4 semantic fluency). Development started with only duplicated
+fluency seeds. `scripts/copy-cc-item-bank-prod-to-dev.mjs` is the one
+sanctioned Production read: it reads Production read-only (`PROD_DATABASE_URL`
+Secret), writes only Development, dedupes fluency, and relabels uploaded rows
+to `ai_generated` / unreviewed. Dry run by default; `--apply` commits.
+
 ### Known pre-existing test failures — not yours, don't chase them
 
 These fail on `origin/main` independently of any current branch. Verified.
@@ -122,11 +130,13 @@ these over older brief documents.
 | Orientation forms | 4 |
 | Static tasks | 1 config each |
 
-935 rows in `cc_item_bank`, all `is_active = true`, **none reviewed**.
-Stories and similarities were LLM-generated and bulk-uploaded with the admin
-"Skip admin review" checkbox, which defaults to on and stamps rows
-`source = 'human_written'`. Export for review with
-`node scripts/export-cc-content-audit.mjs en` (Replit Shell).
+935 rows in Production `cc_item_bank`, all `is_active = true`, **none
+reviewed**. Stories and similarities were LLM-generated and bulk-uploaded with
+the admin "Skip admin review" checkbox, which defaults to on and stamps rows
+`source = 'human_written'`. Production still carries that false label; the
+Development copy is relabelled `ai_generated` with `reviewed_at/by` cleared
+(still active so the runner works). Export for review with
+`node scripts/export-cc-content-audit.mjs en` (Replit Shell, Development).
 
 ### Key tables
 
