@@ -715,7 +715,7 @@ function TaskDetail({
           <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-[#2F66D0]" data-testid="concierge-task-waiting-message">
             {isSpanish ? "Te avisaremos cuando llegue una respuesta." : "We will let you know when a reply arrives."}
           </p>
-        ) : item.completedTemplate || item.draftId || item.actionPayload?.local_canvas_resume === true ? (
+        ) : !item.continuation.stale || item.completedTemplate || item.draftId || item.actionPayload?.local_canvas_resume === true ? (
           <button
             type="button"
             onClick={onPrimaryAction}

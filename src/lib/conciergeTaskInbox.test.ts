@@ -228,7 +228,7 @@ describe("Concierge task inbox", () => {
       state: "blocked",
       stale: true,
       stateLabel: "Needs refresh",
-      actionLabel: "Review safely",
+      actionLabel: "View request",
     });
   });
 
