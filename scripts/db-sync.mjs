@@ -37,6 +37,7 @@ if (!process.env.DATABASE_URL) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, "..", "migrations");
+const DRIZZLE_CONFIG = "./scripts/drizzle.sync.config.ts";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -172,7 +173,7 @@ async function detectAndApplyDrift() {
   console.log("Running drizzle-kit generate to detect schema drift...");
   try {
     execSync(
-      `npx drizzle-kit generate --name=auto-sync-${Date.now()}`,
+      `npx drizzle-kit generate --config=${DRIZZLE_CONFIG} --name=auto-sync-${Date.now()}`,
       { stdio: "pipe" }
     );
   } catch (err) {
@@ -204,7 +205,10 @@ async function detectAndApplyDrift() {
   );
 
   try {
-    const output = execSync("npx drizzle-kit migrate", { stdio: "pipe" });
+    const output = execSync(
+      `npx drizzle-kit migrate --config=${DRIZZLE_CONFIG}`,
+      { stdio: "pipe" }
+    );
     console.log("  drizzle-kit migrate:", output.toString().trim() || "done");
   } catch (err) {
     const stderr = err.stderr?.toString() || err.message || "";
