@@ -15,9 +15,9 @@
  *   After the tracking table is initialised, `drizzle-kit generate` compares
  *   `shared/schema.ts` against the current migration state and creates a new
  *   migration file for any columns / tables that were added to the schema
- *   without a corresponding migration.  `drizzle-kit migrate` then applies
- *   every untracked migration using its own tracking table – no custom SQL
- *   runner is used for new migrations.
+ *   without a corresponding migration.  The newly generated migration is
+ *   then applied through Drizzle's Node migrator. Existing legacy migration
+ *   files are not replayed on a no-drift run.
  */
 
 import "dotenv/config";
@@ -198,12 +198,13 @@ async function detectAndApplyDrift() {
   const newFiles = afterFiles.filter((f) => !beforeFiles.has(f));
 
   if (newFiles.length === 0) {
-    console.log("  No schema drift detected. Checking for pending migrations...");
-  } else {
-    console.log(
-      `  Generated ${newFiles.length} migration file(s). Running drizzle-kit migrate...`
-    );
+    console.log("  No schema drift detected.");
+    return;
   }
+
+  console.log(
+    `  Generated ${newFiles.length} migration file(s). Running Drizzle migrator...`
+  );
 
   try {
     const migrationPool = new Pool({
@@ -269,7 +270,7 @@ try {
 
   await closeResources();
 
-  // Phase 2: detect schema.ts drift and apply via drizzle-kit migrate
+  // Phase 2: detect schema.ts drift and apply only newly generated migrations
   await detectAndApplyDrift();
 
   console.log("\nSchema sync complete!");
