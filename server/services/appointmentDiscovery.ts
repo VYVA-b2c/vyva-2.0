@@ -58,6 +58,7 @@ type GooglePlaceDetails = {
   opening_hours?: {
     open_now?: boolean;
     weekday_text?: string[];
+    periods?: Array<{ open?: { day?: number }; close?: { day?: number } }>;
   };
 };
 
@@ -332,6 +333,20 @@ function optionChannels(phone: string | null, bookingUrl: string | null): Appoin
   return channels;
 }
 
+function isOpenToday(details: GooglePlaceDetails | null, today = new Date().getDay()): boolean | null {
+  const hours = details?.opening_hours;
+  if (!hours) return null;
+  if (hours.open_now === true) return true;
+  if (Array.isArray(hours.periods) && hours.periods.length > 0) {
+    return hours.periods.some(period => period.open?.day === today);
+  }
+  const weekday = hours.weekday_text?.[(today + 6) % 7];
+  if (!weekday) return null;
+  return !/\b(closed|cerrado|cerrada|ferme|ferm[eé]e|geschlossen|chiuso|chiusa|fechado|fechada)\b/i.test(
+    weekday.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+  );
+}
+
 export async function refreshAppointmentProviderContact(input: {
   snapshot: Record<string, unknown>;
   appointmentType: string;
@@ -524,6 +539,7 @@ export async function discoverAppointmentProviderOptions(input: {
           opening_status: summarizeOpeningHours(detail, language),
           opening_hours_text: detail?.opening_hours?.weekday_text ?? [],
           open_now: detail?.opening_hours?.open_now ?? null,
+          open_today: isOpenToday(detail),
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,

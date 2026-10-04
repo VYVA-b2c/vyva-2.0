@@ -677,6 +677,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     rating: typeof snapshot.rating === "number" ? snapshot.rating : null,
     reviewCount: typeof snapshot.review_count === "number" ? snapshot.review_count : null,
     openNow: typeof snapshot.open_now === "boolean" ? snapshot.open_now : null,
+    openToday: typeof snapshot.open_today === "boolean" ? snapshot.open_today : null,
     priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
     availability: "unknown",
     evidenceStatus: snapshot.verification_eligible === true && currentVerification(snapshot.verification)?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
@@ -693,6 +694,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     appointmentType: request.appointment_type,
     serviceType: intake?.service_type,
     detail: intake?.research_brief ?? request.reason_detail,
+    urgency: intake?.urgency,
     criteria: intake?.criteria,
     maxResults: request.appointment_type === "home-service" ? 12 : 3,
   };
