@@ -211,8 +211,12 @@ async function detectAndApplyDrift() {
     );
     console.log("  drizzle-kit migrate:", output.toString().trim() || "done");
   } catch (err) {
-    const stderr = err.stderr?.toString() || err.message || "";
-    console.error("  drizzle-kit migrate FAILED:", stderr.split("\n")[0]);
+    const stderr = err.stderr?.toString() || "";
+    const stdout = err.stdout?.toString() || "";
+    console.error(
+      "  drizzle-kit migrate FAILED:\n",
+      (stderr || stdout || err.message).trim()
+    );
     throw new Error("Schema drift migration failed. See error above.");
   }
 }
