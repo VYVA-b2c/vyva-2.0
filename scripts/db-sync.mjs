@@ -181,7 +181,10 @@ async function detectAndApplyDrift() {
     const combined = (stderr + stdout).toLowerCase();
     // drizzle-kit exits 0 for "no changes"; any non-zero exit is a real failure
     if (!combined.includes("no schema changes") && !combined.includes("nothing to migrate")) {
-      console.error("  drizzle-kit generate FAILED:", (stderr || err.message).split("\n")[0]);
+      console.error(
+        "  drizzle-kit generate FAILED:\n",
+        (stderr || stdout || err.message).trim()
+      );
       throw new Error("drizzle-kit generate failed. See error above.");
     }
   }
@@ -211,6 +214,21 @@ async function detectAndApplyDrift() {
 }
 
 const client = await pool.connect();
+let resourcesClosed = false;
+
+async function closeResources() {
+  if (resourcesClosed) return;
+  resourcesClosed = true;
+
+  try {
+    client.release();
+  } catch (_) {}
+
+  try {
+    await pool.end();
+  } catch (_) {}
+}
+
 try {
   const needsBootstrap = !(await trackingTableExists(client));
   await ensureTrackingTable(client);
@@ -222,8 +240,7 @@ try {
     console.log(`Tracking table up to date (${count} migrations recorded).`);
   }
 
-  client.release();
-  await pool.end();
+  await closeResources();
 
   // Phase 2: detect schema.ts drift and apply via drizzle-kit migrate
   await detectAndApplyDrift();
@@ -231,9 +248,6 @@ try {
   console.log("\nSchema sync complete!");
 } catch (err) {
   console.error("\nSchema sync FAILED:", err.message);
-  try {
-    client.release();
-  } catch (_) {}
-  await pool.end();
+  await closeResources();
   process.exit(1);
 }
