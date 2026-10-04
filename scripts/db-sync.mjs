@@ -196,13 +196,12 @@ async function detectAndApplyDrift() {
   const newFiles = afterFiles.filter((f) => !beforeFiles.has(f));
 
   if (newFiles.length === 0) {
-    console.log("  No schema drift detected.");
-    return;
+    console.log("  No schema drift detected. Checking for pending migrations...");
+  } else {
+    console.log(
+      `  Generated ${newFiles.length} migration file(s). Running drizzle-kit migrate...`
+    );
   }
-
-  console.log(
-    `  Generated ${newFiles.length} migration file(s). Running drizzle-kit migrate...`
-  );
 
   try {
     const output = execSync(
