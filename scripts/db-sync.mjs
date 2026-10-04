@@ -204,17 +204,16 @@ async function detectAndApplyDrift() {
   }
 
   try {
-    const output = execSync(
+    execSync(
       `npx drizzle-kit migrate --config=${DRIZZLE_CONFIG}`,
-      { stdio: "pipe" }
+      { stdio: "inherit" }
     );
-    console.log("  drizzle-kit migrate:", output.toString().trim() || "done");
+    console.log("  drizzle-kit migrate: done");
   } catch (err) {
-    const stderr = err.stderr?.toString() || "";
-    const stdout = err.stdout?.toString() || "";
     console.error(
-      "  drizzle-kit migrate FAILED:\n",
-      (stderr || stdout || err.message).trim()
+      "  drizzle-kit migrate FAILED:",
+      `status=${err.status ?? "unknown"}`,
+      `signal=${err.signal ?? "none"}`
     );
     throw new Error("Schema drift migration failed. See error above.");
   }
