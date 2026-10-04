@@ -8,7 +8,8 @@ export function ownedConciergeWhatsappConfigured() {
     process.env.TWILIO_ACCOUNT_SID?.trim() && process.env.TWILIO_AUTH_TOKEN?.trim()
     && (process.env.TWILIO_WHATSAPP_FROM?.trim()
       || process.env.TWILIO_WHATSAPP_FROM_NUMBER?.trim()
-      || process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID?.trim()),
+      || process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID?.trim()
+      || process.env.TWILIO_FROM_NUMBER?.trim()),
   );
 }
 
