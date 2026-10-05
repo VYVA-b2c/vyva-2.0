@@ -435,14 +435,52 @@ async function fetchGooglePlaceDetails(placeId: string, key: string, language: s
   url.searchParams.set("language", language || "es");
   url.searchParams.set("key", key);
 
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) return null;
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) }).catch(() => null);
+  if (!response?.ok) return fetchGooglePlaceDetailsNew(placeId, key, language, includePrice);
   const data = await response.json() as {
     status?: string;
     result?: GooglePlaceDetails;
   };
-  if (data.status && data.status !== "OK") return null;
-  return data.result ?? null;
+  if (data.status === "OK" && data.result) return data.result;
+  return fetchGooglePlaceDetailsNew(placeId, key, language, includePrice);
+}
+
+async function fetchGooglePlaceDetailsNew(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
+  const url = new URL(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`);
+  url.searchParams.set("languageCode", language || "es");
+  const fields = [
+    "addressComponents", "nationalPhoneNumber", "internationalPhoneNumber",
+    "websiteUri", "googleMapsUri", "regularOpeningHours", "utcOffsetMinutes",
+  ];
+  if (includePrice) fields.push("priceLevel");
+  const response = await fetch(url, {
+    headers: {
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": fields.join(","),
+    },
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => null);
+  if (!response?.ok) return null;
+  const place = await response.json() as Record<string, unknown>;
+  const hours = place.regularOpeningHours && typeof place.regularOpeningHours === "object"
+    ? place.regularOpeningHours as { openNow?: unknown; weekdayDescriptions?: unknown }
+    : null;
+  const priceNames = ["PRICE_LEVEL_FREE", "PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE", "PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"];
+  const priceLevel = typeof place.priceLevel === "string" ? priceNames.indexOf(place.priceLevel) : -1;
+  return {
+    address_components: newAddressComponents(place.addressComponents),
+    formatted_phone_number: typeof place.nationalPhoneNumber === "string" ? place.nationalPhoneNumber : undefined,
+    international_phone_number: typeof place.internationalPhoneNumber === "string" ? place.internationalPhoneNumber : undefined,
+    website: typeof place.websiteUri === "string" ? place.websiteUri : undefined,
+    url: typeof place.googleMapsUri === "string" ? place.googleMapsUri : undefined,
+    utc_offset_minutes: typeof place.utcOffsetMinutes === "number" ? place.utcOffsetMinutes : undefined,
+    opening_hours: hours ? {
+      open_now: typeof hours.openNow === "boolean" ? hours.openNow : undefined,
+      weekday_text: Array.isArray(hours.weekdayDescriptions)
+        ? hours.weekdayDescriptions.filter((item): item is string => typeof item === "string") : undefined,
+    } : undefined,
+    price_level: priceLevel >= 0 ? priceLevel : undefined,
+  };
 }
 
 function summarizeOpeningHours(details: GooglePlaceDetails | null, language: string): string | null {

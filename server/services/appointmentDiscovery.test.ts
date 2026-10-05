@@ -114,6 +114,45 @@ describe("appointment discovery", () => {
     expect(refreshed?.availableChannels).toEqual(["phone", "email", "manual"]);
   });
 
+  it("uses Places Details (New) when legacy details cannot refresh provider contact", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("/place/details/")) {
+        return jsonResponse({ status: "REQUEST_DENIED" });
+      }
+      expect(url.hostname).toBe("places.googleapis.com");
+      expect(url.pathname).toBe("/v1/places/provider-place-id");
+      expect(url.searchParams.get("languageCode")).toBe("fr");
+      expect((init?.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("test-key");
+      return jsonResponse({
+        internationalPhoneNumber: "+34 956 654 321",
+        websiteUri: "https://provider.example",
+        googleMapsUri: "https://maps.google.com/?cid=provider",
+        regularOpeningHours: { openNow: true },
+      });
+    });
+
+    const refreshed = await refreshAppointmentProviderContact({
+      appointmentType: "home-service",
+      language: "fr",
+      snapshot: {
+        place_id: "provider-place-id",
+        name: "Provider",
+        phone: null,
+      },
+    });
+
+    expect(refreshed?.snapshot).toMatchObject({
+      phone: "+34 956 654 321",
+      website_url: "https://provider.example/",
+      maps_url: "https://maps.google.com/?cid=provider",
+      open_now: true,
+    });
+    expect(refreshed?.availableChannels).toEqual(["phone", "manual"]);
+  });
+
   it("uses the provider's local weekday when deriving open-today", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
