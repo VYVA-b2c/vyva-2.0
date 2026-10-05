@@ -13534,11 +13534,31 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   function prepareHomeServiceContactChannel(channel: AppointmentChannel) {
     if (!appointmentRequest || !selectedAppointmentOption) return;
+    if (openDirectProviderContact(channel)) return;
     prepareAppointmentMutation.mutate({
       requestId: appointmentRequest.id,
       optionId: selectedAppointmentOption.id,
       channel,
     });
+  }
+
+  function openDirectProviderContact(channel: AppointmentChannel): boolean {
+    if (!selectedAppointmentOption) return false;
+    const readiness = appointmentContactChannelReadinessQuery.data?.channels?.[channel];
+    if (readiness?.external_action_allowed === true) return false;
+    if (channel === "phone") {
+      const phone = appointmentSnapshotText(selectedAppointmentOption, "phone").replace(/[^+\d]/g, "");
+      if (!phone) return false;
+      window.location.href = `tel:${phone}`;
+      return true;
+    }
+    if (channel === "email") {
+      const email = appointmentSnapshotText(selectedAppointmentOption, "email").trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+      window.location.href = `mailto:${email}`;
+      return true;
+    }
+    return false;
   }
 
   function handleAppointmentControl(mode: "listening" | "muted" | "stopped") {
@@ -16483,28 +16503,42 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (!selectedAppointmentOption) return [];
     const readiness = appointmentContactChannelReadinessQuery.data?.channels;
     if (!readiness) return [];
+    const providerPhone = appointmentSnapshotText(selectedAppointmentOption, "phone");
+    const providerEmail = appointmentSnapshotText(selectedAppointmentOption, "email");
     const providerHasDirectContact = selectedAppointmentOption.available_channels.some((channel) => (
       channel === "phone" || channel === "email" || channel === "whatsapp"
     ));
-    const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
+    const availableContactChannels = selectedAppointmentOption.available_channels.filter((channel) => (
       channel !== "manual"
       && channel !== "booking_url"
-      && readiness?.[channel]?.external_action_allowed === true
+      && (
+        readiness?.[channel]?.external_action_allowed === true
+        || (channel === "phone" && Boolean(providerPhone))
+        || (channel === "email" && Boolean(providerEmail))
+      )
     ));
-    const visible: AppointmentChannel[] = availableLiveChannels.length > 0
-      ? availableLiveChannels
+    const visible: AppointmentChannel[] = availableContactChannels.length > 0
+      ? [...availableContactChannels, "manual"]
       : ["manual"];
     return visible.map((channel) => ({
       id: channel,
       label: channel === "manual"
         ? homeServiceText(locale, "Ask VYVA support to prepare the contact")
+        : channel === "phone" && readiness?.phone?.external_action_allowed !== true
+          ? homeServiceText(locale, "Call the provider yourself")
+          : channel === "email" && readiness?.email?.external_action_allowed !== true
+            ? homeServiceText(locale, "Email the provider yourself")
         : homeServiceText(locale, appointmentChannelLabel(channel, isSpanish)),
       description: channel === "manual"
         ? homeServiceText(locale, providerHasDirectContact
           ? "The provider has direct contact details, but VYVA cannot use those channels automatically right now. A VYVA operator will prepare the next step for your approval."
           : "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
+        : channel === "phone" && readiness?.phone?.external_action_allowed !== true
+          ? homeServiceText(locale, "Opens your phone app. VYVA will not place this call.")
+          : channel === "email" && readiness?.email?.external_action_allowed !== true
+            ? homeServiceText(locale, "Opens your email app. VYVA will not send this message.")
         : undefined,
-      recommended: channel === suggestedAppointmentActionChannel,
+      recommended: channel !== "manual" && channel === suggestedAppointmentActionChannel,
     }));
   }, [
     appointmentContactChannelReadinessQuery.data?.channels,
@@ -16780,6 +16814,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         const channel = response.choiceId as AppointmentChannel | undefined;
         if (!channel || !homeServiceCanvasContactChannels.some((option) => option.id === channel)) return;
         if (!appointmentRequest || !selectedAppointmentOption) return;
+        if (openDirectProviderContact(channel)) return;
         prepareAppointmentMutation.mutate({
           requestId: appointmentRequest.id,
           optionId: selectedAppointmentOption.id,

@@ -50,7 +50,7 @@ export type BuildConciergeHomeServiceCanvasInput = {
   savedProviderName?: string;
   options?: ConciergeHomeServiceCanvasOption[];
   selectedOption?: ConciergeHomeServiceCanvasOption | null;
-  contactChannels?: Array<{ id: ConciergeHomeServiceContactChannel; label: string; recommended?: boolean }>;
+  contactChannels?: Array<{ id: ConciergeHomeServiceContactChannel; label: string; description?: string; recommended?: boolean }>;
   selectedContactChannel?: ConciergeHomeServiceContactChannel | null;
   contactChannelLabel?: string;
   photoWillBeSent?: boolean;
@@ -267,7 +267,7 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
     choices: (input.contactChannels ?? []).map((channel) => ({
       id: channel.id,
       label: channel.label,
-      description: channel.recommended ? copy.recommended : undefined,
+      description: channel.description ?? (channel.recommended ? copy.recommended : undefined),
     })),
     secondaryAction: { label: copy.back },
   };
