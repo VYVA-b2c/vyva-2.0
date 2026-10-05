@@ -13579,6 +13579,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     return false;
   }
 
+  // The voice canvas listener reads the latest contact readiness without re-subscribing.
+  const openDirectProviderContactRef = useRef(openDirectProviderContact);
+  openDirectProviderContactRef.current = openDirectProviderContact;
+
   function handleAppointmentControl(mode: "listening" | "muted" | "stopped") {
     setAppointmentControlMode(mode);
     const pendingId = appointmentAttemptResult?.pending?.pendingId || appointmentAttemptResult?.form_task?.pending_id;
@@ -16826,7 +16830,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         const channel = response.choiceId as AppointmentChannel | undefined;
         if (!channel || !homeServiceCanvasContactChannels.some((option) => option.id === channel)) return;
         if (!appointmentRequest || !selectedAppointmentOption) return;
-        if (openDirectProviderContact(channel)) return;
+        if (openDirectProviderContactRef.current(channel)) return;
         prepareAppointmentMutation.mutate({
           requestId: appointmentRequest.id,
           optionId: selectedAppointmentOption.id,
