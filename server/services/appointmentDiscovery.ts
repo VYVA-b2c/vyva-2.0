@@ -245,6 +245,19 @@ function addressCountry(components?: AddressComponent[]): string | null {
   const country = components?.find(component => component.types?.includes("country"))?.short_name?.toUpperCase();
   return country && /^[A-Z]{2}$/.test(country) ? country : null;
 }
+function formattedAddressMatchesCountry(address: string | null | undefined, countryCode: string, language: string): boolean {
+  const value = normalize(address);
+  if (!value) return false;
+  for (const locale of [language, "en", "es"].map(cleanText).filter(Boolean)) {
+    try {
+      const label = new Intl.DisplayNames([locale], { type: "region" }).of(countryCode);
+      if (label && value.split(",").some(part => normalize(part) === normalize(label))) return true;
+    } catch {
+      // Try the remaining locale labels when locale data is unavailable.
+    }
+  }
+  return false;
+}
 function validCoordinates(value?: Coordinates): value is Coordinates {
   return Boolean(value && Number.isFinite(value.lat) && Number.isFinite(value.lng) && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180);
 }
@@ -257,6 +270,16 @@ function distanceMeters(a: Coordinates, b: Coordinates): number {
 export function normalizeSearchAddress(address: string): string {
   return cleanText(address).replace(/^my address is\s+/i, "")
     .split(",").map(part => part.trim()).filter(part => part && !/^other$/i.test(part)).join(", ");
+}
+
+export function providerSearchArea(address: string): string {
+  const normalizedAddress = normalizeSearchAddress(address);
+  const parts = normalizedAddress.split(",").map(part => part.trim()).filter(Boolean);
+  if (parts.length < 3) return normalizedAddress;
+  const firstLooksLikeStreet = /\d/.test(parts[0])
+    || /\b(calle|avenida|avda|carretera|camino|plaza|paseo|street|road|avenue|lane|drive)\b/i.test(parts[0]);
+  const secondStartsWithPostcode = /^\d{4,6}\b/.test(parts[1]);
+  return firstLooksLikeStreet || secondStartsWithPostcode ? parts.slice(1).join(", ") : normalizedAddress;
 }
 
 class DiscoveryFailure extends Error {
@@ -470,7 +493,7 @@ export async function discoverAppointmentProviderOptions(input: {
     for (const query of buildAppointmentSearchQueries({
       appointmentType: input.appointmentType,
       detail: input.detail,
-      location,
+      location: homeSearch ? providerSearchArea(location) : location,
       language,
       serviceType: input.serviceType,
       countryCode: center?.countryCode ?? countryCode,
@@ -504,9 +527,30 @@ export async function discoverAppointmentProviderOptions(input: {
     );
     // A radius can cross national borders; region is only a Google search bias.
     // Unknown country is not evidence that a provider serves the requested country.
+    let detailFailures = 0;
     const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
-      .filter(({ detail }) => !homeSearch || addressCountry(detail?.address_components) === center?.countryCode)
+      .filter(({ place, detail }) => {
+        if (!homeSearch) return true;
+        const detailCountry = addressCountry(detail?.address_components);
+        if (detailCountry) return detailCountry === center?.countryCode;
+        detailFailures += 1;
+        // Text Search already bounded this result by distance. When Place
+        // Details is degraded, retain only an explicitly in-country address.
+        return Boolean(center?.countryCode)
+          && formattedAddressMatchesCountry(place.formatted_address, center.countryCode, language);
+      })
       .slice(0, input.maxResults ?? 5);
+
+    if (homeSearch && selected.length > 0 && detailFailures > 0) {
+      console.warn("[appointment-discovery]", {
+        stage: "details",
+        status: eligible.length > 0 ? "PARTIAL_FALLBACK" : "NO_USABLE_DETAILS",
+        reason: eligible.length > 0 ? "place_details_degraded" : "google_places_unavailable",
+        candidate_count: selected.length,
+        detail_failure_count: detailFailures,
+        eligible_count: eligible.length,
+      });
+    }
 
     return {
       source: "google_places",
