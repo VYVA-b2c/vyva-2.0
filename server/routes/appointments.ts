@@ -1353,6 +1353,7 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
       address: snapshotText(snapshot, "address") ?? "",
       phone: snapshotText(snapshot, "phone") ?? "",
       website: snapshotText(snapshot, "website_url") ?? "",
+      country: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
       service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
       language,
     }, controller.signal);

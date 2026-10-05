@@ -299,7 +299,7 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
 
 const LISTING_RISK_NOTES: Record<ListingRiskSignal, string> = {
   shared_phone: "This phone number is also listed under other business names",
-  premium_number: "Uses a premium-rate phone number",
+  premium_number: "Uses a paid or national service number, not a local line",
   no_business_address: "No business address is listed",
 };
 

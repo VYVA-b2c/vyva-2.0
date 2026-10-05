@@ -1070,7 +1070,7 @@ interface PreparedAppointmentAttempt {
 interface AppointmentDiscoveryMeta {
   search_id?: string;
   source?: string;
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable" | "country_not_enabled";
   inserted_count?: number;
   eligible_count?: number;
   exclusion_summary?: Record<string, number>;
@@ -11183,6 +11183,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       }
       if (result.discovery?.fallback_reason === "geocoding_unavailable" || result.discovery?.fallback_reason === "google_places_unavailable") {
         setAppointmentError(homeServiceText(locale, "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers."));
+        return;
+      }
+      if (result.discovery?.fallback_reason === "country_not_enabled") {
+        setAppointmentNotice(homeServiceText(locale, "Provider search is not available in this country yet. I can still prepare this in chat."));
         return;
       }
       if (result.discovery?.fallback_reason === "google_places_not_configured") {
