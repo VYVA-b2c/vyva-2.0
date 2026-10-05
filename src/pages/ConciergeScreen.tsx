@@ -7845,6 +7845,7 @@ type MissingProviderChoicePanelProps = {
   findTestId?: string;
   helperTestId?: string;
   isSpanish: boolean;
+  language: string;
 };
 
 function MissingProviderChoicePanel({
@@ -7866,6 +7867,7 @@ function MissingProviderChoicePanel({
   findTestId,
   helperTestId,
   isSpanish,
+  language,
 }: MissingProviderChoicePanelProps) {
   const choices: Array<{
     key: string;
@@ -7947,7 +7949,7 @@ function MissingProviderChoicePanel({
       <p className="mt-3 rounded-full bg-white px-3 py-2 text-center font-body text-[12px] font-black text-[#92400E]">
         {isSpanish
           ? "Nada se llama, reserva, envia ni comparte hasta que confirmes."
-          : "Nothing is called, booked, sent, or shared until you confirm."}
+          : homeServiceText(language, "Nothing is called, booked, sent, or shared until you confirm.")}
       </p>
     </div>
   );
@@ -12356,22 +12358,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     ? (isSpanish ? "Ej. fuga bajo el fregadero, atasco, sin agua caliente" : "E.g. leaking sink, blocked toilet, no hot water")
     : (isSpanish ? "Ej. dermatologia, martes por la manana, WhatsApp si se puede" : "E.g. dermatology, Tuesday morning, WhatsApp if possible");
   const noSavedProviderTitle = isHomeServiceAppointment
-    ? (isSpanish ? "Sin opcion clara todavia" : "No clear option yet")
+    ? homeServiceText(locale, "No clear option yet")
     : (isSpanish ? "No hay proveedor de confianza elegido." : "No trusted provider selected.");
   const noSavedProviderBody = isHomeServiceAppointment
-    ? (isSpanish
-      ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
-      : "VYVA can search trusted nearby options before anyone is contacted.")
+    ? homeServiceText(locale, "VYVA can search trusted nearby options before anyone is contacted.")
     : isMedicalAppointmentWithoutProvider
       ? (isSpanish
         ? "Anade o elige un medico o clinica de confianza, o busca opciones para revisar."
         : "Add or choose a trusted doctor or clinic, or look for options to review.")
       : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
-    ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
+    ? homeServiceText(locale, "Find trusted options")
     : (isSpanish ? "Buscar opciones" : "Look for options");
   const appointmentPrepareLabel = isHomeServiceAppointment
-    ? (isSpanish ? "Preparar mensaje" : "Prepare message")
+    ? homeServiceText(locale, "Prepare message")
     : (isSpanish ? "Prepararlo por chat" : "Prepare in chat");
   const appointmentFinalReviewTitle = isHomeServiceAppointment
     ? (isSpanish ? "Revisar y confirmar visita" : "Review and confirm visit")
@@ -18353,6 +18353,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 findTestId="button-otc-pharmacy-find-options"
                 helperTestId="button-otc-pharmacy-ask-helper"
                 isSpanish={isSpanish}
+                language={locale}
               />
             </div>
           ) : (
@@ -18737,6 +18738,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       findTestId="button-transport-provider-find-options"
                       helperTestId="button-transport-provider-ask-helper"
                       isSpanish={isSpanish}
+                      language={locale}
                     />
                   </div>
                 ) : null}
@@ -20957,6 +20959,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   findTestId="button-appointment-discover-options"
                   helperTestId="button-appointment-ask-helper"
                   isSpanish={isSpanish}
+                  language={locale}
                 />
                 {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
                   <button
@@ -21897,6 +21900,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               findTestId="button-provider-search-manual"
                               helperTestId="button-provider-search-ask-helper"
                               isSpanish={isSpanish}
+                              language={locale}
                             />
                           </div>
                         )}

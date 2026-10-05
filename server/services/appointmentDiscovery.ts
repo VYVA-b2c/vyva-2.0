@@ -258,6 +258,23 @@ function formattedAddressMatchesCountry(address: string | null | undefined, coun
   }
   return false;
 }
+function formattedAddressNamesDifferentCountry(address: string | null | undefined, countryCode: string, language: string): boolean {
+  const value = normalize(address);
+  if (!value) return false;
+  const nearbyCountryCodes = ["ES", "PT", "FR", "AD", "GI", "MA", "DE", "IT"];
+  for (const code of nearbyCountryCodes) {
+    if (code === countryCode) continue;
+    for (const locale of [language, "en", "es", "fr"].map(cleanText).filter(Boolean)) {
+      try {
+        const label = new Intl.DisplayNames([locale], { type: "region" }).of(code);
+        if (label && value.split(",").some(part => normalize(part) === normalize(label))) return true;
+      } catch {
+        // Continue with the remaining locale labels.
+      }
+    }
+  }
+  return false;
+}
 function validCoordinates(value?: Coordinates): value is Coordinates {
   return Boolean(value && Number.isFinite(value.lat) && Number.isFinite(value.lng) && Math.abs(value.lat) <= 90 && Math.abs(value.lng) <= 180);
 }
@@ -534,10 +551,14 @@ export async function discoverAppointmentProviderOptions(input: {
         const detailCountry = addressCountry(detail?.address_components);
         if (detailCountry) return detailCountry === center?.countryCode;
         detailFailures += 1;
-        // Text Search already bounded this result by distance. When Place
-        // Details is degraded, retain only an explicitly in-country address.
-        return Boolean(center?.countryCode)
-          && formattedAddressMatchesCountry(place.formatted_address, center.countryCode, language);
+        // Text Search already bounded the candidate to 50 km around the
+        // geocoded address. Place Details is a useful enrichment, but a
+        // temporary Details outage must not erase valid local results. Keep a
+        // readable in-radius result unless its address explicitly names a
+        // different nearby country.
+        return Boolean(center?.countryCode && cleanText(place.formatted_address))
+          && (formattedAddressMatchesCountry(place.formatted_address, center.countryCode, language)
+            || !formattedAddressNamesDifferentCountry(place.formatted_address, center.countryCode, language));
       })
       .slice(0, input.maxResults ?? 5);
 
