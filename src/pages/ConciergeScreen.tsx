@@ -13552,7 +13552,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     });
   }
 
-  function openDirectProviderContact(channel: AppointmentChannel): boolean {
+  const openDirectProviderContact = useCallback((channel: AppointmentChannel): boolean => {
     if (!selectedAppointmentOption) return false;
     const readiness = appointmentContactChannelReadinessQuery.data?.channels?.[channel];
     if (readiness?.external_action_allowed === true) return false;
@@ -13582,7 +13582,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       return true;
     }
     return false;
-  }
+  }, [appointmentContactChannelReadinessQuery.data?.channels, selectedAppointmentOption]);
 
   // The voice canvas listener reads the latest contact readiness without re-subscribing.
   const openDirectProviderContactRef = useRef(openDirectProviderContact);
@@ -16911,6 +16911,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     homeServiceType,
     homeServiceVisitAddress,
     isSpanish,
+    openDirectProviderContact,
     openHomeServiceProviderSetup,
     prepareAppointmentMutation,
     preparedAppointmentAttempt,
