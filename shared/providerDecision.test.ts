@@ -170,4 +170,23 @@ describe("provider decision engine", () => {
 
     expect(result.ranked[0].candidate.id).toBe("proven");
   });
+
+  it("withholds providers with a safety or fraud allegation and demotes repeated concerns", () => {
+    const clean = tradeCandidate({ id: "clean", name: "Clean Plumber", rating: 4.2, reviewCount: 40 });
+    const pattern = tradeCandidate({ id: "pattern", name: "Pattern Plumber", rating: 4.9, reviewCount: 400, concernLevel: "pattern", patternConcerns: ["pricing"] });
+    const serious = tradeCandidate({ id: "serious", name: "Serious Plumber", rating: 5, reviewCount: 900, concernLevel: "serious" });
+    const result = decideProviderCandidates([clean, pattern, serious], { ...homeRequest, criteria: ["lowest_cost"] });
+    expect(result.ranked.map(r => r.candidate.id)).toEqual(["clean", "pattern"]);
+    expect(result.excluded.find(r => r.candidate.id === "serious")?.code).toBe("excluded_serious_concern");
+    expect(result.ranked[1].uncertainties).toContain("Several customers reported similar concerns");
+    expect(result.ranked[1].priorityNotes?.[0]).toContain("fixed price");
+    expect(result.ranked[1].priorityBonus).toBe(0);
+  });
+
+  it("keeps a single minor concern as a caveat without a penalty", () => {
+    const base = decideProviderCandidates([tradeCandidate({})], homeRequest).ranked[0];
+    const isolated = decideProviderCandidates([tradeCandidate({ concernLevel: "isolated" })], homeRequest).ranked[0];
+    expect(isolated.score).toBe(base.score);
+    expect(isolated.uncertainties).toContain("One customer reported a concern");
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateVerification, type VerificationEvidence } from "./providerVerification.js";
+import { evaluateVerification, parseVerificationEvidence, type VerificationEvidence } from "./providerVerification.js";
 import { HOME_SERVICE_SEARCH_TERMS } from "../../shared/homeServiceSearch.js";
 
 const now = new Date("2026-09-26T12:00:00Z");
@@ -44,5 +44,36 @@ describe("provider verification policy", () => {
     const f = fixture();
     f.evidence.reviews[0].concern = "Reviewer reports a concern requiring review.";
     expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).status).toBe("concerns");
+  });
+  it("keeps a single minor complaint as a caveat on an otherwise verified provider", () => {
+    const f = fixture();
+    f.evidence.reviews[0] = { ...f.evidence.reviews[0], concern: "Reviewer says the visit started late.", concernCategory: "reliability" };
+    const result = evaluateVerification(candidate, f.evidence, f.pages, f.searched, now);
+    expect(result.status).toBe("verified");
+    expect(result.concernLevel).toBe("isolated");
+    expect(result.concerns).toEqual(["Reviewer says the visit started late."]);
+  });
+  it("flags repeated complaints in one category as a pattern", () => {
+    const f = fixture();
+    for (const i of [0, 1]) f.evidence.reviews[i] = { ...f.evidence.reviews[i], concern: `Reviewer alleges the final bill exceeded the quote (${i}).`, concernCategory: "pricing" };
+    const result = evaluateVerification(candidate, f.evidence, f.pages, f.searched, now);
+    expect(result.status).toBe("concerns");
+    expect(result.concernLevel).toBe("pattern");
+  });
+  it("treats one fraud or safety allegation as serious", () => {
+    const f = fixture();
+    f.evidence.reviews[0] = { ...f.evidence.reviews[0], concern: "Reviewer alleges an older customer was charged for work not done.", concernCategory: "fraud" };
+    const result = evaluateVerification(candidate, f.evidence, f.pages, f.searched, now);
+    expect(result.status).toBe("concerns");
+    expect(result.concernLevel).toBe("serious");
+    expect(result.concernDetails?.[0].category).toBe("fraud");
+  });
+  it("never lets an unknown category label soften a concern", () => {
+    const parsed = parseVerificationEvidence(JSON.stringify({
+      sources: [], complaintSearchCompleted: true, limitations: [],
+      reviews: [{ url: "https://reviews.example.org/a", date: "2026-01-01", dateQuote: "2026-01-01", quote: "A review quote that is long enough to be kept here.", concern: "Reviewer reports a problem.", concernCategory: "minor" }],
+    }));
+    expect(parsed.reviews).toHaveLength(1);
+    expect(parsed.reviews[0].concernCategory).toBeUndefined();
   });
 });

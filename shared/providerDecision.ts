@@ -3,6 +3,7 @@ import {
   type ConciergeProviderCategoryId,
 } from "./conciergeFlowRegistry.js";
 import { homeServiceSearchTerms, normalizeHomeServiceType } from "./serviceIntake.js";
+import type { ProviderConcernCategory, ProviderConcernLevel } from "./providerVerification.js";
 
 export type ProviderCandidateSource = "saved" | "partner" | "external" | "manual";
 export type ProviderEvidenceStatus = "verified" | "reported" | "unknown";
@@ -14,6 +15,7 @@ export type ProviderDecisionCode =
   | "excluded_subservice_mismatch"
   | "excluded_inactive"
   | "excluded_insufficient_evidence"
+  | "excluded_serious_concern"
   | "excluded_duplicate";
 
 export interface ProviderDecisionRequest {
@@ -48,6 +50,8 @@ export interface ProviderCandidate {
   evidenceStatus?: ProviderEvidenceStatus | null;
   checkedAt?: string | null;
   contactable?: boolean | null;
+  concernLevel?: ProviderConcernLevel | null;
+  patternConcerns?: ProviderConcernCategory[] | null;
   raw: unknown;
 }
 
@@ -190,7 +194,9 @@ function preferenceScore(candidate: ProviderCandidate, priorities: string[]) {
     }
     if (priority === "lowest_cost") {
       const level = candidate.priceLevel;
-      if (typeof level === "number" && Number.isInteger(level) && level >= 0 && level <= 4) {
+      if (candidate.patternConcerns?.includes("pricing")) {
+        notes.push("Several customers report bills above the quote; agree a fixed price first.");
+      } else if (typeof level === "number" && Number.isInteger(level) && level >= 0 && level <= 4) {
         bonus += weight * (4 - level) / 4;
         notes.push("Comparing published price bands only; your job still needs a quote.");
       } else notes.push("Price information is unavailable; your job needs a quote.");
@@ -242,6 +248,13 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   if (reputation > 0) reasons.push("Reputation is supported by review volume");
   else if (criteria.includes("reputation")) uncertainties.push("Reputation evidence is limited");
   if (candidate.preferred) score += 2;
+  if (candidate.concernLevel === "pattern") {
+    // Product-design weighting: outweighs distance and open-now, not a match.
+    score -= 25;
+    uncertainties.push("Several customers reported similar concerns");
+  } else if (candidate.concernLevel === "isolated") {
+    uncertainties.push("One customer reported a concern");
+  }
 
   return { score, reasons, uncertainties };
 }
@@ -259,6 +272,9 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
   }
   if (request.appointmentType === "home-service" && request.serviceType && normalizeHomeServiceType(request.serviceType) !== "other" && !exactSubserviceMatch) {
     return { candidate, code: "excluded_subservice_mismatch", eligible: false, score: 0, reasons: ["Provider does not match the requested service"], uncertainties: [], canonicalCategory, exactSubserviceMatch };
+  }
+  if (candidate.concernLevel === "serious") {
+    return { candidate, code: "excluded_serious_concern", eligible: false, score: 0, reasons: ["Public reviews include a safety or fraud allegation"], uncertainties: [], canonicalCategory, exactSubserviceMatch };
   }
   if (!clean(candidate.name) || (!clean(candidate.address) && !candidate.contactable && candidate.source !== "saved")) {
     return { candidate, code: "excluded_insufficient_evidence", eligible: false, score: 0, reasons: ["Not enough provider information to present safely"], uncertainties: [], canonicalCategory, exactSubserviceMatch };

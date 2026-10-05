@@ -13444,15 +13444,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [, setHomeVerifiedResultsVisible] = useState(false);
   const applyHomeServiceVerificationRanking = useCallback((ranking: Record<string, VerificationRanking>) => {
     if (Object.keys(ranking).length === 0) return;
-    setAppointmentOptions(current => current.map(option => ({
+    // A safety or fraud allegation found during checks removes the provider.
+    setAppointmentOptions(current => current.filter(option => !ranking[option.id]?.excluded).map(option => ({
       ...option,
       provider_snapshot: {
         ...option.provider_snapshot,
         ...(ranking[option.id] ? { provider_decision: { ...appointmentProviderDecision(option), ...ranking[option.id] } } : {}),
       },
     })).sort((a, b) => (appointmentProviderDecision(b).score ?? 0) - (appointmentProviderDecision(a).score ?? 0)));
-    const best = Object.entries(ranking).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
-    if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
+    const best = Object.entries(ranking).filter(([, item]) => !item.excluded).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
+    setSelectedAppointmentOptionId(current => {
+      if (current && ranking[current]?.excluded) return best ?? null;
+      if (!best) return current;
+      return current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best;
+    });
   }, []);
   const homeRequestAwaitingResults = isHomeServiceAppointment && mode === "task"
     && Boolean(persistedAppointmentRequestId) && appointmentOptions.length === 0

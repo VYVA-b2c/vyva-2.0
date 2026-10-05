@@ -5,7 +5,10 @@ import { currentVerification, type ProviderVerification } from "../../shared/pro
 import { homeServiceText } from "../../shared/homeServiceText";
 
 interface Option { id: string; provider_source?: string; provider_snapshot: Record<string, unknown> }
-export interface VerificationRanking { score: number; priority_notes: string[] }
+export interface VerificationRanking { score: number; priority_notes: string[]; excluded?: boolean }
+// Checking past the first screen lets a strong provider ranked lower on stars
+// rise once its evidence is in; shared results make most of these instant.
+export const PROVIDER_AUDIT_DEPTH = 6;
 interface Props {
   requestId: string;
   options: Option[];
@@ -26,10 +29,10 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   const [round, setRound] = useState(0);
   const [message, setMessage] = useState(0);
   const shortlistKey = JSON.stringify([requestId, options.map(o => o.id).sort()]);
-  const auditSelection = useRef({ key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") });
+  const auditSelection = useRef({ key: shortlistKey, ids: options.slice(0, PROVIDER_AUDIT_DEPTH).map(o => o.id).sort().join(",") });
   // Reranking must not change the audit batch and restart a finished wait.
   if (auditSelection.current.key !== shortlistKey) {
-    auditSelection.current = { key: shortlistKey, ids: options.slice(0, 3).map(o => o.id).sort().join(",") };
+    auditSelection.current = { key: shortlistKey, ids: options.slice(0, PROVIDER_AUDIT_DEPTH).map(o => o.id).sort().join(",") };
   }
   const optionIds = auditSelection.current.ids;
   const latest = useRef(options);
@@ -92,7 +95,8 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
           throw new Error("Invalid verification response");
         }
         resultsRef.current = { ...resultsRef.current, [id]: result };
-        if (Number.isFinite(data.ranking?.score) && Array.isArray(data.ranking?.priority_notes)) rankingRef.current[id] = data.ranking;
+        if (data.excluded === true) rankingRef.current[id] = { score: 0, priority_notes: [], excluded: true };
+        else if (Number.isFinite(data.ranking?.score) && Array.isArray(data.ranking?.priority_notes)) rankingRef.current[id] = data.ranking;
         setResults(resultsRef.current);
       } catch {
         if (disposed || controller.signal.aborted) return;

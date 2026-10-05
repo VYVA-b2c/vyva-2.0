@@ -2,7 +2,8 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
-import { currentVerification } from "../../shared/providerVerification.js";
+import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
+import { loadSharedVerification, loadSharedVerifications, saveSharedVerification, sharedVerificationFor, type ReputationKey } from "../services/providerReputation.js";
 import { languageText, requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
 import { homeServiceContactSummaryLines, providerContactLanguage } from "../../shared/homeServiceContactMessage.js";
@@ -656,6 +657,7 @@ function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
 
 function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
   const snapshot = recordValue(option.provider_snapshot);
+  const verification = snapshot.verification_eligible === true ? currentVerification(snapshot.verification) : null;
   return {
     id: option.id,
     source: option.provider_source === "saved" || option.provider_source === "manual" ? option.provider_source : "external",
@@ -680,7 +682,9 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     openToday: typeof snapshot.open_today === "boolean" ? snapshot.open_today : null,
     priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
     availability: "unknown",
-    evidenceStatus: snapshot.verification_eligible === true && currentVerification(snapshot.verification)?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
+    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
+    concernLevel: verification ? verificationConcernLevel(verification) : null,
+    patternConcerns: verification ? patternConcernCategories(verification.concernDetails ?? []) : null,
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -698,6 +702,14 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     criteria: intake?.criteria,
     maxResults: request.appointment_type === "home-service" ? 12 : 3,
   };
+}
+
+function reputationKey(option: AppointmentProviderOption, request: AppointmentRequest, language: string): ReputationKey | null {
+  const snapshot = recordValue(option.provider_snapshot);
+  const placeId = snapshotText(snapshot, "place_id");
+  const serviceType = homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type;
+  if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !placeId || !serviceType) return null;
+  return { placeId, serviceType, language };
 }
 
 function providerDecisionSnapshot(item: ProviderDecisionResult) {
@@ -1153,6 +1165,17 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const insertedOptions = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
+    const displayLanguage = requestDisplayLanguage(req.get("x-vyva-language"), request.language);
+    if (request.appointment_type === "home-service" && insertedOptions.length > 0) {
+      // Earlier members' checks rank known businesses before anything is shown:
+      // serious allegations drop out, repeated concerns sink, verified ones rise.
+      const keyed = insertedOptions.map(option => ({ option, key: reputationKey(option, request, displayLanguage) }));
+      const shared = await loadSharedVerifications(keyed.flatMap(({ key }) => key ? [key] : []));
+      for (const { option, key } of keyed) {
+        const verification = key ? sharedVerificationFor(shared, key) : null;
+        if (verification) option.provider_snapshot = { ...recordValue(option.provider_snapshot), verification };
+      }
+    }
     const allCandidates = [...existingOptions, ...insertedOptions];
     // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
     const declinedSaved = request.appointment_type === "home-service"
@@ -1293,7 +1316,21 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
     const item = decideProviderCandidates([optionCandidate(checkedOption)], providerDecisionRequest(request)).ranked[0];
     return item ? providerDecisionSnapshot(item) : null;
   };
-  if (cached && !cached.retryable) return res.json({ verification: cached, ranking: checkedDecision(cached) });
+  if (cached && !cached.retryable) {
+    const ranking = checkedDecision(cached);
+    return res.json({ verification: cached, ranking, excluded: !ranking });
+  }
+  const language = requestDisplayLanguage(req.get("x-vyva-language"), request.language);
+  const sharedKey = reputationKey(option, request, language);
+  const shared = sharedKey ? await loadSharedVerification(sharedKey) : null;
+  if (shared) {
+    const ranking = checkedDecision(shared);
+    await db.update(appointmentProviderOptions).set({
+      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification: shared, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
+      updated_at: new Date(),
+    }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    return res.json({ verification: shared, ranking, excluded: !ranking });
+  }
   if (activeProviderChecks.has(option.id)) return res.status(409).json({ error: "Check already in progress" });
   if (activeProviderChecks.size >= 30) return res.status(429).json({ error: "Verification is busy. Try again later." });
   activeProviderChecks.add(option.id);
@@ -1308,16 +1345,17 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
       phone: snapshotText(snapshot, "phone") ?? "",
       website: snapshotText(snapshot, "website_url") ?? "",
       service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
-      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+      language,
     }, controller.signal);
     if (controller.signal.aborted) return;
+    if (sharedKey) await saveSharedVerification(sharedKey, verification);
     const ranking = checkedDecision(verification);
     // Merge into the current snapshot so concurrent preference changes survive.
     await db.update(appointmentProviderOptions).set({
       provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
       updated_at: new Date(),
     }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
-    return res.json({ verification, ranking });
+    return res.json({ verification, ranking, excluded: !ranking });
   } catch {
     if (!controller.signal.aborted) return res.status(503).json({ error: "Provider checks unavailable" });
   } finally {
