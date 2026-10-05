@@ -4247,8 +4247,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
     expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
     expect(screen.queryByTestId("button-home-service-channel-booking_url")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Call the provider yourself");
+    expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Opens your phone app");
     expect(screen.getByTestId("button-home-service-channel-email")).toBeVisible();
+    expect(screen.getByTestId("button-home-service-channel-manual")).toBeVisible();
     fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
     expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");
