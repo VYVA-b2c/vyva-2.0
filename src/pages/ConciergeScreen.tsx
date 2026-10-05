@@ -13558,6 +13558,19 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       window.location.href = `mailto:${email}`;
       return true;
     }
+    if (channel === "whatsapp") {
+      const whatsapp = appointmentSnapshotText(selectedAppointmentOption, "whatsapp").replace(/[^\d]/g, "");
+      if (!whatsapp) return false;
+      window.location.href = `https://wa.me/${whatsapp}`;
+      return true;
+    }
+    if (channel === "booking_url") {
+      const url = appointmentSnapshotText(selectedAppointmentOption, "booking_url").trim()
+        || appointmentSnapshotText(selectedAppointmentOption, "website_url").trim();
+      if (!/^https?:\/\//i.test(url)) return false;
+      window.location.href = url;
+      return true;
+    }
     return false;
   }
 
@@ -16505,17 +16518,23 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (!readiness) return [];
     const providerPhone = appointmentSnapshotText(selectedAppointmentOption, "phone");
     const providerEmail = appointmentSnapshotText(selectedAppointmentOption, "email");
-    const providerHasDirectContact = selectedAppointmentOption.available_channels.some((channel) => (
-      channel === "phone" || channel === "email" || channel === "whatsapp"
-    ));
-    const availableContactChannels = selectedAppointmentOption.available_channels.filter((channel) => (
-      channel !== "manual"
-      && channel !== "booking_url"
-      && (
-        readiness?.[channel]?.external_action_allowed === true
-        || (channel === "phone" && Boolean(providerPhone))
-        || (channel === "email" && Boolean(providerEmail))
-      )
+    const providerWhatsApp = appointmentSnapshotText(selectedAppointmentOption, "whatsapp");
+    const providerBookingUrl = appointmentSnapshotText(selectedAppointmentOption, "booking_url");
+    const providerWebsite = appointmentSnapshotText(selectedAppointmentOption, "website_url");
+    const providerHasDirectContact = Boolean(providerPhone || providerEmail || providerWhatsApp || providerBookingUrl || providerWebsite);
+    const candidateChannels = Array.from(new Set<AppointmentChannel>([
+      ...(providerBookingUrl || providerWebsite ? ["booking_url" as const] : []),
+      ...selectedAppointmentOption.available_channels.filter((channel) => channel !== "manual"),
+      ...(providerWhatsApp ? ["whatsapp" as const] : []),
+      ...(providerPhone ? ["phone" as const] : []),
+      ...(providerEmail ? ["email" as const] : []),
+    ]));
+    const availableContactChannels = candidateChannels.filter((channel) => (
+      readiness?.[channel]?.external_action_allowed === true
+      || (channel === "booking_url" && Boolean(providerBookingUrl || providerWebsite))
+      || (channel === "whatsapp" && Boolean(providerWhatsApp))
+      || (channel === "phone" && Boolean(providerPhone))
+      || (channel === "email" && Boolean(providerEmail))
     ));
     const visible: AppointmentChannel[] = availableContactChannels.length > 0
       ? [...availableContactChannels, "manual"]
@@ -16524,6 +16543,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       id: channel,
       label: channel === "manual"
         ? homeServiceText(locale, "Ask VYVA support to prepare the contact")
+        : channel === "booking_url"
+          ? homeServiceText(locale, providerBookingUrl ? "Book online" : "Visit the provider website")
+        : channel === "whatsapp" && readiness?.whatsapp?.external_action_allowed !== true
+          ? homeServiceText(locale, "Message the provider on WhatsApp")
         : channel === "phone" && readiness?.phone?.external_action_allowed !== true
           ? homeServiceText(locale, "Call the provider yourself")
           : channel === "email" && readiness?.email?.external_action_allowed !== true
@@ -16533,12 +16556,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         ? homeServiceText(locale, providerHasDirectContact
           ? "The provider has direct contact details, but VYVA cannot use those channels automatically right now. A VYVA operator will prepare the next step for your approval."
           : "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
+        : channel === "booking_url"
+          ? homeServiceText(locale, providerBookingUrl
+            ? "Opens the provider's booking page. Nothing is submitted until you complete it."
+            : "Opens the provider's website so you can check its online options.")
+        : channel === "whatsapp" && readiness?.whatsapp?.external_action_allowed !== true
+          ? homeServiceText(locale, "Opens WhatsApp. VYVA will not send the message.")
         : channel === "phone" && readiness?.phone?.external_action_allowed !== true
           ? homeServiceText(locale, "Opens your phone app. VYVA will not place this call.")
           : channel === "email" && readiness?.email?.external_action_allowed !== true
             ? homeServiceText(locale, "Opens your email app. VYVA will not send this message.")
         : undefined,
-      recommended: channel !== "manual" && channel === suggestedAppointmentActionChannel,
+      recommended: channel === "booking_url" && Boolean(providerBookingUrl)
+        ? true
+        : channel !== "manual" && !providerBookingUrl && channel === suggestedAppointmentActionChannel,
     }));
   }, [
     appointmentContactChannelReadinessQuery.data?.channels,
@@ -20780,7 +20811,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isFetching && homeServiceCanvasContactChannels.map((channel) => (
                         <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
-                            {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
+                            {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : channel.id === "booking_url" ? <ExternalLink size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block text-[15px] font-black text-vyva-text-1">{channel.label}</span>
@@ -20892,7 +20923,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               ? (isSpanish ? "Confirmar y enviar WhatsApp" : "Confirm and send WhatsApp")
                               : selectedAppointmentActionChannel === "booking_url"
                                 ? (isSpanish ? "Confirmar y preparar reserva" : "Confirm and prepare booking")
-                                : (isSpanish ? "Confirmar revisión manual" : "Confirm manual review")
+                                : (isSpanish ? "Enviar solicitud al equipo de VYVA" : "Send request to VYVA support")
                         : (isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this")}
                       onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
                       isPending={confirmAppointmentMutation.isPending}
