@@ -35,6 +35,7 @@ import { useLanguage } from "@/i18n";
 import { homeServiceText } from "../../shared/homeServiceText";
 import {
   conciergeTaskPath,
+  conciergeTaskInboxPath,
   type ConciergeTaskEntry,
 } from "@/lib/conciergeTaskNavigation";
 import {
@@ -556,6 +557,8 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   const reminderKey = reminder?.taskKey ?? "setup:trusted-provider";
   const reminderRevision = reminder?.revision ?? "1";
   const showNudge = category === "get-help" && reminderDismissals.ready && !reminderDismissals.hidden(reminderKey, reminderRevision) && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
+  const activeRequestCount = (taskNudgeQuery.data?.needs_you.length ?? 0) + (taskNudgeQuery.data?.waiting.length ?? 0);
+  const showRequestsEntry = category === "get-help" && !blockedOption && taskNudgeQuery.isSuccess && activeRequestCount > 0;
 
   return (
     <CanonicalDetailFlowShell
@@ -588,6 +591,21 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
             reminderDismissals.dismiss(reminderKey, reminderRevision);
           }}><X size={20} aria-hidden="true" /></button>
         </aside>
+      )}
+      {showRequestsEntry && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-1" data-testid="get-help-requests-entry">
+          <span className={`font-body text-[13px] font-bold ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-2"}`}>
+            {homeServiceText(language, activeRequestCount === 1 ? "1 active request" : "{count} active requests").replace("{count}", String(activeRequestCount))}
+          </span>
+          <button
+            type="button"
+            onClick={() => navigate(conciergeTaskInboxPath())}
+            className={`vyva-tap min-h-11 rounded-xl px-3 font-body text-[14px] font-black ${isDark ? "text-[#D7B8FF] hover:bg-white/10" : "text-vyva-purple hover:bg-[#F1E8FF]"}`}
+            data-testid="button-get-help-see-all-requests"
+          >
+            {homeServiceText(language, "See all requests")}
+          </button>
+        </div>
       )}
       {reminderDismissals.error && <p role="alert">{homeServiceText(language, "Could not dismiss reminder. Try again.")}</p>}
       {profileError && <div role="alert" className="mb-4 text-vyva-text-1">

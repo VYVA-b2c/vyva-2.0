@@ -20,6 +20,7 @@ export interface ProviderDecisionRequest {
   appointmentType: string;
   serviceType?: string | null;
   detail?: string | null;
+  urgency?: string | null;
   criteria?: string[];
   maxResults?: number;
 }
@@ -42,6 +43,7 @@ export interface ProviderCandidate {
   distanceMeters?: number | null;
   availability?: ProviderAvailability | null;
   openNow?: boolean | null;
+  openToday?: boolean | null;
   priceLevel?: number | null;
   evidenceStatus?: ProviderEvidenceStatus | null;
   checkedAt?: string | null;
@@ -264,6 +266,16 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
 
   const code: ProviderDecisionCode = exactSubserviceMatch ? "eligible_exact_match" : "eligible_broad_category";
   const scored = scoreEligible(candidate, exactSubserviceMatch, request.criteria ?? []);
+  if (["now", "today"].includes(clean(request.urgency).toLowerCase()) && candidate.openNow !== true) {
+    if (candidate.openToday === true) {
+      scored.score += 8;
+      scored.reasons.push("Business is open today");
+    } else if (candidate.openToday === false) {
+      scored.uncertainties.push("Business is closed today");
+    } else {
+      scored.uncertainties.push("Today's opening hours are not confirmed");
+    }
+  }
   const preference = preferenceScore(candidate, request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : []);
   return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: preference.notes, canonicalCategory, exactSubserviceMatch };
 }

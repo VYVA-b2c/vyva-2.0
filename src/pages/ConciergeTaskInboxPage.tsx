@@ -221,7 +221,7 @@ function InboxList({
           className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-1 font-body text-[14px] font-black text-vyva-text-2"
         >
           <ArrowLeft size={19} aria-hidden="true" />
-          {isSpanish ? "Concierge" : "Concierge"}
+          {isSpanish ? "Obtener ayuda" : "Get Help"}
         </button>
         <div className="mt-2 flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#ECFDF5] text-[#047857]">
@@ -229,7 +229,7 @@ function InboxList({
           </span>
           <div>
             <h1 className="font-body text-[26px] font-black leading-tight text-vyva-text-1">
-              {isSpanish ? "Mis tareas" : "My tasks"}
+              {isSpanish ? "Solicitudes de ayuda" : "Get Help requests"}
             </h1>
             <p className="font-body text-[13px] font-semibold text-vyva-text-2">
               {activeCount > 0
@@ -240,7 +240,7 @@ function InboxList({
         </div>
       </header>
 
-      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de tareas" : "Task views"}>
+      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de solicitudes" : "Request views"}>
         {(["active", "completed"] as const).map((option) => {
           const selected = view === option;
           const label = option === "active"
@@ -720,7 +720,7 @@ function TaskDetail({
           <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-[#2F66D0]" data-testid="concierge-task-waiting-message">
             {isSpanish ? "Te avisaremos cuando llegue una respuesta." : "We will let you know when a reply arrives."}
           </p>
-        ) : (
+        ) : !item.continuation.stale || item.completedTemplate || item.draftId || item.actionPayload?.local_canvas_resume === true ? (
           <button
             type="button"
             onClick={onPrimaryAction}
@@ -730,6 +730,10 @@ function TaskDetail({
             {item.source === "draft" && !item.continuation.stale ? reminder.action : copy(item.primaryActionLabel)}
             <ChevronRight size={19} aria-hidden="true" />
           </button>
+        ) : (
+          <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-vyva-text-2" data-testid="concierge-task-status-message">
+            {isSpanish ? "Esta solicitud permanece aqui hasta que haya una nueva respuesta o accion disponible." : "This request stays here until a new reply or action is available."}
+          </p>
         )
       ) : null}
     </div>
@@ -859,8 +863,14 @@ export default function ConciergeTaskInboxPage() {
       inbox={inbox}
       language={language}
       isSpanish={isSpanish}
-      onBack={() => navigate("/concierge")}
-      onOpen={(item) => navigate(item.detailPath)}
+      onBack={() => navigate("/concierge/get-help")}
+      onOpen={(item) => {
+        if (item.source === "draft") {
+          navigate(item.resumePath);
+          return;
+        }
+        navigate(item.detailPath);
+      }}
     />
   );
 }
