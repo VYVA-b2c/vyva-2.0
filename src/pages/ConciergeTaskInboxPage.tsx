@@ -161,7 +161,7 @@ function TaskRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <p className="min-w-0 break-words font-body text-[16px] font-black text-vyva-text-1">{item.title}</p>
           <span
-            className="rounded-full bg-[#F4F0FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple"
+            className="concierge-task-state-badge rounded-full bg-[#F4F0FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple"
             data-testid={`concierge-inbox-task-state-${item.key}`}
           >
             {item.continuation.stateLabel}

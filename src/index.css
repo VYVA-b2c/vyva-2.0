@@ -1247,6 +1247,12 @@
   color: #d7b8ff;
 }
 
+[data-home-master-theme="dark"].concierge-task-page .concierge-task-state-badge {
+  background-color: #4b2b73;
+  border: 1px solid rgba(215, 184, 255, 0.32);
+  color: #fff8ff;
+}
+
 [data-home-master-theme="dark"].concierge-task-page :is(
   [class*="bg-white"],
   [class*="bg-vyva-background"]
