@@ -461,9 +461,9 @@ function mergeAdminSettingsIntoFlags(
     const setting = settings[id];
     const adapterSetup = adapterSetupForChannel(id, setting);
     return [id, {
-      adminEnabled: setting ? setting.adminEnabled : false,
+      adminEnabled: setting ? setting.adminEnabled : envFlag.adminEnabled === true,
       configured: adapterSetup.configured || envFlag.configured === true,
-      verified: setting ? setting.verified : false,
+      verified: setting ? setting.verified : envFlag.verified === true,
       notes: setting?.notes ?? envFlag.notes ?? null,
     }];
   })) as ConciergeChannelReadinessFlags;

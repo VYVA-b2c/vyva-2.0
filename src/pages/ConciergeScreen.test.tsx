@@ -4248,10 +4248,9 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
     expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Book online");
     expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Opens the provider's booking page");
-    expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Call the provider yourself");
-    expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Opens your phone app");
+    expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-service-channel-email")).toBeVisible();
-    expect(screen.getByTestId("button-home-service-channel-manual")).toBeVisible();
+    expect(screen.queryByTestId("button-home-service-channel-manual")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
     expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");

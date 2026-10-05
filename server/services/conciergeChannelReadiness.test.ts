@@ -10,6 +10,7 @@ vi.mock("../db.js", () => dbMock);
 
 import {
   buildAdminConciergeChannelReadinessSnapshot,
+  loadConciergeChannelReadinessFlagsWithAdminSettings,
   runAdminConciergeChannelVerificationProbe,
   updateAdminConciergeChannelReadiness,
 } from "./conciergeChannelReadiness.js";
@@ -108,6 +109,23 @@ describe("admin Concierge channel readiness", () => {
     expect(JSON.stringify(snapshot)).not.toContain("super-secret-elevenlabs-key");
     expect(JSON.stringify(snapshot)).not.toContain("agent-secret");
     expect(JSON.stringify(snapshot)).not.toContain("phone-secret");
+  });
+
+  it("preserves environment readiness when no admin override row exists", async () => {
+    process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-1";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-1";
+    process.env.CONCIERGE_PHONE_CALL_CHANNEL_READY = "true";
+    process.env.CONCIERGE_PHONE_CALL_CHANNEL_VERIFIED = "true";
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    const flags = await loadConciergeChannelReadinessFlagsWithAdminSettings();
+
+    expect(flags.phone_call).toMatchObject({
+      adminEnabled: true,
+      configured: true,
+      verified: true,
+    });
   });
 
   it("returns owned email pilot readiness without exposing provider secrets or pilot inboxes", async () => {
