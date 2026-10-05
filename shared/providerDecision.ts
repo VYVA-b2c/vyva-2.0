@@ -6,6 +6,7 @@ import { homeServiceSearchTerms, normalizeHomeServiceType } from "./serviceIntak
 import type { ProviderConcernCategory, ProviderConcernLevel, ProviderPriceEvidence } from "./providerVerification.js";
 import { homeServicePlaybook, type HomeServicePlaybook } from "./homeServicePlaybooks.js";
 import { listingRiskSignals, type ListingRiskSignal } from "./providerListingRisk.js";
+import { memberOutcomeAdjustment, type MemberOutcomeCounts } from "./providerOutcomes.js";
 
 export type ProviderCandidateSource = "saved" | "partner" | "external" | "manual";
 export type ProviderEvidenceStatus = "verified" | "reported" | "unknown";
@@ -61,6 +62,8 @@ export interface ProviderCandidate {
   priceEvidence?: ProviderPriceEvidence | null;
   // Null until checked; false when a check ran and found no stated credential.
   credentialStated?: boolean | null;
+  // Pooled answers from VYVA members who used this business for this trade.
+  memberOutcomes?: MemberOutcomeCounts | null;
   raw: unknown;
 }
 
@@ -286,6 +289,10 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   if (reputation > 0) reasons.push("Reputation is supported by review volume");
   else if (criteria.includes("reputation")) uncertainties.push("Reputation evidence is limited");
   if (candidate.preferred) score += 2;
+  const members = memberOutcomeAdjustment(candidate.memberOutcomes);
+  score += members.score;
+  reasons.push(...members.reasons);
+  uncertainties.push(...members.uncertainties);
   if (candidate.concernLevel === "pattern") {
     // Product-design weighting: outweighs distance and open-now, not a match.
     score -= 25;

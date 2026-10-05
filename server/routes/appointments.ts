@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
 import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
+import { listDueOutcomes, loadMemberOutcomeCounts, recordOutcome } from "../services/providerOutcomes.js";
+import { providerOutcomeAnswerSchema, type MemberOutcomeCounts } from "../../shared/providerOutcomes.js";
 import { loadSharedVerification, loadSharedVerifications, saveSharedVerification, sharedVerificationFor, type ReputationKey } from "../services/providerReputation.js";
 import { languageText, requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
@@ -655,6 +657,12 @@ function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
   };
 }
 
+function memberOutcomesFromSnapshot(value: unknown): MemberOutcomeCounts | null {
+  const record = recordValue(value);
+  const keys = ["jobs", "noShows", "aboveQuote", "wouldUseAgain", "wouldNotUseAgain"] as const;
+  return keys.every(key => Number.isInteger(record[key]) && (record[key] as number) >= 0) ? record as unknown as MemberOutcomeCounts : null;
+}
+
 function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
   const snapshot = recordValue(option.provider_snapshot);
   const verification = snapshot.verification_eligible === true ? currentVerification(snapshot.verification) : null;
@@ -689,6 +697,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     hasBusinessAddress: typeof snapshot.has_business_address === "boolean" ? snapshot.has_business_address : null,
     priceEvidence: verification?.pricing ?? null,
     credentialStated: verification?.credentials ? verification.credentials.length > 0 : null,
+    memberOutcomes: memberOutcomesFromSnapshot(snapshot.member_outcomes),
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -1177,9 +1186,16 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       // serious allegations drop out, repeated concerns sink, verified ones rise.
       const keyed = insertedOptions.map(option => ({ option, key: reputationKey(option, request, displayLanguage) }));
       const shared = await loadSharedVerifications(keyed.flatMap(({ key }) => key ? [key] : []));
+      const serviceType = serviceIntake?.service_type ?? "";
+      const outcomes = await loadMemberOutcomeCounts(keyed.flatMap(({ key }) => key ? [key.placeId] : []), serviceType);
       for (const { option, key } of keyed) {
         const verification = key ? sharedVerificationFor(shared, key) : null;
-        if (verification) option.provider_snapshot = { ...recordValue(option.provider_snapshot), verification };
+        const memberOutcomes = key ? outcomes.get(key.placeId) : undefined;
+        if (verification || memberOutcomes) option.provider_snapshot = {
+          ...recordValue(option.provider_snapshot),
+          ...(verification ? { verification } : {}),
+          ...(memberOutcomes ? { member_outcomes: memberOutcomes } : {}),
+        };
       }
     }
     const allCandidates = [...existingOptions, ...insertedOptions];
@@ -1300,6 +1316,27 @@ router.post("/requests/:id/options/:optionId/refresh-contact", async (req: Reque
   )).returning();
 
   return res.json({ option: updated ?? option, refreshed: true });
+});
+
+router.get("/outcomes/due", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  return res.json({ items: await listDueOutcomes(userId) });
+});
+
+router.post("/requests/:id/outcome", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || !/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Invalid request" });
+  const parsed = providerOutcomeAnswerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid answer" });
+  try {
+    const status = await recordOutcome({ userId, requestId: req.params.id, answer: parsed.data });
+    return status === "recorded" ? res.json({ recorded: true }) : res.status(404).json({ error: "Request not found" });
+  } catch (err) {
+    console.error("[appointments POST /requests/:id/outcome]", err);
+    return res.status(503).json({ error: "Could not save the answer" });
+  }
 });
 
 router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: Response) => {

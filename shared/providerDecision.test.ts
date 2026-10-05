@@ -247,4 +247,15 @@ describe("provider decision engine", () => {
       expect(result.ranked.find(r => r.candidate.id === "single")?.priorityBonus).toBe(0);
     });
   });
+
+  it("ranks on pooled member outcomes once two members have answered", () => {
+    const listing = (id: string, memberOutcomes: ProviderCandidate["memberOutcomes"]) => candidate({ id, name: `Plumber ${id}`, source: "external", trusted: false, category: "home_service", address: "1 Calle Mayor", rating: 4.8, reviewCount: 200, memberOutcomes });
+    const result = decideProviderCandidates([
+      listing("starry", { jobs: 3, noShows: 2, aboveQuote: 0, wouldUseAgain: 0, wouldNotUseAgain: 3 }),
+      listing("liked", { jobs: 3, noShows: 0, aboveQuote: 0, wouldUseAgain: 3, wouldNotUseAgain: 0 }),
+    ], { ...homeRequest, maxResults: 12 });
+    expect(result.ranked.map(r => r.candidate.id)).toEqual(["liked", "starry"]);
+    expect(result.ranked[0].reasons).toContain("Other VYVA members would use this provider again");
+    expect(result.ranked[1].uncertainties).toContain("Other VYVA members report missed visits");
+  });
 });

@@ -24,6 +24,7 @@ const migrationPaths = [
   "0085_publish_triage_report_columns.sql",
   "0104_concierge_reminder_dismissals.sql",
   "0106_provider_reputation.sql",
+  "0107_provider_job_outcomes.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
@@ -31,6 +32,7 @@ const migrationSql = migrationPaths
 const requiredTables = [
   "concierge_reminder_dismissals",
   "provider_reputation",
+  "provider_job_outcomes",
   "triage_reports",
   "scheduled_interactions",
   "interaction_logs",
