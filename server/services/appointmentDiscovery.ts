@@ -453,10 +453,11 @@ function summarizeOpeningHours(details: GooglePlaceDetails | null, language: str
   return hours.weekday_text?.slice(0, 2).join(" - ") ?? null;
 }
 
-function optionChannels(phone: string | null, bookingUrl: string | null): AppointmentChannel[] {
+function optionChannels(phone: string | null, bookingUrl: string | null, email: string | null = null): AppointmentChannel[] {
   const channels: AppointmentChannel[] = [];
   if (bookingUrl) channels.push("booking_url");
   if (phone) channels.push("phone");
+  if (email) channels.push("email");
   channels.push("manual");
   return channels;
 }
@@ -505,6 +506,7 @@ export async function refreshAppointmentProviderContact(input: {
   const bookingUrl = input.appointmentType === "home-service"
     ? null
     : existingBookingUrl || website;
+  const email = cleanText(input.snapshot.email) || null;
 
   return {
     snapshot: {
@@ -520,7 +522,7 @@ export async function refreshAppointmentProviderContact(input: {
       open_now: details.opening_hours?.open_now ?? input.snapshot.open_now ?? null,
       contact_details_refreshed_at: new Date().toISOString(),
     },
-    availableChannels: optionChannels(phone, bookingUrl),
+    availableChannels: optionChannels(phone, bookingUrl, email),
   };
 }
 

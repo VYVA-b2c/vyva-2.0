@@ -16483,6 +16483,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (!selectedAppointmentOption) return [];
     const readiness = appointmentContactChannelReadinessQuery.data?.channels;
     if (!readiness) return [];
+    const providerHasDirectContact = selectedAppointmentOption.available_channels.some((channel) => (
+      channel === "phone" || channel === "email" || channel === "whatsapp"
+    ));
     const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
       channel !== "manual"
       && channel !== "booking_url"
@@ -16497,7 +16500,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         ? homeServiceText(locale, "Ask VYVA support to prepare the contact")
         : homeServiceText(locale, appointmentChannelLabel(channel, isSpanish)),
       description: channel === "manual"
-        ? homeServiceText(locale, "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
+        ? homeServiceText(locale, providerHasDirectContact
+          ? "The provider has direct contact details, but VYVA cannot use those channels automatically right now. A VYVA operator will prepare the next step for your approval."
+          : "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
         : undefined,
       recommended: channel === suggestedAppointmentActionChannel,
     }));
