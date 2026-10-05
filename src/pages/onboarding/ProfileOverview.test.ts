@@ -17,7 +17,7 @@ describe("PROFILE_OVERVIEW_SECTIONS", () => {
 
   it("exposes exactly the seven canonical groups", () => {
     expect(PROFILE_OVERVIEW_SECTIONS.map((group) => group.title)).toEqual([
-      "Account details", "Health profile", "My Medication", "Emergency contact",
+      "Personal information", "Health profile", "My Medication", "Emergency contact",
       "Preferences", "Care team", "Doctors & providers",
     ]);
   });
