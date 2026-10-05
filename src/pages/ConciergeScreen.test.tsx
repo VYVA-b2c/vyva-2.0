@@ -4246,7 +4246,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-contact-yes"));
     expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
     expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
-    expect(screen.queryByTestId("button-home-service-channel-booking_url")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Book online");
+    expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Opens the provider's booking page");
     expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Call the provider yourself");
     expect(screen.getByTestId("button-home-service-channel-phone")).toHaveTextContent("Opens your phone app");
     expect(screen.getByTestId("button-home-service-channel-email")).toBeVisible();
