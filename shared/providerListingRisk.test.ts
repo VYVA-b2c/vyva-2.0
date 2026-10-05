@@ -14,6 +14,16 @@ describe("provider listing risk", () => {
     ["+49 800 1234567", null, false],
     ["0870 123 4567", "GB", true],
     ["+44 20 7946 0000", null, false],
+    ["+33 8 92 12 34 56", null, true],
+    ["+39 899 123456", null, true],
+    ["+31 900 1234567", null, true],
+    ["+48 701 234 567", null, true],
+    ["+1 900 555 0100", null, true],
+    ["+61 1900 123 456", null, true],
+    ["+351 707 123 456", null, true],
+    ["+1 212 555 0100", null, false],
+    ["+34 900 123 456", "ES", false],
+    ["not a number", "ES", false],
   ])("classifies %s", (phone, country, premium) => {
     expect(isPremiumRateNumber(phone, country)).toBe(premium);
   });

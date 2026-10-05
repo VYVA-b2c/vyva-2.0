@@ -210,7 +210,7 @@ describe("provider decision engine", () => {
       const plumbers = locksmiths.map(c => ({ ...c, name: c.name.replace(/Cerrajer(o|ia)/g, "Fontaneria") }));
       const result = decideProviderCandidates(plumbers, { appointmentType: "home-service", serviceType: "plumber", maxResults: 12 });
       expect(result.ranked[0].candidate.id).toBe("d");
-      expect(result.ranked.find(r => r.candidate.id === "c")?.uncertainties).toContain("Uses a premium-rate phone number");
+      expect(result.ranked.find(r => r.candidate.id === "c")?.uncertainties).toContain("Uses a paid or national service number, not a local line");
       expect(result.excluded.some(r => r.code === "excluded_listing_risk")).toBe(false);
     });
 

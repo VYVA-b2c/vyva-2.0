@@ -1,4 +1,5 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
+import { homeServiceCountryEnabled } from "../lib/homeServiceCountries.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
 import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
@@ -32,7 +33,7 @@ export interface AppointmentDiscoveryResult {
   source: AppointmentSource;
   options: AppointmentDiscoveredOption[];
   reservation_systems: ReservationSystemLink[];
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable" | "country_not_enabled";
 }
 
 type GooglePlaceSearchResult = {
@@ -628,6 +629,9 @@ export async function discoverAppointmentProviderOptions(input: {
     }
     if (homeSearch && !center) {
       throw new DiscoveryFailure("address_unresolved", "geocode", "NO_UNAMBIGUOUS_MATCH");
+    }
+    if (homeSearch && center && !homeServiceCountryEnabled(center.countryCode)) {
+      return { source: "google_places", options: [], reservation_systems: reservationSystems, fallback_reason: "country_not_enabled" };
     }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
