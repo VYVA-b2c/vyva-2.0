@@ -52,6 +52,7 @@ function renderPage(initialEntry = "/concierge/tasks") {
 describe("ConciergeTaskInboxPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -123,6 +124,7 @@ describe("ConciergeTaskInboxPage", () => {
   it("keeps active work focused and completed history searchable", async () => {
     renderPage();
 
+    expect(await screen.findByTestId("concierge-task-inbox")).toHaveAttribute("data-home-master-theme", "dark");
     expect(await screen.findByTestId("concierge-inbox-group-needs_you")).toHaveTextContent("Needs you1");
     expect(screen.getByTestId("concierge-inbox-group-waiting")).toHaveTextContent("Waiting1");
     expect(screen.queryByTestId("concierge-inbox-group-completed")).not.toBeInTheDocument();

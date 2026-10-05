@@ -14,6 +14,7 @@ import {
   Search,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { homeServiceText } from "../../shared/homeServiceText";
 import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
 import { apiFetch } from "@/lib/queryClient";
@@ -193,12 +194,14 @@ function InboxList({
   inbox,
   language,
   isSpanish,
+  isDark,
   onBack,
   onOpen,
 }: {
   inbox: ReturnType<typeof buildConciergeTaskInbox>;
   language: string;
   isSpanish: boolean;
+  isDark: boolean;
   onBack: () => void;
   onOpen: (item: ConciergeTaskInboxItem) => void;
 }) {
@@ -213,7 +216,7 @@ function InboxList({
     : inbox.completed;
   const groups = view === "active" ? ACTIVE_GROUPS : ["completed" as const];
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-inbox">
+    <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox">
       <header className="border-b border-vyva-border pb-4">
         <button
           type="button"
@@ -579,12 +582,14 @@ function TaskDetail({
   item,
   language,
   isSpanish,
+  isDark,
   onBack,
   onPrimaryAction,
 }: {
   item: ConciergeTaskInboxItem;
   language: string;
   isSpanish: boolean;
+  isDark: boolean;
   onBack: () => void;
   onPrimaryAction: () => void;
 }) {
@@ -607,7 +612,7 @@ function TaskDetail({
   ));
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-detail">
+    <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-detail">
       <button
         type="button"
         onClick={onBack}
@@ -744,6 +749,7 @@ export default function ConciergeTaskInboxPage() {
   const navigate = useNavigate();
   const { taskKey } = useParams<{ taskKey: string }>();
   const { language } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const isSpanish = language.split("-")[0].toLowerCase() === "es";
   const draftsQuery = useQuery({
     queryKey: ["/api/concierge/tasks"],
@@ -781,7 +787,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-5 pt-10" data-testid="concierge-task-inbox-loading">
+      <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-5 pt-10" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox-loading">
         <div className="h-8 w-48 animate-pulse rounded-lg bg-vyva-border" />
         <div className="mt-8 space-y-3">
           {[1, 2, 3].map((value) => <div key={value} className="h-24 animate-pulse rounded-lg bg-white" />)}
@@ -792,7 +798,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (hasError) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-testid="concierge-task-inbox-error">
+      <div className="concierge-task-page mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox-error">
         <CircleAlert size={30} className="text-[#B45309]" aria-hidden="true" />
         <h1 className="mt-3 font-body text-[21px] font-black text-vyva-text-1">
           {isSpanish ? "No se pudieron cargar tus tareas" : "Your tasks could not load"}
@@ -811,7 +817,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (taskKey && !selectedItem) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-testid="concierge-task-not-found">
+      <div className="concierge-task-page mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-not-found">
         <Inbox size={30} className="text-vyva-text-3" aria-hidden="true" />
         <h1 className="mt-3 font-body text-[21px] font-black text-vyva-text-1">
           {isSpanish ? "Esta tarea ya no esta disponible" : "This task is no longer available"}
@@ -833,6 +839,7 @@ export default function ConciergeTaskInboxPage() {
         item={selectedItem}
         language={language}
         isSpanish={isSpanish}
+        isDark={isDark}
         onBack={() => navigate(conciergeTaskInboxPath())}
         onPrimaryAction={() => {
           if (selectedItem.completedTemplate) {
@@ -863,6 +870,7 @@ export default function ConciergeTaskInboxPage() {
       inbox={inbox}
       language={language}
       isSpanish={isSpanish}
+      isDark={isDark}
       onBack={() => navigate("/concierge/get-help")}
       onOpen={(item) => {
         if (item.source === "draft") {
