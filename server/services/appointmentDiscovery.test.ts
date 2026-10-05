@@ -344,6 +344,23 @@ describe("appointment discovery", () => {
     expect(result.options[0].provider_snapshot).toMatchObject({ name: "Fontaneria Tarifa", address: "Tarifa, Cadiz, Spain" });
   });
 
+  it("keeps a local in-radius result when Google omits the country suffix and Place Details is unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ place_id: "local", name: "Fontaneria Tarifa", formatted_address: "Calle Sancho IV, 11380 Tarifa, Cadiz", geometry: { location: { lat: 36.02, lng: -5.61 } } }] });
+      return jsonResponse({ status: "OVER_QUERY_LIMIT" });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { address: "Tarifa, Spain" }, language: "fr" });
+
+    expect(result.fallback_reason).toBeUndefined();
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({ name: "Fontaneria Tarifa" });
+  });
+
   it("does not keep a cross-border Text Search result when Place Details is unavailable", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
