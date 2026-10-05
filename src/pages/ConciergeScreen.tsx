@@ -10542,6 +10542,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   const persistedAppointmentRequestId = persistedTask?.progress_payload.requestId ?? null;
   const [appointmentRecoveryExpired, setAppointmentRecoveryExpired] = useState(false);
+  const homeRecoveryDiscoveryRequestRef = useRef<string | null>(null);
   useEffect(() => {
     setAppointmentRecoveryExpired(false);
     if (!persistedAppointmentRequestId) return;
@@ -11200,6 +11201,31 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
     },
   });
+
+  useEffect(() => {
+    const restored = persistedAppointmentRequestQuery.data;
+    const requestId = persistedAppointmentRequestId;
+    if (
+      mode !== "task"
+      || !requestId
+      || !restored?.request
+      || restored.request.appointment_type !== "home-service"
+      || restored.options.length > 0
+      || restored.discovery
+      || persistedAppointmentRequestQuery.isError
+      || discoverAppointmentOptionsMutation.isPending
+      || homeRecoveryDiscoveryRequestRef.current === requestId
+    ) return;
+
+    homeRecoveryDiscoveryRequestRef.current = requestId;
+    discoverAppointmentOptionsMutation.mutate({ requestId });
+  }, [
+    discoverAppointmentOptionsMutation,
+    mode,
+    persistedAppointmentRequestId,
+    persistedAppointmentRequestQuery.data,
+    persistedAppointmentRequestQuery.isError,
+  ]);
 
   const addAppointmentBookingSiteMutation = useMutation({
     mutationFn: addAppointmentBookingSiteOption,
@@ -20596,8 +20622,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               <div role="alert" className="py-4 text-vyva-text-2">
                 <p>{homeServiceText(locale, "We couldn't load the results. You can retry the search.")}</p>
                 <button type="button" className="vyva-tap min-h-[44px] text-vyva-purple underline" onClick={() => {
-                  if (appointmentRequest) discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
-                  else void persistedAppointmentRequestQuery.refetch();
+                  const requestId = appointmentRequest?.id ?? persistedAppointmentRequestId;
+                  if (requestId) {
+                    homeRecoveryDiscoveryRequestRef.current = requestId;
+                    discoverAppointmentOptionsMutation.mutate({ requestId });
+                  } else void persistedAppointmentRequestQuery.refetch();
                 }}>{homeServiceText(locale, "Retry search")}</button>
               </div>
             )}
