@@ -1465,18 +1465,18 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
-  it("opens a Find Specialist task entry as a provider comparison search", async () => {
+  it("opens a non-health provider task entry as a provider comparison search", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen([{
       pathname: "/concierge/task/new",
-      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" } },
+      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "residence", query: "compare residences" } },
     }], "task");
 
     expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Good reputation");
-    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("find a specialist");
+    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("compare residences");
   });
 
   it("opens a Book Medical task entry directly in the medical appointment flow", async () => {
