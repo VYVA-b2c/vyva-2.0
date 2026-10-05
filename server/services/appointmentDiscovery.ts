@@ -45,6 +45,7 @@ type GooglePlaceSearchResult = {
   place_id?: string;
   types?: string[];
   business_status?: string;
+  enriched_details?: GooglePlaceDetails;
 };
 
 type AddressComponent = { short_name?: string; types?: string[] };
@@ -331,14 +332,100 @@ async function fetchGoogleTextSearch(query: string, key: string, language: strin
     url.searchParams.set("radius", "50000");
   }
 
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new DiscoveryFailure("google_places_unavailable", "textsearch", String(response.status));
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) }).catch(() => null);
+  if (!response?.ok) return fetchGoogleTextSearchNew(query, key, language, countryCode, center);
   const data = await response.json() as {
     status?: string;
     results?: GooglePlaceSearchResult[];
   };
-  if (!data.status || !["OK", "ZERO_RESULTS"].includes(data.status)) throw new DiscoveryFailure("google_places_unavailable", "textsearch", data.status ?? "INVALID_RESPONSE");
-  return data.results ?? [];
+  if (!data.status || !["OK", "ZERO_RESULTS"].includes(data.status)) {
+    return fetchGoogleTextSearchNew(query, key, language, countryCode, center);
+  }
+  if ((data.results?.length ?? 0) > 0) return data.results ?? [];
+  return fetchGoogleTextSearchNew(query, key, language, countryCode, center);
+}
+
+function newAddressComponents(value: unknown): AddressComponent[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(component => {
+    if (!component || typeof component !== "object") return [];
+    const record = component as { shortText?: unknown; types?: unknown };
+    return [{
+      short_name: typeof record.shortText === "string" ? record.shortText : undefined,
+      types: Array.isArray(record.types) ? record.types.filter((type): type is string => typeof type === "string") : [],
+    }];
+  });
+}
+
+async function fetchGoogleTextSearchNew(query: string, key: string, language: string, countryCode: string, center?: Coordinates | null): Promise<GooglePlaceSearchResult[]> {
+  const body: Record<string, unknown> = {
+    textQuery: query,
+    languageCode: language || "es",
+    regionCode: countryCode.toUpperCase(),
+    maxResultCount: 20,
+  };
+  if (center) {
+    body.locationBias = {
+      circle: { center: { latitude: center.lat, longitude: center.lng }, radius: 50000 },
+    };
+  }
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": [
+        "places.id", "places.displayName", "places.formattedAddress", "places.location",
+        "places.rating", "places.userRatingCount", "places.priceLevel", "places.businessStatus",
+        "places.types", "places.addressComponents", "places.nationalPhoneNumber",
+        "places.internationalPhoneNumber", "places.websiteUri", "places.googleMapsUri",
+        "places.regularOpeningHours", "places.utcOffsetMinutes",
+      ].join(","),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => null);
+  if (!response?.ok) {
+    throw new DiscoveryFailure("google_places_unavailable", "textsearch", response ? String(response.status) : "NETWORK_OR_TIMEOUT");
+  }
+  const data = await response.json() as { places?: Array<Record<string, unknown>> };
+  return (data.places ?? []).map(place => {
+    const displayName = place.displayName && typeof place.displayName === "object"
+      ? (place.displayName as { text?: unknown }).text : null;
+    const point = place.location && typeof place.location === "object"
+      ? place.location as { latitude?: unknown; longitude?: unknown } : null;
+    const hours = place.regularOpeningHours && typeof place.regularOpeningHours === "object"
+      ? place.regularOpeningHours as { openNow?: unknown; weekdayDescriptions?: unknown } : null;
+    const priceNames = ["PRICE_LEVEL_FREE", "PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE", "PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"];
+    const priceLevel = typeof place.priceLevel === "string" ? priceNames.indexOf(place.priceLevel) : -1;
+    const details: GooglePlaceDetails = {
+      address_components: newAddressComponents(place.addressComponents),
+      formatted_phone_number: typeof place.nationalPhoneNumber === "string" ? place.nationalPhoneNumber : undefined,
+      international_phone_number: typeof place.internationalPhoneNumber === "string" ? place.internationalPhoneNumber : undefined,
+      website: typeof place.websiteUri === "string" ? place.websiteUri : undefined,
+      url: typeof place.googleMapsUri === "string" ? place.googleMapsUri : undefined,
+      utc_offset_minutes: typeof place.utcOffsetMinutes === "number" ? place.utcOffsetMinutes : undefined,
+      opening_hours: hours ? {
+        open_now: typeof hours.openNow === "boolean" ? hours.openNow : undefined,
+        weekday_text: Array.isArray(hours.weekdayDescriptions)
+          ? hours.weekdayDescriptions.filter((item): item is string => typeof item === "string") : undefined,
+      } : undefined,
+      price_level: priceLevel >= 0 ? priceLevel : undefined,
+    };
+    return {
+      place_id: typeof place.id === "string" ? place.id : undefined,
+      name: typeof displayName === "string" ? displayName : undefined,
+      formatted_address: typeof place.formattedAddress === "string" ? place.formattedAddress : undefined,
+      geometry: point && typeof point.latitude === "number" && typeof point.longitude === "number"
+        ? { location: { lat: point.latitude, lng: point.longitude } } : undefined,
+      rating: typeof place.rating === "number" ? place.rating : undefined,
+      user_ratings_total: typeof place.userRatingCount === "number" ? place.userRatingCount : undefined,
+      price_level: priceLevel >= 0 ? priceLevel : undefined,
+      types: Array.isArray(place.types) ? place.types.filter((type): type is string => typeof type === "string") : undefined,
+      business_status: typeof place.businessStatus === "string" ? place.businessStatus : undefined,
+      enriched_details: details,
+    };
+  });
 }
 
 async function fetchGooglePlaceDetails(placeId: string, key: string, language: string, includePrice = false): Promise<GooglePlaceDetails | null> {
@@ -545,7 +632,7 @@ export async function discoverAppointmentProviderOptions(input: {
     // A radius can cross national borders; region is only a Google search bias.
     // Unknown country is not evidence that a provider serves the requested country.
     let detailFailures = 0;
-    const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? null }))
+    const eligible = selected.map((place, index) => ({ place, detail: details[index] ?? place.enriched_details ?? null }))
       .filter(({ place, detail }) => {
         if (!homeSearch) return true;
         const detailCountry = addressCountry(detail?.address_components);

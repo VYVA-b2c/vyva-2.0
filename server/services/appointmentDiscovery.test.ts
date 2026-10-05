@@ -30,6 +30,51 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("falls back to Places Text Search (New) when the legacy endpoint is unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      if (url.pathname.includes("/place/textsearch/")) return jsonResponse({ status: "REQUEST_DENIED" });
+      if (url.hostname === "places.googleapis.com") {
+        expect(init?.method).toBe("POST");
+        expect((init?.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("test-key");
+        return jsonResponse({ places: [{
+          id: "new-place-id",
+          displayName: { text: "Marbella Plomberie" },
+          formattedAddress: "Calle Example, Marbella, Spain",
+          location: { latitude: 36.51, longitude: -4.88 },
+          addressComponents: [{ shortText: "ES", types: ["country"] }],
+          internationalPhoneNumber: "+34 956 123 456",
+          googleMapsUri: "https://maps.google.com/?cid=new-place-id",
+          rating: 4.7,
+          userRatingCount: 31,
+          businessStatus: "OPERATIONAL",
+        }] });
+      }
+      return jsonResponse({ status: "NOT_FOUND" }, 404);
+    });
+
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service",
+      serviceType: "plumber",
+      detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" },
+      language: "fr",
+    });
+
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({
+      place_id: "new-place-id",
+      name: "Marbella Plomberie",
+      phone: "+34 956 123 456",
+      country_code: "ES",
+    });
+  });
+
   it("refreshes a selected external provider phone before contact methods are shown", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
