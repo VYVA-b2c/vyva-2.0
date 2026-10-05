@@ -1204,6 +1204,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       request_id: request.id,
       appointment_type: request.appointment_type,
       service_type: serviceIntake?.service_type ?? null,
+      discovery_fallback_reason: discovery.fallback_reason ?? null,
       candidate_count: allCandidates.length,
       eligible_count: rankedOptions.length,
       exclusion_summary: decision.exclusionSummary,
