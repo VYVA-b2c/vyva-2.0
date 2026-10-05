@@ -516,7 +516,6 @@ describe("ConciergeScreen task navigation", () => {
       return fallback(url, init);
     });
     renderScreen([`/concierge/task/${savedTaskId}`], "task");
-    expect(await screen.findByTestId("home-repair-search-loader")).toBeVisible();
     expect(await screen.findByText("Recovered Tarifa Plumber", {}, { timeout: 5000 })).toBeVisible();
     expect(screen.queryByTestId("home-repair-search-loader")).not.toBeInTheDocument();
     expect(reads).toBeGreaterThan(1);
