@@ -1299,7 +1299,7 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
   await expectNoHorizontalOverflow(page);
 });
 
-test("service setup guidance is visible and responsive", async ({ page }) => {
+test("dependent medication tools show responsive setup guidance", async ({ page }) => {
   await mockApi(page, true, {
     medications: {
       ready: false,
@@ -1317,7 +1317,8 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
     { width: 320, height: 568 },
   ]) {
     await page.setViewportSize(viewport);
-    await page.goto("/meds", { waitUntil: "domcontentloaded" });
+    // The medicine hub stays accessible so users can add their first medicine.
+    await page.goto("/meds/refills", { waitUntil: "domcontentloaded" });
 
     const guidanceToast = page.getByTestId("toast-guidance");
     await expect(guidanceToast).toBeVisible();
