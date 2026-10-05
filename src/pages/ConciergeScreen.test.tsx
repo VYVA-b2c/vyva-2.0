@@ -4309,7 +4309,14 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("guides document help through choose, details, review and confirm before preparing a claim", async () => {
-    let triggerBody: Record<string, any> | null = null;
+    type TriggerBody = {
+      use_case: string;
+      auto_start: boolean;
+      provider_name: string;
+      action_summary: string;
+      action_payload: Record<string, unknown> & { draft_message: string; document_amounts: unknown };
+    };
+    let triggerBody: TriggerBody | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/document-help/read")) {
         return jsonResponse({
@@ -4387,7 +4394,7 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("document-help-success")).toHaveTextContent("VYVA is preparing this for you");
     expect(triggerBody).not.toBeNull();
-    const body = triggerBody as unknown as Record<string, any>;
+    const body = triggerBody as unknown as TriggerBody;
     expect(body.use_case).toBe("admin_task");
     expect(body.auto_start).toBe(false);
     expect(body.provider_name).toBe("VYVA review");
