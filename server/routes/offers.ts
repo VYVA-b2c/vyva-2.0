@@ -325,7 +325,7 @@ Rules:
 - Keep user_summary under 28 words.`;
 }
 
-async function extractPdfText(base64Data: string): Promise<string> {
+export async function extractPdfText(base64Data: string): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const bytes = Uint8Array.from(Buffer.from(base64Data, "base64"));
   const loadingTask = pdfjs.getDocument({ data: bytes, disableWorker: true });

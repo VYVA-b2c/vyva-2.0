@@ -132,6 +132,7 @@ import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
+import { readDocumentHelpHandler } from "./routes/documentHelpReader.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
 import { createSeniorHomeFinderShareHandler, sharedSeniorHomeFinderReportHandler } from "./routes/seniorHomeFinderShare.js";
@@ -204,6 +205,7 @@ app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, re
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
+app.post("/api/document-help/read", express.json({ limit: "20mb" }), authMiddleware, readDocumentHelpHandler);
 
 app.use(
   "/api/webhooks/sendgrid",

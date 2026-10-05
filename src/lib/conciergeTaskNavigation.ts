@@ -27,7 +27,7 @@ export type ConciergeTaskStage = "details" | "review" | "confirmation";
 
 export type ConciergeTaskEntry = {
   kind: ConciergeTaskEntryKind;
-  documentKind?: "insurance-letter" | "claim" | "government-form" | "call-email";
+  documentKind?: "insurance-letter" | "claim" | "government-form" | "call-email" | "not-sure";
   appointmentKind?: "medical" | "personal-care" | "government";
   providerSearchMode?:
     | "personal-care"
@@ -56,6 +56,7 @@ const DOCUMENT_KINDS = new Set<NonNullable<ConciergeTaskEntry["documentKind"]>>(
   "claim",
   "government-form",
   "call-email",
+  "not-sure",
 ]);
 
 const APPOINTMENT_KINDS = new Set<NonNullable<ConciergeTaskEntry["appointmentKind"]>>([

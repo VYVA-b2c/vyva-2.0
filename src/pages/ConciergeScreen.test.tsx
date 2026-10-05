@@ -411,6 +411,10 @@ describe("ConciergeScreen task navigation", () => {
     if (conciergeTaskEntry.kind === "home_service") {
       expect(await screen.findByRole("heading", { name: "Choose a service" })).toBeInTheDocument();
       expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+    } else if (conciergeTaskEntry.kind === "document") {
+      // Document help owns its own header and four-step progress.
+      expect(await screen.findByTestId("document-help-progress")).toHaveAttribute("data-step", "choose");
+      expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
     } else {
       expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
     }
@@ -1568,10 +1572,11 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Government" }));
 
-    expect(await screen.findByTestId("panel-insurance-admin")).toHaveTextContent("Paperwork help");
-    const fields = await screen.findByTestId("panel-insurance-admin-guided-fields");
-    expect(fields).toHaveTextContent("Government/admin form");
-    expect(fields).toHaveTextContent("Fill only what you know");
+    const panel = await screen.findByTestId("panel-insurance-admin");
+    expect(panel).toHaveTextContent("Paperwork help");
+    expect(panel).toHaveAttribute("data-document-help-step", "details");
+    expect(screen.getByTestId("document-help-step-title")).toHaveTextContent("Fill in a form");
+    expect(panel).toHaveTextContent("Everything is optional");
     expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Passport renewal");
     expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
   });
@@ -4003,8 +4008,7 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Government" }));
 
-    const fields = await screen.findByTestId("panel-insurance-admin-guided-fields");
-    expect(fields).toHaveTextContent("Government/admin form");
+    expect(await screen.findByTestId("document-help-step-title")).toHaveTextContent("Fill in a form");
     expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Please help me schedule a passport renewal appointment");
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
     expect(screen.queryByText("I could not verify access right now. Please try again.")).not.toBeInTheDocument();
@@ -4304,36 +4308,25 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
-  it("opens an insurance admin router and prepares a claim review request", async () => {
+  it("guides document help through choose, details, review and confirm before preparing a claim", async () => {
+    let triggerBody: Record<string, any> | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
-      if (String(url).includes("/api/concierge/actions/trigger")) {
-        expect(init?.method).toBe("POST");
-        const body = JSON.parse(String(init?.body));
-        expect(body.use_case).toBe("admin_task");
-        expect(body.auto_start).toBe(false);
-        expect(body.provider_name).toBe("VYVA review");
-        expect(body.action_summary).toBe("Paperwork task prepared: Claim or reimbursement.");
-        expect(body.action_payload).toMatchObject({
-          flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
-          task_type: "claim",
-          admin_task: "Claim or reimbursement",
-          action_type: "email",
-          detail: "Reimbursement for taxi receipt",
-          recipient: "Seguro Salud",
-          deadline: "Friday",
-          requested_tool: "email",
-          active_tool: "operator_review",
-          readiness_status: "manual_review",
-          execution_channel: "manual",
-          action_label: "Claim or reimbursement",
-          confirmation_required_before_action: true,
-          review_fallback: true,
-          no_external_action_without_confirmation: true,
+      if (String(url).includes("/api/document-help/read")) {
+        return jsonResponse({
+          status: "read",
+          organization: "Seguro Salud",
+          summary: "A receipt for a taxi to the hospital.",
+          dates: [{ label: "Claim by", date: "2099-01-31", text: "31/01/2099", is_deadline: true, confidence: "high" }],
+          amounts: [{ label: "Taxi", amount: 35, currency: "EUR", kind: "reimbursable", confidence: "high" }],
+          requested_actions: [],
+          terms: [],
+          unclear: [],
+          has_reference_number: false,
+          confidence: "high",
         });
-        expect(body.action_payload.draft_message).toContain("Help me prepare a claim or reimbursement");
-        expect(body.action_payload.draft_message).toContain("Subject: Reimbursement for taxi receipt.");
-        expect(body.action_payload.draft_message).toContain("Recipient: Seguro Salud.");
-        expect(body.action_payload.draft_message).toContain("Deadline: Friday.");
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
         return jsonResponse({ pendingId: "admin-task-1", status: "pending" });
       }
       return jsonResponse({ items: [] });
@@ -4345,54 +4338,89 @@ describe("ConciergeScreen action hub", () => {
     }], "task");
 
     const panel = await screen.findByTestId("panel-insurance-admin");
-    expect(panel).toHaveTextContent("What do you need to prepare?");
-    expect(panel).toHaveTextContent("Insurance letter or bill");
-    expect(panel).toHaveTextContent("Claim or reimbursement");
-    expect(panel).toHaveTextContent("Government/admin form");
-    expect(panel).toHaveTextContent("Call or email someone");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-insurance-letter")).toHaveTextContent("Tool ready");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-insurance-letter")).toHaveTextContent("Direct tool: camera or upload");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-government-form")).toHaveTextContent("Current path: camera or upload");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Direct tool: email");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Current path: VYVA review");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Needs: email");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Direct tool: phone call");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Review path ready");
-    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Needs: phone number");
+    expect(panel).toHaveTextContent("What would you like help with?");
+    for (const label of ["Understand a letter or bill", "Claim money back", "Fill in a form", "Get ready to contact an office", "Something else, or I'm not sure"]) {
+      expect(panel).toHaveTextContent(label);
+    }
+    // Internal routing language never reaches the member.
+    for (const internal of ["Tool ready", "Review path ready", "Direct tool", "Current path"]) {
+      expect(panel).not.toHaveTextContent(internal);
+    }
 
-    fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
-    expect(await screen.findByTestId("panel-insurance-admin-guided-fields")).toHaveTextContent("Claim or reimbursement");
-    fireEvent.change(screen.getByTestId("input-insurance-admin-subject"), {
-      target: { value: "Reimbursement for taxi receipt" },
-    });
-    fireEvent.change(screen.getByTestId("input-insurance-admin-recipient"), {
-      target: { value: "Seguro Salud" },
-    });
-    fireEvent.change(screen.getByTestId("input-insurance-admin-deadline"), {
-      target: { value: "Friday" },
-    });
-    fireEvent.change(screen.getByTestId("input-insurance-admin-notes"), {
-      target: { value: "EUR35 receipt" },
-    });
-    fireEvent.click(screen.getByTestId("button-insurance-admin-prepare"));
+    // Continuing without a choice explains what to do instead of failing silently.
+    fireEvent.click(screen.getByTestId("button-document-help-continue"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose one of the options above to continue.");
 
-    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Paperwork task ready");
-    expect(prefill).toHaveTextContent("Help me prepare a claim or reimbursement");
-    expect(prefill).toHaveTextContent("Subject: Reimbursement for taxi receipt");
-    expect(prefill).toHaveTextContent("Recipient: Seguro Salud");
-    expect(prefill).toHaveTextContent("Add to Right now");
-    expect(prefill).toHaveTextContent("Nothing is booked or requested without your confirmation");
-    expect(screen.queryByTestId("panel-insurance-admin")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Claim money back/ }));
+    fireEvent.click(screen.getByTestId("button-document-help-continue"));
+    await waitFor(() => expect(panel).toHaveAttribute("data-document-help-step", "details"));
 
-    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+    const file = new File(["receipt"], "receipt.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByTestId("input-document-help-file"), { target: { files: [file] } });
+    expect(await screen.findByTestId("document-help-read-result")).toHaveTextContent("VYVA has read your document");
+    expect(screen.getByTestId("input-insurance-admin-recipient")).toHaveValue("Seguro Salud");
 
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
-        method: "POST",
-      }));
+    fireEvent.change(screen.getByTestId("input-insurance-admin-subject"), { target: { value: "Reimbursement for taxi receipt" } });
+    fireEvent.change(screen.getByTestId("input-insurance-admin-notes"), { target: { value: "EUR35 receipt" } });
+    fireEvent.click(screen.getByTestId("button-document-help-continue"));
+
+    const review = await screen.findByTestId("document-help-review");
+    expect(screen.getByTestId("document-help-review-document")).toHaveTextContent("Found in your document");
+    expect(screen.getByTestId("document-help-review-document")).toHaveTextContent("Could be paid back");
+    expect(screen.getByTestId("document-help-review-suggestions")).toHaveTextContent("VYVA's suggestion");
+    expect(screen.getByTestId("document-help-urgency")).toHaveAttribute("data-urgency", "later");
+    expect(review).toHaveTextContent("Reimbursement for taxi receipt");
+    fireEvent.click(screen.getByTestId("button-document-help-continue"));
+
+    const confirmation = await screen.findByTestId("document-help-confirmation");
+    expect(confirmation).toHaveTextContent("Nothing is sent to Seguro Salud.");
+    const checkbox = screen.getByTestId("checkbox-document-help-confirm");
+    expect(checkbox).not.toBeChecked();
+
+    // Consent is never preselected and the request is not sent without it.
+    fireEvent.click(screen.getByTestId("button-document-help-submit"));
+    expect(await screen.findByText("Please tick the box to confirm first.")).toBeInTheDocument();
+    expect(triggerBody).toBeNull();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByTestId("button-document-help-submit"));
+
+    expect(await screen.findByTestId("document-help-success")).toHaveTextContent("VYVA is preparing this for you");
+    expect(triggerBody).not.toBeNull();
+    const body = triggerBody as unknown as Record<string, any>;
+    expect(body.use_case).toBe("admin_task");
+    expect(body.auto_start).toBe(false);
+    expect(body.provider_name).toBe("VYVA review");
+    expect(body.action_summary).toBe("Paperwork task prepared: Claim money back.");
+    expect(body.action_payload).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+      task_type: "claim",
+      admin_task: "Claim money back",
+      action_type: "email",
+      detail: "Reimbursement for taxi receipt",
+      recipient: "Seguro Salud",
+      notes: "EUR35 receipt",
+      requested_tool: "email",
+      active_tool: "operator_review",
+      readiness_status: "manual_review",
+      execution_channel: "manual",
+      confirmation_required_before_action: true,
+      review_fallback: true,
+      no_external_action_without_confirmation: true,
+      user_confirmed: false,
+      has_document: true,
+      document_read_status: "read",
+      document_organization: "Seguro Salud",
+      document_deadline: "2099-01-31",
     });
-    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
+    expect(body.action_payload.document_amounts).toEqual([
+      expect.objectContaining({ label: "Taxi", amount: 35, kind: "reimbursable" }),
+    ]);
+    expect(body.action_payload.draft_message).toContain("Help me prepare a claim or reimbursement");
+    expect(body.action_payload.draft_message).toContain("Subject: Reimbursement for taxi receipt.");
+    expect(body.action_payload.draft_message).toContain("Recipient: Seguro Salud.");
+    expect(body.action_payload.draft_message).toContain("Amounts: Taxi 35 EUR.");
+    expect(JSON.stringify(body)).not.toContain("base64");
   }, 60000);
 
   it("turns Home Find Care prefills into structured provider-search tasks", async () => {
