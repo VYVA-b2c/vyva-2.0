@@ -109,7 +109,8 @@ import MasterDashboardLayout, {
 } from "@/components/MasterDashboardLayout";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { HomeServicePicker } from "@/components/concierge/HomeServicePicker";
-import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
+import { HomeMasterTopbar } from "@/components/HomeMasterTopControls";
+import { BackButton } from "@/components/vyva-ui/BackButton";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
@@ -17803,12 +17804,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           testId="concierge-master-hero"
           compact
         >
-          <HomeMasterProfileControl
-            isDark={isDark}
-            ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
-            onClick={() => navigate(previewBasePath ? "/dev/home-master/menu" : "/menu")}
-            testId="button-concierge-back"
-            compact
+          <BackButton
+            label={<span className="sr-only">{t("concierge.master.backToMenu", "Back to menu")}</span>}
+            title={t("concierge.master.backToMenu", "Back to menu")}
+            to={previewBasePath ? "/dev/home-master/menu" : "/menu"}
+            data-testid="button-concierge-back"
+            className={`h-10 !min-h-10 w-10 shrink-0 justify-center gap-0 p-0 ${isDark ? "bg-[#2A1645] text-[#F7F0FF] ring-1 ring-inset ring-[#C4B5FD]/18" : "bg-white text-vyva-purple"}`}
           />
 
           <h1 className={`truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] ${isDark ? "text-[#FFF8FF]" : "text-[#241C30]"}`}>

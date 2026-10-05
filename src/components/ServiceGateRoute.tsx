@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import { ArrowRight, Loader2, LockKeyhole } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import { useServiceGate, type ServiceId } from "@/hooks/useServiceGate";
+import { blockingSetupStep, useServiceGate, type ServiceId } from "@/hooks/useServiceGate";
+import { useLanguage } from "@/i18n";
 
 type ServiceGateRouteProps = {
   service: ServiceId;
@@ -20,15 +21,16 @@ function ServiceGateStatusPanel({
   onContinue: () => void;
 }) {
   const isSubscription = section === "subscription";
+  const { t } = useLanguage();
   const title = isLoading
-    ? "Preparing this service"
+    ? t("serviceGate.preparing")
     : isSubscription
-      ? "Plan upgrade needed"
-      : "Complete setup first";
+      ? t("serviceGate.upgrade")
+      : t("serviceGate.completeFirst");
   const description = isLoading
-    ? "VYVA is checking your setup so this page can open safely."
-    : reason || "VYVA needs one setup step before opening this service.";
-  const actionLabel = isSubscription ? "Review plan" : "Finish setup";
+    ? t("serviceGate.preparingDescription")
+    : reason || t("serviceGate.setupDescription");
+  const actionLabel = isSubscription ? t("serviceGate.reviewPlan") : t("serviceGate.finishSetup");
   const Icon = isLoading ? Loader2 : LockKeyhole;
 
   return (
@@ -43,7 +45,7 @@ function ServiceGateStatusPanel({
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
-            VYVA access check
+            {t("serviceGate.accessCheck")}
           </p>
           <h1 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1">
             {title}
@@ -74,7 +76,7 @@ const ServiceGateRoute = ({ service, children }: ServiceGateRouteProps) => {
   const { readiness, isLoading, canUseService } = useServiceGate();
   const returnTo = `${location.pathname}${location.search}`;
   const serviceReadiness = readiness?.services?.[service];
-  const firstMissingStep = serviceReadiness?.missing?.[0];
+  const firstMissingStep = blockingSetupStep(serviceReadiness, returnTo);
   const isBlocked = !!serviceReadiness && !serviceReadiness.ready && !!firstMissingStep;
 
   useEffect(() => {

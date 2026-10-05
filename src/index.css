@@ -1000,6 +1000,49 @@
 }
 
 /* Canonical medication hub: keep the calm hierarchy legible in both modes. */
+[data-home-master-theme="dark"] .medication-refill-card {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2);
+}
+
+[data-home-master-theme="dark"] .medication-refill-header {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+[data-home-master-theme="dark"] .medication-refill-title {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .medication-refill-muted {
+  color: #cfc2d8;
+}
+
+[data-home-master-theme="dark"] .medication-refill-kicker {
+  color: #e9c878;
+}
+
+[data-home-master-theme="dark"] .medication-secondary-action {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: #e4caff;
+}
+
+[data-home-master-theme="dark"] .medication-hub-status {
+  border-color: rgba(233, 200, 120, 0.3);
+  background: rgba(180, 130, 30, 0.15);
+  color: #f4d993;
+}
+
+[data-home-master-theme="dark"] .medication-hub-success {
+  border-color: rgba(110, 231, 183, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-home-master-theme="dark"] .medication-hub-success p {
+  color: #a7f3d0;
+}
+
 [data-home-master-theme="dark"] .medication-canonical-page .medication-hub-card {
   border-color: rgba(255, 255, 255, 0.14) !important;
   background: rgba(255, 255, 255, 0.075) !important;

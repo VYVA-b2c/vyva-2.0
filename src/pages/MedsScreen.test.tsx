@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/queryClient";
 import MedsScreen, { formatRelativeDoseTime } from "./MedsScreen";
+import { medicationUi } from "@/i18n/medicationUi";
+import { sharedControls } from "@/i18n/sharedControls";
 
 const labels: Record<string, string> = {
   "common.back": "Back",
@@ -69,7 +71,7 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallbackOrOptions?: string | { returnObjects?: boolean; defaultValue?: string; count?: number }) => {
+    t: (key: string, fallbackOrOptions?: string | { returnObjects?: boolean; defaultValue?: string; count?: number; medicine?: string }) => {
       const interpolate = (value: string, params?: Record<string, unknown>) =>
         value.replace(/\{\{(\w+)\}\}/g, (_match, token) => String(params?.[token] ?? ""));
       if (key === "meds.headlines" && typeof fallbackOrOptions === "object" && fallbackOrOptions?.returnObjects) {
@@ -77,6 +79,17 @@ vi.mock("react-i18next", () => ({
       }
       if (typeof fallbackOrOptions === "object" && typeof fallbackOrOptions.defaultValue === "string") {
         return interpolate(fallbackOrOptions.defaultValue, fallbackOrOptions as Record<string, unknown>);
+      }
+      if (key.startsWith("meds.hub.")) {
+        const suffix = key.slice("meds.hub.".length);
+        const count = typeof fallbackOrOptions === "object" ? fallbackOrOptions.count : undefined;
+        const copy = medicationUi.en as Record<string, string>;
+        const value = copy[`${suffix}_${count === 1 ? "one" : "other"}`] ?? copy[suffix];
+        if (value) return interpolate(value, typeof fallbackOrOptions === "object" ? fallbackOrOptions : undefined);
+      }
+      if (key.startsWith("meds.refillAlert.")) {
+        const value = (sharedControls.en as Record<string, string>)[key.slice("meds.refillAlert.".length)];
+        if (value) return interpolate(value, typeof fallbackOrOptions === "object" ? fallbackOrOptions : undefined);
       }
       const value = labels[key] ?? (typeof fallbackOrOptions === "string" ? fallbackOrOptions : key);
       return typeof fallbackOrOptions === "object"
@@ -168,6 +181,7 @@ type RenderOptions = {
     alerts: Array<{
       id: string;
       medicineId: string;
+      medicineName?: string;
       status: "refill_soon" | "refill_now" | "uncertain";
       title: string;
       message: string;
@@ -287,6 +301,9 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(formatRelativeDoseTime("17:25", now)).toBe("due now");
     expect(formatRelativeDoseTime("17:05", now)).toBe("overdue by 20 min");
     expect(formatRelativeDoseTime("anytime", now)).toBe("today");
+    expect(formatRelativeDoseTime("anytime", now, "es")).toBe("hoy");
+    expect(formatRelativeDoseTime("17:25", now, "fr")).toBe("maintenant");
+    expect(formatRelativeDoseTime("17:05", now, "es")).toBe("con 20 min de retraso");
   });
 
   it("puts today's medicine status and a clear empty-state action first", async () => {
@@ -298,6 +315,13 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(await screen.findByText("No medicine plan yet")).toBeInTheDocument();
     expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Add medicines to start tracking today.");
     expect(screen.getByTestId("button-meds-dashboard-add-empty")).toHaveTextContent("Add your first medicine");
+    expect(screen.queryByRole("button", { name: /^Add$/ })).not.toBeInTheDocument();
+    for (const button of screen.getByRole("region", { name: "Medication tools" }).querySelectorAll("button")) {
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+    }
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "guidance" })));
+    expect(mocks.toast).toHaveBeenCalledTimes(1);
 
     expect(screen.queryByTestId("section-my-medicines")).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-check-interactions")).not.toBeInTheDocument();
@@ -327,7 +351,7 @@ describe("MedsScreen medication home and detail screens", () => {
 
     expect(await screen.findByRole("heading", { name: "My Medication" })).toBeInTheDocument();
     expect(screen.queryByTestId("section-medication-timeline")).not.toBeInTheDocument();
-    expect(screen.getByTestId("section-medication-list-summary")).toHaveTextContent("My medicines");
+    expect(screen.getByTestId("section-medication-list-summary")).toHaveTextContent(/My medicines/i);
 
     fireEvent.click(screen.getByRole("button", { name: /Metformin/i }));
     expect(mocks.navigate).toHaveBeenCalledWith("/dev/home-master/profile/medicines/my-medicines");
@@ -384,6 +408,7 @@ describe("MedsScreen medication home and detail screens", () => {
           medicineId: "med-1",
           status: "refill_soon",
           title: "Metformin needs a refill this week",
+          medicineName: "Metformin",
           message: "5 days of supply are estimated to remain.",
           daysRemaining: 5,
           projectedRunOutDate: "2026-09-04",

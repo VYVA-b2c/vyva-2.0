@@ -19,6 +19,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
+import { medicationUi } from "@/i18n/medicationUi";
+import type { LanguageCode } from "@/i18n/languages";
 import { apiFetch } from "@/lib/queryClient";
 import {
   medicationListSummary,
@@ -79,9 +81,10 @@ type DbMed = {
 
 type TodayResponse = { medications: DbMed[] };
 
-export function formatRelativeDoseTime(value: string, now = new Date()): string {
+export function formatRelativeDoseTime(value: string, now = new Date(), language: LanguageCode = "en"): string {
+  const copy = medicationUi[language];
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!match) return value === "anytime" ? "today" : value;
+  if (!match) return value === "anytime" ? copy.dueToday : value;
 
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
@@ -92,16 +95,16 @@ export function formatRelativeDoseTime(value: string, now = new Date()): string 
   const differenceMinutes = Math.round((scheduled.getTime() - now.getTime()) / 60_000);
   const absoluteMinutes = Math.abs(differenceMinutes);
 
-  if (absoluteMinutes < 1) return "due now";
+  if (absoluteMinutes < 1) return copy.dueNow;
 
   const wholeHours = Math.floor(absoluteMinutes / 60);
   const remainingMinutes = absoluteMinutes % 60;
   const duration = [
-    wholeHours > 0 ? `${wholeHours} hr` : "",
-    remainingMinutes > 0 ? `${remainingMinutes} min` : "",
+    wholeHours > 0 ? new Intl.NumberFormat(language, { style: "unit", unit: "hour", unitDisplay: "short" }).format(wholeHours) : "",
+    remainingMinutes > 0 ? new Intl.NumberFormat(language, { style: "unit", unit: "minute", unitDisplay: "short" }).format(remainingMinutes) : "",
   ].filter(Boolean).join(" ");
 
-  return differenceMinutes > 0 ? `in ${duration}` : `overdue by ${duration}`;
+  return (differenceMinutes > 0 ? copy.dueIn : copy.overdue).replace("{{duration}}", duration);
 }
 
 type PersonalisationResponse = {
@@ -618,7 +621,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
       return todayData.medications.map((m) => ({
         id: m.id,
         displayName: m.medication_name,
-        displayNote: [m.dosage, m.frequency?.replace("_", " ")].filter(Boolean).join(" - "),
+        displayNote: [m.dosage, m.frequency ? t(`meds.hub.frequency_${m.frequency}`, m.frequency.replace(/_/g, " ")) : ""].filter(Boolean).join(" - "),
         takenCountToday: m.takenCountToday,
         scheduledCountToday: m.scheduledCountToday,
         nameForApi: m.medication_name,
@@ -1518,7 +1521,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
           ? t("meds.dashboard.priorityNextSub", {
             medicine: nextMedication.displayName,
             defaultValue: "Next: {{medicine}} {{time}}.",
-            time: formatRelativeDoseTime(nextMedication.scheduledTimeForApi),
+            time: formatRelativeDoseTime(nextMedication.scheduledTimeForApi, new Date(), language),
           })
           : t("meds.dashboard.priorityAttentionSub", {
             count: totalRemainingDoseCount,
@@ -1535,6 +1538,20 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [medicationScreenMode]);
+
+  const emptyGuidanceShown = useRef(false);
+  useEffect(() => {
+    if (medicationScreenMode !== "home" || todayLoading || !todayData || displayMeds.length > 0 || emptyGuidanceShown.current) return;
+    const timer = window.setTimeout(() => {
+      emptyGuidanceShown.current = true;
+      toast({
+        title: t("meds.dashboard.priorityEmptyTitle", "No medicine plan yet"),
+        description: t("meds.dashboard.emptySetupGuidance", "Add your first medicine to use reminders, refills and reports."),
+        variant: "guidance",
+      });
+    }, 1);
+    return () => window.clearTimeout(timer);
+  }, [medicationScreenMode, todayLoading, todayData, displayMeds.length, toast, t]);
 
   const voiceMedicineReviewModal = pendingVoiceMedicine ? (
     <PurpleModal
@@ -1761,27 +1778,27 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
               <div data-testid="section-meds-next">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#854F0B]">
+                    <p className="medication-hub-kicker font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#854F0B]">
                       {t("meds.dashboard.nextMedicine", "Next dose")}
                     </p>
-                    <h3 className="mt-1 font-body text-[28px] font-black leading-tight text-vyva-text-1">
+                    <h3 className="medication-hub-title mt-1 font-body text-[28px] font-black leading-tight text-vyva-text-1">
                       {nextMedication.displayName}
                     </h3>
-                    <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                    <p className="medication-hub-muted mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
                       {nextMedication.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")}
                     </p>
-                    <p className="mt-2 inline-flex rounded-full bg-[#FFF8E7] px-3 py-1 font-body text-[14px] font-black text-[#854F0B]">
-                      {formatRelativeDoseTime(nextMedication.scheduledTimeForApi)}
+                    <p className="medication-hub-status mt-2 inline-flex rounded-full bg-[#FFF8E7] px-3 py-1 font-body text-[14px] font-black text-[#854F0B]">
+                      {formatRelativeDoseTime(nextMedication.scheduledTimeForApi, new Date(), language)}
                     </p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[#FFF4CF] px-3 py-1.5 font-body text-[13px] font-black text-[#854F0B]" data-testid="metric-meds-due">
-                    {totalRemainingDoseCount} {totalRemainingDoseCount === 1 ? "dose" : "doses"} left
+                  <span className="medication-hub-status shrink-0 rounded-full bg-[#FFF4CF] px-3 py-1.5 font-body text-[13px] font-black text-[#854F0B]" data-testid="metric-meds-due">
+                    {t("meds.hub.dosesLeft", { count: totalRemainingDoseCount })}
                   </span>
                 </div>
 
                 {doseDeferred ? (
-                  <div className="mt-4 rounded-[18px] border border-[#F2DDAA] bg-[#FFF8E7] px-4 py-3" data-testid="status-dose-deferred">
-                    <p className="font-body text-[14px] font-bold leading-snug text-[#6B4A17]">
+                  <div className="medication-hub-status mt-4 rounded-[18px] border border-[#F2DDAA] bg-[#FFF8E7] px-4 py-3" data-testid="status-dose-deferred">
+                    <p className="text-inherit font-body text-[14px] font-bold leading-snug">
                       {t("meds.dashboard.notNowSaved", "This stays on your list for later. No dose was recorded or changed.")}
                     </p>
                   </div>
@@ -1807,13 +1824,13 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
                       description: t("meds.dashboard.notNowDescription", "Nothing was recorded or changed."),
                     });
                   }}
-                  className="vyva-tap mt-3 min-h-[50px] w-full rounded-[17px] border border-[#DED3E2] bg-white px-3 font-body text-[15px] font-black text-vyva-purple"
+                  className="medication-secondary-action vyva-tap mt-3 min-h-[50px] w-full rounded-[17px] border border-[#DED3E2] bg-white px-3 font-body text-[15px] font-black text-vyva-purple"
                 >
                   {t("meds.dashboard.snooze", "Snooze")}
                 </button>
               </div>
             ) : displayMeds.length > 0 ? (
-              <div className="mt-5 rounded-[22px] border border-[#BDEBD8] bg-[#F0FDFA] p-4" data-testid="status-meds-dashboard-done">
+              <div className="medication-hub-success mt-5 rounded-[22px] border border-[#BDEBD8] bg-[#F0FDFA] p-4" data-testid="status-meds-dashboard-done">
                 <p className="font-body text-[20px] font-black text-[#0F4C45]">
                   {t("meds.dashboard.allDoneSub", "Your medicine routine is complete for today.")}
                 </p>
@@ -1834,9 +1851,10 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
         </section>
 
         {activeRefillAlert ? (
-          <section aria-label="Refill alert">
+          <section aria-label={t("meds.hub.refillAlert")}>
             <MedicationRefillAlertCard
               alert={activeRefillAlert}
+              medicineName={displayMeds.find((medicine) => medicine.id === activeRefillAlert.medicineId)?.displayName}
               canManage={refillAlertData?.permissions.manage_inventory !== false}
               onOpen={openRefillSupport}
               testId="meds-refill-alert"
@@ -1846,10 +1864,10 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
 
         <section className="medication-hub-card rounded-[26px] border border-[#E6DCEB] bg-white p-5 shadow-[0_12px_32px_rgba(63,45,75,0.06)]" aria-labelledby="medication-list-heading" data-testid="section-medication-list-summary">
           <div className="flex items-center justify-between gap-3">
-            <h2 id="medication-list-heading" className="medication-hub-title font-body text-[23px] font-black text-[#241238]">My medicines</h2>
-            <button type="button" onClick={() => navigate(`${routeBase}/my-medicines`, { state: { startAdd: true } })} className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F3E8FF] px-4 font-body text-[14px] font-black text-vyva-purple">
-              <Plus size={17} aria-hidden="true" /> Add
-            </button>
+            <h2 id="medication-list-heading" className="medication-hub-title font-body text-[23px] font-black text-[#241238]">{t("meds.myMedicines.title", "My medicines")}</h2>
+            {displayMeds.length > 0 && <button type="button" onClick={() => navigate(`${routeBase}/my-medicines`, { state: { startAdd: true } })} className="medication-secondary-action vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F3E8FF] px-4 font-body text-[14px] font-black text-vyva-purple">
+              <Plus size={17} aria-hidden="true" /> {t("meds.hub.add", "Add")}
+            </button>}
           </div>
           {displayMeds.length > 0 ? (
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1858,24 +1876,24 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#F3E8FF] text-vyva-purple"><Pill size={20} aria-hidden="true" /></span>
                   <span className="min-w-0 flex-1">
                     <strong className="medication-hub-title block truncate font-body text-[16px] text-vyva-text-1">{med.displayName}</strong>
-                    <span className="medication-hub-muted mt-0.5 block truncate font-body text-[13px] font-semibold text-vyva-text-2">{med.displayNote || "Schedule ready"}</span>
+                    <span className="medication-hub-muted mt-0.5 block truncate font-body text-[13px] font-semibold text-vyva-text-2">{med.displayNote || t("meds.hub.scheduleReady", "Schedule ready")}</span>
                   </span>
                   <ChevronRight size={18} className="text-vyva-purple" aria-hidden="true" />
                 </button>
               ))}
             </div>
           ) : (
-            <p className="medication-hub-muted mt-4 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">Add a medicine by voice, photo, or typing. You can review every detail before it is saved.</p>
+            <p className="medication-hub-muted mt-4 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{t("meds.hub.addDescription", "Add a medicine by voice, photo, or typing. You can review every detail before it is saved.")}</p>
           )}
         </section>
 
         <section className="medication-hub-card rounded-[26px] border border-[#E6DCEB] bg-white p-3 shadow-[0_10px_26px_rgba(63,45,75,0.05)]" aria-labelledby="medication-tools-heading">
-          <h2 id="medication-tools-heading" className="sr-only">Medication tools</h2>
+          <h2 id="medication-tools-heading" className="sr-only">{t("meds.hub.tools", "Medication tools")}</h2>
           <div className="divide-y divide-[#E6DCEB]">
             {medicationShortcutCards.filter((card) => card.id !== "my-medicines").map((card) => {
               const Icon = card.icon;
               return (
-                <button key={card.id} type="button" onClick={card.onClick} data-testid={card.testId} className="vyva-tap flex min-h-[68px] w-full items-center gap-3 px-2 py-3 text-left">
+                <button key={card.id} type="button" disabled={todayLoading || displayMeds.length === 0} onClick={card.onClick} data-testid={card.testId} className="vyva-tap flex min-h-[68px] w-full items-center gap-3 px-2 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#F3E8FF] text-vyva-purple"><Icon size={20} aria-hidden="true" /></span>
                   <span className="min-w-0 flex-1">
                     <strong className="medication-hub-title block font-body text-[16px] text-vyva-text-1">{card.label}</strong>
@@ -1888,7 +1906,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
           </div>
         </section>
 
-        <p className="medication-hub-muted px-3 pb-3 text-center font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">VYVA helps you organise medication information. It never changes a dose or replaces advice from your pharmacist or doctor.</p>
+        <p className="medication-hub-muted px-3 pb-3 text-center font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">{t("meds.hub.disclaimer", "VYVA helps you organise medication information. It never changes a dose or replaces advice from your pharmacist or doctor.")}</p>
 
       </div>
       </CanonicalDetailFlowShell>

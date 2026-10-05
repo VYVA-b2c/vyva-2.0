@@ -38,7 +38,7 @@ export type ProfileGroup = {
 export const PROFILE_GROUPS: ProfileGroup[] = [
   {
     id: "account",
-    title: "Account details",
+    title: "Personal information",
     description: "Name, contact details, language and address",
     icon: UserRound,
     subsections: [

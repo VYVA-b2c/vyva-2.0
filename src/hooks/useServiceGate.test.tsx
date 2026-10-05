@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   READINESS_CHECK_TIMEOUT_MS,
+  blockingSetupStep,
   fetchReadiness,
   serviceForPath,
   useServiceGate,
@@ -126,7 +127,7 @@ describe("service readiness gates", () => {
     expect(serviceForPath("/activities")).toBeNull();
   });
 
-  it("redirects medication navigation to setup when medications are missing", async () => {
+  it("allows the medication hub when medicines have not been added yet", async () => {
     renderGate("/meds", readiness({
       medications: blocked("medications", "/onboarding/profile/medications"),
     }));
@@ -136,9 +137,17 @@ describe("service readiness gates", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent(
-        "/onboarding/profile/medications?returnTo=%2Fmeds",
+        "/meds",
       );
     });
+  });
+
+  it("allows adding a first medicine without bypassing other setup requirements", () => {
+    const missing = blocked("medications", "/onboarding/profile/medications");
+    expect(blockingSetupStep(missing, "/meds/my-medicines")).toBeUndefined();
+    expect(blockingSetupStep(missing, "/meds/refills")).toEqual(missing.missing[0]);
+    const subscription = { section: "subscription", path: "/settings/subscription", reason: "Upgrade required" };
+    expect(blockingSetupStep({ ready: false, missing: [...missing.missing, subscription] }, "/meds/my-medicines")).toEqual(subscription);
   });
 
   it("allows ungated paths to continue normally", async () => {
