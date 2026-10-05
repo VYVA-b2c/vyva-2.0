@@ -79,6 +79,7 @@ const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage")
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
 const ConciergePickerScreen = lazy(() => import("./pages/ConciergePickerScreen"));
+const CareFinderScreen = lazy(() => import("./pages/CareFinderScreen"));
 const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
@@ -1459,6 +1460,8 @@ const App = () => (
                   <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/care-finder" element={<AppShell><CareFinderScreen /></AppShell>} />
+                  <Route path="/care-finder/:taskId" element={<AppShell><CareFinderScreen /></AppShell>} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />

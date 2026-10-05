@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { CARE_FINDER_PATH, careFinderTaskPath } from "@/lib/careFinderNavigation";
+import { isCareFinderProviderTask } from "../../shared/careFinder/flow";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
 import { buildConciergeTaskInbox } from "@/lib/conciergeTaskInbox";
 import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
@@ -9767,6 +9769,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   useEffect(() => {
     if (mode !== "task" || taskId !== "new" || !taskEntry || taskCreationStartedRef.current) return;
+    if (isCareFinderProviderTask(taskEntry)) {
+      // Health care searches live in Care Finder, which creates its own task.
+      taskCreationStartedRef.current = true;
+      navigate(CARE_FINDER_PATH, { replace: true, state: { returnTo: "/concierge" } });
+      return;
+    }
     taskCreationStartedRef.current = true;
     void createConciergeTaskDraft({
       entry: taskEntry,
@@ -10072,6 +10080,15 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   useEffect(() => {
     if (!persistedTask || hydratedConciergeTaskIdRef.current === persistedTask.id) return;
+    const legacyHealthSearch = persistedTask.kind === "provider_contact"
+      && !persistedTask.entry_payload.providerSearchMode
+      && persistedTask.progress_payload.providerSearchMode === "specialist";
+    if (isCareFinderProviderTask(persistedTask.entry_payload) || legacyHealthSearch) {
+      // Resume in Care Finder. Never hydrate here: this screen's autosave
+      // would overwrite Care Finder progress with its own payload.
+      navigate(careFinderTaskPath(persistedTask.id), { replace: true, state: { returnTo: "/concierge/tasks" } });
+      return;
+    }
     hydratedConciergeTaskIdRef.current = persistedTask.id;
     lastSavedConciergeTaskHashRef.current = JSON.stringify({
       progress: persistedTask.progress_payload,
@@ -10158,7 +10175,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setRideCanvasStep(progress.canvasStep as ConciergeRideCanvasStep);
       }
     }
-  }, [effectiveTaskEntry, isSpanish, persistedTask, t]);
+  }, [effectiveTaskEntry, isSpanish, navigate, persistedTask, t]);
 
   const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
     switch (effectiveTaskEntry?.kind) {
