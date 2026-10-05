@@ -13587,10 +13587,6 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const openDirectProviderContactRef = useRef(openDirectProviderContact);
   openDirectProviderContactRef.current = openDirectProviderContact;
 
-  // The voice canvas listener reads the latest contact readiness without re-subscribing.
-  const openDirectProviderContactRef = useRef(openDirectProviderContact);
-  openDirectProviderContactRef.current = openDirectProviderContact;
-
   function handleAppointmentControl(mode: "listening" | "muted" | "stopped") {
     setAppointmentControlMode(mode);
     const pendingId = appointmentAttemptResult?.pending?.pendingId || appointmentAttemptResult?.form_task?.pending_id;
