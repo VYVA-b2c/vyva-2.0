@@ -100,6 +100,7 @@ describe("appointment discovery", () => {
         place_id: "provider-place-id",
         name: "Provider",
         phone: null,
+        email: "hello@provider.example",
         website_url: "https://provider.example",
       },
     });
@@ -110,7 +111,7 @@ describe("appointment discovery", () => {
       booking_url: null,
       open_now: true,
     });
-    expect(refreshed?.availableChannels).toEqual(["phone", "manual"]);
+    expect(refreshed?.availableChannels).toEqual(["phone", "email", "manual"]);
   });
 
   it("uses the provider's local weekday when deriving open-today", async () => {
