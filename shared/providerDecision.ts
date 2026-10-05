@@ -3,7 +3,9 @@ import {
   type ConciergeProviderCategoryId,
 } from "./conciergeFlowRegistry.js";
 import { homeServiceSearchTerms, normalizeHomeServiceType } from "./serviceIntake.js";
-import type { ProviderConcernCategory, ProviderConcernLevel } from "./providerVerification.js";
+import type { ProviderConcernCategory, ProviderConcernLevel, ProviderPriceEvidence } from "./providerVerification.js";
+import { homeServicePlaybook, type HomeServicePlaybook } from "./homeServicePlaybooks.js";
+import { listingRiskSignals, type ListingRiskSignal } from "./providerListingRisk.js";
 
 export type ProviderCandidateSource = "saved" | "partner" | "external" | "manual";
 export type ProviderEvidenceStatus = "verified" | "reported" | "unknown";
@@ -16,6 +18,7 @@ export type ProviderDecisionCode =
   | "excluded_inactive"
   | "excluded_insufficient_evidence"
   | "excluded_serious_concern"
+  | "excluded_listing_risk"
   | "excluded_duplicate";
 
 export interface ProviderDecisionRequest {
@@ -52,6 +55,12 @@ export interface ProviderCandidate {
   contactable?: boolean | null;
   concernLevel?: ProviderConcernLevel | null;
   patternConcerns?: ProviderConcernCategory[] | null;
+  countryCode?: string | null;
+  // False when the listing shows only a service area, not a business premises.
+  hasBusinessAddress?: boolean | null;
+  priceEvidence?: ProviderPriceEvidence | null;
+  // Null until checked; false when a check ran and found no stated credential.
+  credentialStated?: boolean | null;
   raw: unknown;
 }
 
@@ -66,6 +75,8 @@ export interface ProviderDecisionResult {
   exactSubserviceMatch: boolean;
   priorityNotes?: string[];
   priorityBonus?: number;
+  advice?: string[];
+  listingRisk?: ListingRiskSignal[];
 }
 
 export interface ProviderDecisionSummary {
@@ -199,10 +210,37 @@ function preferenceScore(candidate: ProviderCandidate, priorities: string[]) {
       } else if (typeof level === "number" && Number.isInteger(level) && level >= 0 && level <= 4) {
         bonus += weight * (4 - level) / 4;
         notes.push("Comparing published price bands only; your job still needs a quote.");
-      } else notes.push("Price information is unavailable; your job needs a quote.");
+      } else {
+        const evidence = priceEvidenceBonus(candidate.priceEvidence);
+        bonus += weight * evidence.share;
+        if (evidence.notes.length) notes.push(...evidence.notes);
+        else notes.push("Price information is unavailable; your job needs a quote.");
+      }
     }
   }
   return { bonus: Math.round(bonus * 100) / 100, notes };
+}
+
+// Product-design weighting: review price mentions carry up to three quarters of
+// the lower-cost budget, published prices the rest. Two mentions minimum, so a
+// single review cannot decide the comparison.
+function priceEvidenceBonus(evidence?: ProviderPriceEvidence | null): { share: number; notes: string[] } {
+  if (!evidence) return { share: 0, notes: [] };
+  const notes: string[] = [];
+  let share = 0;
+  const positive = evidence.signals.as_quoted + evidence.signals.good_value;
+  const negative = evidence.signals.above_quote + evidence.signals.expensive;
+  if (positive + negative >= 2) {
+    share += 0.75 * positive / (positive + negative);
+    notes.push(positive > negative
+      ? "Reviews mostly describe fair prices or prices matching the quote; your job still needs a quote."
+      : "Reviews mention prices above expectations; ask for a written quote.");
+  }
+  if (evidence.publishedPrices.length > 0) {
+    share += 0.25;
+    notes.push("Prices are published on the provider's website.");
+  }
+  return { share, notes };
 }
 
 function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: string[]): { score: number; reasons: string[]; uncertainties: string[] } {
@@ -259,7 +297,28 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   return { score, reasons, uncertainties };
 }
 
-function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisionRequest): ProviderDecisionResult {
+const LISTING_RISK_NOTES: Record<ListingRiskSignal, string> = {
+  shared_phone: "This phone number is also listed under other business names",
+  premium_number: "Uses a premium-rate phone number",
+  no_business_address: "No business address is listed",
+};
+
+function applyPlaybook(candidate: ProviderCandidate, playbook: HomeServicePlaybook, listingRisk: ListingRiskSignal[], scored: { score: number; reasons: string[]; uncertainties: string[] }) {
+  for (const signal of listingRisk) {
+    // Product-design weighting: a call-centre signal outweighs being open now.
+    if (signal !== "no_business_address") scored.score -= 15;
+    scored.uncertainties.push(LISTING_RISK_NOTES[signal]);
+  }
+  if (playbook.credential && candidate.credentialStated === true) {
+    scored.score += 8;
+    scored.reasons.push(playbook.credential.kind === "registration" ? "Website states trade registration" : "Website states liability insurance");
+  } else if (playbook.credential && candidate.credentialStated === false) {
+    scored.uncertainties.push(playbook.credential.kind === "registration" ? "Trade registration not confirmed" : "Liability insurance not confirmed");
+  }
+}
+
+function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisionRequest, listingRisk: ListingRiskSignal[] = []): ProviderDecisionResult {
+  const playbook = request.appointmentType === "home-service" ? homeServicePlaybook(request.serviceType) : null;
   const canonicalCategory = inferCategory(candidate);
   const expectedCategory = requestedCategory(request);
   const exactSubserviceMatch = specificRequestMatch(candidate, request);
@@ -276,12 +335,16 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
   if (candidate.concernLevel === "serious") {
     return { candidate, code: "excluded_serious_concern", eligible: false, score: 0, reasons: ["Public reviews include a safety or fraud allegation"], uncertainties: [], canonicalCategory, exactSubserviceMatch };
   }
+  if (playbook?.excludeListingRisk && listingRisk.some(signal => signal === "shared_phone" || signal === "premium_number")) {
+    return { candidate, code: "excluded_listing_risk", eligible: false, score: 0, reasons: ["Listing shows signs of a call centre rather than a local business"], uncertainties: [], canonicalCategory, exactSubserviceMatch, listingRisk };
+  }
   if (!clean(candidate.name) || (!clean(candidate.address) && !candidate.contactable && candidate.source !== "saved")) {
     return { candidate, code: "excluded_insufficient_evidence", eligible: false, score: 0, reasons: ["Not enough provider information to present safely"], uncertainties: [], canonicalCategory, exactSubserviceMatch };
   }
 
   const code: ProviderDecisionCode = exactSubserviceMatch ? "eligible_exact_match" : "eligible_broad_category";
   const scored = scoreEligible(candidate, exactSubserviceMatch, request.criteria ?? []);
+  if (playbook) applyPlaybook(candidate, playbook, listingRisk, scored);
   if (["now", "today"].includes(clean(request.urgency).toLowerCase()) && candidate.openNow !== true) {
     if (candidate.openToday === true) {
       scored.score += 8;
@@ -293,11 +356,16 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
     }
   }
   const preference = preferenceScore(candidate, request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : []);
-  return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: preference.notes, canonicalCategory, exactSubserviceMatch };
+  return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: preference.notes, advice: playbook?.advice ?? [], listingRisk, canonicalCategory, exactSubserviceMatch };
 }
 
 export function decideProviderCandidates(candidates: ProviderCandidate[], request: ProviderDecisionRequest): ProviderDecisionSummary {
-  const evaluated = candidates.map((candidate) => evaluateCandidate(candidate, request));
+  // Only public listings are compared: a saved contact sharing a number with a
+  // listing is usually the same business.
+  const risk = listingRiskSignals(candidates.filter(c => c.source === "external").map(c => ({
+    id: c.id, name: c.name, phone: c.phone, countryCode: c.countryCode, hasBusinessAddress: c.hasBusinessAddress,
+  })));
+  const evaluated = candidates.map((candidate) => evaluateCandidate(candidate, request, risk.get(candidate.id) ?? []));
   const seen = new Set<string>();
   const excluded = evaluated.filter((result) => !result.eligible);
   const eligible: ProviderDecisionResult[] = [];

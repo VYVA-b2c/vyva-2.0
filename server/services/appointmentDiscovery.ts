@@ -729,6 +729,8 @@ export async function discoverAppointmentProviderOptions(input: {
           place_id: place.place_id ?? null,
           name: cleanText(place.name) || "Provider",
           address: cleanText(place.formatted_address) || location,
+          // A street number or postcode suggests premises; service-area listings show only a town.
+          has_business_address: /\d/.test(cleanText(place.formatted_address)),
           phone,
           website_url: website,
           booking_url: bookingUrl,

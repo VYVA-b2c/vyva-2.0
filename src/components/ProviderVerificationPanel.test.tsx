@@ -88,6 +88,18 @@ describe("provider verification wait", () => {
     expect(ranked.mock.calls.at(-1)?.[0].p4).toEqual({ score: 0, priority_notes: [], excluded: true });
     expect(ranked.mock.calls.at(-1)?.[0].p5.excluded).toBeUndefined();
   });
+  it("shows service advice, published prices and stated credentials for the selected provider", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({
+      verification: { version: 1, status: "verified", checkedAt: new Date().toISOString(), reviewCount: 5, recentReviewCount: 2, sources: [], gaps: [], concerns: [], retryable: false,
+        pricing: { publishedPrices: ["Call-out fee 35 EUR"], signals: { as_quoted: 0, above_quote: 0, good_value: 0, expensive: 0 } }, credentials: ["Registered installer no. 123"] },
+      ranking: { score: 120, priority_notes: [], advice: ["Agree the full price by phone before anyone comes out."] },
+      excluded: false,
+    }) } as Response);
+    render(<ProviderVerificationPanel requestId="request" options={[{ id: "one", provider_source: "external", provider_snapshot: {} }]} selectedId="one" isSpanish={false} onResultsVisible={vi.fn()} />);
+    expect(await screen.findByTestId("provider-service-advice")).toHaveTextContent("Agree the full price by phone");
+    expect(screen.getByText(/Call-out fee 35 EUR/)).toBeInTheDocument();
+    expect(screen.getByText(/Registered installer no\. 123/)).toBeInTheDocument();
+  });
   it("asks at two minutes, aborts, and only restarts with permission", async () => {
     vi.useFakeTimers();
     vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}));

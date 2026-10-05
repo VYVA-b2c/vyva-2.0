@@ -685,6 +685,10 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
     concernLevel: verification ? verificationConcernLevel(verification) : null,
     patternConcerns: verification ? patternConcernCategories(verification.concernDetails ?? []) : null,
+    countryCode: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
+    hasBusinessAddress: typeof snapshot.has_business_address === "boolean" ? snapshot.has_business_address : null,
+    priceEvidence: verification?.pricing ?? null,
+    credentialStated: verification?.credentials ? verification.credentials.length > 0 : null,
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -719,6 +723,8 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
     reasons: item.reasons,
     uncertainties: item.uncertainties,
     priority_notes: item.priorityNotes ?? [],
+    advice: item.advice ?? [],
+    listing_risk: item.listingRisk ?? [],
     category: item.canonicalCategory,
     exact_subservice_match: item.exactSubserviceMatch,
   };
@@ -1311,9 +1317,12 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
   // Saved/private contacts must not be submitted to external research services.
   if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !snapshotText(snapshot, "place_id")) return res.json({ verification: incompleteVerification("Only newly discovered public businesses can be researched.") });
   const cached = currentVerification(snapshot.verification);
+  // Rank against the whole shortlist so cross-listing signals (a shared phone) still apply.
   const checkedDecision = (verification: NonNullable<typeof cached>) => {
     const checkedOption = { ...option, provider_snapshot: { ...snapshot, verification } };
-    const item = decideProviderCandidates([optionCandidate(checkedOption)], providerDecisionRequest(request)).ranked[0];
+    const shortlist = options.filter(o => o.status !== "excluded").map(o => o.id === option.id ? checkedOption : o);
+    const decision = decideProviderCandidates(shortlist.map(optionCandidate), { ...providerDecisionRequest(request), maxResults: shortlist.length });
+    const item = decision.ranked.find(r => r.candidate.id === option.id);
     return item ? providerDecisionSnapshot(item) : null;
   };
   if (cached && !cached.retryable) {
