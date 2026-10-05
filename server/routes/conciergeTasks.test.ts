@@ -16,6 +16,11 @@ const service = vi.hoisted(() => ({
   },
 }));
 
+const requestDeletion = vi.hoisted(() => ({
+  deleteConciergeRequest: vi.fn(),
+  ConciergeRequestBusyError: class ConciergeRequestBusyError extends Error {},
+}));
+
 vi.mock("../middleware/auth.js", () => ({
   authMiddleware: (req: { user?: Express.User }, _res: unknown, next: () => void) => {
     req.user = { id: "user-1" } as Express.User;
@@ -29,6 +34,12 @@ vi.mock("../middleware/entitlements.js", () => ({
 }));
 
 vi.mock("../services/conciergeTaskDrafts.js", () => service);
+vi.mock("../services/conciergeRequestDeletion.js", () => ({
+  deleteConciergeRequest: requestDeletion.deleteConciergeRequest,
+}));
+vi.mock("../services/conciergeRequestLock.js", () => ({
+  ConciergeRequestBusyError: requestDeletion.ConciergeRequestBusyError,
+}));
 
 import router from "./conciergeTasks.js";
 
@@ -105,5 +116,14 @@ describe("Concierge task routes", () => {
     await request(app()).delete(`/api/concierge/tasks/${taskId}`).expect(200);
     expect(service.completeConciergeTaskDraft).toHaveBeenCalledWith(taskId, "user-1");
     expect(service.deleteConciergeTaskDraft).toHaveBeenCalledWith(taskId, "user-1");
+  });
+
+  it("deletes an active pending request through the specific route", async () => {
+    requestDeletion.deleteConciergeRequest.mockResolvedValue(undefined);
+
+    await request(app()).delete(`/api/concierge/tasks/pending/${taskId}`).expect(200);
+
+    expect(requestDeletion.deleteConciergeRequest).toHaveBeenCalledWith("pending", taskId, "user-1");
+    expect(service.deleteConciergeTaskDraft).not.toHaveBeenCalled();
   });
 });

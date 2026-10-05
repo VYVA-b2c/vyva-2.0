@@ -148,12 +148,12 @@ function TaskRow({
 }) {
   const date = formatDate(item.updatedAt, language);
   return (
-    <div className="flex items-center border-b border-vyva-border">
+    <div className="flex items-center border-b border-[#EEE6F3] last:border-b-0">
     <button
       type="button"
       onClick={onOpen}
       aria-label={`${item.title}. ${item.continuation.stateLabel}. ${item.summary}`}
-      className="vyva-tap flex min-h-[104px] w-full items-center gap-3 border-b border-vyva-border bg-white px-4 py-4 text-left last:border-b-0 hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
+      className="vyva-tap flex min-h-[104px] w-full items-center gap-3 bg-white px-4 py-4 text-left transition-colors hover:bg-[#FCF9FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
       data-testid={`concierge-inbox-task-${item.key}`}
     >
       <div className="min-w-0 flex-1">
@@ -213,22 +213,23 @@ function InboxList({
     : inbox.completed;
   const groups = view === "active" ? ACTIVE_GROUPS : ["completed" as const];
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-inbox">
-      <header className="border-b border-vyva-border pb-4">
+    <main className="min-h-[calc(100svh-136px)] w-full bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] px-4 pb-[calc(9rem+env(safe-area-inset-bottom))] pt-5 text-[#241C30] sm:px-6" data-testid="concierge-task-inbox">
+      <div className="mx-auto w-full max-w-[680px]">
+      <header className="rounded-[26px] border border-white/80 bg-white/90 p-5 shadow-[0_18px_45px_rgba(80,52,109,0.10)] backdrop-blur-xl sm:p-6">
         <button
           type="button"
           onClick={onBack}
-          className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-1 font-body text-[14px] font-black text-vyva-text-2"
+          className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#F7F1FA] px-4 font-body text-[14px] font-black text-[#6B5173]"
         >
           <ArrowLeft size={19} aria-hidden="true" />
           {isSpanish ? "Obtener ayuda" : "Get Help"}
         </button>
         <div className="mt-2 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#ECFDF5] text-[#047857]">
+          <span className="flex h-12 w-12 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] shadow-sm">
             <Inbox size={22} aria-hidden="true" />
           </span>
           <div>
-            <h1 className="font-body text-[26px] font-black leading-tight text-vyva-text-1">
+            <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
               {isSpanish ? "Solicitudes de ayuda" : "Get Help requests"}
             </h1>
             <p className="font-body text-[13px] font-semibold text-vyva-text-2">
@@ -240,7 +241,7 @@ function InboxList({
         </div>
       </header>
 
-      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de solicitudes" : "Request views"}>
+      <div className="mt-5 grid grid-cols-2 rounded-[18px] border border-[#E9DFF0] bg-white/70 p-1.5 shadow-[0_10px_30px_rgba(80,52,109,0.07)]" role="tablist" aria-label={isSpanish ? "Vistas de solicitudes" : "Request views"}>
         {(["active", "completed"] as const).map((option) => {
           const selected = view === option;
           const label = option === "active"
@@ -254,7 +255,7 @@ function InboxList({
               role="tab"
               aria-selected={selected}
               onClick={() => setView(option)}
-              className={`vyva-tap min-h-[48px] border-b-2 px-3 font-body text-[14px] font-black ${selected ? "border-vyva-purple text-vyva-purple" : "border-transparent text-vyva-text-2"}`}
+              className={`vyva-tap min-h-[46px] rounded-[14px] px-3 font-body text-[14px] font-black transition-all ${selected ? "bg-vyva-purple text-white shadow-[0_10px_22px_rgba(112,36,196,0.20)]" : "text-[#6B5173] hover:bg-white"}`}
               data-testid={`concierge-task-view-${option}`}
             >
               {label} {count}
@@ -295,13 +296,13 @@ function InboxList({
                 <span className="font-body text-[12px] font-black text-vyva-text-3">{items.length}</span>
               </div>
               {items.length > 0 ? (
-                <div className="overflow-hidden rounded-lg border border-vyva-border bg-white">
+                <div className="overflow-hidden rounded-[22px] border border-[#E9DFF0] bg-white shadow-[0_14px_34px_rgba(80,52,109,0.08)]">
                   {items.map((item) => (
                     <TaskRow key={item.key} item={item} language={language} onOpen={() => onOpen(item)} />
                   ))}
                 </div>
               ) : (
-                <p className="border-y border-vyva-border px-4 py-4 font-body text-[13px] font-semibold text-vyva-text-3">
+                <p className="rounded-[18px] border border-[#E9DFF0] bg-white/75 px-4 py-4 font-body text-[13px] font-semibold text-[#806F86] shadow-[0_10px_24px_rgba(80,52,109,0.05)]">
                   {copy.empty}
                 </p>
               )}
@@ -309,7 +310,8 @@ function InboxList({
           );
         })}
       </div>
-    </div>
+      </div>
+    </main>
   );
 }
 

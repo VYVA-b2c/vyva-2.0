@@ -102,6 +102,19 @@ router.post("/:id/complete", async (req, res) => {
   }
 });
 
+// Keep the more specific pending route before /:id. Express otherwise treats
+// "pending" as the draft id and active requests can never be deleted.
+router.delete("/pending/:id", async (req, res) => {
+  const parsedId = idSchema.safeParse(req.params.id);
+  if (!parsedId.success) return res.status(400).json({ error: "Invalid task ID" });
+  try {
+    await deleteConciergeRequest("pending", parsedId.data, userId(req));
+    return res.json({ ok: true });
+  } catch (error) {
+    return taskError(res, error);
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   const parsedId = idSchema.safeParse(req.params.id);
   if (!parsedId.success) return res.status(400).json({ error: "Invalid task ID" });
@@ -110,15 +123,6 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     return taskError(res, error);
   }
-});
-
-router.delete("/pending/:id", async (req, res) => {
-  const parsedId = idSchema.safeParse(req.params.id);
-  if (!parsedId.success) return res.status(400).json({ error: "Invalid task ID" });
-  try {
-    await deleteConciergeRequest("pending", parsedId.data, userId(req));
-    return res.json({ ok: true });
-  } catch (error) { return taskError(res, error); }
 });
 
 export default router;
