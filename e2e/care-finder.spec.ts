@@ -29,6 +29,17 @@ async function walkToResults(page: Page) {
   await expect(page.getByRole("heading", { name: /3 options for physiotherapist/ })).toBeVisible();
 }
 
+async function walkToResultsFromNeed(page: Page) {
+  await page.getByLabel("Describe it in your own words").fill("My knee has been hurting and stairs are difficult.");
+  await page.getByRole("button", { name: "Use my description" }).click();
+  await page.getByTestId("button-safety-none").click();
+  await page.getByTestId("choice-urgency-this_week").click();
+  await page.getByTestId("button-profile-accept").click();
+  await page.getByTestId("button-route-physiotherapy").click();
+  await page.getByTestId("button-show-options").click();
+  await expect(page.getByRole("heading", { name: /3 options for physiotherapist/ })).toBeVisible();
+}
+
 async function expectAccessible(page: Page) {
   await page.addScriptTag({ path: axePath });
   const result = await page.evaluate(async () => {
@@ -80,6 +91,38 @@ for (const theme of ["light", "dark"] as const) {
     await page.screenshot({ path: `src/dev/care-finder/care-finder-urgent-${theme}-mobile.png`, fullPage: true });
   });
 }
+
+// The app shell renders Care Finder in a phone-width column even on desktop
+// screens. Layout must follow that column, not the browser window.
+for (const frame of [430, 650]) {
+  test(`stays single-column inside a ${frame}px app column on a desktop screen`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await open(page, `theme=light&frame=${frame}`);
+    const question = page.getByRole("heading", { name: "Who needs care?" });
+    const questionBox = await question.boundingBox();
+    expect(questionBox?.width ?? 0).toBeGreaterThan(frame - 80);
+    await expect(page.getByTestId("care-finder-summary")).toHaveCount(0);
+
+    await page.getByTestId("choice-who-self").click();
+    const summaryBox = await page.getByTestId("care-finder-summary").boundingBox();
+    const headingBox = await page.getByRole("heading", { name: "What's bothering you?" }).boundingBox();
+    // Summary stacks below the question instead of squeezing beside it.
+    expect(summaryBox!.y).toBeGreaterThan(headingBox!.y + headingBox!.height);
+    await expectLargeTargets(page);
+    await walkToResultsFromNeed(page);
+    await expectAccessible(page);
+    await page.screenshot({ path: `src/dev/care-finder/care-finder-app-column-${frame}.png`, fullPage: true });
+  });
+}
+
+test("uses two columns only when the column is genuinely wide", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await open(page, "theme=light");
+  await page.getByTestId("choice-who-self").click();
+  const summaryBox = await page.getByTestId("care-finder-summary").boundingBox();
+  const headingBox = await page.getByRole("heading", { name: "What's bothering you?" }).boundingBox();
+  expect(summaryBox!.x).toBeGreaterThan(headingBox!.x + 400);
+});
 
 test("contact preparation requires confirmation before calling", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

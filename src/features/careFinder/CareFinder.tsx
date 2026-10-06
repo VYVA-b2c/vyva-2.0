@@ -56,7 +56,7 @@ import type {
 } from "../../../shared/careFinder/search";
 import { careFinderCopy, type CareFinderCopy } from "./copy";
 import { ActionButton, ChoiceButton, Notice, ReadAloudButton, StepHeading, VoiceTextInput, actionClass } from "./parts";
-import { SummaryPanel } from "./SummaryPanel";
+import { SummaryPanel, careFinderSummaryRows } from "./SummaryPanel";
 import { ResultsStep, USUAL_DOCTOR_OPTION_ID, usualDoctorOption, type CareSearchStatus } from "./ResultsStep";
 import { ContactStep } from "./ContactStep";
 import "./careFinder.css";
@@ -259,7 +259,7 @@ export function CareFinder({
             ) : null}
             <fieldset>
               <legend className="mb-3 text-[19px] font-semibold">{copy.need.orChoose}</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="cf-grid-2 grid gap-3">
                 {CARE_NEED_IDS.map((need) => (
                   <ChoiceButton
                     key={need}
@@ -312,7 +312,7 @@ export function CareFinder({
               <ChoiceButton key={flag} label={pick(lang, CARE_RED_FLAGS[flag].label)} tone="urgent" onClick={() => choose({ type: "answerSafety", flags: [flag] })} testId={`choice-flag-${flag}`} />
             ))}
             <div className="pt-2">
-              <ActionButton onClick={() => choose({ type: "answerSafety", flags: [] })} testId="button-safety-none" className="sm:w-full">{copy.safety.none}</ActionButton>
+              <ActionButton onClick={() => choose({ type: "answerSafety", flags: [] })} testId="button-safety-none" className="cf-btn-block">{copy.safety.none}</ActionButton>
             </div>
           </div>
         );
@@ -330,7 +330,7 @@ export function CareFinder({
             </div>
             {lines.map((line, index) => (
               <div key={line}>
-                <a href={`tel:${line}`} className={actionClass(index === 0 ? "urgent" : "secondary", "sm:w-full text-[24px] min-h-[72px]")} data-testid={`link-call-${line}`}>
+                <a href={`tel:${line}`} className={actionClass(index === 0 ? "urgent" : "secondary", "cf-btn-block text-[24px] min-h-[72px]")} data-testid={`link-call-${line}`}>
                   <Phone size={26} aria-hidden="true" />
                   <span>{pick(lang, CARE_EMERGENCY_LINES[line].label)}</span>
                 </a>
@@ -369,7 +369,7 @@ export function CareFinder({
                 </div>
               ))}
             </dl>
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="cf-row flex flex-col gap-3">
               <ActionButton onClick={() => profile && choose({ type: "acceptProfile", facts: profile })} testId="button-profile-accept">{copy.profile.accept}</ActionButton>
               <ActionButton variant="secondary" onClick={() => choose({ type: "declineProfile" })} testId="button-profile-change">{copy.profile.change}</ActionButton>
             </div>
@@ -451,7 +451,7 @@ export function CareFinder({
               />
             ))}
             <div className="pt-2">
-              <ActionButton onClick={() => choose({ type: "setAccessNeeds", needs: accessDraft })} testId="button-show-options" className="sm:w-full">
+              <ActionButton onClick={() => choose({ type: "setAccessNeeds", needs: accessDraft })} testId="button-show-options" className="cf-btn-block">
                 {copy.access.show(careLabel, state.location)}
               </ActionButton>
             </div>
@@ -525,7 +525,7 @@ export function CareFinder({
 
   return (
     <div className="care-finder min-h-full w-full" data-care-finder-theme={theme} lang={lang === "es" ? "es" : "en"} data-testid="care-finder">
-      <div className="mx-auto w-full max-w-[1120px] px-4 pb-[calc(9rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
+      <div className="mx-auto w-full cf-page max-w-[1120px] pb-[calc(9rem+env(safe-area-inset-bottom))]">
         <header className="mb-5 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -536,8 +536,8 @@ export function CareFinder({
             <ArrowLeft size={22} aria-hidden="true" />
             {copy.back}
           </button>
-          <h1 className="min-w-0 flex-1 font-display text-[22px] font-semibold leading-tight sm:text-[26px]">{copy.title}</h1>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <h1 className="min-w-0 flex-1 cf-title font-display font-semibold leading-tight">{copy.title}</h1>
+          <div className="cf-tools flex flex-wrap gap-2">
             <ReadAloudButton getText={readableText} lang={lang} copy={copy} resetKey={state.step} />
             <button
               type="button"
@@ -555,15 +555,20 @@ export function CareFinder({
           {saveStatus === "saving" ? copy.saving : saveStatus === "saved" ? copy.saved : saveStatus === "offline" ? copy.savedOffline : ""}
         </p>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div className="cf-layout">
           <div className="min-w-0 max-w-[680px]">
             <div key={state.step} className="cf-step-enter" data-care-finder-step={state.step}>
               {renderStep()}
             </div>
           </div>
-          <aside className="lg:sticky lg:top-4" aria-label={copy.summary.title}>
-            <SummaryPanel state={state} lang={lang} copy={copy} onChange={change} disabled={state.step === "urgent"} />
-          </aside>
+          {careFinderSummaryRows(state, lang, copy).length > 0 ? (
+            <aside className="cf-aside" aria-label={copy.summary.title}>
+              <SummaryPanel state={state} lang={lang} copy={copy} onChange={change} disabled={state.step === "urgent"} />
+            </aside>
+          ) : (
+            // Nothing understood yet: keep the safety note, skip an empty box.
+            <p className="text-[17px] leading-relaxed text-[var(--cf-text-2)]">{copy.disclaimer}</p>
+          )}
         </div>
       </div>
     </div>

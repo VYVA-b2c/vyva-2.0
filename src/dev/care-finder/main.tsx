@@ -10,6 +10,8 @@ const params = new URLSearchParams(window.location.search);
 const theme = params.get("theme") === "dark" ? "dark" : "light";
 const lang = params.get("locale") === "es" ? "es" : "en";
 const scenario = params.get("scenario") ?? "ok";
+// ?frame=430 mimics the app shell: a narrow column on a wide screen.
+const frame = Number(params.get("frame")) || null;
 const checkedAt = new Date().toISOString();
 
 function fact(value: string | null, status: "reported" | "verified" | "unknown", source = "Google Maps") {
@@ -87,6 +89,8 @@ document.body.style.margin = "0";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <CareFinder lang={lang} theme={theme} profile={profile} services={services} onExit={() => undefined} />
+    <div style={frame ? { maxWidth: frame, margin: "0 auto" } : undefined} data-testid="harness-frame">
+      <CareFinder lang={lang} theme={theme} profile={profile} services={services} onExit={() => undefined} />
+    </div>
   </React.StrictMode>,
 );

@@ -78,6 +78,8 @@ import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPane
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
 import { ConciergeTaskWorkspaceHeader } from "@/components/concierge/ConciergeTaskNavigation";
+import { ProviderTaskWizard } from "@/components/concierge/ProviderTaskWizard";
+import { emptyProviderServiceIntake, intakeMustHaveLabels, intakeSearchTerms } from "@/components/concierge/providerIntakeConfig";
 import { HomeRepairPage } from "@/components/concierge/HomeRepairPage";
 import {
   AppointmentVoiceCanvas,
@@ -116,6 +118,7 @@ import { HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { BackButton } from "@/components/vyva-ui/BackButton";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { normalizeProviderWizardStep, useProviderTaskWizard } from "@/hooks/useProviderTaskWizard";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
@@ -153,6 +156,7 @@ import {
   type PersistedConciergeTaskStage,
 } from "@/lib/conciergeTaskDrafts";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { emitSosSheetOpen } from "@/lib/sosEvents";
 import {
   buildConciergeAppointmentCanvasViewModel,
   type ConciergeAppointmentCanvasCopy,
@@ -250,6 +254,9 @@ import {
   parseProviderShortlistPayload,
   updateProviderShortlistPayload,
   type ProviderComparisonOption,
+  type ProviderComparisonCriterion,
+  type ProviderPriorityContext,
+  type ProviderServiceIntake,
   type ProviderComparisonSourceOption,
   type ProviderRecheckContext,
   type ProviderShortlistState,
@@ -1330,6 +1337,9 @@ interface OffersSearchResponse {
   protection_summary?: OfferProtectionSummary;
   next_step: string;
   no_results_message?: string;
+  best_fit_provider_id?: string | null;
+  recommendation_confident?: boolean;
+  recommendation_explanation?: string;
 }
 
 type WebSearchActionResult = {
@@ -3060,6 +3070,8 @@ async function searchOffers(
   documentContext?: BillDocumentAnalysis,
   recheckContext?: ProviderRecheckContext,
   providerMode?: ProviderSearchMode | null,
+  priorities?: ProviderPriorityContext,
+  serviceIntake?: ProviderServiceIntake,
 ): Promise<OffersSearchResponse> {
   const res = await apiFetch("/api/offers/search", {
     method: "POST",
@@ -3080,6 +3092,8 @@ async function searchOffers(
             })),
           }
         : undefined,
+      priorities,
+      service_intake: serviceIntake,
     }),
   });
   if (!res.ok) {
@@ -3386,11 +3400,33 @@ function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boo
     .map((item) => es ? item.es : item.en);
 }
 
+function providerCriteriaForMode(mode: ProviderSearchMode | null): ProviderSearchCriterionKey[] {
+  if (mode === "transport") return ["available-soon", "accessible", "clear-price", "reputation", "nearby"];
+  if (mode === "pharmacy") return ["available-soon", "nearby", "clear-price", "accessible", "reputation"];
+  if (mode === "home-service") return ["available-soon", "reputation", "clear-price", "nearby"];
+  if (mode === "shopping-seller") return ["clear-price", "reputation", "nearby", "available-soon"];
+  if (mode === "residence" || mode === "care" || mode === "personal-care") return ["reputation", "accessible", "available-soon", "coverage", "clear-price", "nearby"];
+  return ["available-soon", "accessible", "coverage", "reputation", "nearby", "clear-price"];
+}
+
+function defaultProviderCriteriaForMode(mode: ProviderSearchMode | null): ProviderSearchCriterionKey[] {
+  return providerCriteriaForMode(mode).slice(0, 3);
+}
+
+function comparisonCriterion(key: ProviderSearchCriterionKey): ProviderComparisonCriterion {
+  return ({ nearby: "distance", "clear-price": "price", reputation: "reputation", "available-soon": "availability", accessible: "accessibility", coverage: "coverage" } as const)[key];
+}
+
+function splitPersonalDetails(value: string): string[] {
+  return value.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 8);
+}
+
 function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
   if (!mode || criteria.length === 0) return query;
-  const selected = PROVIDER_SEARCH_CRITERIA
-    .filter((item) => criteria.includes(item.key))
-    .map((item) => es ? item.queryEs : item.queryEn);
+  const selected = criteria.map((key) => {
+    const item = PROVIDER_SEARCH_CRITERIA.find((candidate) => candidate.key === key);
+    return item ? (es ? item.queryEs : item.queryEn) : "";
+  }).filter(Boolean);
   if (selected.length === 0) return query;
   return es
     ? `${query}. Prioriza para ${providerSearchModeLabel(mode, true)}: ${selected.join(", ")}. Explica proximidad, precio, reputacion y disponibilidad. No contactar ni compartir datos sin confirmacion.`
@@ -10032,11 +10068,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [providerSearchMode, setProviderSearchMode] = useState<ProviderSearchMode | null>(() => (
     mode === "task" && taskEntry?.kind === "provider_contact" ? taskEntry.providerSearchMode ?? "specialist" : null
   ));
+  const [providerServiceIntake, setProviderServiceIntake] = useState<ProviderServiceIntake>(() => {
+    const initialMode = mode === "task" && taskEntry?.kind === "provider_contact" ? taskEntry.providerSearchMode ?? "specialist" : "specialist";
+    return emptyProviderServiceIntake(initialMode, taskEntry?.kind === "provider_contact" ? taskEntry.query ?? "" : "");
+  });
   const [providerSearchCriteria, setProviderSearchCriteria] = useState<ProviderSearchCriterionKey[]>(DEFAULT_PROVIDER_SEARCH_CRITERIA);
+  const [providerMustHaves, setProviderMustHaves] = useState<ProviderSearchCriterionKey[]>([]);
+  const [providerDealBreakers, setProviderDealBreakers] = useState("");
+  const [providerConstraints, setProviderConstraints] = useState("");
+  const providerWizard = useProviderTaskWizard();
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
   const [providerShortlistIds, setProviderShortlistIds] = useState<string[]>([]);
+  const [selectedProviderOptionId, setSelectedProviderOptionId] = useState<string | null>(null);
   const [providerShortlistNotice, setProviderShortlistNotice] = useState<string | null>(null);
   const [providerShortlistError, setProviderShortlistError] = useState<string | null>(null);
   const [editingProviderShortlistId, setEditingProviderShortlistId] = useState<string | null>(null);
@@ -10061,8 +10106,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       const chipKey = effectiveTaskEntry.kind === "home_service" ? "home-service" : effectiveTaskEntry.appointmentKind;
       setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === chipKey) ?? null);
     } else if (effectiveTaskEntry.kind === "provider_contact") {
-      setProviderSearchMode(effectiveTaskEntry.providerSearchMode ?? "specialist");
+      const nextMode = effectiveTaskEntry.providerSearchMode ?? "specialist";
+      setProviderSearchMode(nextMode);
+      setProviderSearchCriteria(defaultProviderCriteriaForMode(nextMode));
       setOffersQuery(effectiveTaskEntry.query ?? "");
+      setProviderServiceIntake(emptyProviderServiceIntake(nextMode, effectiveTaskEntry.query ?? ""));
       setOffersError(null);
       setOffersResult(null);
     } else if (effectiveTaskEntry.kind === "transport") {
@@ -10148,9 +10196,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         ? progress.providerSearchMode
         : effectiveTaskEntry?.providerSearchMode ?? "specialist");
       setOffersQuery(progress.query ?? effectiveTaskEntry?.query ?? "");
-      setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion));
+      setProviderServiceIntake(progress.providerServiceIntake ?? emptyProviderServiceIntake(
+        isProviderSearchMode(progress.providerSearchMode) ? progress.providerSearchMode : effectiveTaskEntry?.providerSearchMode ?? "specialist",
+        progress.query ?? effectiveTaskEntry?.query ?? "",
+      ));
+      setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion).slice(0, 3));
+      setProviderMustHaves((progress.providerMustHaves ?? []).filter(isProviderSearchCriterion).slice(0, 3));
       setOffersResult((progress.providerResult ?? null) as OffersSearchResponse | null);
       setProviderShortlistIds(progress.shortlistIds ?? []);
+      setSelectedProviderOptionId(progress.selectedProviderOptionId ?? null);
+      providerWizard.goTo(normalizeProviderWizardStep(
+        progress.providerWizardStep,
+        Boolean(progress.providerResult),
+        Boolean(progress.selectedProviderOptionId),
+      ));
       return;
     }
 
@@ -10178,6 +10237,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setRideCanvasStep(progress.canvasStep as ConciergeRideCanvasStep);
       }
     }
+  // providerWizard.goTo is stable; depending on the wrapper object would rehydrate after every step change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTaskEntry, isSpanish, navigate, persistedTask, t]);
 
   const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
@@ -10228,10 +10289,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       case "provider_contact":
         return {
           providerSearchMode,
+          providerWizardStep: providerWizard.step,
           query: offersQuery,
           criteria: providerSearchCriteria,
+          providerMustHaves,
+          providerServiceIntake,
           providerResult: offersResult as unknown as Record<string, unknown> | null,
           shortlistIds: providerShortlistIds,
+          selectedProviderOptionId,
         };
       default:
         return {};
@@ -10253,8 +10318,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     offersQuery,
     offersResult,
     providerSearchCriteria,
+    providerMustHaves,
     providerSearchMode,
+    providerServiceIntake,
     providerShortlistIds,
+    providerWizard.step,
+    selectedProviderOptionId,
     rideCanvasSelectedOptionId,
     rideCanvasStep,
     selectedAppointmentChip?.key,
@@ -13095,7 +13164,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setOffersOpen(true);
     setSavingsPanelView("overview");
     setProviderSearchMode(mode);
-    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
+    setProviderSearchCriteria(defaultProviderCriteriaForMode(mode));
+    setProviderServiceIntake(emptyProviderServiceIntake(mode, query));
+    setProviderMustHaves([]);
+    setProviderDealBreakers("");
+    setProviderConstraints("");
     setAppointmentOpen(false);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
@@ -13132,9 +13205,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   function toggleProviderSearchCriterion(key: ProviderSearchCriterionKey) {
-    setProviderSearchCriteria((current) => current.includes(key)
-      ? current.filter((item) => item !== key)
-      : [...current, key]);
+    setProviderSearchCriteria((current) => {
+      if (current.includes(key)) {
+        setProviderMustHaves((mustHaves) => mustHaves.filter((item) => item !== key));
+        return current.filter((item) => item !== key);
+      }
+      if (current.length >= 3) return current;
+      return [...current, key];
+    });
   }
 
   function openAppointmentAssistant() {
@@ -13695,8 +13773,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language, documentContext, undefined, providerSearchMode);
+      const intakeTerms = intakeSearchTerms(providerServiceIntake, language);
+      const intakeMustHaves = intakeMustHaveLabels(providerServiceIntake, language);
+      const focusedQuery = [criteriaQuery, ...intakeTerms].filter(Boolean).join(". ");
+      const result = await searchOffers(focusedQuery, language, documentContext, undefined, providerSearchMode, {
+        orderedCriteria: providerSearchCriteria.map(comparisonCriterion),
+        mustHaves: [...providerMustHaves.map(comparisonCriterion), ...intakeMustHaves],
+        dealBreakers: splitPersonalDetails(providerDealBreakers),
+        constraints: [...intakeTerms, ...splitPersonalDetails(providerServiceIntake.additionalDetails ?? providerConstraints)],
+      }, providerServiceIntake);
       setOffersResult(result);
+      if (providerSearchMode) providerWizard.goTo("results");
     } catch {
       setOffersError(isSpanish
         ? "No he podido comparar opciones verificables ahora mismo."
@@ -17897,10 +17984,84 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         }
       : card
   ));
+  const selectedProviderOption = providerComparisonOptions.find((option) => option.id === selectedProviderOptionId) ?? null;
+  const relevantProviderCriteria = providerCriteriaForMode(providerSearchMode);
+  const providerCriterionOptions = relevantProviderCriteria.map((key) => {
+    const criterion = PROVIDER_SEARCH_CRITERIA.find((item) => item.key === key)!;
+    return {
+      key: criterion.key,
+      label: isSpanish ? criterion.es : criterion.en,
+      description: isSpanish ? criterion.queryEs : criterion.queryEn,
+    };
+  });
+  const providerWizardResults = offersLoading ? (
+    <div className="flex items-center gap-2 rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] font-bold text-vyva-text-2">
+      <Loader2 size={18} className="animate-spin text-vyva-purple" />
+      {isSpanish ? "Validando opciones…" : "Validating options…"}
+    </div>
+  ) : offersError ? (
+    <div className="rounded-[18px] bg-red-50 p-4 text-[14px] font-bold text-red-700" role="alert">
+      <p>{offersError}</p>
+      <Button type="button" variant="outline" onClick={() => providerWizard.goTo("search_review")} className="mt-3 rounded-full">
+        {isSpanish ? "Revisar y reintentar" : "Review and retry"}
+      </Button>
+    </div>
+  ) : offersResult?.options.length === 0 ? (
+    <div className="space-y-3">
+    <p className="rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] font-bold text-vyva-text-1">
+      {offersResult.no_results_message || (isSpanish ? "No hay suficientes opciones verificables ahora mismo." : "There are not enough verifiable options right now.")}
+    </p>
+    <MissingProviderChoicePanel
+      title={isSpanish ? "Elige cómo continuar" : "Choose how to continue"}
+      body={isSpanish ? "Puedes guardar tu proveedor habitual, pedir otra búsqueda o solicitar ayuda." : "You can save your usual provider, revise the search, or ask someone trusted to help."}
+      addLabel={isSpanish ? "Añadir mi proveedor" : "Add my usual provider"}
+      addDetail={isSpanish ? "Guardarlo para usarlo primero" : "Save it for next time"}
+      findLabel={isSpanish ? "Cambiar búsqueda" : "Revise search"}
+      findDetail={isSpanish ? "Ajustar necesidad o prioridades" : "Adjust the need or priorities"}
+      helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+      helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+      onAddProvider={openProviderSearchSetup}
+      onFindOptions={() => providerWizard.goTo("need")}
+      onAskHelper={() => openProviderSetupHelper("Ask trusted helper to set up provider search", { kind: "provider_search", mode: providerSearchMode, query: offersQuery.trim(), criteria: providerSearchCriteria })}
+      testId="panel-provider-search-missing-provider"
+      addTestId="button-provider-search-setup"
+      findTestId="button-provider-search-manual"
+      helperTestId="button-provider-search-ask-helper"
+      isSpanish={isSpanish}
+      language={locale}
+    />
+    </div>
+  ) : offersResult ? (
+    <div className="space-y-4">
+      <ProviderComparisonPanel
+        options={providerComparisonOptions}
+        locale={locale}
+        shortlistedIds={providerShortlistIds}
+        shortlistSaved={Boolean(providerShortlistNotice)}
+        shortlistSaving={providerShortlistMutation.isPending}
+        onToggleShortlist={toggleProviderShortlist}
+        onSaveShortlist={(options) => providerShortlistMutation.mutate(options)}
+        onSaveProvider={handleSaveComparisonProvider}
+        onPrepareContact={(option) => { setSelectedProviderOptionId(option.id); providerWizard.goTo("contact_review"); }}
+        preferredId={selectedProviderOptionId}
+        onSelectPreferred={(option) => { setSelectedProviderOptionId(option.id); providerWizard.goTo("contact_review"); }}
+        onWatch={providerSearchMode === "shopping-seller" ? (option) => {
+          const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+          const raw = comparisonIndex >= 0 ? offersResult.options[comparisonIndex] : undefined;
+          if (raw) handleOfferWatch(raw);
+        } : undefined}
+      />
+      {providerShortlistNotice ? <p data-testid="notice-provider-shortlist" className="rounded-[14px] bg-[#F0FDFA] p-3 text-[13px] font-bold text-[#0F766E]">{providerShortlistNotice}</p> : null}
+      {providerShortlistError ? <p role="alert" className="rounded-[14px] bg-red-50 p-3 text-[13px] text-red-700">{providerShortlistError}</p> : null}
+    </div>
+  ) : (
+    <p className="rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] text-vyva-text-2">{isSpanish ? "Revisa la búsqueda para ver opciones." : "Review the search to see provider options."}</p>
+  );
   const AppointmentContainer = isHomeServiceAppointment ? HomeRepairPage : PurpleModal;
   return (
     <MasterDashboardLayout
       isDarkMode={isDark}
+      presentationClassName={mode === "task" ? "concierge-task-page" : undefined}
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
@@ -17963,7 +18124,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" && !(isHomeServiceAppointment && appointmentOpen) ? (
+          {mode === "task" ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}
@@ -17976,6 +18137,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               canvasSummary={activeActionCanvasState}
               isSpanish={isSpanish}
               onBack={() => navigate("/concierge/tasks")}
+              onSos={() => emitSosSheetOpen("concierge_provider_task")}
               onDelete={persistedTask ? () => {
                 const approved = window.confirm(isSpanish
                   ? "Eliminar esta tarea guardada?"
@@ -17983,6 +18145,37 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 if (approved) deleteTaskMutation.mutate(persistedTask.id);
               } : undefined}
               isDeleting={deleteTaskMutation.isPending}
+              showProgress={effectiveTaskEntry?.kind !== "provider_contact"}
+            />
+          ) : null}
+          {mode === "task" && effectiveTaskEntry?.kind === "provider_contact" && providerSearchMode ? (
+            <ProviderTaskWizard
+              step={providerWizard.step}
+              onStepChange={providerWizard.goTo}
+              providerType={providerSearchModeLabel(providerSearchMode, isSpanish)}
+              providerMode={providerSearchMode}
+              locale={language}
+              serviceIntake={providerServiceIntake}
+              onServiceIntakeChange={setProviderServiceIntake}
+              query={offersQuery}
+              onQueryChange={(value) => { setOffersQuery(value); setProviderServiceIntake((current) => ({ ...current, serviceType: value })); setOffersResult(null); setSelectedProviderOptionId(null); }}
+              criteria={providerSearchCriteria}
+              criterionOptions={providerCriterionOptions}
+              onToggleCriterion={(key) => toggleProviderSearchCriterion(key as ProviderSearchCriterionKey)}
+              selectionLimitReached={providerSearchCriteria.length >= 3}
+              mustHaves={providerMustHaves}
+              onToggleMustHave={(key) => setProviderMustHaves((current) => current.includes(key as ProviderSearchCriterionKey) ? current.filter((item) => item !== key) : [...current, key as ProviderSearchCriterionKey])}
+              dealBreakers={providerDealBreakers}
+              onDealBreakersChange={setProviderDealBreakers}
+              constraints={providerConstraints}
+              onConstraintsChange={setProviderConstraints}
+              isSpanish={isSpanish}
+              isSearching={offersLoading}
+              searchError={offersError}
+              onSearch={() => void handleSearchOffers()}
+              results={providerWizardResults}
+              selectedProvider={selectedProviderOption}
+              onPrepareContact={() => { if (selectedProviderOption) handlePrepareComparisonContact(selectedProviderOption); }}
             />
           ) : null}
       {trustedProviderResume && trustedProviderResumeMeta && (
@@ -21186,7 +21379,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           </AppointmentContainer>
         )}
 
-        {offersOpen && (
+        {offersOpen && (mode !== "task" || !providerSearchMode) && (
           <div
             className="mt-4 rounded-[26px] border border-[#D9C7B6] bg-[#FCF8F1] p-4"
             style={{ boxShadow: "0 14px 34px rgba(76,49,28,0.10)" }}
