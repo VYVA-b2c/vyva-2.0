@@ -82,7 +82,7 @@ type MenuScreenProps = {
 
 export default function MenuScreen({
   backPath = "/",
-  profilePath = "/settings/account",
+  profilePath = "/onboarding/profile/group/account",
   tilePathOverrides,
 }: MenuScreenProps = {}) {
   const navigate = useNavigate();
@@ -179,7 +179,7 @@ export default function MenuScreen({
         >
           <HomeMasterProfileControl
             isDark={isDark}
-            ariaLabel="Open profile and settings"
+            ariaLabel="Open my profile"
             testId="button-menu-profile"
             onClick={() => setProfileMenuOpen(true)}
             expanded={profileMenuOpen}
@@ -216,7 +216,7 @@ export default function MenuScreen({
               id="menu-profile-menu"
               role="dialog"
               aria-modal="true"
-              aria-label="Profile & settings"
+              aria-label="My profile"
               data-testid="menu-profile-menu"
               className={[
                 "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
@@ -241,10 +241,10 @@ export default function MenuScreen({
                   </span>
                   <span className="min-w-0 pt-0.5">
                     <span className={["block font-body text-[17px] font-extrabold leading-tight tracking-[-0.01em]", isDark ? "text-[#E8DFEF]" : "text-[#5F5663]"].join(" ")}>
-                      Profile & settings
+                      My profile
                     </span>
                     <span className={["mt-0.5 block font-body text-[11px] font-semibold leading-snug", isDark ? "text-[#BEB1CD]" : "text-[#8E8592]"].join(" ")}>
-                      Update health, contacts, and display.
+                      Personal, health, and care information.
                     </span>
                   </span>
                 </div>

@@ -1,4 +1,5 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
+import { homeServiceCountryEnabled } from "../lib/homeServiceCountries.js";
 import type { AppointmentChannel } from "./providerSync.js";
 import { homeServiceSearchTerms, homeServiceTypeLabel, normalizeHomeServiceType } from "../../shared/serviceIntake.js";
 import { localHomeServiceTerms } from "../../shared/homeServiceSearch.js";
@@ -32,7 +33,9 @@ export interface AppointmentDiscoveryResult {
   source: AppointmentSource;
   options: AppointmentDiscoveredOption[];
   reservation_systems: ReservationSystemLink[];
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable" | "country_not_enabled";
+  // The resolved search point, so partner coverage can be checked against it.
+  search_center?: { lat: number; lng: number; countryCode: string; address: string };
 }
 
 type GooglePlaceSearchResult = {
@@ -629,6 +632,9 @@ export async function discoverAppointmentProviderOptions(input: {
     if (homeSearch && !center) {
       throw new DiscoveryFailure("address_unresolved", "geocode", "NO_UNAMBIGUOUS_MATCH");
     }
+    if (homeSearch && center && !homeServiceCountryEnabled(center.countryCode)) {
+      return { source: "google_places", options: [], reservation_systems: reservationSystems, fallback_reason: "country_not_enabled" };
+    }
     const seen = new Set<string>();
     const places: GooglePlaceSearchResult[] = [];
     // Collect a bounded candidate pool before country filtering so rejected
@@ -656,12 +662,14 @@ export async function discoverAppointmentProviderOptions(input: {
       if (places.length >= candidateLimit) break;
     }
 
+    const searchCenter = center ? { lat: center.lat, lng: center.lng, countryCode: center.countryCode, address: location } : undefined;
     if (places.length === 0) {
       return {
         source: "google_places",
         options: [],
         reservation_systems: reservationSystems,
         fallback_reason: "no_google_results",
+        ...(searchCenter ? { search_center: searchCenter } : {}),
       };
     }
 
@@ -703,6 +711,7 @@ export async function discoverAppointmentProviderOptions(input: {
     return {
       source: "google_places",
       reservation_systems: reservationSystems,
+      ...(searchCenter ? { search_center: searchCenter } : {}),
       ...(eligible.length === 0 ? { fallback_reason: "no_google_results" as const } : {}),
       options: eligible.map(({ place, detail }) => {
         const phone = cleanText(detail?.international_phone_number) || cleanText(detail?.formatted_phone_number) || null;
@@ -729,6 +738,8 @@ export async function discoverAppointmentProviderOptions(input: {
           place_id: place.place_id ?? null,
           name: cleanText(place.name) || "Provider",
           address: cleanText(place.formatted_address) || location,
+          // A street number or postcode suggests premises; service-area listings show only a town.
+          has_business_address: /\d/.test(cleanText(place.formatted_address)),
           phone,
           website_url: website,
           booking_url: bookingUrl,

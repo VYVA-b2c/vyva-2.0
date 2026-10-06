@@ -75,6 +75,51 @@ describe("appointment discovery", () => {
     });
   });
 
+  it("stops before searching when the address is outside the enabled countries", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.stubEnv("HOME_SERVICE_COUNTRIES", "DE,AT");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      throw new Error(`unexpected search ${url}`);
+    });
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service", serviceType: "plumber", detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" }, language: "es",
+    });
+    expect(result.fallback_reason).toBe("country_not_enabled");
+    expect(result.options).toEqual([]);
+    expect(fetchMock.mock.calls.every(([input]) => String(input).includes("geocode"))).toBe(true);
+  });
+
+  it("captures whether a listing shows business premises", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      if (url.pathname.includes("/place/textsearch/")) return jsonResponse({ status: "REQUEST_DENIED" });
+      if (url.hostname === "places.googleapis.com" && url.pathname.includes("searchText")) {
+        return jsonResponse({ places: [
+          { id: "shop", displayName: { text: "Fontaneria Centro" }, formattedAddress: "Calle Mayor 5, 29601 Marbella, Spain", location: { latitude: 36.51, longitude: -4.88 }, addressComponents: [{ shortText: "ES", types: ["country"] }], businessStatus: "OPERATIONAL" },
+          { id: "area", displayName: { text: "Fontanero Marbella" }, formattedAddress: "Marbella, Spain", location: { latitude: 36.51, longitude: -4.88 }, addressComponents: [{ shortText: "ES", types: ["country"] }], businessStatus: "OPERATIONAL" },
+        ] });
+      }
+      return jsonResponse({ status: "NOT_FOUND" }, 404);
+    });
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service", serviceType: "plumber", detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" }, language: "es",
+    });
+    const byPlace = Object.fromEntries(result.options.map(o => [o.provider_snapshot.place_id, o.provider_snapshot.has_business_address]));
+    expect(byPlace).toEqual({ shop: true, area: false });
+  });
+
   it("refreshes a selected external provider phone before contact methods are shown", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");

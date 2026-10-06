@@ -2,7 +2,12 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
+import { findPartnersForSearch, type PartnerSearchMatch } from "../services/vettedPartners.js";
 import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
+import { listDueOutcomes, loadMemberOutcomeCounts, recordOutcome } from "../services/providerOutcomes.js";
+import { loadPersonalProviderProfile } from "../services/personalProviderProfile.js";
+import { parsePersonalProfile } from "../../shared/personalProviderProfile.js";
+import { providerOutcomeAnswerSchema, type MemberOutcomeCounts } from "../../shared/providerOutcomes.js";
 import { loadSharedVerification, loadSharedVerifications, saveSharedVerification, sharedVerificationFor, type ReputationKey } from "../services/providerReputation.js";
 import { languageText, requestDisplayLanguage } from "../../shared/language.js";
 import { homeServiceText } from "../../shared/homeServiceText.js";
@@ -58,6 +63,7 @@ import {
   homeServiceAccessNotesFromPreferences,
   homeServiceAddressFromPreferences,
   homeServiceIntakeFromPreferences,
+  homeServiceSearchTerms,
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
@@ -69,6 +75,7 @@ import {
 } from "../services/conciergeChannelReadiness.js";
 import {
   decideProviderCandidates,
+  homeServiceRankingPriorities,
   type ProviderCandidate,
   type ProviderDecisionRequest,
   type ProviderDecisionResult,
@@ -655,12 +662,54 @@ function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
   };
 }
 
+function phoneKey(phone: string | null | undefined): string {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length >= 7 ? digits.slice(-9) : "";
+}
+
+function partnerOption(match: PartnerSearchMatch, serviceType: string) {
+  const { provider, organisation } = match;
+  const channels: AppointmentChannel[] = [];
+  if (provider.website) channels.push("booking_url");
+  if (provider.phone) channels.push("phone");
+  if (provider.email) channels.push("email");
+  channels.push("manual");
+  return {
+    provider_source: "partner" as const,
+    provider_snapshot: {
+      source: "vetted_partner",
+      partner_provider_id: provider.id,
+      partner_organisation_id: organisation.id,
+      partner_organisation_name: organisation.name,
+      name: provider.name,
+      category: "home_service",
+      // Trade vocabulary lets the shared matcher confirm the requested service.
+      notes: [...provider.trades.flatMap(trade => homeServiceSearchTerms(trade)), provider.notes ?? ""].join(" "),
+      address: provider.address,
+      phone: provider.phone,
+      email: provider.email,
+      website_url: provider.website,
+      languages: provider.languages,
+      requested_service_type: serviceType,
+    },
+    match_reason: `Vetted by ${organisation.name}`,
+    available_channels: channels,
+    status: "suggested" as const,
+  };
+}
+
+function memberOutcomesFromSnapshot(value: unknown): MemberOutcomeCounts | null {
+  const record = recordValue(value);
+  const keys = ["jobs", "noShows", "aboveQuote", "wouldUseAgain", "wouldNotUseAgain"] as const;
+  return keys.every(key => Number.isInteger(record[key]) && (record[key] as number) >= 0) ? record as unknown as MemberOutcomeCounts : null;
+}
+
 function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
   const snapshot = recordValue(option.provider_snapshot);
   const verification = snapshot.verification_eligible === true ? currentVerification(snapshot.verification) : null;
   return {
     id: option.id,
-    source: option.provider_source === "saved" || option.provider_source === "manual" ? option.provider_source : "external",
+    source: option.provider_source === "saved" || option.provider_source === "manual" || option.provider_source === "partner" ? option.provider_source : "external",
     name: snapshotText(snapshot, "name") ?? "Provider",
     category: snapshotText(snapshot, "category") ?? (Array.isArray(snapshot.place_types) ? snapshot.place_types.map(String).join(" ") : null),
     specialtyText: [
@@ -682,9 +731,15 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     openToday: typeof snapshot.open_today === "boolean" ? snapshot.open_today : null,
     priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
     availability: "unknown",
-    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
+    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" || option.provider_source === "partner" ? "reported" : "unknown",
     concernLevel: verification ? verificationConcernLevel(verification) : null,
     patternConcerns: verification ? patternConcernCategories(verification.concernDetails ?? []) : null,
+    countryCode: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
+    hasBusinessAddress: typeof snapshot.has_business_address === "boolean" ? snapshot.has_business_address : null,
+    priceEvidence: verification?.pricing ?? null,
+    credentialStated: verification?.credentials ? verification.credentials.length > 0 : null,
+    memberOutcomes: memberOutcomesFromSnapshot(snapshot.member_outcomes),
+    languagesStated: verification?.languages ?? null,
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -701,6 +756,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     urgency: intake?.urgency,
     criteria: intake?.criteria,
     maxResults: request.appointment_type === "home-service" ? 12 : 3,
+    personal: request.appointment_type === "home-service" ? parsePersonalProfile(preferences.personal_profile) : null,
   };
 }
 
@@ -719,6 +775,8 @@ function providerDecisionSnapshot(item: ProviderDecisionResult) {
     reasons: item.reasons,
     uncertainties: item.uncertainties,
     priority_notes: item.priorityNotes ?? [],
+    advice: item.advice ?? [],
+    listing_risk: item.listingRisk ?? [],
     category: item.canonicalCategory,
     exact_subservice_match: item.exactSubserviceMatch,
   };
@@ -1115,6 +1173,15 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const visitAddress = request.appointment_type === "home-service"
       ? homeServiceAddressFromPreferences(requestPreferences).trim()
       : "";
+    // Personal context loads alongside the search; it never delays or blocks it.
+    const personalProfilePromise = request.appointment_type === "home-service"
+      ? loadPersonalProviderProfile({
+        userId,
+        serviceType: serviceIntake?.service_type,
+        countryCode: location.countryCode,
+        inferPriorities: homeServiceRankingPriorities(serviceIntake?.criteria ?? []).length === 0,
+      }).catch(() => null)
+      : Promise.resolve(null);
     const discovery = await discoverAppointmentProviderOptions({
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
@@ -1131,7 +1198,21 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       (request.appointment_type === "home-service" ? [] : existingOptions).map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
     );
     const nextRank = existingOptions.reduce((max, option) => Math.max(max, option.rank ?? 0), 0) + 1;
-    const candidates = discovery.options
+    // Vetted partners covering this address come first; a Google listing with
+    // the same phone number is the same business and is dropped.
+    const partnerMatches = request.appointment_type === "home-service" && serviceIntake?.service_type && discovery.search_center
+      ? await findPartnersForSearch({
+        userId,
+        serviceType: serviceIntake.service_type,
+        point: { countryCode: discovery.search_center.countryCode, lat: discovery.search_center.lat, lng: discovery.search_center.lng, addressText: discovery.search_center.address },
+      })
+      : [];
+    const partnerPhones = new Set(partnerMatches.map(match => phoneKey(match.provider.phone)).filter(Boolean));
+    const discoveredOptions = [
+      ...partnerMatches.map(match => partnerOption(match, serviceIntake?.service_type ?? "other")),
+      ...discovery.options.filter(option => !partnerPhones.has(phoneKey(snapshotText(option.provider_snapshot, "phone")))),
+    ];
+    const candidates = discoveredOptions
       .filter((option) => {
         const identity = appointmentOptionIdentity(option.provider_snapshot);
         if (existingIdentities.has(identity)) return false;
@@ -1151,7 +1232,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
           provider_source: option.provider_source,
           provider_snapshot: {
             ...option.provider_snapshot,
-            verification_eligible: true,
+            verification_eligible: option.provider_source === "external",
             provider_preference_snapshot: ordered.preferenceSnapshot,
             preferred_channel: ordered.preferredChannel,
           },
@@ -1171,11 +1252,20 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       // serious allegations drop out, repeated concerns sink, verified ones rise.
       const keyed = insertedOptions.map(option => ({ option, key: reputationKey(option, request, displayLanguage) }));
       const shared = await loadSharedVerifications(keyed.flatMap(({ key }) => key ? [key] : []));
+      const serviceType = serviceIntake?.service_type ?? "";
+      const outcomes = await loadMemberOutcomeCounts(keyed.flatMap(({ key }) => key ? [key.placeId] : []), serviceType);
       for (const { option, key } of keyed) {
         const verification = key ? sharedVerificationFor(shared, key) : null;
-        if (verification) option.provider_snapshot = { ...recordValue(option.provider_snapshot), verification };
+        const memberOutcomes = key ? outcomes.get(key.placeId) : undefined;
+        if (verification || memberOutcomes) option.provider_snapshot = {
+          ...recordValue(option.provider_snapshot),
+          ...(verification ? { verification } : {}),
+          ...(memberOutcomes ? { member_outcomes: memberOutcomes } : {}),
+        };
       }
     }
+    const personalProfile = await personalProfilePromise;
+    const rankedRequest = personalProfile ? { ...request, preferences: { ...requestPreferences, personal_profile: personalProfile } } : request;
     const allCandidates = [...existingOptions, ...insertedOptions];
     // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
     const declinedSaved = request.appointment_type === "home-service"
@@ -1186,7 +1276,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     }
     const decision = decideProviderCandidates(
       allCandidates.filter(option => !declinedSaved.includes(option)).map(optionCandidate),
-      providerDecisionRequest(request),
+      providerDecisionRequest(rankedRequest),
     );
     const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
     await Promise.all(allCandidates.map(async (option) => {
@@ -1236,7 +1326,12 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const status = rankedOptions.length > 0 ? "options_ready" : request.status;
     const [updatedRequest] = await db
       .update(appointmentRequests)
-      .set({ status, updated_at: new Date() })
+      .set({
+        status,
+        updated_at: new Date(),
+        // Merge so preference edits made while the search ran survive.
+        ...(personalProfile ? { preferences: sql`coalesce(${appointmentRequests.preferences}, '{}'::jsonb) || ${JSON.stringify({ personal_profile: personalProfile })}::jsonb` } : {}),
+      })
       .where(eq(appointmentRequests.id, request.id))
       .returning();
 
@@ -1296,6 +1391,27 @@ router.post("/requests/:id/options/:optionId/refresh-contact", async (req: Reque
   return res.json({ option: updated ?? option, refreshed: true });
 });
 
+router.get("/outcomes/due", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  return res.json({ items: await listDueOutcomes(userId) });
+});
+
+router.post("/requests/:id/outcome", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || !/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Invalid request" });
+  const parsed = providerOutcomeAnswerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid answer" });
+  try {
+    const status = await recordOutcome({ userId, requestId: req.params.id, answer: parsed.data });
+    return status === "recorded" ? res.json({ recorded: true }) : res.status(404).json({ error: "Request not found" });
+  } catch (err) {
+    console.error("[appointments POST /requests/:id/outcome]", err);
+    return res.status(503).json({ error: "Could not save the answer" });
+  }
+});
+
 router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -1311,9 +1427,12 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
   // Saved/private contacts must not be submitted to external research services.
   if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !snapshotText(snapshot, "place_id")) return res.json({ verification: incompleteVerification("Only newly discovered public businesses can be researched.") });
   const cached = currentVerification(snapshot.verification);
+  // Rank against the whole shortlist so cross-listing signals (a shared phone) still apply.
   const checkedDecision = (verification: NonNullable<typeof cached>) => {
     const checkedOption = { ...option, provider_snapshot: { ...snapshot, verification } };
-    const item = decideProviderCandidates([optionCandidate(checkedOption)], providerDecisionRequest(request)).ranked[0];
+    const shortlist = options.filter(o => o.status !== "excluded").map(o => o.id === option.id ? checkedOption : o);
+    const decision = decideProviderCandidates(shortlist.map(optionCandidate), { ...providerDecisionRequest(request), maxResults: shortlist.length });
+    const item = decision.ranked.find(r => r.candidate.id === option.id);
     return item ? providerDecisionSnapshot(item) : null;
   };
   if (cached && !cached.retryable) {
@@ -1344,6 +1463,7 @@ router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: 
       address: snapshotText(snapshot, "address") ?? "",
       phone: snapshotText(snapshot, "phone") ?? "",
       website: snapshotText(snapshot, "website_url") ?? "",
+      country: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
       service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
       language,
     }, controller.signal);

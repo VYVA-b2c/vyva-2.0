@@ -5,7 +5,7 @@ import { currentVerification, type ProviderVerification } from "../../shared/pro
 import { homeServiceText } from "../../shared/homeServiceText";
 
 interface Option { id: string; provider_source?: string; provider_snapshot: Record<string, unknown> }
-export interface VerificationRanking { score: number; priority_notes: string[]; excluded?: boolean }
+export interface VerificationRanking { score: number; priority_notes: string[]; advice?: string[]; excluded?: boolean }
 // Checking past the first screen lets a strong provider ranked lower on stars
 // rise once its evidence is in; shared results make most of these instant.
 export const PROVIDER_AUDIT_DEPTH = 6;
@@ -44,14 +44,18 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     const next = Object.fromEntries(ids.flatMap(id => {
       const option = latest.current.find(o => o.id === id);
       const privateContact: ProviderVerification | null = option?.provider_source === "saved" || option?.provider_source === "manual"
-        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["This contact has not been sent to external research services."], concerns: [], retryable: false } : null;
+        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["This contact has not been sent to external research services."], concerns: [], retryable: false }
+        // A partner's own vetting stands in for VYVA's public-source checks.
+        : option?.provider_source === "partner"
+          ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Vetted by a partner organisation. Not checked against public reviews."], concerns: [], retryable: false }
+          : null;
       const existing = resultsRef.current[id] ?? currentVerification(option?.provider_snapshot.verification) ?? privateContact;
       return existing && !existing.retryable ? [[id, existing]] : [];
     }));
     resultsRef.current = next;
     for (const id of ids) {
       const saved = latest.current.find(o => o.id === id)?.provider_snapshot.provider_decision as Partial<VerificationRanking> | undefined;
-      if (!rankingRef.current[id] && Number.isFinite(saved?.score)) rankingRef.current[id] = { score: saved!.score!, priority_notes: saved?.priority_notes ?? [] };
+      if (!rankingRef.current[id] && Number.isFinite(saved?.score)) rankingRef.current[id] = { score: saved!.score!, priority_notes: saved?.priority_notes ?? [], advice: saved?.advice ?? [] };
     }
     setResults(next);
     setPhase("checking");
@@ -132,6 +136,8 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   </section>;
   const result = selectedId ? results[selectedId] : null;
   const priorityNotes = selectedId ? rankingRef.current[selectedId]?.priority_notes ?? [] : [];
+  const savedDecision = options.find(o => o.id === selectedId)?.provider_snapshot.provider_decision as Partial<VerificationRanking> | undefined;
+  const advice = selectedId ? rankingRef.current[selectedId]?.advice ?? (Array.isArray(savedDecision?.advice) ? savedDecision.advice : []) : [];
   const spanishNotes: Record<string, string> = {
     "Reported job availability supports your fastest-help priority.": "La disponibilidad indicada respalda tu prioridad de ayuda rapida.",
     "Open now may be easier to reach; job availability is unconfirmed.": "Esta abierto y puede ser mas facil contactar; la disponibilidad no esta confirmada.",
@@ -147,6 +153,7 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
   return <section className="mt-4 text-sm text-vyva-text-2" data-testid="provider-verification-result">
     {result?.retryable && <button type="button" className="min-h-11 text-vyva-purple underline" onClick={() => setRound(n => n + 1)}>{copy("Retry checks")}</button>}
     {result?.status === "concerns" && <p className="font-semibold text-vyva-text-1">{copy("Concerns found")}</p>}
+    {advice.map(line => <p className="mt-1 font-semibold text-vyva-text-1" key={line} data-testid="provider-service-advice">{copy(line)}</p>)}
     <details className="mt-2">
       <summary className="cursor-pointer py-2 text-vyva-purple">{copy("What we checked")}</summary>
       <p>{copy(result?.status === "verified" ? "Verified" : result?.status === "concerns" ? "Concerns found" : "Checks incomplete")}</p>
@@ -155,6 +162,8 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
       {result && <p className="mt-2">{result.reviewCount} {copy("dated reviews; recent:")} {result.recentReviewCount}</p>}
       {result?.gaps.map((gap, i) => <p className="mt-2" key={`gap-${i}`}>{copy(gap)}</p>)}
       {result?.concerns.map((concern, i) => <p className="mt-2" key={`concern-${i}`}>{concern}</p>)}
+      {result?.pricing?.publishedPrices.map((price, i) => <p className="mt-2" key={`price-${i}`}>{copy("Published price:")} “{price}”</p>)}
+      {result?.credentials?.map((credential, i) => <p className="mt-2" key={`credential-${i}`}>{copy("Stated by the provider:")} “{credential}”</p>)}
       {result?.sources.map(url => <a className="mt-2 block break-words text-vyva-purple underline" key={url} href={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
       {result && <p className="mt-2">{copy("Checked:")} {new Date(result.checkedAt).toLocaleDateString(locale)}</p>}
     </details>

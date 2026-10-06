@@ -2038,7 +2038,7 @@ const es = {
             homeRepair: "Reparaciones",
             homeRepairDetail: "Fontanero, electricista, limpieza",
             healthcare: "Salud",
-            healthcareDetail: "Buscar un especialista o apoyo de salud",
+            healthcareDetail: "Encontrar la atención adecuada para un problema de salud",
             adminService: "Tramites",
             adminServiceDetail: "Formularios, cartas, papeleo oficial",
             homeCare: "Cuidado en casa",

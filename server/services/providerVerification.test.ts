@@ -76,4 +76,33 @@ describe("provider verification policy", () => {
     expect(parsed.reviews).toHaveLength(1);
     expect(parsed.reviews[0].concernCategory).toBeUndefined();
   });
+  it("keeps only corroborated price and credential text, and counts review price signals", () => {
+    const f = fixture();
+    const priceQuote = "Call-out fee 35 EUR within the city.";
+    const credentialQuote = "Registered installation company no. 12345.";
+    f.evidence.sources[0] = { ...f.evidence.sources[0], priceQuote, credentialQuote };
+    f.evidence.sources.push({ url: "https://reviews.example.org/business", serviceQuote: "", priceQuote: "Invented price 10 EUR here.", credentialQuote: "Invented registration claim text." });
+    f.pages.set(f.evidence.sources[0].url, `${f.pages.get(f.evidence.sources[0].url)} ${priceQuote} ${credentialQuote}`);
+    f.evidence.reviews[0].priceSignal = "as_quoted";
+    f.evidence.reviews[1].priceSignal = "as_quoted";
+    f.evidence.reviews[2].priceSignal = "expensive";
+    const result = evaluateVerification(candidate, f.evidence, f.pages, f.searched, now);
+    expect(result.pricing?.publishedPrices).toEqual([priceQuote]);
+    expect(result.pricing?.signals).toEqual({ as_quoted: 2, above_quote: 0, good_value: 0, expensive: 1 });
+    expect(result.credentials).toEqual([credentialQuote]);
+  });
+  it("ignores published prices from third-party pages and text without a figure", () => {
+    const f = fixture();
+    f.evidence.sources[0].priceQuote = "We always offer very fair prices.";
+    f.pages.set(f.evidence.sources[0].url, `${f.pages.get(f.evidence.sources[0].url)} We always offer very fair prices.`);
+    expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).pricing?.publishedPrices).toEqual([]);
+  });
+  it("keeps stated languages only from a corroborated quote on the provider's own site", () => {
+    const f = fixture();
+    const languageQuote = "We speak English, German and Spanish.";
+    f.evidence.sources[0] = { ...f.evidence.sources[0], languageQuote, languageCodes: ["en", "DE", "es", "english"] };
+    f.evidence.sources.push({ url: "https://reviews.example.org/business", serviceQuote: "", languageQuote: "The owner speaks perfect French.", languageCodes: ["fr"] });
+    f.pages.set(f.evidence.sources[0].url, `${f.pages.get(f.evidence.sources[0].url)} ${languageQuote}`);
+    expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).languages).toEqual(["en", "de", "es"]);
+  });
 });

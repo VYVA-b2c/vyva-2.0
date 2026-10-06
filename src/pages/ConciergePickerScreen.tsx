@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { CARE_FINDER_PATH } from "@/lib/careFinderNavigation";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
 import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
 import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
@@ -182,15 +183,10 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           labelKey: "concierge.master.picker.getHelp.options.healthcare",
           labelFallback: "Healthcare",
           detailKey: "concierge.master.picker.getHelp.options.healthcareDetail",
-          detailFallback: "Find a specialist or health support",
-          action: {
-            kind: "task",
-            entry: {
-              kind: "provider_contact",
-              providerSearchMode: "specialist",
-              query: isSpanish ? "buscar especialista" : "find a specialist",
-            },
-          },
+          detailFallback: "Find the right care for a health worry",
+          // Care Finder asks what is wrong in everyday words and works out the
+          // kind of care; nobody has to know which specialist they need.
+          action: { kind: "navigate", path: CARE_FINDER_PATH, state: { returnTo: "/concierge/get-help" } },
           testId: "button-concierge-picker-healthcare",
         },
         {

@@ -112,6 +112,7 @@ export function conciergeTaskEntryTitle(entry: ConciergeTaskEntry | null, isSpan
     case "home_service":
       return isSpanish ? "Servicio para el hogar" : "Home service";
     case "provider_contact":
+      if (entry.providerSearchMode === "specialist") return isSpanish ? "Encontrar atención sanitaria" : "Find health care";
       return isSpanish ? "Elegir un proveedor" : "Choose a provider";
     case "scam_review":
       return isSpanish ? "Revisar algo sospechoso" : "Review something suspicious";
@@ -133,6 +134,9 @@ export function conciergeTaskEntrySummary(entry: ConciergeTaskEntry | null, isSp
     case "home_service":
       return isSpanish ? "Describe el trabajo y revisa el proveedor antes de contactar." : "Describe the job and review the provider before contact.";
     case "provider_contact":
+      if (entry.providerSearchMode === "specialist") {
+        return isSpanish ? "Siga donde lo dejó. No se contacta con nadie sin su permiso." : "Pick up where you left off. Nobody is contacted without your OK.";
+      }
       return isSpanish ? "Compara opciones y elige una antes de contactar." : "Compare options and choose one before contact.";
     case "scam_review":
       return isSpanish ? "Comparte solo lo necesario para revisar el riesgo." : "Share only what is needed to review the risk.";

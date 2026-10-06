@@ -189,4 +189,82 @@ describe("provider decision engine", () => {
     expect(isolated.score).toBe(base.score);
     expect(isolated.uncertainties).toContain("One customer reported a concern");
   });
+
+  describe("service playbooks", () => {
+    const listing = (overrides: Partial<ProviderCandidate>) => candidate({ source: "external", trusted: false, category: "home_service", address: "1 Calle Mayor", ...overrides });
+    const locksmiths = [
+      listing({ id: "a", name: "Cerrajero Tarifa 24h", phone: "+34 611 223 344" }),
+      listing({ id: "b", name: "Cerrajero Urgente", phone: "+34 611 223 344" }),
+      listing({ id: "c", name: "Cerrajero Premium", phone: "+34 902 123 456" }),
+      listing({ id: "d", name: "Cerrajero Ruiz", phone: "+34 956 000 111" }),
+    ];
+
+    it("withholds call-centre locksmith listings and advises a fixed price", () => {
+      const result = decideProviderCandidates(locksmiths, { appointmentType: "home-service", serviceType: "locksmith", maxResults: 12 });
+      expect(result.ranked.map(r => r.candidate.id)).toEqual(["d"]);
+      expect(result.excluded.filter(r => r.code === "excluded_listing_risk").map(r => r.candidate.id).sort()).toEqual(["a", "b", "c"]);
+      expect(result.ranked[0].advice).toEqual(["Agree the full price by phone before anyone comes out."]);
+    });
+
+    it("demotes the same signals for other trades instead of withholding", () => {
+      const plumbers = locksmiths.map(c => ({ ...c, name: c.name.replace(/Cerrajer(o|ia)/g, "Fontaneria") }));
+      const result = decideProviderCandidates(plumbers, { appointmentType: "home-service", serviceType: "plumber", maxResults: 12 });
+      expect(result.ranked[0].candidate.id).toBe("d");
+      expect(result.ranked.find(r => r.candidate.id === "c")?.uncertainties).toContain("Uses a paid or national service number, not a local line");
+      expect(result.excluded.some(r => r.code === "excluded_listing_risk")).toBe(false);
+    });
+
+    it("never flags a saved contact that shares a listing's number", () => {
+      const result = decideProviderCandidates([
+        listing({ id: "public", name: "Fontaneria Ruiz", phone: "+34 956 000 111" }),
+        candidate({ id: "saved", name: "Pepe fontanero", category: "home_service", phone: "+34 956 000 111" }),
+      ], { appointmentType: "home-service", serviceType: "plumber", maxResults: 12 });
+      expect(result.ranked.flatMap(r => r.listingRisk ?? [])).toEqual([]);
+    });
+
+    it("rewards a stated electrical registration and names its absence", () => {
+      const request = { appointmentType: "home-service", serviceType: "electrician", maxResults: 12 };
+      const stated = decideProviderCandidates([listing({ name: "Electricista Sol", credentialStated: true })], request).ranked[0];
+      const missing = decideProviderCandidates([listing({ name: "Electricista Sol", credentialStated: false })], request).ranked[0];
+      const unchecked = decideProviderCandidates([listing({ name: "Electricista Sol" })], request).ranked[0];
+      expect(stated.score - unchecked.score).toBe(8);
+      expect(stated.reasons).toContain("Website states trade registration");
+      expect(missing.score).toBe(unchecked.score);
+      expect(missing.uncertainties).toContain("Trade registration not confirmed");
+      expect(unchecked.uncertainties).not.toContain("Trade registration not confirmed");
+    });
+
+    it("uses review price mentions and published prices when no price band exists", () => {
+      const signals = (as_quoted: number, above_quote: number) => ({ as_quoted, above_quote, good_value: 0, expensive: 0 });
+      const fair = listing({ id: "fair", name: "Fair Plumber", priceEvidence: { publishedPrices: ["Call-out 35 EUR"], signals: signals(3, 0) } });
+      const steep = listing({ id: "steep", name: "Steep Plumber", priceEvidence: { publishedPrices: [], signals: signals(0, 2) } });
+      const single = listing({ id: "single", name: "Single Plumber", priceEvidence: { publishedPrices: [], signals: signals(1, 0) } });
+      const result = decideProviderCandidates([steep, single, fair], { ...homeRequest, criteria: ["lowest_cost"], maxResults: 12 });
+      expect(result.ranked[0].candidate.id).toBe("fair");
+      expect(result.ranked[0].priorityBonus).toBe(60);
+      expect(result.ranked[0].priorityNotes).toContain("Prices are published on the provider's website.");
+      expect(result.ranked.find(r => r.candidate.id === "steep")?.priorityNotes?.[0]).toContain("above expectations");
+      expect(result.ranked.find(r => r.candidate.id === "single")?.priorityBonus).toBe(0);
+    });
+  });
+
+  it("ranks on pooled member outcomes once two members have answered", () => {
+    const listing = (id: string, memberOutcomes: ProviderCandidate["memberOutcomes"]) => candidate({ id, name: `Plumber ${id}`, source: "external", trusted: false, category: "home_service", address: "1 Calle Mayor", rating: 4.8, reviewCount: 200, memberOutcomes });
+    const result = decideProviderCandidates([
+      listing("starry", { jobs: 3, noShows: 2, aboveQuote: 0, wouldUseAgain: 0, wouldNotUseAgain: 3 }),
+      listing("liked", { jobs: 3, noShows: 0, aboveQuote: 0, wouldUseAgain: 3, wouldNotUseAgain: 0 }),
+    ], { ...homeRequest, maxResults: 12 });
+    expect(result.ranked.map(r => r.candidate.id)).toEqual(["liked", "starry"]);
+    expect(result.ranked[0].reasons).toContain("Other VYVA members would use this provider again");
+    expect(result.ranked[1].uncertainties).toContain("Other VYVA members report missed visits");
+  });
+
+  it("ranks a partner-vetted provider above strong public listings", () => {
+    const listing = candidate({ id: "public", source: "external", trusted: false, category: "home_service", name: "Fontaneria Centro", address: "1 Calle Mayor", rating: 4.9, reviewCount: 800, evidenceStatus: "verified", openNow: true });
+    const partner = candidate({ id: "partner", source: "partner", trusted: false, category: "home_service", name: "Ruiz", specialtyText: "plumber fontanero", evidenceStatus: "reported" });
+    const result = decideProviderCandidates([listing, partner], { ...homeRequest, criteria: ["trusted"], maxResults: 12 });
+    expect(result.ranked[0].candidate.id).toBe("partner");
+    expect(result.ranked[0].reasons).toContain("Vetted by a partner organisation");
+    expect(result.ranked[0].priorityNotes?.[0]).toContain("partner organisation vetted");
+  });
 });
