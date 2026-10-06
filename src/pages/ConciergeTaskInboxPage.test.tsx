@@ -128,10 +128,10 @@ describe("ConciergeTaskInboxPage", () => {
     expect(await screen.findByTestId("concierge-inbox-group-needs_you")).toHaveTextContent("Needs you1");
     expect(screen.getByTestId("concierge-inbox-group-waiting")).toHaveTextContent("Waiting1");
     expect(screen.queryByTestId("concierge-inbox-group-completed")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Prepare an appointment")).toHaveLength(1);
+    expect(screen.queryByText("Prepare an appointment")).not.toBeInTheDocument();
     expect(screen.getByText("Harbour Clinic needs your insurance plan.")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-inbox-task-state-pending:reply-1")).toHaveTextContent("Needs information");
-    expect(screen.getByTestId("concierge-inbox-task-scene-pending:reply-1")).toHaveTextContent("Reply");
+    expect(screen.queryByText("Needs information")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reply")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("concierge-task-view-completed"));
     expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("Completed1");
@@ -215,8 +215,7 @@ describe("ConciergeTaskInboxPage", () => {
     renderPage();
     const task = await screen.findByTestId("concierge-inbox-task-pending:long-shopping-1");
     expect(task).toHaveAccessibleName(/Waiting/);
-    expect(screen.getByTestId("concierge-inbox-task-state-pending:long-shopping-1")).toHaveTextContent("Waiting");
-    expect(screen.getByTestId("concierge-inbox-task-scene-pending:long-shopping-1")).toHaveTextContent("Waiting");
+    expect(within(task).queryByText("Waiting")).not.toBeInTheDocument();
 
     task.focus();
     expect(task).toHaveFocus();

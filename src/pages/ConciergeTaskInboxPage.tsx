@@ -148,38 +148,23 @@ function TaskRow({
   onOpen: () => void;
 }) {
   const date = formatDate(item.updatedAt, language);
+  const primaryText = item.summary || item.title;
   return (
     <div className="flex items-center border-b border-vyva-border">
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`${item.title}. ${item.continuation.stateLabel}. ${item.summary}`}
-      className="vyva-tap flex min-h-[104px] w-full items-center gap-3 border-b border-vyva-border bg-white px-4 py-4 text-left last:border-b-0 hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
+      aria-label={`${primaryText}. ${item.continuation.stateLabel}`}
+      className="vyva-tap flex min-h-[82px] w-full items-center gap-3 bg-white px-4 py-3.5 text-left hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
       data-testid={`concierge-inbox-task-${item.key}`}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="min-w-0 break-words font-body text-[16px] font-black text-vyva-text-1">{item.title}</p>
-          <span
-            className="concierge-task-state-badge rounded-full bg-[#F4F0FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple"
-            data-testid={`concierge-inbox-task-state-${item.key}`}
-          >
-            {item.continuation.stateLabel}
-          </span>
-          <span className="font-body text-[11px] font-black text-vyva-text-3">{item.continuation.flowLabel}</span>
-        </div>
-        <p className="mt-1 line-clamp-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-          {item.summary}
-        </p>
-        <p
-          className="mt-2 break-words font-body text-[12px] font-black text-vyva-text-2"
-          data-testid={`concierge-inbox-task-scene-${item.key}`}
-        >
-          {item.continuation.sceneLabel}
+        <p className="line-clamp-2 break-words font-body text-[15px] font-black leading-snug text-vyva-text-1">
+          {primaryText}
         </p>
         {(item.providerName || date) ? (
-          <p className="mt-2 truncate font-body text-[12px] font-semibold text-vyva-text-3">
-            {[item.providerName, date].filter(Boolean).join(" | ")}
+          <p className="mt-1.5 truncate font-body text-[12px] font-semibold text-vyva-text-3">
+            {[item.providerName, date].filter(Boolean).join(" · ")}
           </p>
         ) : null}
       </div>
@@ -214,7 +199,9 @@ function InboxList({
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedSearch)))
     : inbox.completed;
-  const groups = view === "active" ? ACTIVE_GROUPS : ["completed" as const];
+  const groups = view === "active"
+    ? ACTIVE_GROUPS.filter((group) => inbox[group].length > 0)
+    : ["completed" as const];
   return (
     <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox">
       <header className="border-b border-vyva-border pb-4">
@@ -282,6 +269,11 @@ function InboxList({
       ) : null}
 
       <div className="mt-5 space-y-6">
+        {view === "active" && groups.length === 0 ? (
+          <p className="border-y border-vyva-border px-4 py-4 font-body text-[13px] font-semibold text-vyva-text-3">
+            {isSpanish ? "Todo al dia." : "All caught up."}
+          </p>
+        ) : null}
         {groups.map((group) => {
           const copy = groupCopy(group, isSpanish);
           const Icon = copy.icon;
