@@ -63,13 +63,13 @@ export function SummaryPanel({
   const s = copy.summary;
 
   return (
-    <section aria-labelledby="care-finder-summary-title" className="rounded-[22px] border-2 border-[var(--cf-border-soft)] bg-[var(--cf-surface)] p-4 sm:p-5" data-testid="care-finder-summary">
+    <section aria-labelledby="care-finder-summary-title" className="rounded-[22px] border-2 border-[var(--cf-border-soft)] bg-[var(--cf-surface)] p-4" data-testid="care-finder-summary">
       <div className="flex items-center justify-between gap-3">
         <h2 id="care-finder-summary-title" className="text-[21px] font-semibold text-[var(--cf-text)]">{s.title}</h2>
         {rows.length > 0 ? (
           <button
             type="button"
-            className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-3 text-[17px] font-semibold text-[var(--cf-accent)] lg:hidden"
+            className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-3 text-[17px] font-semibold text-[var(--cf-accent)] cf-summary-toggle"
             aria-expanded={expanded}
             aria-controls="care-finder-summary-list"
             onClick={() => setExpanded((value) => !value)}
@@ -82,7 +82,7 @@ export function SummaryPanel({
       {rows.length === 0 ? (
         <p className="mt-2 text-[17px] text-[var(--cf-text-2)]">{s.empty}</p>
       ) : (
-        <dl id="care-finder-summary-list" className={`${expanded ? "block" : "hidden"} mt-3 divide-y divide-[var(--cf-border-soft)] lg:block`}>
+        <dl id="care-finder-summary-list" data-expanded={expanded ? "true" : "false"} className="cf-summary-list mt-3 divide-y divide-[var(--cf-border-soft)]">
           {rows.map((row) => (
             <div key={row.key} className="py-3">
               <dt className="text-[16px] font-semibold text-[var(--cf-text-2)]">{row.label}</dt>

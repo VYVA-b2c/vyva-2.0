@@ -184,7 +184,7 @@ export function ContactStep({
           <>
             <p className="text-[18px] text-[var(--cf-text-2)]">{c.shareIntro}</p>
             <pre className="whitespace-pre-wrap break-words rounded-[16px] bg-[var(--cf-surface-2)] p-4 font-body text-[18px] text-[var(--cf-text)]" data-testid="care-share-preview">{shareMessage}</pre>
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="cf-row flex flex-col gap-3">
               <ActionButton onClick={() => void shareNow()} icon={typeof navigator !== "undefined" && "share" in navigator ? <Share2 size={22} /> : <Copy size={22} />}>
                 {typeof navigator !== "undefined" && "share" in navigator ? c.shareButton : c.copyButton}
               </ActionButton>

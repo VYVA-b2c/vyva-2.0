@@ -113,7 +113,7 @@ function OptionCard({
         {facts.length > 0 ? (
           <dl className="mt-4 divide-y divide-[var(--cf-border-soft)] rounded-[16px] border border-[var(--cf-border-soft)]">
             {facts.map((fact) => (
-              <div key={fact.criterion} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(0,11rem)_1fr]">
+              <div key={fact.criterion} className="cf-fact-row grid gap-1 px-4 py-3">
                 <dt className="text-[17px] font-semibold text-[var(--cf-text-2)]">{r.facts[fact.criterion]}</dt>
                 <dd className="text-[18px] text-[var(--cf-text)]">
                   <span className="block break-words">{factValue(fact, copy)}</span>
@@ -137,7 +137,7 @@ function OptionCard({
           <p className="mt-3 text-[16px] text-[var(--cf-text-2)]">{r.checkedOn(formatCheckedAt(option.checked_at, lang))}</p>
         ) : null}
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div className="cf-row mt-4 flex flex-col flex-wrap gap-3">
           <ActionButton onClick={onPrepare} icon={<Phone size={22} />} testId={`button-prepare-${option.id}`}>{r.prepare(option.name)}</ActionButton>
           {option.maps_url ? (
             <a href={option.maps_url} target="_blank" rel="noreferrer" className={actionClass("secondary")}>

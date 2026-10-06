@@ -15,7 +15,7 @@ export const StepHeading = forwardRef<HTMLHeadingElement, { children: ReactNode;
           id={id}
           tabIndex={-1}
           data-step-heading
-          className="font-display text-[28px] font-semibold leading-tight tracking-[-0.01em] text-[var(--cf-text)] sm:text-[32px]"
+          className="font-display font-semibold leading-tight tracking-[-0.01em] text-[var(--cf-text)] cf-h2"
         >
           {children}
         </h2>
@@ -96,7 +96,7 @@ export function ActionButton({ children, onClick, variant = "primary", type = "b
 
 export function actionClass(variant: ButtonProps["variant"] = "primary", className?: string) {
   return cx(
-    "inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-full px-6 py-3 text-center text-[20px] font-semibold leading-snug transition-opacity disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto",
+    "inline-flex min-h-[60px] items-center justify-center gap-3 rounded-full px-6 py-3 text-center text-[20px] font-semibold leading-snug transition-opacity disabled:cursor-not-allowed disabled:opacity-50 cf-btn",
     variant === "primary" && "bg-[var(--cf-accent)] text-[var(--cf-on-accent)]",
     variant === "urgent" && "bg-[var(--cf-urgent)] text-[var(--cf-on-urgent)]",
     variant === "secondary" && "border-2 border-[var(--cf-border)] bg-[var(--cf-surface)] text-[var(--cf-text)]",
@@ -177,7 +177,7 @@ export function VoiceTextInput({
       <p aria-live="polite" className="min-h-[1.5em] text-[18px] italic text-[var(--cf-text-2)]">
         {interim || (isListening ? copy.voice.listening : "")}
       </p>
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="cf-row flex flex-col gap-3">
         <ActionButton type="submit" disabled={!value.trim()}>{submitLabel}</ActionButton>
         {isSupported ? (
           <ActionButton
