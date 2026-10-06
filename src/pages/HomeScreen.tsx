@@ -2972,7 +2972,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       label: t("home.profileMenu.account", "Account details"),
       detail: t("home.profileMenu.accountDetail", "Name, phone, language"),
-      path: "/settings/account",
+      path: "/onboarding/profile/group/account",
       icon: UserRound,
       testId: "button-home-profile-account",
       tone: "bg-[#F5F3FF] text-vyva-purple",
@@ -3040,7 +3040,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
         id="home-profile-menu"
         role="dialog"
         aria-modal="true"
-        aria-label={t("home.profileMenu.title", "Profile & settings")}
+        aria-label={t("home.profileMenu.title", "My profile")}
         data-testid="home-profile-menu"
         className={[
           "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
@@ -3058,10 +3058,10 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
             </span>
             <span className="min-w-0">
               <span className="block font-display text-[22px] font-semibold leading-none">
-                {t("home.profileMenu.title", "Profile & settings")}
+                {t("home.profileMenu.title", "My profile")}
               </span>
               <span className={["mt-1 block font-body text-[11.5px] font-extrabold leading-snug", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#8F8192]"].join(" ")}>
-                {t("home.profileMenu.subtitle", "Update health, contacts, and display.")}
+                {t("home.profileMenu.subtitle", "Personal, health, and care information.")}
               </span>
             </span>
           </div>
@@ -3175,7 +3175,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
           >
             <HomeMasterProfileControl
               isDark={isHomeMasterDark}
-              ariaLabel={t("home.profileMenu.open", "Open profile and settings")}
+              ariaLabel={t("home.profileMenu.open", "Open my profile")}
               testId="button-home-profile"
               onClick={() => setHomeProfileMenuOpen(true)}
               expanded={homeProfileMenuOpen}
