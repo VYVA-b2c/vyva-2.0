@@ -1,4 +1,4 @@
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
 import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProviderReplies";
 import type { ConciergeCanvasState, ConciergeCanvasStateSummary } from "../../../shared/conciergeCanvasState";
@@ -23,10 +23,12 @@ export function ConciergeTaskWorkspaceHeader({
   isSpanish,
   onBack,
   onDelete,
+  onSos,
   isDeleting = false,
   providerUpdate,
   canvasState,
   canvasSummary,
+  showProgress = true,
 }: {
   title: string;
   summary: string;
@@ -34,6 +36,7 @@ export function ConciergeTaskWorkspaceHeader({
   isSpanish: boolean;
   onBack: () => void;
   onDelete?: () => void;
+  onSos?: () => void;
   isDeleting?: boolean;
   providerUpdate?: {
     status: ConciergeProviderTaskStatus;
@@ -41,6 +44,7 @@ export function ConciergeTaskWorkspaceHeader({
   } | null;
   canvasState?: ConciergeCanvasState | null;
   canvasSummary?: ConciergeCanvasStateSummary | null;
+  showProgress?: boolean;
 }) {
   const stages: Array<{ id: ConciergeTaskStage; label: string }> = [
     { id: "details", label: isSpanish ? "Detalles" : "Details" },
@@ -66,6 +70,19 @@ export function ConciergeTaskWorkspaceHeader({
           <ArrowLeft size={19} aria-hidden="true" />
           {isSpanish ? "Volver a tareas" : "Back to tasks"}
         </button>
+        <div className="flex items-center gap-1">
+        {onSos ? (
+          <button
+            type="button"
+            onClick={onSos}
+            className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-full px-3 font-body text-[13px] font-black text-[#B91C1C]"
+            data-testid="button-concierge-task-sos"
+            aria-label="SOS"
+          >
+            <AlertCircle size={18} aria-hidden="true" />
+            SOS
+          </button>
+        ) : null}
         {onDelete ? (
           <button
             type="button"
@@ -78,6 +95,7 @@ export function ConciergeTaskWorkspaceHeader({
             {isSpanish ? "Eliminar" : "Remove"}
           </button>
         ) : null}
+        </div>
       </div>
       <h1 className="mt-3 font-body text-[28px] font-black leading-tight text-vyva-text-1">{title}</h1>
       <p className="mt-2 max-w-2xl font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{summary}</p>
@@ -104,7 +122,7 @@ export function ConciergeTaskWorkspaceHeader({
           ) : null}
         </div>
       ) : null}
-      <ol className="mt-4 grid grid-cols-3 gap-2" aria-label={isSpanish ? "Progreso de la tarea" : "Task progress"}>
+      {showProgress ? <ol className="mt-4 grid grid-cols-3 gap-2" aria-label={isSpanish ? "Progreso de la tarea" : "Task progress"}>
         {stages.map((item, index) => {
           const isCurrent = item.id === stage;
           const isComplete = index < activeIndex;
@@ -118,7 +136,7 @@ export function ConciergeTaskWorkspaceHeader({
             </li>
           );
         })}
-      </ol>
+      </ol> : null}
     </section>
   );
 }

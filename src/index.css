@@ -1235,6 +1235,20 @@
   color: #fff8ff;
 }
 
+[data-home-master-theme="dark"] .provider-wizard-card {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-home-master-theme="dark"] .provider-task-wizard :is([class*="text-vyva-text-1"], [class*="text-vyva-text-2"], [class*="text-vyva-text-3"]) {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .provider-task-wizard :is([class*="bg-white"], [class*="bg-[#F8F5FF]"], [class*="bg-[#F5F3FF]"]) {
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
 [data-home-master-theme="dark"].concierge-task-page :is(
   [class*="text-vyva-text-1"],
   [class*="text-vyva-text-2"],
