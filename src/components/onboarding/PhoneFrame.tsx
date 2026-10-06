@@ -54,13 +54,14 @@ export function PhoneFrame({
   const handleBack = () => {
     if (typeof window !== "undefined" && window.location.pathname.startsWith("/dev/profile-overview/section/")) {
       const sectionId = window.location.pathname.split("/").pop() ?? "";
+      const previewSearch = window.location.search;
       const groupBySection: Record<string, string> = {
         basics: "account", address: "account", health: "health", conditions: "health",
         allergies: "health", diet: "health", devices: "health", medications: "medication",
         emergency: "emergency", cognitive: "preferences", hobbies: "preferences",
         "care-team": "care-team", gp: "providers", providers: "providers",
       };
-      window.history.pushState({}, "", `/dev/profile-overview/group/${groupBySection[sectionId] ?? "account"}`);
+      window.history.pushState({}, "", `/dev/profile-overview/group/${groupBySection[sectionId] ?? "account"}${previewSearch}`);
       window.dispatchEvent(new PopStateEvent("popstate"));
       return;
     }
