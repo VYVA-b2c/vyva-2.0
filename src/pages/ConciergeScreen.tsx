@@ -10199,6 +10199,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         progress.query ?? effectiveTaskEntry?.query ?? "",
       ));
       setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion).slice(0, 3));
+      setProviderMustHaves((progress.providerMustHaves ?? []).filter(isProviderSearchCriterion).slice(0, 3));
       setOffersResult((progress.providerResult ?? null) as OffersSearchResponse | null);
       setProviderShortlistIds(progress.shortlistIds ?? []);
       setSelectedProviderOptionId(progress.selectedProviderOptionId ?? null);
@@ -10234,6 +10235,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setRideCanvasStep(progress.canvasStep as ConciergeRideCanvasStep);
       }
     }
+  // providerWizard.goTo is stable; depending on the wrapper object would rehydrate after every step change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTaskEntry, isSpanish, navigate, persistedTask, t]);
 
   const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
@@ -10287,6 +10290,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           providerWizardStep: providerWizard.step,
           query: offersQuery,
           criteria: providerSearchCriteria,
+          providerMustHaves,
           providerServiceIntake,
           providerResult: offersResult as unknown as Record<string, unknown> | null,
           shortlistIds: providerShortlistIds,
@@ -10312,6 +10316,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     offersQuery,
     offersResult,
     providerSearchCriteria,
+    providerMustHaves,
     providerSearchMode,
     providerServiceIntake,
     providerShortlistIds,
@@ -18042,7 +18047,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           if (raw) handleOfferWatch(raw);
         } : undefined}
       />
-      {providerShortlistNotice ? <p className="rounded-[14px] bg-[#F0FDFA] p-3 text-[13px] font-bold text-[#0F766E]">{providerShortlistNotice}</p> : null}
+      {providerShortlistNotice ? <p data-testid="notice-provider-shortlist" className="rounded-[14px] bg-[#F0FDFA] p-3 text-[13px] font-bold text-[#0F766E]">{providerShortlistNotice}</p> : null}
       {providerShortlistError ? <p role="alert" className="rounded-[14px] bg-red-50 p-3 text-[13px] text-red-700">{providerShortlistError}</p> : null}
     </div>
   ) : (
@@ -18115,7 +18120,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" && !(isHomeServiceAppointment && appointmentOpen) ? (
+          {mode === "task" ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}

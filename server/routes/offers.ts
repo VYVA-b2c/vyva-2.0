@@ -1357,6 +1357,38 @@ function criterionForRequirement(value: string): ProviderComparisonCriterion | n
   return Object.entries(PRIORITY_ALIASES).find(([key]) => normalized === key || normalized.includes(key))?.[1] ?? null;
 }
 
+function requirementMatchesFact(
+  requirement: string,
+  criterion: ProviderComparisonCriterion,
+  fact: ProviderComparisonFact,
+): boolean {
+  if (fact.status !== "verified" || !fact.value) return false;
+  const requested = requirement.toLowerCase();
+  const evidence = fact.value.toLowerCase();
+  const generic = new Set([criterion, ...Object.entries(PRIORITY_ALIASES).filter(([, mapped]) => mapped === criterion).map(([alias]) => alias)]);
+  if (generic.has(requested)) return true;
+
+  const explicitChecks: Array<[RegExp, RegExp]> = [
+    [/wheelchair|silla de ruedas/, /wheelchair|silla de ruedas/],
+    [/step[- ]free|sin escalones/, /step[- ]free|sin escalones/],
+    [/public (coverage|funding)|cobertura p[uú]blica|financiaci[oó]n p[uú]blica/, /public|p[uú]blic/],
+    [/private insurance|seguro privado/, /insurance|insurer|seguro|sanitas|adeslas|asisa|mapfre/],
+    [/home delivery|delivery|entrega a domicilio|domicilio/, /delivery|delivered at home|home visit|entrega|domicilio/],
+    [/today|hoy/, /today|same day|hoy|mismo d[ií]a/],
+    [/tomorrow|mañana/, /tomorrow|next day|mañana|d[ií]a siguiente/],
+    [/within 3 days|en 3 d[ií]as/, /3 days|72 hours|tres d[ií]as/],
+    [/within 2 weeks|en 2 semanas/, /2 weeks|14 days|dos semanas/],
+    [/certification|certificaci[oó]n/, /certif|licen[cs]ed|colegiad/],
+    [/written quote|presupuesto escrito/, /written quote|written estimate|presupuesto escrito/],
+    [/guarantee|warranty|garant[ií]a/, /guarantee|warranty|garant[ií]a/],
+    [/24-hour medical|supervisi[oó]n m[eé]dica 24/, /24|round.the.clock|24 horas/],
+    [/private room|habitaci[oó]n privada/, /private room|habitaci[oó]n privada/],
+    [/same regular caregiver|mismo cuidador/, /same|regular|continuity|mismo|continuidad/],
+  ];
+  const check = explicitChecks.find(([requirementPattern]) => requirementPattern.test(requested));
+  return check ? check[1].test(evidence) : false;
+}
+
 function personaliseOffers(
   offers: RankedOffer[],
   priorities: ProviderPriorityContext,
@@ -1393,7 +1425,7 @@ function personaliseOffers(
       const criterion = criterionForRequirement(requirement);
       if (!criterion) return true;
       const fact = offer.comparison[criterion];
-      return !fact.value || fact.status === "unknown" || fact.status === "conflicting";
+      return !requirementMatchesFact(requirement, criterion, fact);
     });
     fitScore -= unmetMustHaves.length * 20;
     const searchableFacts = [offer.name, offer.what_it_offers, ...Object.values(offer.comparison).map((fact) => fact.value ?? "")].join(" ").toLowerCase();
@@ -1407,7 +1439,16 @@ function personaliseOffers(
   }).sort((left, right) => right.fitScore - left.fitScore || right.offer.score - left.offer.score);
 
   const winner = evaluated[0];
+  const winnerHasVerifiedPriority = Boolean(winner) && priorityOrder.some((criterion) => {
+    const fact = winner.offer.comparison[criterion];
+    return fact.status === "verified" && Boolean(fact.value);
+  });
+  const winnerHasPriorityConflict = Boolean(winner) && priorityOrder.some(
+    (criterion) => winner.offer.comparison[criterion].status === "conflicting",
+  );
   const confident = Boolean(winner) && winner.unmetMustHaves.length === 0
+    && winnerHasVerifiedPriority
+    && !winnerHasPriorityConflict
     && !mustHaveCriteria.some((criterion) => winner.offer.comparison[criterion].status !== "verified");
   const bestFitProviderId = confident ? winner.offer.id ?? null : null;
   const options = evaluated.map((item, index) => ({

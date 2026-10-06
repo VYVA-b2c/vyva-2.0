@@ -194,4 +194,47 @@ describe("provider search source integration", () => {
       unmetMustHaves: ["coverage"],
     });
   });
+
+  it("does not treat a contradictory verified value as satisfying a must-have", async () => {
+    vi.stubGlobal("fetch", googleFetch({ name: "Clinic Later", website: "https://cliniclater.example", rating: 4.7 }));
+    const fetchPage = vi.fn(async (url: string) => ({
+      url,
+      html: "<html><body><h1>Clinic Later</h1><p>Next appointment in two weeks.</p></body></html>",
+    }));
+
+    const offers = await buildProviderOffers(
+      "doctor appointment",
+      "Vivienda y cuidados",
+      context,
+      "en",
+      undefined,
+      undefined,
+      "specialist",
+      { fetchPage },
+      { orderedCriteria: ["availability"], mustHaves: ["Today"], dealBreakers: [], constraints: [] },
+    );
+
+    expect(offers[0].personalised_fit).toMatchObject({
+      recommendationStatus: "cautious",
+      unmetMustHaves: ["Today"],
+    });
+  });
+
+  it("does not name a best fit without verified priority evidence", async () => {
+    vi.stubGlobal("fetch", googleFetch({ name: "Directory Only", rating: 4.6 }));
+
+    const offers = await buildProviderOffers(
+      "local provider",
+      "Servicios en casa",
+      context,
+      "en",
+      undefined,
+      undefined,
+      "home-service",
+      { fetchPage: vi.fn(async () => null) },
+      { orderedCriteria: ["availability"], mustHaves: [], dealBreakers: [], constraints: [] },
+    );
+
+    expect(offers[0].personalised_fit?.recommendationStatus).not.toBe("best_fit");
+  });
 });

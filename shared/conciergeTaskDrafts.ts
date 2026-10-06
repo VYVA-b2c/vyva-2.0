@@ -63,6 +63,7 @@ export const conciergeTaskProgressPayloadSchema = z.object({
   }).strict().optional(),
   query: z.string().max(2000).optional(),
   criteria: z.array(z.string().max(120)).max(20).optional(),
+  providerMustHaves: z.array(z.string().max(120)).max(20).optional(),
   providerResult: z.record(z.string(), z.unknown()).nullable().optional(),
   shortlistIds: z.array(z.string().max(200)).max(50).optional(),
   requestId: z.string().max(200).nullable().optional(),
