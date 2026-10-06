@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
 import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
 import { listDueOutcomes, loadMemberOutcomeCounts, recordOutcome } from "../services/providerOutcomes.js";
+import { loadPersonalProviderProfile } from "../services/personalProviderProfile.js";
+import { parsePersonalProfile } from "../../shared/personalProviderProfile.js";
 import { providerOutcomeAnswerSchema, type MemberOutcomeCounts } from "../../shared/providerOutcomes.js";
 import { loadSharedVerification, loadSharedVerifications, saveSharedVerification, sharedVerificationFor, type ReputationKey } from "../services/providerReputation.js";
 import { languageText, requestDisplayLanguage } from "../../shared/language.js";
@@ -71,6 +73,7 @@ import {
 } from "../services/conciergeChannelReadiness.js";
 import {
   decideProviderCandidates,
+  homeServiceRankingPriorities,
   type ProviderCandidate,
   type ProviderDecisionRequest,
   type ProviderDecisionResult,
@@ -698,6 +701,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     priceEvidence: verification?.pricing ?? null,
     credentialStated: verification?.credentials ? verification.credentials.length > 0 : null,
     memberOutcomes: memberOutcomesFromSnapshot(snapshot.member_outcomes),
+    languagesStated: verification?.languages ?? null,
     checkedAt: option.updated_at?.toISOString() ?? null,
     contactable: option.available_channels.some((channel) => channel !== "manual"),
     raw: option,
@@ -714,6 +718,7 @@ function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionR
     urgency: intake?.urgency,
     criteria: intake?.criteria,
     maxResults: request.appointment_type === "home-service" ? 12 : 3,
+    personal: request.appointment_type === "home-service" ? parsePersonalProfile(preferences.personal_profile) : null,
   };
 }
 
@@ -1130,6 +1135,15 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const visitAddress = request.appointment_type === "home-service"
       ? homeServiceAddressFromPreferences(requestPreferences).trim()
       : "";
+    // Personal context loads alongside the search; it never delays or blocks it.
+    const personalProfilePromise = request.appointment_type === "home-service"
+      ? loadPersonalProviderProfile({
+        userId,
+        serviceType: serviceIntake?.service_type,
+        countryCode: location.countryCode,
+        inferPriorities: homeServiceRankingPriorities(serviceIntake?.criteria ?? []).length === 0,
+      }).catch(() => null)
+      : Promise.resolve(null);
     const discovery = await discoverAppointmentProviderOptions({
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
@@ -1198,6 +1212,8 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
         };
       }
     }
+    const personalProfile = await personalProfilePromise;
+    const rankedRequest = personalProfile ? { ...request, preferences: { ...requestPreferences, personal_profile: personalProfile } } : request;
     const allCandidates = [...existingOptions, ...insertedOptions];
     // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
     const declinedSaved = request.appointment_type === "home-service"
@@ -1208,7 +1224,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     }
     const decision = decideProviderCandidates(
       allCandidates.filter(option => !declinedSaved.includes(option)).map(optionCandidate),
-      providerDecisionRequest(request),
+      providerDecisionRequest(rankedRequest),
     );
     const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
     await Promise.all(allCandidates.map(async (option) => {
@@ -1258,7 +1274,12 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const status = rankedOptions.length > 0 ? "options_ready" : request.status;
     const [updatedRequest] = await db
       .update(appointmentRequests)
-      .set({ status, updated_at: new Date() })
+      .set({
+        status,
+        updated_at: new Date(),
+        // Merge so preference edits made while the search ran survive.
+        ...(personalProfile ? { preferences: sql`coalesce(${appointmentRequests.preferences}, '{}'::jsonb) || ${JSON.stringify({ personal_profile: personalProfile })}::jsonb` } : {}),
+      })
       .where(eq(appointmentRequests.id, request.id))
       .returning();
 

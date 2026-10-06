@@ -35,6 +35,8 @@ export interface ProviderVerification {
   pricing?: ProviderPriceEvidence;
   // Verbatim page text where the business states a registration or insurance.
   credentials?: string[];
+  // ISO 639-1 codes the provider's own site says it serves customers in.
+  languages?: string[];
 }
 
 // Business reputation moves slowly; results are shared between members for this long.
@@ -91,6 +93,7 @@ export function currentVerification(value: unknown, now = Date.now(), maxAgeMs =
     && validConcernDetails(item.concernDetails)
     && validPricing(item.pricing)
     && (item.credentials === undefined || (Array.isArray(item.credentials) && item.credentials.every(c => typeof c === "string")))
+    && (item.languages === undefined || (Array.isArray(item.languages) && item.languages.every(c => typeof c === "string" && /^[a-z]{2}$/.test(c))))
     && (item.concernLevel === undefined || ["none", "isolated", "pattern", "serious"].includes(item.concernLevel))
     // Client and server clocks can differ slightly, even for a fresh response.
     && Number.isFinite(age) && age >= -5 * 60 * 1000 && age < maxAgeMs ? item : null;

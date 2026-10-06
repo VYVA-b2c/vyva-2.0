@@ -25,7 +25,9 @@ export function localHomeServiceTerms(service: HomeServiceType, countryCode?: st
   const base = interfaceLanguage.toLowerCase().split(/[-_]/)[0];
   const fallback: SearchLanguage = Object.prototype.hasOwnProperty.call(HOME_SERVICE_SEARCH_TERMS, base) ? base as SearchLanguage : "en";
   const languages = COUNTRY_LANGUAGES[country ?? ""] ?? [fallback];
-  const terms = languages.map(language => HOME_SERVICE_SEARCH_TERMS[language][service]);
+  // Local vocabulary first, then the member's own language: a German speaker
+  // in Spain also finds firms that advertise in German.
+  const terms = [...languages, ...(languages.includes(fallback) ? [] : [fallback])].map(language => HOME_SERVICE_SEARCH_TERMS[language][service]);
   // Brazilian and European Portuguese use different common trade names.
   if (country === "BR" && service === "plumber") terms.unshift("encanador");
   return [...new Set([...terms, HOME_SERVICE_SEARCH_TERMS.en[service]])];
@@ -37,4 +39,11 @@ export function multilingualHomeServiceTerms(service: HomeServiceType): string[]
     ...(service === "plumber" ? ["encanador", "plomberie", "sanit\u00e4r", "Klempner"] : []),
     ...(service === "cleaner" ? ["nettoyage", "reinigung", "pulizie", "limpeza"] : []),
   ])];
+}
+
+// True when the member's language is one the provider's country commonly uses,
+// so a language match carries no extra signal. Unknown countries never match.
+export function isLocalLanguage(countryCode: string | null | undefined, language: string | null | undefined): boolean {
+  const base = (language ?? "").toLowerCase().split(/[-_]/)[0];
+  return Boolean(base) && (COUNTRY_LANGUAGES[(countryCode ?? "").toUpperCase()] ?? []).includes(base as SearchLanguage);
 }
