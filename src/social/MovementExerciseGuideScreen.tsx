@@ -1,4 +1,4 @@
-import { ArrowLeft, Loader2, Pause, Play } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -545,6 +545,14 @@ export default function MovementExerciseGuideScreen() {
     void startVyvaGuide(stepIndex);
   }, [startVyvaGuide, stepIndex]);
 
+  const moveToStep = useCallback((nextStepIndex: number) => {
+    const boundedStepIndex = Math.max(0, Math.min(steps.length - 1, nextStepIndex));
+    if (boundedStepIndex === stepIndex) return;
+    setStepIndex(boundedStepIndex);
+    setElapsedInStepMs(0);
+    if (runState === "guiding") sendStepPrompt(boundedStepIndex);
+  }, [runState, sendStepPrompt, stepIndex, steps.length]);
+
   const handleWellnessVoiceTool = useCallback((name: WellnessVoiceToolName, parameters: Record<string, unknown>): WellnessVoiceToolResult => {
     if (!exercise) return { ok: false, code: "wellness_routine_unavailable", activity: "wellness_routine" };
 
@@ -785,6 +793,32 @@ export default function MovementExerciseGuideScreen() {
           />
         </div>
       </div>
+
+      <nav className="mt-4 grid grid-cols-2 gap-3" aria-label="Exercise chapters">
+        <button
+          type="button"
+          onClick={() => moveToStep(stepIndex - 1)}
+          disabled={stepIndex === 0 || runState === "saving" || isAudioStarting}
+          className="vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-[#D6E8EF] bg-white px-4 font-body text-[15px] font-black text-[#123047] shadow-[0_8px_18px_rgba(18,48,71,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
+          data-testid="button-movement-guide-previous-step"
+          aria-label={`${guideCopy.previousStep}. ${guideCopy.stepLabel(Math.max(1, stepIndex), totalSteps)}`}
+        >
+          <ChevronLeft size={20} strokeWidth={2.8} aria-hidden="true" />
+          {guideCopy.previousStep}
+        </button>
+        <button
+          type="button"
+          onClick={() => moveToStep(stepIndex + 1)}
+          disabled={isLastStep || runState === "saving" || isAudioStarting}
+          className="vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ background: visual.accent }}
+          data-testid="button-movement-guide-next-step"
+          aria-label={`${guideCopy.nextStep}. ${guideCopy.stepLabel(Math.min(totalSteps, stepIndex + 2), totalSteps)}`}
+        >
+          {guideCopy.nextStep}
+          <ChevronRight size={20} strokeWidth={2.8} aria-hidden="true" />
+        </button>
+      </nav>
 
       <main className="mt-5 flex flex-1 flex-col justify-center">
         {showStepInstructionIntro ? (

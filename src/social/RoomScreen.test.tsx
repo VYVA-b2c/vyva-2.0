@@ -677,6 +677,28 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
   });
 
+  it("lets the user move forward and backward between exercise chapters", async () => {
+    vi.useFakeTimers();
+    renderRoom("/social-rooms/morning-movement/exercises/chair-yoga");
+
+    await flushAsyncEffects();
+    const previousButton = screen.getByTestId("button-movement-guide-previous-step");
+    const nextButton = screen.getByTestId("button-movement-guide-next-step");
+
+    expect(previousButton).toBeDisabled();
+    expect(nextButton).toBeEnabled();
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
+
+    fireEvent.click(nextButton);
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Roll your shoulders back twice.");
+    expect(screen.getByTestId("movement-guide-countdown")).toHaveTextContent("2:30 left");
+    expect(previousButton).toBeEnabled();
+
+    fireEvent.click(previousButton);
+    expect(screen.getByTestId("movement-exercise-guide-step")).toHaveTextContent("Sit tall with both feet flat.");
+    expect(previousButton).toBeDisabled();
+  });
+
   it("keeps guided step visuals video-backed and free of circle cues", async () => {
     vi.useFakeTimers();
     renderRoom("/social-rooms/morning-movement/exercises/chair-yoga");
