@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
+import { findPartnersForSearch, type PartnerSearchMatch } from "../services/vettedPartners.js";
 import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
 import { listDueOutcomes, loadMemberOutcomeCounts, recordOutcome } from "../services/providerOutcomes.js";
 import { loadPersonalProviderProfile } from "../services/personalProviderProfile.js";
@@ -62,6 +63,7 @@ import {
   homeServiceAccessNotesFromPreferences,
   homeServiceAddressFromPreferences,
   homeServiceIntakeFromPreferences,
+  homeServiceSearchTerms,
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
@@ -660,6 +662,42 @@ function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
   };
 }
 
+function phoneKey(phone: string | null | undefined): string {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length >= 7 ? digits.slice(-9) : "";
+}
+
+function partnerOption(match: PartnerSearchMatch, serviceType: string) {
+  const { provider, organisation } = match;
+  const channels: AppointmentChannel[] = [];
+  if (provider.website) channels.push("booking_url");
+  if (provider.phone) channels.push("phone");
+  if (provider.email) channels.push("email");
+  channels.push("manual");
+  return {
+    provider_source: "partner" as const,
+    provider_snapshot: {
+      source: "vetted_partner",
+      partner_provider_id: provider.id,
+      partner_organisation_id: organisation.id,
+      partner_organisation_name: organisation.name,
+      name: provider.name,
+      category: "home_service",
+      // Trade vocabulary lets the shared matcher confirm the requested service.
+      notes: [...provider.trades.flatMap(trade => homeServiceSearchTerms(trade)), provider.notes ?? ""].join(" "),
+      address: provider.address,
+      phone: provider.phone,
+      email: provider.email,
+      website_url: provider.website,
+      languages: provider.languages,
+      requested_service_type: serviceType,
+    },
+    match_reason: `Vetted by ${organisation.name}`,
+    available_channels: channels,
+    status: "suggested" as const,
+  };
+}
+
 function memberOutcomesFromSnapshot(value: unknown): MemberOutcomeCounts | null {
   const record = recordValue(value);
   const keys = ["jobs", "noShows", "aboveQuote", "wouldUseAgain", "wouldNotUseAgain"] as const;
@@ -671,7 +709,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
   const verification = snapshot.verification_eligible === true ? currentVerification(snapshot.verification) : null;
   return {
     id: option.id,
-    source: option.provider_source === "saved" || option.provider_source === "manual" ? option.provider_source : "external",
+    source: option.provider_source === "saved" || option.provider_source === "manual" || option.provider_source === "partner" ? option.provider_source : "external",
     name: snapshotText(snapshot, "name") ?? "Provider",
     category: snapshotText(snapshot, "category") ?? (Array.isArray(snapshot.place_types) ? snapshot.place_types.map(String).join(" ") : null),
     specialtyText: [
@@ -693,7 +731,7 @@ function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
     openToday: typeof snapshot.open_today === "boolean" ? snapshot.open_today : null,
     priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
     availability: "unknown",
-    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" ? "reported" : "unknown",
+    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" || option.provider_source === "partner" ? "reported" : "unknown",
     concernLevel: verification ? verificationConcernLevel(verification) : null,
     patternConcerns: verification ? patternConcernCategories(verification.concernDetails ?? []) : null,
     countryCode: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
@@ -1160,7 +1198,21 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       (request.appointment_type === "home-service" ? [] : existingOptions).map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
     );
     const nextRank = existingOptions.reduce((max, option) => Math.max(max, option.rank ?? 0), 0) + 1;
-    const candidates = discovery.options
+    // Vetted partners covering this address come first; a Google listing with
+    // the same phone number is the same business and is dropped.
+    const partnerMatches = request.appointment_type === "home-service" && serviceIntake?.service_type && discovery.search_center
+      ? await findPartnersForSearch({
+        userId,
+        serviceType: serviceIntake.service_type,
+        point: { countryCode: discovery.search_center.countryCode, lat: discovery.search_center.lat, lng: discovery.search_center.lng, addressText: discovery.search_center.address },
+      })
+      : [];
+    const partnerPhones = new Set(partnerMatches.map(match => phoneKey(match.provider.phone)).filter(Boolean));
+    const discoveredOptions = [
+      ...partnerMatches.map(match => partnerOption(match, serviceIntake?.service_type ?? "other")),
+      ...discovery.options.filter(option => !partnerPhones.has(phoneKey(snapshotText(option.provider_snapshot, "phone")))),
+    ];
+    const candidates = discoveredOptions
       .filter((option) => {
         const identity = appointmentOptionIdentity(option.provider_snapshot);
         if (existingIdentities.has(identity)) return false;
@@ -1180,7 +1232,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
           provider_source: option.provider_source,
           provider_snapshot: {
             ...option.provider_snapshot,
-            verification_eligible: true,
+            verification_eligible: option.provider_source === "external",
             provider_preference_snapshot: ordered.preferenceSnapshot,
             preferred_channel: ordered.preferredChannel,
           },

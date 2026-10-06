@@ -46,6 +46,7 @@ import { adminRouter } from "./routes/admin.js";
 import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminTrustedHelpPartnersRouter from "./routes/adminTrustedHelpPartners.js";
+import adminVettedPartnersRouter from "./routes/adminVettedPartners.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
 import adminCrossPillarToolReadinessRouter from "./routes/adminCrossPillarToolReadiness.js";
@@ -275,6 +276,7 @@ app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycle
 app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsRouter);
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/trusted-help-partners", authMiddleware, requireAdminUser, adminTrustedHelpPartnersRouter);
+app.use("/api/admin/concierge/vetted-partners", authMiddleware, requireAdminUser, adminVettedPartnersRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
 app.use("/api/admin/cross-pillar/tool-readiness", authMiddleware, requireAdminUser, adminCrossPillarToolReadinessRouter);

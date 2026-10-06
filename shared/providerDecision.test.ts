@@ -258,4 +258,13 @@ describe("provider decision engine", () => {
     expect(result.ranked[0].reasons).toContain("Other VYVA members would use this provider again");
     expect(result.ranked[1].uncertainties).toContain("Other VYVA members report missed visits");
   });
+
+  it("ranks a partner-vetted provider above strong public listings", () => {
+    const listing = candidate({ id: "public", source: "external", trusted: false, category: "home_service", name: "Fontaneria Centro", address: "1 Calle Mayor", rating: 4.9, reviewCount: 800, evidenceStatus: "verified", openNow: true });
+    const partner = candidate({ id: "partner", source: "partner", trusted: false, category: "home_service", name: "Ruiz", specialtyText: "plumber fontanero", evidenceStatus: "reported" });
+    const result = decideProviderCandidates([listing, partner], { ...homeRequest, criteria: ["trusted"], maxResults: 12 });
+    expect(result.ranked[0].candidate.id).toBe("partner");
+    expect(result.ranked[0].reasons).toContain("Vetted by a partner organisation");
+    expect(result.ranked[0].priorityNotes?.[0]).toContain("partner organisation vetted");
+  });
 });
