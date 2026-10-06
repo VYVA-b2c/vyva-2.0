@@ -399,7 +399,7 @@ describe("ConciergeScreen task navigation", () => {
     ["document", { kind: "document" }, "panel-insurance-admin"],
     ["appointment", { kind: "appointment", appointmentKind: "medical" }, "panel-appointment-assistant"],
     ["home service", { kind: "home_service" }, "panel-appointment-assistant"],
-    ["provider contact", { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" }, "panel-offers-search"],
+    ["provider contact", { kind: "provider_contact", providerSearchMode: "care", query: "find home care or a caregiver" }, "panel-offers-search"],
   ])("opens the reusable %s task workspace", async (_label, conciergeTaskEntry, expectedPanel) => {
     mockConciergeLists([]);
     localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
@@ -430,27 +430,33 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
   });
 
-  it("does not restore a cached home-service draft over Healthcare", async () => {
+  it("sends a new Healthcare task to Care Finder without creating a concierge task", async () => {
     mockConciergeLists([]);
-    localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(["/api/appointments/requests/active-home-service"], {
-      request: {
-        id: "cached-electrician", appointment_type: "home-service", status: "draft",
-        preferences: { service_intake: {
-          version: "home-service-intake-v1", origin: "app", service_type: "electrician",
-          urgency: "today", criteria: ["trusted"], answers: { problem_summary: "Broken socket" },
-        } },
-      },
-      options: [],
-    });
     renderScreen([{
       pathname: "/concierge/task/new",
       state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" } },
-    }], "task", client);
-    expect(await screen.findByTestId("panel-offers-search")).toBeInTheDocument();
-    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
-    expect(screen.getByTestId("input-offers-query")).toHaveValue("find a specialist");
+    }], "task");
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/care-finder"));
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/tasks", expect.objectContaining({ method: "POST" }));
+    expect(screen.queryByTestId("panel-offers-search")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["entry", { kind: "provider_contact", providerSearchMode: "specialist" }, { query: "knee pain" }],
+    ["saved progress", { kind: "provider_contact" }, { providerSearchMode: "specialist", query: "knee pain" }],
+  ])("resumes a saved health search (mode in %s) in Care Finder without overwriting it", async (_label, entry, progress) => {
+    const savedTask = {
+      id: savedTaskId, user_id: "user-1", kind: "provider_contact",
+      entry_payload: entry, progress_payload: progress,
+      stage: "details", status: "active", linked_pending_id: null, language: "en",
+      created_at: "2026-07-18T12:00:00.000Z", updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null, deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent(`/care-finder/${savedTaskId}`));
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(apiFetchMock).not.toHaveBeenCalledWith(`/api/concierge/tasks/${savedTaskId}`, expect.objectContaining({ method: "PATCH" }));
   });
 
   it("uses the confirmation stage for an unconfirmed active task", async () => {
@@ -467,7 +473,7 @@ describe("ConciergeScreen task navigation", () => {
 
   it.each([
     ["appointment", { appointmentType: "medical", note: "Annual check", requestedTime: "Tuesday morning" }, "input-appointment-note", "Annual check"],
-    ["provider_contact", { providerSearchMode: "specialist", query: "dermatologist nearby", criteria: ["nearby"] }, "input-offers-query", "dermatologist nearby"],
+    ["provider_contact", { providerSearchMode: "residence", query: "residence near the coast", criteria: ["nearby"] }, "input-offers-query", "residence near the coast"],
   ])("restores saved %s progress after refresh", async (kind, progress, fieldTestId, expectedValue) => {
     const savedTask = {
       id: savedTaskId,
@@ -1459,18 +1465,18 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
-  it("opens a Find Specialist task entry as a provider comparison search", async () => {
+  it("opens a non-health provider task entry as a provider comparison search", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen([{
       pathname: "/concierge/task/new",
-      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" } },
+      state: { conciergeTaskEntry: { kind: "provider_contact", providerSearchMode: "residence", query: "compare residences" } },
     }], "task");
 
     expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Good reputation");
-    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("find a specialist");
+    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("compare residences");
   });
 
   it("opens a Book Medical task entry directly in the medical appointment flow", async () => {

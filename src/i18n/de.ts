@@ -1849,7 +1849,7 @@ const de = {
       voiceContext: "Fragen Sie, welche Hilfe benötigt wird. Kontaktieren oder buchen Sie niemanden ohne Bestätigung.",
       options: {
         homeRepair: "Reparaturen zu Hause", homeRepairDetail: "Klempner, Elektriker, Reinigung",
-        healthcare: "Gesundheit", healthcareDetail: "Facharzt oder medizinische Hilfe finden",
+        healthcare: "Gesundheit", healthcareDetail: "Die passende Versorgung für ein Gesundheitsanliegen finden",
         adminService: "Verwaltungshilfe", adminServiceDetail: "Formulare, Briefe und Behördenangelegenheiten",
         homeCare: "Häusliche Betreuung", homeCareDetail: "Betreuungskräfte oder Pflegeheime vergleichen",
       },

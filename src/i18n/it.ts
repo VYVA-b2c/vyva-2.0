@@ -1759,7 +1759,7 @@ const it = {
       voiceContext: "Chiedi di quale aiuto ha bisogno la persona. Non contattare né prenotare nessuno senza conferma.",
       options: {
         homeRepair: "Riparazioni domestiche", homeRepairDetail: "Idraulico, elettricista, pulizie",
-        healthcare: "Salute", healthcareDetail: "Trova uno specialista o assistenza sanitaria",
+        healthcare: "Salute", healthcareDetail: "Trova le cure giuste per un problema di salute",
         adminService: "Assistenza amministrativa", adminServiceDetail: "Moduli, lettere e pratiche burocratiche",
         homeCare: "Assistenza domiciliare", homeCareDetail: "Confronta assistenti o strutture di cura",
       },

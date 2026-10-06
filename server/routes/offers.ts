@@ -1082,7 +1082,8 @@ function buildRankedOffer(
   const hasVerifiedEvidence = evidenceSummary.evidence.some((item) => item.status === "verified");
 
   return {
-    label: index === 0 ? "Opcion recomendada" : index === 1 ? "Alternativa 1" : "Alternativa 2",
+    // Ordering is not a quality ranking, so no option is labelled "recommended".
+    label: es ? `Opción ${index + 1}` : `Option ${index + 1}`,
     name: candidate.name,
     category,
     what_it_offers: hasVerifiedEvidence
@@ -1289,11 +1290,15 @@ export async function buildProviderOffers(
 ) {
   const documentQuery = documentContextQuery(documentContext, locale);
   const recheck = normaliseRecheckRequest(recheckRequest);
+  // Health searches must stay on the person's own words: the "Vivienda y
+  // cuidados" category terms are care homes and home help, which turned a
+  // knee-pain search into a care-home list.
+  const healthSearch = providerMode === "specialist";
   const searchTerms = [
     ...recheckSearchTerms(recheck),
     documentQuery,
     query,
-    ...CATEGORY_SEARCH_TERMS[category],
+    ...(healthSearch ? [] : CATEGORY_SEARCH_TERMS[category]),
     context.mobilityPreference === "delivery" ? "domicilio entrega" : "",
     context.priceSensitivity === "high" ? "descuento ahorro" : "",
   ].filter(Boolean);
@@ -1301,7 +1306,8 @@ export async function buildProviderOffers(
   const allResults = (await Promise.all(
     searchTerms.slice(0, 4).map((term) => searchGooglePlaces(term, context, locale).catch(() => [])),
   )).flat();
-  const guidedResults = allResults.length === 0
+  // Template "options" are not providers; never present them for health care.
+  const guidedResults = allResults.length === 0 && !healthSearch
     ? buildGuidedCandidates(category, context, locale)
     : [];
 
