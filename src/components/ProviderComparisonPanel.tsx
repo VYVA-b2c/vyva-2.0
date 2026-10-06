@@ -410,6 +410,92 @@ const MATRIX_COPY: Record<
   },
 };
 
+const DECISION_COPY: Record<ProviderComparisonLocale, {
+  eyebrow: string;
+  startWith: (name: string) => string;
+  noLeader: (count: number) => string;
+  assessed: (count: number) => string;
+  supported: (count: number) => string;
+  toConfirm: (count: number) => string;
+  why: string;
+  check: string;
+  next: string;
+  nextHelp: string;
+}> = {
+  en: {
+    eyebrow: "VYVA decision brief",
+    startWith: (name) => `Start with ${name}`,
+    noLeader: (count) => `${count} ${count === 1 ? "option" : "options"} found, but none is clearly ahead`,
+    assessed: (count) => `${count} ${count === 1 ? "option" : "options"} compared`,
+    supported: (count) => `${count} supported facts`,
+    toConfirm: (count) => `${count} points to confirm`,
+    why: "Why it stands out",
+    check: "Check before choosing",
+    next: "Prepare the next step",
+    nextHelp: "Review a message or contact route. Nothing is sent until you confirm.",
+  },
+  es: {
+    eyebrow: "Resumen de decisión de VYVA",
+    startWith: (name) => `Empieza por ${name}`,
+    noLeader: (count) => `Hay ${count} opciones, pero ninguna destaca con claridad`,
+    assessed: (count) => `${count} comparadas`,
+    supported: (count) => `${count} datos respaldados`,
+    toConfirm: (count) => `${count} puntos por confirmar`,
+    why: "Por qué destaca",
+    check: "Comprueba antes de elegir",
+    next: "Preparar el siguiente paso",
+    nextHelp: "Revisa el mensaje o la vía de contacto. No se envía nada sin tu confirmación.",
+  },
+  de: {
+    eyebrow: "VYVA Entscheidungshilfe",
+    startWith: (name) => `Beginnen Sie mit ${name}`,
+    noLeader: (count) => `${count} Optionen gefunden, aber keine liegt klar vorn`,
+    assessed: (count) => `${count} verglichen`,
+    supported: (count) => `${count} belegte Angaben`,
+    toConfirm: (count) => `${count} Punkte zu bestätigen`,
+    why: "Warum diese Option hervorsticht",
+    check: "Vor der Auswahl prüfen",
+    next: "Nächsten Schritt vorbereiten",
+    nextHelp: "Nachricht oder Kontaktweg prüfen. Ohne Ihre Bestätigung wird nichts gesendet.",
+  },
+  fr: {
+    eyebrow: "Synthèse de décision VYVA",
+    startWith: (name) => `Commencez par ${name}`,
+    noLeader: (count) => `${count} options trouvées, mais aucune ne se démarque clairement`,
+    assessed: (count) => `${count} comparées`,
+    supported: (count) => `${count} faits étayés`,
+    toConfirm: (count) => `${count} points à confirmer`,
+    why: "Pourquoi cette option se démarque",
+    check: "À vérifier avant de choisir",
+    next: "Préparer l'étape suivante",
+    nextHelp: "Vérifiez le message ou le moyen de contact. Rien n'est envoyé sans votre confirmation.",
+  },
+  it: {
+    eyebrow: "Sintesi decisionale VYVA",
+    startWith: (name) => `Inizia da ${name}`,
+    noLeader: (count) => `${count} opzioni trovate, ma nessuna è chiaramente in vantaggio`,
+    assessed: (count) => `${count} confrontate`,
+    supported: (count) => `${count} dati supportati`,
+    toConfirm: (count) => `${count} punti da confermare`,
+    why: "Perché si distingue",
+    check: "Da verificare prima di scegliere",
+    next: "Prepara il passo successivo",
+    nextHelp: "Controlla il messaggio o il canale di contatto. Nulla viene inviato senza conferma.",
+  },
+  pt: {
+    eyebrow: "Resumo de decisão VYVA",
+    startWith: (name) => `Comece por ${name}`,
+    noLeader: (count) => `${count} opções encontradas, mas nenhuma está claramente à frente`,
+    assessed: (count) => `${count} comparadas`,
+    supported: (count) => `${count} factos sustentados`,
+    toConfirm: (count) => `${count} pontos a confirmar`,
+    why: "Porque se destaca",
+    check: "Confirmar antes de escolher",
+    next: "Preparar o passo seguinte",
+    nextHelp: "Reveja a mensagem ou o meio de contacto. Nada é enviado sem a sua confirmação.",
+  },
+};
+
 function supportedLocale(locale: string): ProviderComparisonLocale {
   const key = locale.toLowerCase().split("-")[0] as ProviderComparisonLocale;
   return key in COPY ? key : "en";
@@ -518,6 +604,7 @@ export function ProviderComparisonPanel({
 }: ProviderComparisonPanelProps) {
   const copy = COPY[supportedLocale(locale)];
   const matrixCopy = MATRIX_COPY[supportedLocale(locale)];
+  const decisionCopy = DECISION_COPY[supportedLocale(locale)];
   const visibleOptions = options.slice(0, 3);
   const shortlisted = visibleOptions.filter((option) =>
     shortlistedIds.includes(option.id),
@@ -536,6 +623,16 @@ export function ProviderComparisonPanel({
   const orderedCriteria = [
     ...new Set([...priorityCriteria, ...PROVIDER_COMPARISON_CRITERIA]),
   ];
+  const visibleFacts = visibleOptions.flatMap((option) => Object.values(option.facts));
+  const supportedFactCount = visibleFacts.filter((fact) => fact.status === "verified" || fact.status === "reported").length;
+  const attentionFactCount = visibleFacts.filter((fact) => fact.status === "unknown" || fact.status === "conflicting").length;
+  const leadingOption = bestFit ?? visibleOptions[0] ?? null;
+  const leadingReasons = bestFit?.personalisedFit?.matchedPriorities.slice(0, 3) ?? [];
+  const leadingChecks = [
+    ...(leadingOption?.personalisedFit?.tradeOffs ?? []),
+    ...(leadingOption?.personalisedFit?.unmetMustHaves ?? []),
+    ...(leadingOption?.personalisedFit?.unknowns ?? []),
+  ].filter((value, index, values) => value && values.indexOf(value) === index).slice(0, 3);
 
   return (
     <section
@@ -543,30 +640,66 @@ export function ProviderComparisonPanel({
       data-testid="provider-comparison-panel"
     >
       <div
-        className={`rounded-[20px] border p-4 ${bestFit ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#FDE68A] bg-[#FFFBEB]"}`}
+        className={`rounded-[24px] border p-5 shadow-sm ${bestFit ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#FDE68A] bg-[#FFFBEB]"}`}
         data-testid="provider-recommendation-summary"
       >
         <p
           className={`text-[11px] font-black uppercase tracking-[0.12em] ${bestFit ? "text-[#047857]" : "text-[#A16207]"}`}
         >
-          {bestFit ? matrixCopy.best : matrixCopy.cautious}
+          {decisionCopy.eyebrow}
         </p>
-        {bestFit ? (
-          <>
-            <h4 className="mt-1 text-[21px] font-black text-vyva-text-1">
-              {bestFit.name}
-            </h4>
-            <p className="mt-1 text-[14px] leading-relaxed text-vyva-text-2">
-              {bestFit.personalisedFit?.explanation ||
-                bestFit.whyMaySuitYou ||
-                copy.whyFallback}
-            </p>
-          </>
-        ) : (
-          <p className="mt-1 text-[14px] leading-relaxed text-vyva-text-2">
-            {visibleOptions[0]?.personalisedFit?.explanation || copy.helper}
-          </p>
-        )}
+        <h4 className="mt-1 text-[22px] font-black leading-tight text-vyva-text-1">
+          {bestFit ? decisionCopy.startWith(bestFit.name) : decisionCopy.noLeader(visibleOptions.length)}
+        </h4>
+        <p className="mt-2 text-[14px] leading-relaxed text-vyva-text-2">
+          {leadingOption?.personalisedFit?.explanation || leadingOption?.whyMaySuitYou || copy.helper}
+        </p>
+
+        <div className="mt-4 grid grid-cols-3 gap-2" aria-label={copy.title}>
+          <div className="rounded-[14px] bg-white/80 px-3 py-2 text-center">
+            <p className="text-[18px] font-black text-vyva-text-1">{visibleOptions.length}</p>
+            <p className="text-[10px] font-bold leading-tight text-vyva-text-3">{decisionCopy.assessed(visibleOptions.length)}</p>
+          </div>
+          <div className="rounded-[14px] bg-white/80 px-3 py-2 text-center">
+            <p className="text-[18px] font-black text-[#047857]">{supportedFactCount}</p>
+            <p className="text-[10px] font-bold leading-tight text-vyva-text-3">{decisionCopy.supported(supportedFactCount)}</p>
+          </div>
+          <div className="rounded-[14px] bg-white/80 px-3 py-2 text-center">
+            <p className="text-[18px] font-black text-[#A16207]">{attentionFactCount}</p>
+            <p className="text-[10px] font-bold leading-tight text-vyva-text-3">{decisionCopy.toConfirm(attentionFactCount)}</p>
+          </div>
+        </div>
+
+        {leadingReasons.length > 0 ? (
+          <div className="mt-4" data-testid="provider-decision-reasons">
+            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#047857]">{decisionCopy.why}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {leadingReasons.map((reason) => <span key={reason} className="rounded-full bg-white px-3 py-1.5 text-[12px] font-bold text-[#065F46]">{copy.criteria[reason as ProviderComparisonCriterion] ?? reason}</span>)}
+            </div>
+          </div>
+        ) : null}
+
+        {leadingChecks.length > 0 ? (
+          <div className="mt-4 rounded-[16px] border border-amber-200 bg-white/75 p-3" data-testid="provider-decision-checks">
+            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-amber-800">{decisionCopy.check}</p>
+            <ul className="mt-2 space-y-1 text-[12px] font-bold text-vyva-text-2">
+              {leadingChecks.map((item) => <li key={item} className="flex gap-2"><CircleAlert size={14} className="mt-0.5 shrink-0 text-amber-700" />{item}</li>)}
+            </ul>
+          </div>
+        ) : null}
+
+        {leadingOption ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-[16px] bg-white p-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
+            <div>
+              <p className="text-[13px] font-black text-vyva-text-1">{decisionCopy.next}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-vyva-text-3">{decisionCopy.nextHelp}</p>
+            </div>
+            <Button type="button" onClick={() => onPrepareContact(leadingOption)} className="min-h-11 shrink-0 rounded-full bg-vyva-purple px-5 font-black text-white" data-testid="button-provider-decision-next">
+              <Send size={16} className="mr-2" />
+              {copy.prepareContact}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-3 @[760px]:hidden" data-testid="provider-comparison-stacked">

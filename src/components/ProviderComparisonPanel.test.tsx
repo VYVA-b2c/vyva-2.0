@@ -41,7 +41,10 @@ describe("ProviderComparisonPanel", () => {
     expect(panel).toHaveTextContent("Distance");
     expect(panel).toHaveTextContent("Insurance / coverage");
     expect(panel).toHaveTextContent("Not provided");
-    expect(panel).toHaveTextContent("No confirmed best fit yet");
+    expect(panel).toHaveTextContent("VYVA decision brief");
+    expect(panel).toHaveTextContent("1 option found, but none is clearly ahead");
+    expect(panel).toHaveTextContent("4 supported facts");
+    expect(panel).toHaveTextContent("2 points to confirm");
     expect(screen.getByTestId("provider-recommendation-summary")).toBeInTheDocument();
     expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Not independently verified");
     expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Provider source");
@@ -49,6 +52,39 @@ describe("ProviderComparisonPanel", () => {
     expect(screen.getByTestId("provider-fact-checked-provider-a-price")).not.toHaveTextContent("Check time not provided");
     expect(panel).not.toHaveTextContent("/100");
     expect(panel).not.toHaveTextContent("VYVA score");
+  });
+
+  it("turns personalised evidence into a concise decision brief and next step", () => {
+    const onPrepareContact = vi.fn();
+    const personalised = buildProviderComparisonOptions([{
+      ...options[0],
+      personalised_fit: {
+        matchedPriorities: ["distance", "reputation"],
+        tradeOffs: ["Price is provider-reported"],
+        unmetMustHaves: [],
+        unknowns: ["Same-day availability is not confirmed"],
+        explanation: "Closest option with a strong public review history.",
+        recommendationStatus: "best_fit",
+      },
+    }]);
+
+    render(
+      <ProviderComparisonPanel
+        options={personalised}
+        locale="en"
+        shortlistedIds={[]}
+        onToggleShortlist={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onPrepareContact={onPrepareContact}
+      />,
+    );
+
+    expect(screen.getByTestId("provider-recommendation-summary")).toHaveTextContent("Start with Harbour Clinic");
+    expect(screen.getByTestId("provider-decision-reasons")).toHaveTextContent("Distance");
+    expect(screen.getByTestId("provider-decision-reasons")).toHaveTextContent("Reputation");
+    expect(screen.getByTestId("provider-decision-checks")).toHaveTextContent("Same-day availability is not confirmed");
+    fireEvent.click(screen.getByTestId("button-provider-decision-next"));
+    expect(onPrepareContact).toHaveBeenCalledWith(personalised[0]);
   });
 
   it("supports shortlist, save provider, contact preparation, and optional watch", () => {
