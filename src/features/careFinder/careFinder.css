@@ -94,3 +94,99 @@
     transform: none;
   }
 }
+
+/* Layout follows the space Care Finder is given, not the browser window:
+   inside the app shell it often sits in a phone-width column on a desktop
+   screen, where viewport breakpoints would squeeze it into two columns. */
+.care-finder {
+  container-type: inline-size;
+  container-name: care-finder;
+}
+
+.care-finder .cf-page {
+  padding: 16px 16px 0;
+}
+
+.care-finder .cf-title {
+  font-size: 22px;
+}
+
+.care-finder .cf-h2 {
+  font-size: 28px;
+}
+
+.care-finder .cf-tools {
+  width: 100%;
+}
+
+.care-finder .cf-btn {
+  width: 100%;
+}
+
+.care-finder .cf-layout {
+  display: grid;
+  gap: 24px;
+}
+
+.care-finder .cf-summary-list[data-expanded="false"] {
+  display: none;
+}
+
+@container care-finder (min-width: 560px) {
+  .care-finder .cf-page {
+    padding: 24px 24px 0;
+  }
+
+  .care-finder .cf-title {
+    font-size: 26px;
+  }
+
+  .care-finder .cf-h2 {
+    font-size: 32px;
+  }
+
+  .care-finder .cf-tools {
+    width: auto;
+  }
+
+  .care-finder .cf-btn {
+    width: auto;
+  }
+
+  .care-finder .cf-btn.cf-btn-block {
+    width: 100%;
+  }
+
+  .care-finder .cf-row {
+    flex-direction: row;
+  }
+
+  .care-finder .cf-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .care-finder .cf-fact-row {
+    grid-template-columns: minmax(0, 11rem) 1fr;
+  }
+}
+
+/* Two columns only when there is genuinely room for both. */
+@container care-finder (min-width: 960px) {
+  .care-finder .cf-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+
+  .care-finder .cf-aside {
+    position: sticky;
+    top: 16px;
+  }
+
+  .care-finder .cf-summary-toggle {
+    display: none;
+  }
+
+  .care-finder .cf-summary-list[data-expanded="false"] {
+    display: block;
+  }
+}
