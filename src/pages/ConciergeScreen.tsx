@@ -8,6 +8,7 @@ import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { homeHelpCopy } from "../../shared/homeHelpCopy";
 import { homeServiceText } from "../../shared/homeServiceText";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
+import { HomeServiceOutcomeCheckIn } from "@/components/concierge/HomeServiceOutcomeCheckIn";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20521,6 +20522,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     )}
                     </>
                   ) : (
+                    <>
+                    <HomeServiceOutcomeCheckIn language={locale} />
                     <HomeServicePicker
                       language={locale}
                       onSelect={(service) => {
@@ -20536,6 +20539,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                         setAppointmentError(null);
                       }}
                     />
+                    </>
                   )}
                 </div>
               </div>

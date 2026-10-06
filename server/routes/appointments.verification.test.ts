@@ -2,7 +2,7 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ select: vi.fn(), update: vi.fn(), verify: vi.fn(), loadShared: vi.fn(), saveShared: vi.fn() }));
+const mocks = vi.hoisted(() => ({ select: vi.fn(), update: vi.fn(), verify: vi.fn(), loadShared: vi.fn(), saveShared: vi.fn(), recordOutcome: vi.fn(), listDue: vi.fn() }));
 vi.mock("../db.js", () => ({ db: { select: mocks.select, update: mocks.update } }));
 vi.mock("../middleware/auth.js", () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -22,6 +22,12 @@ vi.mock("../services/providerReputation.js", async importOriginal => ({
   saveSharedVerification: mocks.saveShared,
 }));
 
+vi.mock("../services/providerOutcomes.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../services/providerOutcomes.js")>(),
+  recordOutcome: mocks.recordOutcome,
+  listDueOutcomes: mocks.listDue,
+}));
+
 import router from "./appointments.js";
 
 const verification = () => ({ version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Limited evidence"], concerns: [], retryable: false });
@@ -35,6 +41,7 @@ function arrange(options: ReturnType<typeof option>[], foundRequest = true, pref
 }
 function app() {
   const instance = express();
+  instance.use(express.json());
   instance.use((req, _res, next) => { req.user = { id: "owner", email: "owner@example.com" }; next(); });
   instance.use("/api/appointments", router);
   return instance;
@@ -117,5 +124,30 @@ describe("provider verification selection", () => {
     arrange([{ ...option("four", 4), provider_snapshot: { ...option("four", 4).provider_snapshot, verification_eligible: false } }]);
     await request(app()).post(endpoint).expect(200);
     expect(mocks.verify).not.toHaveBeenCalled();
+  });
+});
+
+describe("job outcome check-in routes", () => {
+  const requestId = "11111111-1111-4111-8111-111111111111";
+  beforeEach(() => vi.resetAllMocks());
+
+  it("lists due check-ins for the signed-in member", async () => {
+    mocks.listDue.mockResolvedValue([{ requestId, providerName: "Fontaneria Ruiz", serviceType: "plumber" }]);
+    const response = await request(app()).get("/api/appointments/outcomes/due").expect(200);
+    expect(mocks.listDue).toHaveBeenCalledWith("owner");
+    expect(response.body.items).toHaveLength(1);
+  });
+
+  it("records a complete answer against the member's own request", async () => {
+    mocks.recordOutcome.mockResolvedValue("recorded");
+    await request(app()).post(`/api/appointments/requests/${requestId}/outcome`).send({ arrived: "yes", price: "as_quoted", wouldUseAgain: "yes" }).expect(200);
+    expect(mocks.recordOutcome).toHaveBeenCalledWith({ userId: "owner", requestId, answer: { arrived: "yes", price: "as_quoted", wouldUseAgain: "yes" } });
+  });
+
+  it("rejects partial answers and unknown requests", async () => {
+    await request(app()).post(`/api/appointments/requests/${requestId}/outcome`).send({ arrived: "yes" }).expect(400);
+    await request(app()).post("/api/appointments/requests/not-a-uuid/outcome").send({ skipped: true }).expect(400);
+    mocks.recordOutcome.mockResolvedValue("not_found");
+    await request(app()).post(`/api/appointments/requests/${requestId}/outcome`).send({ skipped: true }).expect(404);
   });
 });
