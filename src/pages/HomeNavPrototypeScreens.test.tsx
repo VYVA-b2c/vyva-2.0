@@ -496,7 +496,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByRole("heading", { name: "Karim" })).toBeInTheDocument();
     expect(screen.getByTestId("button-prototype-back")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
-    expect(screen.getByText("Profile & settings")).toBeInTheDocument();
+    expect(screen.getByText("My profile")).toBeInTheDocument();
     expect(screen.getByText("Tarifa, Spain")).toBeInTheDocument();
     expect(screen.getByText("Your details")).toBeInTheDocument();
     expect(screen.getByText("Account details")).toBeInTheDocument();

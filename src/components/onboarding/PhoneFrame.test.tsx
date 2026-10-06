@@ -132,6 +132,28 @@ describe("PhoneFrame companion mode", () => {
     }
   });
 
+  it("keeps the selected preview theme when returning from a profile section", () => {
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    try {
+      window.history.pushState({}, "", "/dev/profile-overview/section/address?theme=light");
+
+      render(
+        <PhoneFrame subtitle="Home address" showBack>
+          <p>Address form</p>
+        </PhoneFrame>
+      );
+
+      expect(screen.getByTestId("phone-frame")).toHaveAttribute("data-home-master-theme", "light");
+      fireEvent.click(screen.getByTestId("button-phone-frame-back"));
+      expect(`${window.location.pathname}${window.location.search}`).toBe(
+        "/dev/profile-overview/group/account?theme=light",
+      );
+    } finally {
+      window.history.pushState({}, "", originalPath || "/");
+    }
+  });
+
   it("can render a compact right-side action without showing all sections", () => {
     render(
       <PhoneFrame

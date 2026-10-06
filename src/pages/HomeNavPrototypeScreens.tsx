@@ -335,7 +335,7 @@ function RoundControl({
 function VyvaProfileControl({
   onClick,
   testId = "button-home-profile",
-  label = "Open profile and settings",
+  label = "Open my profile",
 }: {
   onClick: () => void;
   testId?: string;
@@ -1200,7 +1200,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
               {screenCopy.location}
             </p>
             <p className={["mt-2 font-body text-[13px] font-black uppercase tracking-[0.12em]", isDark ? "text-[#BDAED4]" : "text-[#9E92AA]"].join(" ")}>
-              Profile & settings
+              My profile
             </p>
           </div>
         </div>

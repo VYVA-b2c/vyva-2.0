@@ -1236,7 +1236,7 @@ function HomeMasterPreviewLanguageSync() {
   const { language } = useLanguage();
 
   React.useEffect(() => {
-    if (!location.pathname.startsWith("/dev/home-master")) return;
+    if (!location.pathname.startsWith("/dev/home-master") && !location.pathname.startsWith("/dev/profile-overview")) return;
 
     const searchParams = new URLSearchParams(location.search);
     const requestedLanguage = searchParams.get("language") ?? searchParams.get("lang");
