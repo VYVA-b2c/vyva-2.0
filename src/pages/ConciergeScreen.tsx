@@ -77,6 +77,18 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
+import { compressBillImage, readFileAsDataUrl } from "@/lib/documentImage";
+import { DocumentHelpFlow, type DocumentHelpSaveState } from "@/components/document-help/DocumentHelpFlow";
+import {
+  EMPTY_DOCUMENT_HELP_DETAILS,
+  documentHelpOption,
+  documentHelpText,
+  type DocumentHelpDetails,
+  type DocumentHelpKind,
+  type DocumentHelpOption,
+  type DocumentHelpStep,
+} from "@/components/document-help/documentHelpModel";
+import { primaryDocumentDeadline, type DocumentHelpReading } from "../../shared/documentHelpReading";
 import { ConciergeTaskWorkspaceHeader } from "@/components/concierge/ConciergeTaskNavigation";
 import { ProviderTaskWizard } from "@/components/concierge/ProviderTaskWizard";
 import { emptyProviderServiceIntake, intakeMustHaveLabels, intakeSearchTerms } from "@/components/concierge/providerIntakeConfig";
@@ -1692,13 +1704,8 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
 ]);
 
 type ScamCheckKind = "email" | "document" | "phone" | "company";
-type InsuranceAdminKind = "insurance-letter" | "claim" | "government-form" | "call-email";
-type InsuranceAdminDetails = {
-  subject: string;
-  recipient: string;
-  deadline: string;
-  notes: string;
-};
+type InsuranceAdminKind = DocumentHelpKind;
+type InsuranceAdminDetails = DocumentHelpDetails;
 
 const SCAM_CHECK_OPTIONS: Array<{
   key: ScamCheckKind;
@@ -1747,53 +1754,6 @@ const SCAM_CHECK_OPTIONS: Array<{
   },
 ];
 
-const INSURANCE_ADMIN_OPTIONS: Array<{
-  key: InsuranceAdminKind;
-  en: string;
-  es: string;
-  detailEn: string;
-  detailEs: string;
-  requestedTool: ConciergeToolRequirement;
-  Icon: LucideIcon;
-}> = [
-  {
-    key: "insurance-letter",
-    en: "Insurance letter or bill",
-    es: "Carta o factura de seguro",
-    detailEn: "Photo, upload, or paste",
-    detailEs: "Foto, subir o pegar",
-    requestedTool: "camera_or_upload",
-    Icon: FileUp,
-  },
-  {
-    key: "claim",
-    en: "Claim or reimbursement",
-    es: "Reclamo o reembolso",
-    detailEn: "Prepare what to send",
-    detailEs: "Preparar que enviar",
-    requestedTool: "email",
-    Icon: PiggyBank,
-  },
-  {
-    key: "government-form",
-    en: "Government/admin form",
-    es: "Formulario oficial",
-    detailEn: "Fill step by step",
-    detailEs: "Rellenar paso a paso",
-    requestedTool: "camera_or_upload",
-    Icon: Building2,
-  },
-  {
-    key: "call-email",
-    en: "Call or email someone",
-    es: "Llamar o enviar email",
-    detailEn: "Draft before action",
-    detailEs: "Borrador antes de actuar",
-    requestedTool: "phone_call",
-    Icon: PhoneCall,
-  },
-];
-
 function scamCheckDetailCopy(kind: ScamCheckKind, isSpanish: boolean): { label: string; placeholder: string; helper: string } {
   const copy: Record<ScamCheckKind, { en: string; es: string; placeholderEn: string; placeholderEs: string; helperEn: string; helperEs: string }> = {
     email: {
@@ -1837,49 +1797,6 @@ function scamCheckDetailCopy(kind: ScamCheckKind, isSpanish: boolean): { label: 
   };
 }
 
-function insuranceAdminDetailCopy(kind: InsuranceAdminKind, isSpanish: boolean): {
-  subjectLabel: string;
-  subjectPlaceholder: string;
-  recipientLabel: string;
-  deadlineLabel: string;
-  notesLabel: string;
-} {
-  if (kind === "call-email") {
-    return {
-      subjectLabel: isSpanish ? "Motivo" : "Reason",
-      subjectPlaceholder: isSpanish ? "Ej. pedir cita, aclarar factura..." : "E.g. request appointment, clarify bill...",
-      recipientLabel: isSpanish ? "A quien contactar" : "Who to contact",
-      deadlineLabel: isSpanish ? "Para cuando" : "By when",
-      notesLabel: isSpanish ? "Resultado deseado" : "Desired outcome",
-    };
-  }
-  if (kind === "government-form") {
-    return {
-      subjectLabel: isSpanish ? "Formulario" : "Form",
-      subjectPlaceholder: isSpanish ? "Nombre del formulario o tramite..." : "Form or application name...",
-      recipientLabel: isSpanish ? "Organismo" : "Office / agency",
-      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-      notesLabel: isSpanish ? "Datos que ya tienes" : "Details you already have",
-    };
-  }
-  if (kind === "claim") {
-    return {
-      subjectLabel: isSpanish ? "Que reclamar" : "What to claim",
-      subjectPlaceholder: isSpanish ? "Reembolso, pago, factura..." : "Reimbursement, payment, bill...",
-      recipientLabel: isSpanish ? "Aseguradora o destinatario" : "Insurer or recipient",
-      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-      notesLabel: isSpanish ? "Documentos o importes" : "Documents or amounts",
-    };
-  }
-  return {
-    subjectLabel: isSpanish ? "Carta o factura" : "Letter or bill",
-    subjectPlaceholder: isSpanish ? "Que quieres entender..." : "What you want to understand...",
-    recipientLabel: isSpanish ? "Aseguradora" : "Insurer",
-    deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-    notesLabel: isSpanish ? "Preguntas o preocupaciones" : "Questions or worries",
-  };
-}
-
 function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], detail: string, isSpanish: boolean): Record<string, unknown> {
   const cleanDetail = detail.trim();
   const optionLabel = isSpanish ? option.es : option.en;
@@ -1911,17 +1828,42 @@ function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], d
   return payload;
 }
 
-function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails, isSpanish: boolean): Record<string, unknown> {
+function documentHelpReadingPayload(reading: DocumentHelpReading | null): Record<string, unknown> {
+  if (!reading) return { has_document: false };
+  if (reading.status !== "read") return { has_document: true, document_read_status: reading.status };
+  const deadline = primaryDocumentDeadline(reading);
+  return {
+    has_document: true,
+    document_read_status: "read",
+    document_summary: reading.summary,
+    document_organization: reading.organization,
+    document_type_label: reading.document_type_label,
+    document_deadline: deadline?.date ?? deadline?.text ?? null,
+    document_dates: reading.dates,
+    document_amounts: reading.amounts,
+    document_requested_actions: reading.requested_actions,
+    document_unclear: reading.unclear,
+    document_read_confidence: reading.confidence,
+  };
+}
+
+function insuranceAdminStructuredPayload(
+  option: DocumentHelpOption,
+  details: InsuranceAdminDetails,
+  reading: DocumentHelpReading | null,
+  isSpanish: boolean,
+): Record<string, unknown> {
   const subject = details.subject.trim();
   const recipient = details.recipient.trim();
   const deadline = details.deadline.trim();
   const notes = details.notes.trim();
-  const optionLabel = isSpanish ? option.es : option.en;
+  const optionLabel = documentHelpText(option.title, isSpanish);
   const payload: Record<string, unknown> = {
     task_type: option.key,
     admin_task: optionLabel,
     action_type: option.requestedTool,
     requested_tool: option.requestedTool,
+    ...documentHelpReadingPayload(reading),
   };
 
   if (subject) {
@@ -1939,6 +1881,64 @@ function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[
   if (notes) payload.notes = notes;
 
   return payload;
+}
+
+function documentHelpReadingPromptLines(reading: DocumentHelpReading | null, isSpanish: boolean): string {
+  if (!reading || reading.status !== "read") return "";
+  const lines = [
+    reading.summary ? `${isSpanish ? "El documento dice" : "The document says"}: ${reading.summary}` : "",
+    reading.dates.length
+      ? `${isSpanish ? "Fechas" : "Dates"}: ${reading.dates.map((entry) => `${entry.label} ${entry.date ?? entry.text}`).join("; ")}.`
+      : "",
+    reading.amounts.length
+      ? `${isSpanish ? "Importes" : "Amounts"}: ${reading.amounts.map((amount) => `${amount.label} ${amount.amount}${amount.currency ? ` ${amount.currency}` : ""}`).join("; ")}.`
+      : "",
+    reading.requested_actions.length
+      ? `${isSpanish ? "Pide" : "It asks"}: ${reading.requested_actions.join("; ")}.`
+      : "",
+  ];
+  return lines.filter(Boolean).join(" ");
+}
+
+function insuranceAdminPrompt(
+  option: DocumentHelpOption,
+  details: InsuranceAdminDetails,
+  reading: DocumentHelpReading | null,
+  isSpanish: boolean,
+) {
+  const common = isSpanish
+    ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
+    : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
+  const detailLines = [
+    details.subject.trim() ? (isSpanish ? `Tema: ${details.subject.trim()}.` : `Subject: ${details.subject.trim()}.`) : "",
+    details.recipient.trim() ? (isSpanish ? `Destinatario: ${details.recipient.trim()}.` : `Recipient: ${details.recipient.trim()}.`) : "",
+    details.deadline.trim() ? (isSpanish ? `Fecha limite: ${details.deadline.trim()}.` : `Deadline: ${details.deadline.trim()}.`) : "",
+    details.notes.trim() ? (isSpanish ? `Notas: ${details.notes.trim()}.` : `Notes: ${details.notes.trim()}.`) : "",
+    documentHelpReadingPromptLines(reading, isSpanish),
+  ].filter(Boolean).join(" ");
+  const detailText = detailLines || (isSpanish ? "Pregunta por los datos que falten." : "Ask for any missing details.");
+  switch (option.key) {
+    case "insurance-letter":
+      return isSpanish
+        ? `Ayudame a entender una carta o factura. ${detailText} Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
+        : `Help me understand a letter or bill. ${detailText} Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
+    case "claim":
+      return isSpanish
+        ? `Ayudame a preparar un reclamo o reembolso. ${detailText} Prepara un borrador para revisar. ${common}`
+        : `Help me prepare a claim or reimbursement. ${detailText} Prepare a draft for review. ${common}`;
+    case "government-form":
+      return isSpanish
+        ? `Ayudame a rellenar un formulario oficial o administrativo. ${detailText} Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
+        : `Help me fill a government or admin form. ${detailText} Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
+    case "call-email":
+      return isSpanish
+        ? `Ayudame a preparar una llamada o email administrativo. ${detailText} Prepara guion o borrador y espera mi confirmacion. ${common}`
+        : `Help me prepare an admin call or email. ${detailText} Prepare a script or draft and wait for my confirmation. ${common}`;
+    default:
+      return isSpanish
+        ? `No se bien que es este documento. ${detailText} Explicame que es y si tengo que hacer algo. ${common}`
+        : `I am not sure what this document is. ${detailText} Explain what it is and whether I need to do anything. ${common}`;
+  }
 }
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
@@ -3146,71 +3146,6 @@ async function saveProviderShortlistAction(params: {
   const result = await trigger.json() as { pendingId?: string | null };
   if (!result.pendingId) throw new Error("Could not save provider shortlist");
   return { pendingId: result.pendingId };
-}
-
-function compressBillImage(file: File, targetChars = 1_500_000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("canvas context unavailable"));
-
-      const emergencyMode = targetChars <= 120_000;
-      const qualities = emergencyMode
-        ? [0.48, 0.4, 0.32, 0.24, 0.16, 0.1]
-        : [0.86, 0.78, 0.68, 0.58, 0.48, 0.38];
-      const maxSizes = emergencyMode
-        ? [620, 520, 420, 340, 260, 200, 160]
-        : [1900, 1600, 1300, 1050, 850];
-      let best = "";
-
-      for (const maxSize of maxSizes) {
-        let { width, height } = img;
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height = Math.round((height * maxSize) / width);
-            width = maxSize;
-          } else {
-            width = Math.round((width * maxSize) / height);
-            height = maxSize;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-
-        for (const quality of qualities) {
-          const dataUrl = canvas.toDataURL("image/jpeg", quality);
-          if (!best || dataUrl.length < best.length) best = dataUrl;
-          if (dataUrl.length <= targetChars) {
-            resolve(dataUrl);
-            return;
-          }
-        }
-      }
-
-      resolve(best);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("image load failed"));
-    };
-    img.src = url;
-  });
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("No he podido abrir el archivo."));
-    reader.readAsDataURL(file);
-  });
 }
 
 function billReaderEndpoints(): string[] {
@@ -9997,12 +9932,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [selectedInsuranceAdminKind, setSelectedInsuranceAdminKind] = useState<InsuranceAdminKind | null>(() => (
     mode === "task" && taskEntry?.kind === "document" ? taskEntry.documentKind ?? null : null
   ));
-  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>({
-    subject: "",
-    recipient: "",
-    deadline: "",
-    notes: "",
-  });
+  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>(EMPTY_DOCUMENT_HELP_DETAILS);
+  const [documentHelpStep, setDocumentHelpStep] = useState<DocumentHelpStep>(() => (
+    mode === "task" && taskEntry?.kind === "document" && taskEntry.documentKind ? "details" : "choose"
+  ));
+  const [documentHelpReading, setDocumentHelpReading] = useState<DocumentHelpReading | null>(null);
+  const [documentHelpFileName, setDocumentHelpFileName] = useState<string | null>(null);
+  const [documentHelpSubmitted, setDocumentHelpSubmitted] = useState(false);
+  const [taskSaveState, setTaskSaveState] = useState<DocumentHelpSaveState>(null);
   const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(() => mode === "task" && taskEntry?.kind === "otc_pharmacy");
   const [otcItemText, setOtcItemText] = useState("");
   const [otcFulfillmentPreference, setOtcFulfillmentPreference] = useState<"delivery" | "pickup">("delivery");
@@ -10102,6 +10039,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
     if (effectiveTaskEntry.kind === "document") {
       setSelectedInsuranceAdminKind(effectiveTaskEntry.documentKind ?? null);
+      setDocumentHelpStep(effectiveTaskEntry.documentKind ? "details" : "choose");
     } else if (effectiveTaskEntry.kind === "appointment" || effectiveTaskEntry.kind === "home_service") {
       const chipKey = effectiveTaskEntry.kind === "home_service" ? "home-service" : effectiveTaskEntry.appointmentKind;
       setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === chipKey) ?? null);
@@ -10148,9 +10086,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     const progress = persistedTask.progress_payload;
 
     if (persistedTask.kind === "document") {
+      const documentKind = progress.documentKind ?? effectiveTaskEntry?.documentKind ?? null;
       setInsuranceAdminOpen(true);
-      setSelectedInsuranceAdminKind(progress.documentKind ?? effectiveTaskEntry?.documentKind ?? null);
-      if (progress.documentDetails) setInsuranceAdminDetails(progress.documentDetails);
+      setSelectedInsuranceAdminKind(documentKind);
+      if (progress.documentDetails) setInsuranceAdminDetails({ ...EMPTY_DOCUMENT_HELP_DETAILS, ...progress.documentDetails });
+      setDocumentHelpStep(documentKind ? progress.documentStep ?? "details" : "choose");
+      setDocumentHelpReading((progress.documentReading as DocumentHelpReading | null | undefined) ?? null);
+      setDocumentHelpFileName(progress.documentFileName ?? null);
       return;
     }
 
@@ -10247,6 +10189,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         return {
           documentKind: selectedInsuranceAdminKind,
           documentDetails: insuranceAdminDetails,
+          // Consent is never persisted: a resumed task re-enters at review, not confirm.
+          documentStep: documentHelpStep === "confirm" ? "review" : documentHelpStep,
+          documentReading: documentHelpReading,
+          documentFileName: documentHelpFileName,
         };
       case "appointment":
         return {
@@ -10307,6 +10253,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentCanvasStep,
     appointmentNote,
     appointmentRequest?.id,
+    documentHelpFileName,
+    documentHelpReading,
+    documentHelpStep,
     effectiveTaskEntry?.kind,
     homeServiceCanvasPhotoName,
     homeServiceCanvasStep,
@@ -10342,7 +10291,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     || (effectiveTaskEntry?.kind === "transport" && Boolean(rideCanvasStep && !["destination", "pickup", "pickup_custom"].includes(rideCanvasStep)))
     || appointmentOptions.length > 0
     || offersResult
-    || (effectiveTaskEntry?.kind === "document" && routePrefill)
+    || (effectiveTaskEntry?.kind === "document" && (documentHelpStep === "review" || documentHelpStep === "confirm"))
     ? "review"
     : "details";
 
@@ -10352,17 +10301,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (nextHash === lastSavedConciergeTaskHashRef.current) return;
     const timer = window.setTimeout(() => {
       lastSavedConciergeTaskHashRef.current = nextHash;
+      setTaskSaveState("saving");
       void updateConciergeTaskDraft({
         id: persistedTask.id,
         progress: savedConciergeTaskProgress,
         stage: savedConciergeTaskStage,
       }).then((updatedTask) => {
+        setTaskSaveState("saved");
         queryClient.setQueryData(["/api/concierge/tasks", updatedTask.id], updatedTask);
         queryClient.setQueryData<ConciergeTaskDraft[]>(["/api/concierge/tasks"], (current) => (
           current?.map((task) => task.id === updatedTask.id ? updatedTask : task) ?? current
         ));
       }).catch(() => {
         lastSavedConciergeTaskHashRef.current = null;
+        setTaskSaveState("error");
       });
     }, 500);
     return () => window.clearTimeout(timer);
@@ -12426,6 +12378,34 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     },
     onError: (error) => {
       setRoutePrefillError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la tarea." : "I could not prepare the task."));
+    },
+  });
+
+  // Document Help confirms on its own final screen, so it prepares the task directly
+  // instead of going through the generic route-prefill review panel.
+  const documentHelpSubmitMutation = useMutation({
+    mutationFn: () => {
+      const option = documentHelpOption(selectedInsuranceAdminKind);
+      if (!option) throw new Error("Document help kind is required");
+      const label = documentHelpText(option.title, isSpanish);
+      const payload = insuranceAdminStructuredPayload(option, insuranceAdminDetails, documentHelpReading, isSpanish);
+      const prefill: ConciergeRoutePrefill = {
+        kind: "task",
+        message: insuranceAdminPrompt(option, insuranceAdminDetails, documentHelpReading, isSpanish),
+        flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
+        requestedTool: option.requestedTool,
+        actionLabel: label,
+        summary: isSpanish ? `Gestion preparada: ${label}.` : `Paperwork task prepared: ${label}.`,
+        payload: persistedTask ? { ...payload, concierge_task_id: persistedTask.id } : payload,
+        useCase: "admin_task",
+      };
+      return prepareToolGatedConciergeTask({ prefill, readiness: routePrefillTaskReadiness(prefill), locale });
+    },
+    onSuccess: async (result) => {
+      setDocumentHelpSubmitted(true);
+      setIsRightNowHidden(false);
+      if (result.pendingId) setVisibleActionId(result.pendingId);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
   });
 
@@ -15037,7 +15017,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
     setSelectedInsuranceAdminKind(initialKind);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "", ...initialDetails });
+    setInsuranceAdminDetails({ ...EMPTY_DOCUMENT_HELP_DETAILS, ...initialDetails });
+    setDocumentHelpStep(initialKind ? "details" : "choose");
+    setDocumentHelpReading(null);
+    setDocumentHelpFileName(null);
+    setDocumentHelpSubmitted(false);
+    documentHelpSubmitMutation.reset();
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -15045,73 +15030,15 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     }, 80);
   }
 
-  function insuranceAdminReadiness(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
-      operator_review: true,
-      camera_or_upload: true,
-      email: false,
-      phone_call: false,
-    };
-    return evaluateConciergeToolReadiness({
-      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
-      requestedTool: option.requestedTool,
-      capabilities,
-      provider: { name: isSpanish ? option.es : option.en },
-    });
-  }
-
-  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails) {
-    const common = isSpanish
-      ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
-      : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
-    const detailLines = [
-      details.subject.trim() ? (isSpanish ? `Tema: ${details.subject.trim()}.` : `Subject: ${details.subject.trim()}.`) : "",
-      details.recipient.trim() ? (isSpanish ? `Destinatario: ${details.recipient.trim()}.` : `Recipient: ${details.recipient.trim()}.`) : "",
-      details.deadline.trim() ? (isSpanish ? `Fecha limite: ${details.deadline.trim()}.` : `Deadline: ${details.deadline.trim()}.`) : "",
-      details.notes.trim() ? (isSpanish ? `Notas: ${details.notes.trim()}.` : `Notes: ${details.notes.trim()}.`) : "",
-    ].filter(Boolean).join(" ");
-    const detailText = detailLines || (isSpanish ? "Pregunta por los datos que falten." : "Ask for any missing details.");
-    if (option.key === "insurance-letter") {
-      return isSpanish
-        ? `Ayudame a entender una carta o factura de seguro. ${detailText} Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
-        : `Help me understand an insurance letter or bill. ${detailText} Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
-    }
-    if (option.key === "claim") {
-      return isSpanish
-        ? `Ayudame a preparar un reclamo o reembolso. ${detailText} Prepara un borrador para revisar. ${common}`
-        : `Help me prepare a claim or reimbursement. ${detailText} Prepare a draft for review. ${common}`;
-    }
-    if (option.key === "government-form") {
-      return isSpanish
-        ? `Ayudame a rellenar un formulario oficial o administrativo. ${detailText} Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
-        : `Help me fill a government or admin form. ${detailText} Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
-    }
-    return isSpanish
-      ? `Ayudame a preparar una llamada o email administrativo. ${detailText} Prepara guion o borrador y espera mi confirmacion. ${common}`
-      : `Help me prepare an admin call or email. ${detailText} Prepare a script or draft and wait for my confirmation. ${common}`;
-  }
-
-  function handleInsuranceAdminChoice(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    setSelectedInsuranceAdminKind(option.key);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
-  }
-
-  function prepareSelectedInsuranceAdminTask() {
-    const option = INSURANCE_ADMIN_OPTIONS.find((item) => item.key === selectedInsuranceAdminKind);
-    if (!option) return;
-    prepareConciergeRequest(insuranceAdminPrompt(option, insuranceAdminDetails), {
-      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
-      requestedTool: option.requestedTool,
-      actionLabel: isSpanish ? option.es : option.en,
-      summary: isSpanish
-        ? `Gestion preparada: ${option.es}.`
-        : `Paperwork task prepared: ${option.en}.`,
-      payload: insuranceAdminStructuredPayload(option, insuranceAdminDetails, isSpanish),
-      useCase: "admin_task",
-    });
+  function closeDocumentHelp() {
     setInsuranceAdminOpen(false);
     setSelectedInsuranceAdminKind(null);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+    setInsuranceAdminDetails(EMPTY_DOCUMENT_HELP_DETAILS);
+    setDocumentHelpStep("choose");
+    setDocumentHelpReading(null);
+    setDocumentHelpFileName(null);
+    setDocumentHelpSubmitted(false);
+    documentHelpSubmitMutation.reset();
   }
 
   function handleOfferAssistance(option: OfferOption) {
@@ -16078,11 +16005,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     ? scamCheckDetailCopy(selectedScamCheckOption.key, isSpanish)
     : null;
   const SelectedScamCheckIcon = selectedScamCheckOption?.Icon ?? AlertTriangle;
-  const selectedInsuranceAdminOption = INSURANCE_ADMIN_OPTIONS.find((option) => option.key === selectedInsuranceAdminKind) ?? null;
-  const selectedInsuranceAdminCopy = selectedInsuranceAdminOption
-    ? insuranceAdminDetailCopy(selectedInsuranceAdminOption.key, isSpanish)
-    : null;
-  const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
+  const similarDocumentTaskCount = savedTaskDrafts.filter((task) => (
+    task.kind === "document"
+    && task.status === "active"
+    && task.id !== persistedTask?.id
+    && Boolean(selectedInsuranceAdminKind)
+    && task.progress_payload.documentKind === selectedInsuranceAdminKind
+  )).length;
   useEffect(() => {
     setActiveProviderShortlistNotice(null);
     setActiveProviderShortlistError(null);
@@ -18124,7 +18053,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" ? (
+          {mode === "task" && !insuranceAdminOpen ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}
@@ -18274,169 +18203,39 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       )}
 
       {insuranceAdminOpen && (
-        <section
-          className="relative z-20 order-[14] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#DDD6FE] bg-white"
-          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.12)" }}
-          data-testid="panel-insurance-admin"
-        >
-          <div className="bg-[#F5F3FF] p-4 lg:p-5">
-            <div className="flex items-start gap-3">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#6B21A8] shadow-sm">
-                <FileText size={23} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                  {isSpanish ? "Ayuda administrativa" : "Paperwork help"}
-                </p>
-                <h2 className="mt-1 font-body text-[23px] font-black leading-tight text-vyva-text-1">
-                  {isSpanish ? "Que necesitas preparar?" : "What do you need to prepare?"}
-                </h2>
-                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                  {isSpanish
-                    ? "VYVA organiza los pasos, pero no envia, llama ni comparte datos sin tu confirmacion."
-                    : "VYVA organizes the steps, but does not send, call, or share details without your confirmation."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setInsuranceAdminOpen(false);
-                  setSelectedInsuranceAdminKind(null);
-                  setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
-                }}
-                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#6B21A8]"
-                aria-label={isSpanish ? "Cerrar" : "Close"}
-                data-testid="button-insurance-admin-close"
-              >
-                <X size={17} />
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3 p-4 lg:p-5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {INSURANCE_ADMIN_OPTIONS.map((option) => {
-                const Icon = option.Icon;
-                const readiness = insuranceAdminReadiness(option);
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => handleInsuranceAdminChoice(option)}
-                    className="vyva-tap flex min-h-[112px] items-start gap-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBF8FF] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
-                    data-testid={`button-insurance-admin-${option.key}`}
-                  >
-                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[17px] bg-white text-[#6B21A8] shadow-sm">
-                      <Icon size={22} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                        {isSpanish ? option.es : option.en}
-                      </span>
-                      <span className="sr-only">
-                        {isSpanish ? option.detailEs : option.detailEn}
-                      </span>
-                      <ActionReadinessPanel
-                        readiness={readiness}
-                        desiredAction={isSpanish ? option.es : option.en}
-                        isSpanish={isSpanish}
-                        compact
-                        testId={`panel-insurance-admin-readiness-${option.key}`}
-                      />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedInsuranceAdminOption && selectedInsuranceAdminCopy ? (
-              <div
-                className="rounded-[24px] border border-[#DDD6FE] bg-[#FBF8FF] p-4"
-                data-testid="panel-insurance-admin-guided-fields"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#6B21A8] shadow-sm">
-                    <SelectedInsuranceAdminIcon size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                      {isSpanish ? selectedInsuranceAdminOption.es : selectedInsuranceAdminOption.en}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                      {isSpanish
-                        ? "Completa solo lo que sepas. VYVA preguntara lo que falte."
-                        : "Fill only what you know. VYVA will ask for what is missing."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.subjectLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.subject}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, subject: event.target.value }))}
-                      placeholder={selectedInsuranceAdminCopy.subjectPlaceholder}
-                      data-testid="input-insurance-admin-subject"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.recipientLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.recipient}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, recipient: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-recipient"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.deadlineLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.deadline}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, deadline: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-deadline"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.notesLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.notes}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, notes: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-notes"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                </div>
-                <button
-                  type="button"
-                  onClick={prepareSelectedInsuranceAdminTask}
-                  className="vyva-tap mt-4 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[16px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.18)]"
-                  data-testid="button-insurance-admin-prepare"
-                >
-                  <Send size={17} />
-                  {isSpanish ? "Preparar para revisar" : "Prepare for review"}
-                </button>
-              </div>
-            ) : null}
-            <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-              {isSpanish
-                ? "Si falta una herramienta, VYVA prepara un resumen para revision en lugar de dejarte bloqueado."
-                : "If a tool is missing, VYVA prepares a review summary instead of leaving you stuck."}
-            </p>
-          </div>
-        </section>
+        <DocumentHelpFlow
+          isSpanish={isSpanish}
+          language={language}
+          isDark={isDark}
+          standalone={mode === "task"}
+          kind={selectedInsuranceAdminKind}
+          details={insuranceAdminDetails}
+          step={documentHelpStep}
+          reading={documentHelpReading}
+          fileName={documentHelpFileName}
+          onKindChange={setSelectedInsuranceAdminKind}
+          onDetailsChange={setInsuranceAdminDetails}
+          onStepChange={setDocumentHelpStep}
+          onReadingChange={(reading, fileName) => {
+            setDocumentHelpReading(reading);
+            setDocumentHelpFileName(fileName);
+          }}
+          onSubmit={() => documentHelpSubmitMutation.mutate()}
+          submitState={documentHelpSubmitted
+            ? "done"
+            : documentHelpSubmitMutation.isPending
+              ? "submitting"
+              : documentHelpSubmitMutation.isError
+                ? "error"
+                : "idle"}
+          saveState={persistedTask ? taskSaveState : null}
+          onExit={() => (mode === "task" ? navigate("/concierge/tasks") : closeDocumentHelp())}
+          onRemove={persistedTask ? () => deleteTaskMutation.mutate(persistedTask.id) : undefined}
+          isRemoving={deleteTaskMutation.isPending}
+          similarTaskCount={similarDocumentTaskCount}
+          onOpenTasks={() => navigate("/concierge/tasks")}
+          onDone={() => (mode === "task" ? navigate("/concierge") : closeDocumentHelp())}
+        />
       )}
 
       {scamCheckOpen && (
