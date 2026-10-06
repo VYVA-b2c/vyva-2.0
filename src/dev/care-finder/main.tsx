@@ -2,13 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { CareFinder, type CareFinderProfile, type CareFinderServices } from "../../features/careFinder/CareFinder";
 import type { CareFinderResultOption, CareFinderSearchResponse } from "../../../shared/careFinder/search";
+import { careFinderLang } from "../../../shared/careFinder/careRoutes";
 import "../../index.css";
 
 // Browser harness for the Care Finder: real component, fake network.
-// ?theme=light|dark  ?locale=en|es  ?scenario=ok|no_results|error
+// ?theme=light|dark  ?locale=en|es|fr|de  ?scenario=ok|no_results|error
 const params = new URLSearchParams(window.location.search);
 const theme = params.get("theme") === "dark" ? "dark" : "light";
-const lang = params.get("locale") === "es" ? "es" : "en";
+const lang = careFinderLang(params.get("locale"));
 const scenario = params.get("scenario") ?? "ok";
 // ?frame=430 mimics the app shell: a narrow column on a wide screen.
 const frame = Number(params.get("frame")) || null;

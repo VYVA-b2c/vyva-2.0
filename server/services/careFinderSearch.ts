@@ -13,6 +13,7 @@ import {
 import {
   CARE_TYPES,
   careFinderLang,
+  type Localized,
   careTypeSearchTerms,
   pick,
   type CareFinderLang,
@@ -122,7 +123,7 @@ async function travelEstimates(
   }>(fetcher, url);
   if (!data || data.status !== "OK") return places.map(() => null);
   const elements = data.rows?.[0]?.elements ?? [];
-  const byCar = lang === "es" ? "en coche" : "by car";
+  const byCar = text(lang, { en: "by car", es: "en coche", fr: "en voiture", de: "mit dem Auto" });
   return places.map((_, index) => {
     const element = elements[index];
     if (!element || element.status !== "OK" || !element.distance?.text || typeof element.duration?.value !== "number") return null;
@@ -161,8 +162,8 @@ function mergeFact(
   return buildProviderComparisonFact(criterion, [...existing, ...extra.filter((item): item is ProviderComparisonEvidence => Boolean(item))]);
 }
 
-function text(lang: CareFinderLang, en: string, es: string): string {
-  return lang === "es" ? es : en;
+function text(lang: CareFinderLang, copy: Localized): string {
+  return copy[lang];
 }
 
 export async function searchCareProviders(
@@ -174,7 +175,7 @@ export async function searchCareProviders(
   const key = dependencies.apiKey === undefined ? getGooglePlacesApiKey() : dependencies.apiKey;
   const now = dependencies.now?.() ?? new Date();
   const checkedAt = now.toISOString();
-  const terms = careTypeSearchTerms(request.careType, request.access, request.accessNeeds);
+  const terms = careTypeSearchTerms(request.careType, request.access, request.accessNeeds, lang);
   const careLabel = pick(lang, CARE_TYPES[request.careType].label);
   const base: Omit<CareFinderSearchResponse, "status" | "options" | "orderedBy"> = {
     careType: request.careType,
@@ -255,9 +256,9 @@ export async function searchCareProviders(
       accessibility: mergeFact("accessibility", facts?.accessibility, [
         evidenceItem(
           wheelchair === true
-            ? text(lang, "Step-free entrance listed", "Entrada accesible indicada")
+            ? text(lang, { en: "Step-free entrance listed", es: "Entrada accesible indicada", fr: "Entrée sans marches indiquée", de: "Stufenloser Eingang angegeben" })
             : wheelchair === false
-              ? text(lang, "Listed as not step-free", "Indicada como no accesible")
+              ? text(lang, { en: "Listed as not step-free", es: "Indicada como no accesible", fr: "Indiquée comme non accessible", de: "Als nicht stufenlos angegeben" })
               : null,
           google,
           mapsUrl,
@@ -271,25 +272,36 @@ export async function searchCareProviders(
     };
 
     const matched: string[] = [
-      text(lang, `Shows up on Google Maps for “${careLabel}”`, `Aparece en Google Maps como “${careLabel}”`),
+      text(lang, {
+        en: `Shows up on Google Maps for “${careLabel}”`,
+        es: `Aparece en Google Maps como “${careLabel}”`,
+        fr: `Apparaît sur Google Maps comme « ${careLabel} »`,
+        de: `Erscheint in Google Maps als „${careLabel}“`,
+      }),
     ];
     if (item.travel && index === 0 && orderedBy === "travel_time") {
-      matched.push(text(lang, "The closest of the options found", "La más cercana de las encontradas"));
+      matched.push(text(lang, { en: "The closest of the options found", es: "La más cercana de las encontradas", fr: "La plus proche des options trouvées", de: "Die nächstgelegene der gefundenen Möglichkeiten" }));
     }
     if (request.accessNeeds.includes("step_free") && wheelchair === true) {
-      matched.push(text(lang, "Google lists a step-free entrance", "Google indica entrada accesible"));
+      matched.push(text(lang, { en: "Google lists a step-free entrance", es: "Google indica entrada accesible", fr: "Google indique une entrée sans marches", de: "Google gibt einen stufenlosen Eingang an" }));
     }
     if (request.accessNeeds.includes("home_visit") && /domicilio/i.test(term)) {
-      matched.push(text(lang, "Found when searching for home visits. Confirm when you call", "Encontrada al buscar visitas a domicilio. Confírmelo al llamar"));
+      matched.push(text(lang, {
+        en: "Found when searching for home visits. Confirm when you call",
+        es: "Encontrada al buscar visitas a domicilio. Confírmelo al llamar",
+        fr: "Trouvé en cherchant des visites à domicile. À confirmer lors de l'appel",
+        de: "Bei der Suche nach Hausbesuchen gefunden. Beim Anruf bestätigen",
+      }));
     }
 
     const assumptions: string[] = [];
     if (request.access === "public" && (request.careType === "primary_care" || request.careType === "same_day")) {
-      assumptions.push(text(
-        lang,
-        "Health centres are part of the public system. You are normally registered at one by your address, so check your health card for yours.",
-        "Los centros de salud son de la sanidad pública. Normalmente le corresponde uno según su domicilio; compruébelo en su tarjeta sanitaria.",
-      ));
+      assumptions.push(text(lang, {
+        en: "Health centres are part of the public system. You are normally registered at one by your address, so check your health card for yours.",
+        es: "Los centros de salud son de la sanidad pública. Normalmente le corresponde uno según su domicilio; compruébelo en su tarjeta sanitaria.",
+        fr: "Les centres de santé font partie du système public. Vous êtes normalement inscrit dans l'un d'eux selon votre adresse ; vérifiez lequel sur votre carte de santé.",
+        de: "Gesundheitszentren gehören zum öffentlichen System. Normalerweise sind Sie je nach Adresse bei einem angemeldet; prüfen Sie auf Ihrer Gesundheitskarte, bei welchem.",
+      }));
     }
 
     return {

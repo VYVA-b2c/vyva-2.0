@@ -58,7 +58,7 @@ function renderFinder(overrides: {
   services?: CareFinderServices;
   initialState?: CareFinderState;
   profile?: CareFinderProfile | null;
-  lang?: "en" | "es";
+  lang?: "en" | "es" | "fr" | "de";
   onStateChange?: (state: CareFinderState) => void;
 } = {}) {
   const services = overrides.services ?? { search: vi.fn(async () => okResults) };
@@ -283,6 +283,60 @@ describe("profile reuse and resume", () => {
     expect(screen.getByRole("heading", { name: "¿Para quién es la atención?" })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("choice-who-self"));
     expect(screen.getByRole("heading", { name: "¿Qué le pasa?" })).toBeInTheDocument();
+  });
+});
+
+describe("French and German", () => {
+  it("runs the knee journey in French, with the call script translated", async () => {
+    renderFinder({ lang: "fr" });
+    expect(screen.getByRole("heading", { name: "Pour qui sont les soins ?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("choice-who-self"));
+    fireEvent.change(screen.getByLabelText("Décrivez-le avec vos mots"), { target: { value: "J'ai mal au genou et les escaliers sont difficiles" } });
+    fireEvent.click(screen.getByRole("button", { name: "Utiliser ma description" }));
+    fireEvent.click(await screen.findByTestId("button-safety-none"));
+    fireEvent.click(await screen.findByTestId("choice-urgency-this_week"));
+    fireEvent.click(await screen.findByTestId("button-profile-accept"));
+    expect(screen.getByRole("heading", { name: "Médecin de famille (généraliste)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-route-physiotherapy"));
+    expect(screen.getByTestId("toggle-access-step_free")).toHaveAttribute("aria-pressed", "true");
+    // Offered because the person isn't using Spanish.
+    expect(screen.getByTestId("toggle-access-english")).toHaveTextContent("Personnel parlant français");
+    fireEvent.click(screen.getByTestId("toggle-access-english"));
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    fireEvent.click(await screen.findByTestId("button-prepare-a"));
+    expect(await screen.findByRole("heading", { name: "Avant de contacter Fisio Cerca" })).toBeInTheDocument();
+    expect(screen.getByText("Hola, llamo para pedir una cita.")).toBeInTheDocument();
+    expect(screen.getByText("Bonjour, j'appelle pour demander un rendez-vous.")).toBeInTheDocument();
+    expect(screen.getByText("¿Hay alguien que hable francés?")).toBeInTheDocument();
+  });
+
+  it("shows the emergency screen for French and German warning signs", async () => {
+    const { unmount } = renderFinder({ lang: "fr" });
+    fireEvent.click(screen.getByTestId("choice-who-other"));
+    fireEvent.change(screen.getByLabelText("Décrivez-le avec vos mots"), { target: { value: "Elle a une douleur dans la poitrine" } });
+    fireEvent.click(screen.getByRole("button", { name: "Utiliser ma description" }));
+    expect(await screen.findByRole("heading", { name: "Cela peut nécessiter de l'aide tout de suite" })).toBeInTheDocument();
+    expect(screen.getByTestId("link-call-112")).toHaveTextContent("Appeler le 112");
+    unmount();
+
+    renderFinder({ lang: "de" });
+    fireEvent.click(screen.getByTestId("choice-who-self"));
+    fireEvent.change(screen.getByLabelText("Beschreiben Sie es mit eigenen Worten"), { target: { value: "Ich bekomme keine Luft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Meine Beschreibung verwenden" }));
+    expect(await screen.findByRole("heading", { name: "Das braucht vielleicht sofort Hilfe" })).toBeInTheDocument();
+    expect(screen.getByTestId("link-call-112")).toHaveTextContent("112 anrufen");
+  });
+
+  it("keeps German nouns capitalised", async () => {
+    renderFinder({ lang: "de" });
+    fireEvent.click(screen.getByTestId("choice-who-self"));
+    fireEvent.click(screen.getByTestId("choice-need-pain"));
+    fireEvent.click(screen.getByTestId("button-safety-none"));
+    fireEvent.click(screen.getByTestId("choice-urgency-this_week"));
+    fireEvent.click(screen.getByTestId("button-profile-accept"));
+    expect(screen.getByRole("button", { name: "Suchen: Physiotherapeut" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-route-physiotherapy"));
+    expect(screen.getByRole("button", { name: "Physiotherapeut in der Nähe von 11380 Tarifa anzeigen" })).toBeInTheDocument();
   });
 });
 

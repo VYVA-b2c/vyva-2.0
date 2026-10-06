@@ -23,7 +23,7 @@ function ScriptList({ lines, lang }: { lines: ScriptLine[]; lang: CareFinderLang
       {lines.map((line) => (
         <li key={line.key} className="rounded-[16px] bg-[var(--cf-surface-2)] px-4 py-3">
           <span lang="es" className="block text-[21px] font-semibold leading-snug text-[var(--cf-text)]">{line.es}</span>
-          {lang === "en" ? <span className="mt-1 block text-[17px] text-[var(--cf-text-2)]">{line.en}</span> : null}
+          {lang !== "es" ? <span className="mt-1 block text-[17px] text-[var(--cf-text-2)]">{line[lang]}</span> : null}
         </li>
       ))}
     </ul>
@@ -93,7 +93,7 @@ export function ContactStep({
   const [confirming, setConfirming] = useState(false);
   const [sharePreview, setSharePreview] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
-  const script = careContactScript(state);
+  const script = careContactScript(state, lang);
   const questions = careQuestionsToAsk(option, state);
   const shareMessage = careShareMessage(option, state, lang, formatCheckedAt(option.checked_at ?? new Date().toISOString(), lang));
 
@@ -130,7 +130,7 @@ export function ContactStep({
 
       <section aria-labelledby="care-script-title" className="space-y-3">
         <h3 id="care-script-title" className="text-[23px] font-semibold">{c.scriptTitle}</h3>
-        {lang === "en" ? <p className="text-[17px] text-[var(--cf-text-2)]">{c.scriptTranslated}</p> : null}
+        {lang !== "es" ? <p className="text-[17px] text-[var(--cf-text-2)]">{c.scriptTranslated}</p> : null}
         <ScriptList lines={script} lang={lang} />
       </section>
 

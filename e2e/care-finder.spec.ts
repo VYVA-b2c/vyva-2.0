@@ -124,6 +124,35 @@ test("uses two columns only when the column is genuinely wide", async ({ page })
   expect(summaryBox!.x).toBeGreaterThan(headingBox!.x + 400);
 });
 
+for (const locale of ["fr", "de"] as const) {
+  test(`${locale} copy fits a phone-width app column without overflow`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await open(page, `theme=dark&locale=${locale}&frame=360`);
+    await page.getByTestId("choice-who-self").click();
+    await page.getByTestId("choice-need-pain").click();
+    await page.getByTestId("button-safety-none").click();
+    await page.getByTestId("choice-urgency-this_week").click();
+    await page.getByTestId("button-profile-accept").click();
+    await page.getByTestId("button-route-physiotherapy").click();
+    await page.getByTestId("toggle-access-english").click();
+    await page.getByTestId("button-show-options").click();
+    await page.getByTestId("button-prepare-a").click();
+    await expect(page.getByTestId("button-care-call")).toBeVisible();
+    // Long German compounds must wrap inside the column, never spill out of it.
+    const spill = await page.evaluate(() => {
+      const frame = document.querySelector("[data-testid='harness-frame']")!.getBoundingClientRect();
+      return Array.from(document.querySelectorAll<HTMLElement>("[data-testid='care-finder'] *"))
+        .filter((element) => element.offsetParent !== null)
+        .filter((element) => element.getBoundingClientRect().right > frame.right + 1)
+        .map((element) => element.textContent?.trim().slice(0, 40));
+    });
+    expect(spill).toEqual([]);
+    await expectLargeTargets(page);
+    await expectAccessible(page);
+    await page.screenshot({ path: `src/dev/care-finder/care-finder-contact-${locale}-360.png`, fullPage: true });
+  });
+}
+
 test("contact preparation requires confirmation before calling", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, "theme=light");
