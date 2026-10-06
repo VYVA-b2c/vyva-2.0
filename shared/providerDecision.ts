@@ -7,6 +7,7 @@ import type { ProviderConcernCategory, ProviderConcernLevel, ProviderPriceEviden
 import { homeServicePlaybook, type HomeServicePlaybook } from "./homeServicePlaybooks.js";
 import { listingRiskSignals, type ListingRiskSignal } from "./providerListingRisk.js";
 import { memberOutcomeAdjustment, type MemberOutcomeCounts } from "./providerOutcomes.js";
+import { effectivePriorities, type PersonalProviderProfile } from "./personalProviderProfile.js";
 
 export type ProviderCandidateSource = "saved" | "partner" | "external" | "manual";
 export type ProviderEvidenceStatus = "verified" | "reported" | "unknown";
@@ -20,6 +21,7 @@ export type ProviderDecisionCode =
   | "excluded_insufficient_evidence"
   | "excluded_serious_concern"
   | "excluded_listing_risk"
+  | "excluded_member_declined"
   | "excluded_duplicate";
 
 export interface ProviderDecisionRequest {
@@ -29,6 +31,7 @@ export interface ProviderDecisionRequest {
   urgency?: string | null;
   criteria?: string[];
   maxResults?: number;
+  personal?: PersonalProviderProfile | null;
 }
 
 export interface ProviderCandidate {
@@ -64,6 +67,8 @@ export interface ProviderCandidate {
   credentialStated?: boolean | null;
   // Pooled answers from VYVA members who used this business for this trade.
   memberOutcomes?: MemberOutcomeCounts | null;
+  // ISO language codes the business states it serves customers in.
+  languagesStated?: string[] | null;
   raw: unknown;
 }
 
@@ -342,6 +347,10 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
   if (candidate.concernLevel === "serious") {
     return { candidate, code: "excluded_serious_concern", eligible: false, score: 0, reasons: ["Public reviews include a safety or fraud allegation"], uncertainties: [], canonicalCategory, exactSubserviceMatch };
   }
+  const personal = request.appointmentType === "home-service" ? request.personal : null;
+  if (personal && candidate.placeId && personal.declinedPlaceIds.includes(candidate.placeId)) {
+    return { candidate, code: "excluded_member_declined", eligible: false, score: 0, reasons: ["You said you would not use them again"], uncertainties: [], canonicalCategory, exactSubserviceMatch, listingRisk };
+  }
   if (playbook?.excludeListingRisk && listingRisk.some(signal => signal === "shared_phone" || signal === "premium_number")) {
     return { candidate, code: "excluded_listing_risk", eligible: false, score: 0, reasons: ["Listing shows signs of a call centre rather than a local business"], uncertainties: [], canonicalCategory, exactSubserviceMatch, listingRisk };
   }
@@ -362,8 +371,21 @@ function evaluateCandidate(candidate: ProviderCandidate, request: ProviderDecisi
       scored.uncertainties.push("Today's opening hours are not confirmed");
     }
   }
-  const preference = preferenceScore(candidate, request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : []);
-  return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: preference.notes, advice: playbook?.advice ?? [], listingRisk, canonicalCategory, exactSubserviceMatch };
+  const personalNotes: string[] = [];
+  if (personal && candidate.placeId && personal.likedPlaceIds.includes(candidate.placeId)) {
+    // Product-design weighting: the member's own good experience outweighs stars and distance.
+    scored.score += 30;
+    scored.reasons.push("You said you'd use them again");
+    personalNotes.push("You said you'd use them again.");
+  }
+  if (personal?.memberLanguage && candidate.languagesStated?.includes(personal.memberLanguage)) {
+    scored.score += 10;
+    scored.reasons.push("Website says they speak your language");
+    personalNotes.push("Their website says they speak your language.");
+  }
+  const priorities = request.appointmentType === "home-service" ? effectivePriorities(request.criteria, personal) : { criteria: [], notes: [] };
+  const preference = preferenceScore(candidate, homeServiceRankingPriorities(priorities.criteria));
+  return { candidate, code, eligible: true, ...scored, score: scored.score + preference.bonus, priorityBonus: preference.bonus, priorityNotes: [...personalNotes, ...priorities.notes, ...preference.notes], advice: playbook?.advice ?? [], listingRisk, canonicalCategory, exactSubserviceMatch };
 }
 
 export function decideProviderCandidates(candidates: ProviderCandidate[], request: ProviderDecisionRequest): ProviderDecisionSummary {
@@ -402,7 +424,7 @@ export function decideProviderCandidates(candidates: ProviderCandidate[], reques
     ranked,
     excluded,
     exclusionSummary,
-    criteriaUsed: request.appointmentType === "home-service" ? homeServiceRankingPriorities(request.criteria) : request.criteria ?? [],
+    criteriaUsed: request.appointmentType === "home-service" ? homeServiceRankingPriorities(effectivePriorities(request.criteria, request.personal).criteria) : request.criteria ?? [],
     confidence,
   };
 }

@@ -97,4 +97,12 @@ describe("provider verification policy", () => {
     f.pages.set(f.evidence.sources[0].url, `${f.pages.get(f.evidence.sources[0].url)} We always offer very fair prices.`);
     expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).pricing?.publishedPrices).toEqual([]);
   });
+  it("keeps stated languages only from a corroborated quote on the provider's own site", () => {
+    const f = fixture();
+    const languageQuote = "We speak English, German and Spanish.";
+    f.evidence.sources[0] = { ...f.evidence.sources[0], languageQuote, languageCodes: ["en", "DE", "es", "english"] };
+    f.evidence.sources.push({ url: "https://reviews.example.org/business", serviceQuote: "", languageQuote: "The owner speaks perfect French.", languageCodes: ["fr"] });
+    f.pages.set(f.evidence.sources[0].url, `${f.pages.get(f.evidence.sources[0].url)} ${languageQuote}`);
+    expect(evaluateVerification(candidate, f.evidence, f.pages, f.searched, now).languages).toEqual(["en", "de", "es"]);
+  });
 });
