@@ -163,4 +163,35 @@ describe("provider search source integration", () => {
       value: expect.stringMatching(/Service area Madrid/i),
     });
   });
+
+  it("personalises the verdict and stays cautious when a must-have is not verified", async () => {
+    vi.stubGlobal("fetch", googleFetch({ name: "Residencia Sol", website: "https://residenciasol.example", rating: 4.8 }));
+    const fetchPage = vi.fn(async (url: string) => ({
+      url,
+      html: "<html><body><h1>Residencia Sol</h1><p>Wheelchair accessible. Available today.</p></body></html>",
+    }));
+
+    const offers = await buildProviderOffers(
+      "care home",
+      "Vivienda y cuidados",
+      context,
+      "en",
+      undefined,
+      undefined,
+      "residence",
+      { fetchPage },
+      {
+        orderedCriteria: ["accessibility", "availability", "coverage"],
+        mustHaves: ["accessibility", "coverage"],
+        dealBreakers: [],
+        constraints: ["move within two weeks"],
+      },
+    );
+
+    expect(offers[0].personalised_fit).toMatchObject({
+      recommendationStatus: "cautious",
+      matchedPriorities: expect.arrayContaining(["accessibility", "availability"]),
+      unmetMustHaves: ["coverage"],
+    });
+  });
 });

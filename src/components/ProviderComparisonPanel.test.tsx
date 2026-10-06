@@ -41,7 +41,8 @@ describe("ProviderComparisonPanel", () => {
     expect(panel).toHaveTextContent("Distance");
     expect(panel).toHaveTextContent("Insurance / coverage");
     expect(panel).toHaveTextContent("Not provided");
-    expect(panel).toHaveTextContent("Why this may suit you");
+    expect(panel).toHaveTextContent("No confirmed best fit yet");
+    expect(screen.getByTestId("provider-recommendation-summary")).toBeInTheDocument();
     expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Not independently verified");
     expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Provider source");
     expect(screen.getByTestId("provider-fact-source-provider-a-price")).toHaveTextContent("Provider website");

@@ -920,6 +920,28 @@ function HomeMasterPreviewRoute() {
   );
 }
 
+function ProviderTaskWizardPreviewRoute() {
+  const location = useLocation();
+
+  if (!location.state) {
+    return (
+      <Navigate
+        replace
+        to={location.pathname}
+        state={{
+          conciergeTaskEntry: {
+            kind: "provider_contact",
+            providerSearchMode: "specialist",
+            query: "Find a physiotherapist near me",
+          },
+        }}
+      />
+    );
+  }
+
+  return <AppShell><ConciergeScreen mode="task" /></AppShell>;
+}
+
 function HomeMasterMenuPreviewRoute() {
   primeHomeMasterPreviewData();
 
@@ -1289,6 +1311,7 @@ const App = () => (
                     <Route path="/dev/concierge-canonical-preview/order-in" element={<AppShell><ConciergePickerScreen category="order-in" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/concierge-canonical-preview/book-appointments" element={<AppShell><ConciergePickerScreen category="book-appointments" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
                     <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/provider-task-preview/:taskId" element={<ProviderTaskWizardPreviewRoute />} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
                     <Route path="/dev/home-master/settings" element={<SettingsHome />} />

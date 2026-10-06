@@ -103,6 +103,17 @@ async function dismissHomeServiceGuide() {
   });
 }
 
+function advanceProviderWizardToPriorities() {
+  fireEvent.click(screen.getByTestId("button-provider-wizard-need-next"));
+  expect(screen.getByTestId("provider-wizard-priorities")).toBeInTheDocument();
+}
+
+function searchFromProviderWizard() {
+  advanceProviderWizardToPriorities();
+  fireEvent.click(within(screen.getByTestId("provider-wizard-priorities")).getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByTestId("button-provider-wizard-search"));
+}
+
 function LocationProbe() {
   const location = useLocation();
   return (
@@ -1474,9 +1485,8 @@ describe("ConciergeScreen action hub", () => {
     }], "task");
 
     expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
-    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
-    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Good reputation");
-    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("compare residences");
+    expect(screen.getByTestId("provider-wizard-need")).toHaveTextContent("What kind of residence are you looking for?");
+    expect(screen.getByTestId("provider-wizard-need")).toHaveTextContent("Explore options");
   });
 
   it("opens a Book Medical task entry directly in the medical appointment flow", async () => {
@@ -2404,8 +2414,7 @@ describe("ConciergeScreen action hub", () => {
       },
     }], "task");
     await screen.findByTestId("panel-offers-search");
-    fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    searchFromProviderWizard();
 
     const prepareButton = await screen.findByTestId("button-provider-comparison-contact-senior-energy-saver-1");
     expect(prepareButton).toHaveTextContent("Prepare contact");
@@ -2413,6 +2422,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByRole("link", { name: /open now|call now/i })).not.toBeInTheDocument();
 
     fireEvent.click(prepareButton);
+    fireEvent.click(screen.getByTestId("button-provider-wizard-prepare-contact"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Deal comparison ready");
@@ -2805,8 +2815,11 @@ describe("ConciergeScreen action hub", () => {
       },
     }], "task");
     await screen.findByTestId("panel-offers-search");
+    advanceProviderWizardToPriorities();
+    fireEvent.click(screen.getByTestId("button-provider-criterion-accessible"));
     fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    fireEvent.click(within(screen.getByTestId("provider-wizard-priorities")).getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("button-provider-wizard-search"));
 
     const comparison = await screen.findByTestId("provider-comparison-panel");
     expect(comparison).toHaveTextContent("1.2 km");
@@ -2819,6 +2832,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByRole("button", { name: /watch changes/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-provider-comparison-contact-marbella-care-clinic-1"));
+    fireEvent.click(screen.getByTestId("button-provider-wizard-prepare-contact"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Care search ready");
@@ -2903,7 +2917,7 @@ describe("ConciergeScreen action hub", () => {
       },
     }], "task");
     await screen.findByTestId("panel-offers-search");
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    searchFromProviderWizard();
 
     fireEvent.click(await screen.findByTestId("button-provider-shortlist-harbour-clinic-1"));
     fireEvent.click(screen.getByTestId("button-provider-shortlist-garden-care-2"));
@@ -3534,13 +3548,16 @@ describe("ConciergeScreen action hub", () => {
     }], "task");
     await screen.findByTestId("panel-offers-search");
 
-    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    advanceProviderWizardToPriorities();
+    expect(screen.getByTestId("provider-wizard-priorities")).toHaveTextContent("What matters most");
     expect(screen.getByTestId("button-provider-criterion-nearby")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("button-provider-criterion-reputation")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("button-provider-criterion-accessible")).toHaveAttribute("aria-pressed", "true");
 
+    fireEvent.click(screen.getByTestId("button-provider-criterion-accessible"));
     fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    fireEvent.click(within(screen.getByTestId("provider-wizard-priorities")).getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByTestId("button-provider-wizard-search"));
 
     await waitFor(() => {
       expect(searchBody?.query).toContain("compare a specialist, personal care, or residence");
@@ -3549,7 +3566,7 @@ describe("ConciergeScreen action hub", () => {
     expect(searchBody?.provider_mode).toBe("personal-care");
     expect(searchBody?.query).toContain("nearby or easy to reach");
     expect(searchBody?.query).toContain("strong reputation with verifiable reviews");
-    expect(searchBody?.query).toContain("accessible for older adults");
+    expect(searchBody?.query).not.toContain("accessible for older adults");
     expect(searchBody?.query).toContain("clear pricing and no hidden fees");
     expect(searchBody?.query).toContain("Do not contact or share details without confirmation");
   });
@@ -3587,11 +3604,11 @@ describe("ConciergeScreen action hub", () => {
       },
     }], "task");
     await screen.findByTestId("panel-offers-search");
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    searchFromProviderWizard();
 
     expect(await screen.findByText("No verified provider matched those needs.")).toBeVisible();
     expect(screen.getByTestId("panel-provider-search-missing-provider")).toHaveTextContent("Choose how to continue");
-    expect(screen.getByTestId("button-provider-search-manual")).toHaveTextContent("Ask VYVA to search");
+    expect(screen.getByTestId("button-provider-search-manual")).toHaveTextContent("Revise search");
     expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Add my usual provider");
     expect(screen.getByTestId("button-provider-search-ask-helper")).toHaveTextContent("Ask someone to help");
 
