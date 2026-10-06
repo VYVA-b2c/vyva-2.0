@@ -194,7 +194,10 @@ function preferenceScore(candidate: ProviderCandidate, priorities: string[]) {
     }
     if (priority === "trusted") {
       const verified = candidate.evidenceStatus === "verified";
-      if (verified || candidate.trusted) {
+      if (candidate.source === "partner") {
+        bonus += weight;
+        notes.push("A partner organisation vetted this provider, which supports your trust priority.");
+      } else if (verified || candidate.trusted) {
         bonus += weight * (verified ? 1 : 0.75);
         notes.push(verified ? "Evidence checks support your trust priority." : "Your saved trusted provider supports your trust priority.");
       } else notes.push("Trust checks are incomplete for this provider.");
@@ -262,6 +265,14 @@ function scoreEligible(candidate: ProviderCandidate, exact: boolean, criteria: s
   if (candidate.trusted) {
     score += 10;
     reasons.push("Saved as a trusted provider");
+  }
+  if (candidate.source === "partner") {
+    // Product-design weighting: a partner organisation's own vetting outranks
+    // anything VYVA can infer from public listings. 60 covers what a public
+    // listing can collect that a partner entry cannot (verification, opening
+    // hours, distance, review volume).
+    score += 60;
+    reasons.push("Vetted by a partner organisation");
   }
   if (candidate.contactable) score += 8;
   else uncertainties.push("Direct contact route is not confirmed");

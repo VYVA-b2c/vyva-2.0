@@ -100,6 +100,12 @@ describe("provider verification wait", () => {
     expect(screen.getByText(/Call-out fee 35 EUR/)).toBeInTheDocument();
     expect(screen.getByText(/Registered installer no\. 123/)).toBeInTheDocument();
   });
+  it("never sends partner-vetted providers to public research", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    render(<ProviderVerificationPanel requestId="request" options={[{ id: "partner", provider_source: "partner", provider_snapshot: {} }]} selectedId="partner" isSpanish={false} onResultsVisible={vi.fn()} />);
+    expect(await screen.findByText("Vetted by a partner organisation. Not checked against public reviews.")).toBeInTheDocument();
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
   it("asks at two minutes, aborts, and only restarts with permission", async () => {
     vi.useFakeTimers();
     vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}));

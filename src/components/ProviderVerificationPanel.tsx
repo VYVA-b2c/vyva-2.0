@@ -44,7 +44,11 @@ export function ProviderVerificationPanel({ requestId, options, selectedId, isSp
     const next = Object.fromEntries(ids.flatMap(id => {
       const option = latest.current.find(o => o.id === id);
       const privateContact: ProviderVerification | null = option?.provider_source === "saved" || option?.provider_source === "manual"
-        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["This contact has not been sent to external research services."], concerns: [], retryable: false } : null;
+        ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["This contact has not been sent to external research services."], concerns: [], retryable: false }
+        // A partner's own vetting stands in for VYVA's public-source checks.
+        : option?.provider_source === "partner"
+          ? { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Vetted by a partner organisation. Not checked against public reviews."], concerns: [], retryable: false }
+          : null;
       const existing = resultsRef.current[id] ?? currentVerification(option?.provider_snapshot.verification) ?? privateContact;
       return existing && !existing.retryable ? [[id, existing]] : [];
     }));

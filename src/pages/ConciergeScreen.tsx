@@ -1014,7 +1014,7 @@ interface AppointmentRequestItem {
 interface AppointmentProviderOption {
   id: string;
   provider_id: string | null;
-  provider_source: "saved" | "external" | "manual";
+  provider_source: "saved" | "external" | "manual" | "partner";
   provider_snapshot: Record<string, unknown>;
   match_reason: string | null;
   available_channels: AppointmentChannel[];
@@ -3635,7 +3635,9 @@ function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isS
     priorityNotes.some(note => note.startsWith("Price information is unavailable")) ? copy("Price to be confirmed") : "",
     priorityNotes.some(note => note.includes("job availability is unconfirmed") || note.startsWith("No confirmed timing evidence")) ? copy("Availability unconfirmed") : "",
   ].filter(Boolean);
+  const partner = option.provider_source === "partner" ? appointmentSnapshotText(option, "partner_organisation_name") : "";
   const parts = [
+    partner ? copy("Vetted by {organisation}").replace("{organisation}", partner) : "",
     rating ? `${rating}${reviews !== null ? ` (${reviews} ${copy("reviews")})` : ""}` : "",
     opening,
     ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1).map(copy)),
@@ -10676,6 +10678,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const appointmentProviderAddress = appointmentSnapshotText(selectedAppointmentOption, "address");
   const appointmentProviderTrustNote = selectedAppointmentOption?.provider_source === "saved"
     ? (isSpanish ? "Guardado y relevante para esta solicitud" : "Saved and relevant to this request")
+    : selectedAppointmentOption?.provider_source === "partner"
+      ? homeServiceText(locale, "Vetted by {organisation}").replace("{organisation}", appointmentSnapshotText(selectedAppointmentOption, "partner_organisation_name"))
     : selectedAppointmentOption?.provider_source === "external"
       ? (isSpanish ? "Encontrado en fuentes verificables" : "Found from verifiable sources")
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
