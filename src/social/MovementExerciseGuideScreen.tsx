@@ -769,9 +769,32 @@ export default function MovementExerciseGuideScreen() {
         className="mt-4"
       >
         <div className="flex items-center justify-between gap-3 pb-2">
-          <span className="font-body text-[13px] font-black text-[#55707D]">
-            {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
-          </span>
+          <div className="flex items-center gap-1.5" aria-label="Exercise chapters">
+            <button
+              type="button"
+              onClick={() => moveToStep(stepIndex - 1)}
+              disabled={stepIndex === 0 || runState === "saving" || isAudioStarting}
+              className="vyva-tap inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D6E8EF] bg-white text-[#123047] shadow-[0_5px_12px_rgba(18,48,71,0.05)] disabled:cursor-not-allowed disabled:opacity-35"
+              data-testid="button-movement-guide-previous-step"
+              aria-label={`${guideCopy.previousStep}. ${guideCopy.stepLabel(Math.max(1, stepIndex), totalSteps)}`}
+            >
+              <ChevronLeft size={20} strokeWidth={2.8} aria-hidden="true" />
+            </button>
+            <span className="min-w-[82px] text-center font-body text-[13px] font-black text-[#55707D]">
+              {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+            </span>
+            <button
+              type="button"
+              onClick={() => moveToStep(stepIndex + 1)}
+              disabled={isLastStep || runState === "saving" || isAudioStarting}
+              className="vyva-tap inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-[0_6px_14px_rgba(18,48,71,0.10)] disabled:cursor-not-allowed disabled:opacity-35"
+              style={{ background: visual.accent }}
+              data-testid="button-movement-guide-next-step"
+              aria-label={`${guideCopy.nextStep}. ${guideCopy.stepLabel(Math.min(totalSteps, stepIndex + 2), totalSteps)}`}
+            >
+              <ChevronRight size={20} strokeWidth={2.8} aria-hidden="true" />
+            </button>
+          </div>
           <span
             className="font-body text-[15px] font-black tabular-nums text-[#123047]"
             data-testid="movement-guide-countdown"
@@ -793,32 +816,6 @@ export default function MovementExerciseGuideScreen() {
           />
         </div>
       </div>
-
-      <nav className="mt-4 grid grid-cols-2 gap-3" aria-label="Exercise chapters">
-        <button
-          type="button"
-          onClick={() => moveToStep(stepIndex - 1)}
-          disabled={stepIndex === 0 || runState === "saving" || isAudioStarting}
-          className="vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-[#D6E8EF] bg-white px-4 font-body text-[15px] font-black text-[#123047] shadow-[0_8px_18px_rgba(18,48,71,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
-          data-testid="button-movement-guide-previous-step"
-          aria-label={`${guideCopy.previousStep}. ${guideCopy.stepLabel(Math.max(1, stepIndex), totalSteps)}`}
-        >
-          <ChevronLeft size={20} strokeWidth={2.8} aria-hidden="true" />
-          {guideCopy.previousStep}
-        </button>
-        <button
-          type="button"
-          onClick={() => moveToStep(stepIndex + 1)}
-          disabled={isLastStep || runState === "saving" || isAudioStarting}
-          className="vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
-          style={{ background: visual.accent }}
-          data-testid="button-movement-guide-next-step"
-          aria-label={`${guideCopy.nextStep}. ${guideCopy.stepLabel(Math.min(totalSteps, stepIndex + 2), totalSteps)}`}
-        >
-          {guideCopy.nextStep}
-          <ChevronRight size={20} strokeWidth={2.8} aria-hidden="true" />
-        </button>
-      </nav>
 
       <main className="mt-5 flex flex-1 flex-col justify-center">
         {showStepInstructionIntro ? (
