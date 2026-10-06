@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, CSSProperties } from "react";
+import { CARE_FINDER_PATH } from "@/lib/careFinderNavigation";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -339,15 +340,6 @@ export type SpecialistProvider = {
   openingTimes?: string | null;
   rationale: string;
   score: number;
-};
-
-type SpecialistRecommendation = {
-  condition: string;
-  matchedSpecialties: string[];
-  safetyNote: string;
-  providers: SpecialistProvider[];
-  mapsSearchUrl?: string;
-  nextStep: string;
 };
 
 type BrowserSpeechRecognition = {
@@ -1618,13 +1610,6 @@ const HealthScreen = () => {
 
   const [seeDoctorOpen,    setSeeDoctorOpen]    = useState(false);
   const [visualScanOpen,   setVisualScanOpen]   = useState(false);
-  const [specialistOpen,   setSpecialistOpen]   = useState(false);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
-  const [specialistCondition, setSpecialistCondition] = useState("");
-  const [specialistLocation, setSpecialistLocation] = useState("");
-  const [specialistLocationEdited, setSpecialistLocationEdited] = useState(false);
-  const [specialistResult, setSpecialistResult] = useState<SpecialistRecommendation | null>(null);
-  const [specialistVoiceListening, setSpecialistVoiceListening] = useState(false);
   const [historialOpen,    setHistorialOpen]    = useState(false);
   const [expandedScanId,   setExpandedScanId]   = useState<string | null>(null);
   const [fullScreenScan,   setFullScreenScan]   = useState<WoundScan | null>(null);
@@ -1641,7 +1626,6 @@ const HealthScreen = () => {
     source: "camera",
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
   useEffect(() => {
     const state = location.state as { openVisualScan?: boolean } | null;
@@ -1652,18 +1636,6 @@ const HealthScreen = () => {
 
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
-  const specialistLanguage = activeLanguage(appLanguage);
-
-  const profileLocation = useMemo(() => {
-    return profileLocationFromParts({
-      street: profile?.street,
-      postalCode: profile?.postalCode,
-      cityState: profile?.cityState,
-      region: profile?.region,
-      country: profile?.country,
-    });
-  }, [profile?.street, profile?.postalCode, profile?.cityState, profile?.region, profile?.country]);
-
   const { data: personalisationData } = useQuery<{
     conditions: string[];
     hobbies: string[];
@@ -1673,12 +1645,6 @@ const HealthScreen = () => {
     staleTime: 10 * 60 * 1000,
     retry: false,
   });
-
-  useEffect(() => {
-    if (!specialistLocationEdited && profileLocation && !specialistLocation.trim()) {
-      setSpecialistLocation(profileLocation);
-    }
-  }, [profileLocation, specialistLocation, specialistLocationEdited]);
 
   const { data: pastScans = [], isLoading: pastScansLoading } = useQuery<WoundScan[]>({
     queryKey: ["/api/wound-scan/history"],
@@ -2057,155 +2023,6 @@ const HealthScreen = () => {
     },
   });
 
-  const specialistMutation = useMutation({
-    mutationFn: async (input?: { condition?: string; location?: string }) => {
-      const condition = input?.condition ?? specialistCondition;
-      const location = input?.location ?? (specialistLocation.trim() || profileLocation || "Tarifa, Cadiz");
-      const res = await apiFetch("/api/specialists/recommendations", {
-        method: "POST",
-        body: JSON.stringify({
-          condition,
-          location,
-          language: specialistLanguage,
-          urgency: "routine",
-        }),
-      });
-      if (!res.ok) throw new Error("Specialist search failed");
-      return res.json() as Promise<SpecialistRecommendation>;
-    },
-    onSuccess: (data) => setSpecialistResult(data),
-    onError: () => {
-      toast({ description: t("health.findSpecialist.searchError", "I could not search for specialists right now. Please try again in a moment.") });
-    },
-  });
-
-  const runSpecialistSearch = (condition = specialistCondition) => {
-    const trimmedCondition = condition.trim();
-    if (!trimmedCondition) {
-      toast({ description: t("health.findSpecialist.emptyCondition", "Tell me the condition or need so I can find the right specialist.") });
-      return;
-    }
-    setSpecialistCondition(trimmedCondition);
-    setSpecialistResult(null);
-    specialistMutation.mutate({ condition: trimmedCondition, location: specialistLocation.trim() || profileLocation || "Tarifa, Cadiz" });
-  };
-
-  const askExpertCards: Array<{
-    id: string;
-    label: string;
-    detail: string;
-    Icon: LucideIcon;
-    iconBg: string;
-    iconColor: string;
-    onClick: () => void;
-  }> = [
-    {
-      id: "elena-ruiz",
-      label: t("health.findSpecialist.experts.elena.label", "Elena Ruiz"),
-      detail: t("health.findSpecialist.experts.elena.detail", "Urban gardener"),
-      Icon: Flower2,
-      iconBg: "#ECFDF5",
-      iconColor: "#16A34A",
-      onClick: () => navigate("/social-rooms/garden-corner"),
-    },
-    {
-      id: "viktor-sanz",
-      label: t("health.findSpecialist.experts.viktor.label", "Viktor Sanz"),
-      detail: t("health.findSpecialist.experts.viktor.detail", "Games companion"),
-      Icon: Gamepad2,
-      iconBg: "#FFF7ED",
-      iconColor: "#F59E0B",
-      onClick: () => navigate("/social-rooms/games-room"),
-    },
-    {
-      id: "lola-martinez",
-      label: t("health.findSpecialist.experts.lola.label", "Lola Martínez"),
-      detail: t("health.findSpecialist.experts.lola.detail", "Mediterranean chef"),
-      Icon: ChefHat,
-      iconBg: "#FFF7ED",
-      iconColor: "#C2410C",
-      onClick: () => navigate("/social-rooms/kitchen-table"),
-    },
-    {
-      id: "amara-osei",
-      label: t("health.findSpecialist.experts.amara.label", "Wellness Coach"),
-      detail: t("health.findSpecialist.experts.amara.detail", "Movement and calm"),
-      Icon: Activity,
-      iconBg: "#EFF6FF",
-      iconColor: "#0284C7",
-      onClick: () => navigate("/social-rooms/morning-movement"),
-    },
-    {
-      id: "marco-reyes",
-      label: t("health.findSpecialist.experts.marco.label", "Marco Reyes"),
-      detail: t("health.findSpecialist.experts.marco.detail", "Calm guide"),
-      Icon: HeartPulse,
-      iconBg: "#EEF2FF",
-      iconColor: "#4F46E5",
-      onClick: () => navigate("/social-rooms/evening-wind-down"),
-    },
-    {
-      id: "diego-salinas",
-      label: t("health.findSpecialist.experts.diego.label", "Diego Salinas"),
-      detail: t("health.findSpecialist.experts.diego.detail", "Musicologist"),
-      Icon: Music,
-      iconBg: "#F5F3FF",
-      iconColor: "#7E22CE",
-      onClick: () => navigate("/social-rooms/music-room"),
-    },
-    {
-      id: "isabel-fuentes",
-      label: t("health.findSpecialist.experts.isabel.label", "Isabel Fuentes"),
-      detail: t("health.findSpecialist.experts.isabel.detail", "Literary host"),
-      Icon: BookOpen,
-      iconBg: "#FFF7ED",
-      iconColor: "#7C2D12",
-      onClick: () => navigate("/social-rooms/reading-room"),
-    },
-  ];
-
-  const stopSpecialistVoice = () => {
-    specialistRecognitionRef.current?.stop();
-    specialistRecognitionRef.current = null;
-    setSpecialistVoiceListening(false);
-  };
-
-  const startSpecialistVoice = () => {
-    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!Recognition) {
-      toast({ description: t("health.findSpecialist.voiceUnsupported", "Voice dictation is not available here. You can type the condition.") });
-      return;
-    }
-
-    const recognition = new Recognition();
-    recognition.lang = specialistLanguage === "en" ? "en-US" : specialistLanguage === "de" ? "de-DE" : "es-ES";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
-      if (transcript) {
-        setSpecialistCondition(transcript);
-        runSpecialistSearch(transcript);
-      }
-    };
-    recognition.onerror = () => {
-      toast({ description: t("health.findSpecialist.voiceError", "I could not hear clearly. Try again or type it.") });
-      setSpecialistVoiceListening(false);
-    };
-    recognition.onend = () => {
-      setSpecialistVoiceListening(false);
-      specialistRecognitionRef.current = null;
-    };
-
-    specialistRecognitionRef.current = recognition;
-    setSpecialistVoiceListening(true);
-    recognition.start();
-  };
-
-  useEffect(() => () => {
-    specialistRecognitionRef.current?.stop();
-  }, []);
-
   useEffect(() => {
     if (!new URLSearchParams(location.search).has("doctor")) return;
 
@@ -2223,87 +2040,8 @@ const HealthScreen = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     if (!searchParams.has("specialist") && !searchParams.has("provider")) return;
-
-    setSpecialistOpen(true);
-    const scrollTimer = window.setTimeout(() => {
-      if (typeof document === "undefined") return;
-      document.getElementById("health-specialist-panel")?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 80);
-    return () => window.clearTimeout(scrollTimer);
-  }, [location.search]);
-
-  const bookSpecialistMutation = useMutation({
-    mutationFn: async (provider: SpecialistProvider) => {
-      const specialty = displaySpecialty(provider, specialistLanguage);
-      const providerName = provider.clinicName ?? provider.name;
-      const res = await apiFetch("/api/concierge/actions/trigger", {
-        method: "POST",
-        body: JSON.stringify({
-          use_case: "book_appointment",
-          provider_name: providerName,
-          provider_phone: provider.phone ?? null,
-          found_externally: true,
-          action_summary: activeLanguage(specialistLanguage) === "es"
-            ? `Pedir una cita de ${specialty} en ${providerName}.`
-            : `Request a ${specialty} appointment at ${providerName}.`,
-          action_payload: {
-            doctor_name: provider.name,
-            practice_name: providerName,
-            specialty,
-            reason: specialistCondition,
-            preferred_days: [],
-            preferred_time: "",
-            urgency: "routine",
-            provider_address: provider.address ?? "",
-            booking_url: provider.bookingUrl ?? "",
-            source_name: provider.sourceName,
-          },
-          language: specialistLanguage,
-          trigger_source: "user_request",
-          auto_start: false,
-        }),
-      });
-      if (!res.ok) throw new Error("Could not create appointment request");
-      return res.json() as Promise<{ pendingId: string; status: string }>;
-    },
-    onSuccess: () => {
-      toast({ description: t("health.findSpecialist.appointmentReady", "I prepared the request. I will take you to Concierge to confirm it.") });
-      queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-      navigate("/concierge");
-    },
-    onError: () => {
-      toast({ description: t("health.findSpecialist.appointmentError", "I could not prepare the appointment. Please try again in a moment.") });
-    },
-  });
-
-  const shareSpecialistProvider = async (provider: SpecialistProvider) => {
-    const specialty = displaySpecialty(provider, specialistLanguage);
-    const location = provider.address ?? provider.clinicName ?? specialistLocation;
-    const lines = [
-      provider.name,
-      specialty,
-      provider.phone ? `${t("health.findSpecialist.phoneLabel", "Phone")}: ${provider.phone}` : null,
-      location ? `${t("health.findSpecialist.locationLabel", "Location")}: ${location}` : null,
-      provider.openingTimes ? `${t("health.findSpecialist.hoursLabel", "Hours")}: ${provider.openingTimes}` : null,
-      provider.distanceLabel ? `${t("health.findSpecialist.distanceLabel", "Distance")}: ${provider.distanceLabel}` : null,
-      provider.bookingUrl ? `${t("health.findSpecialist.moreInfoLabel", "More information")}: ${provider.bookingUrl}` : null,
-      provider.mapsUrl ? `Google Maps: ${provider.mapsUrl}` : null,
-    ].filter(Boolean).join("\n");
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: provider.name, text: lines });
-      } else {
-        await navigator.clipboard.writeText(lines);
-        toast({ description: t("health.findSpecialist.shareCopied", "Details copied for sharing.") });
-      }
-    } catch {
-      toast({ description: t("health.findSpecialist.shareError", "I could not share it right now. Please try again.") });
-    }
-  };
+    navigate(CARE_FINDER_PATH, { replace: true, state: { returnTo: "/health/dashboard" } });
+  }, [location.search, navigate]);
 
   const prepareVisualCaptureFile = (file: File) => {
     const reviewInput = {
@@ -3085,18 +2823,10 @@ const HealthScreen = () => {
     }
   };
 
+  // Health care searches run in Care Finder, which starts from everyday
+  // words and never needs the person to know which specialist to look for.
   const openSpecialistPanel = () => {
-    const shouldOpen = !specialistOpen;
-    setSpecialistOpen((value) => !value);
-    if (shouldOpen) {
-      window.setTimeout(() => {
-        if (typeof document === "undefined") return;
-        document.getElementById("health-specialist-panel")?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }, 80);
-    }
+    navigate(CARE_FINDER_PATH, { state: { returnTo: "/health/dashboard" } });
   };
 
   const healthFastHelpActions: MasterFastHelpAction[] = [
@@ -3701,214 +3431,6 @@ const HealthScreen = () => {
           </div>
         )}
 
-        {specialistOpen && (
-          <div
-            id="health-specialist-panel"
-            className="mt-4 overflow-hidden rounded-[26px] border border-[#DDD6FE] bg-white p-[18px] shadow-[0_16px_34px_rgba(124,58,237,0.10)]"
-            data-testid="section-health-specialist"
-          >
-            <div className="rounded-[22px] border border-[#E9D5FF] bg-[#FAF7FF] p-4">
-              <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#7C3AED] shadow-[0_10px_22px_rgba(124,58,237,0.10)]">
-                  <UserSearch size={24} strokeWidth={2.4} aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[20px] font-black leading-tight text-vyva-text-1">
-                    {t("health.findSpecialist.title", "Find a Specialist")}
-                  </span>
-                  <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-              <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                {t("health.findSpecialist.experts.title", "Choose an expert")}
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {askExpertCards.map((expert) => {
-                  const Icon = expert.Icon;
-                  return (
-                    <button
-                      key={expert.id}
-                      type="button"
-                      data-testid={`button-ask-expert-${expert.id}`}
-                      onClick={expert.onClick}
-                      className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
-                    >
-                      <span
-                        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
-                        style={{ background: expert.iconBg, color: expert.iconColor }}
-                      >
-                        <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                          {expert.label}
-                        </span>
-                        <span className="sr-only">
-                          {expert.detail}
-                        </span>
-                      </span>
-                      <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-3">
-              <button
-                data-testid="button-specialist-voice-search"
-                onClick={specialistVoiceListening ? stopSpecialistVoice : startSpecialistVoice}
-                disabled={specialistMutation.isPending}
-                className={`vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-black transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
-                style={{
-                  background: specialistVoiceListening ? "#ECFDF5" : "#F5F3FF",
-                  color: specialistVoiceListening ? "#0A7C4E" : "#7C3AED",
-                  border: specialistVoiceListening ? "1px solid #6EE7B7" : "1px solid #DDD6FE",
-                }}
-              >
-                {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
-                {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
-              </button>
-              <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#DDD6FE] bg-white px-4">
-                <UserSearch size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
-                <input
-                  data-testid="input-specialist-condition"
-                  value={specialistCondition}
-                  onChange={(e) => setSpecialistCondition(e.target.value)}
-                  placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
-                  className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#A99BB5]"
-                />
-              </label>
-              <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EDE5DB] bg-[#FFFCF8] px-4">
-                <MapPin size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#8A7A70]" aria-hidden="true" />
-                <input
-                  data-testid="input-specialist-location"
-                  value={specialistLocation}
-                  onChange={(e) => {
-                    setSpecialistLocationEdited(true);
-                    setSpecialistLocation(e.target.value);
-                  }}
-                  placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
-                  className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#B4A69C]"
-                />
-              </label>
-              <button
-                data-testid="button-run-specialist-search"
-                onClick={() => runSpecialistSearch()}
-                disabled={specialistMutation.isPending}
-                className="vyva-primary-action flex w-full items-center justify-center gap-2"
-                style={{ background: "#7C3AED", color: "#FFFFFF" }}
-              >
-                <span>{specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}</span>
-                <ChevronRight size={18} strokeWidth={2.6} aria-hidden="true" />
-              </button>
-            </div>
-
-            {specialistResult && (
-              <div className="mt-[12px] flex flex-col gap-2">
-                <div className="rounded-[14px] px-[14px] py-[11px]" style={{ background: "#F5F3FF", border: "1px solid #DDD6FE" }}>
-                  <p className="font-body text-[12px] font-semibold" style={{ color: "#6D28D9" }}>
-                    {t("health.findSpecialist.recommendedSpecialties", "Recommended specialties")}
-                  </p>
-                  <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-                    {specialistResult.matchedSpecialties.map((specialty) => displaySpecialtyText(specialty, specialistLanguage)).join(", ")}
-                  </p>
-                </div>
-
-                {specialistResult.providers.map((spec, i) => {
-                  const location = spec.address ?? spec.clinicName ?? specialistLocation;
-                  const providerActions = specialistProviderServiceActionsFor(spec);
-                  return (
-                    <div key={`${spec.name}-${i}`} className="rounded-[16px] px-[14px] py-[13px]" style={{ background: "#F9F6F2", border: "1px solid #EDE5DB" }}>
-                      <div className="flex items-start gap-3">
-                        <div className="w-[40px] h-[40px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#EDE9FE" }}>
-                          <UserSearch size={17} style={{ color: "#7C3AED" }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-body text-[16px] font-semibold text-vyva-text-1 leading-tight">{spec.name}</p>
-                          <p className="font-body text-[13px] font-semibold mt-[2px]" style={{ color: "#7C3AED" }}>{displaySpecialty(spec, specialistLanguage)}</p>
-                          <p className="mt-2 font-body text-[13px] text-vyva-text-2 leading-snug">{location}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-[12px] grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {providerActions.map((action) => {
-                          if (action.kind === "call_provider" && action.href) {
-                            return (
-                              <a
-                                key={action.kind}
-                                href={action.href}
-                                data-testid={`button-specialist-call-provider-${i}`}
-                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                style={{ background: "#7C3AED", color: "#FFFFFF" }}
-                              >
-                                <PhoneCall size={15} />
-                                {t("health.findSpecialist.call", "Call")}
-                              </a>
-                            );
-                          }
-                          if (action.kind === "book_appointment") {
-                            return (
-                              <button
-                                key={action.kind}
-                                type="button"
-                                data-testid={`button-specialist-book-appointment-${i}`}
-                                onClick={() => action.href ? window.open(action.href, "_blank", "noopener,noreferrer") : bookSpecialistMutation.mutate(spec)}
-                                disabled={bookSpecialistMutation.isPending}
-                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                                style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                              >
-                                <Calendar size={15} />
-                                {t("health.findSpecialist.bookAppointment", "Appointment")}
-                              </button>
-                            );
-                          }
-                          if (action.kind === "book_ride") {
-                            return (
-                              <button
-                                key={action.kind}
-                                type="button"
-                                data-testid={`button-specialist-book-ride-${i}`}
-                                onClick={() => navigate("/concierge", { state: specialistRideState(spec, specialistCondition, specialistLanguage) })}
-                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
-                              >
-                                <Car size={15} />
-                                {t("health.findSpecialist.bookRide", "Find transport")}
-                              </button>
-                            );
-                          }
-                          if (action.kind === "open_map" && action.href) {
-                            return (
-                              <button
-                                key={action.kind}
-                                type="button"
-                                data-testid={`button-map-specialist-${i}`}
-                                onClick={() => window.open(action.href!, "_blank", "noopener,noreferrer")}
-                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
-                              >
-                                <MapPin size={15} />
-                                {t("health.findSpecialist.map", "Map")}
-                              </button>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
         {showLegacyHealthSections ? <div className="mt-[24px]">
           <SectionTitle className="mb-3" title={t("health.quickActions", "Quick actions")} />
 
@@ -4203,320 +3725,14 @@ const HealthScreen = () => {
                 </div>
                 <button
                   data-testid="button-find-specialist"
-                  onClick={() => {
-                    if (specialistOpen) {
-                      setSpecialistOpen(false);
-                      setSpecialistResult(null);
-                      return;
-                    }
-                    if (canUseService("localServices", "/health")) {
-                      setSpecialistOpen(true);
-                      setSpecialistResult(null);
-                    }
-                  }}
+                  onClick={openSpecialistPanel}
                   className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all inline-flex items-center gap-2"
                   style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                 >
-                  {specialistOpen ? (
-                    <>
-                      {t("health.findSpecialist.hideButton", "Hide")}
-                      <ChevronUp size={16} />
-                    </>
-                  ) : (
-                    t("health.findSpecialist.optionsButton", "Options")
-                  )}
+                  {t("health.findSpecialist.optionsButton", "Options")}
                 </button>
               </div>
 
-              {specialistOpen && (
-                <div className="px-[18px] pb-[16px]" style={{ borderTop: "1px solid #F5F3FF" }}>
-                  <div className="mt-[14px] rounded-[22px] border border-[#E9D5FF] bg-[#FAF7FF] p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#7C3AED] shadow-[0_10px_22px_rgba(124,58,237,0.10)]">
-                        <UserSearch size={24} strokeWidth={2.4} aria-hidden="true" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-body text-[20px] font-black leading-tight text-vyva-text-1">
-                          {t("health.findSpecialist.title", "Find a Specialist")}
-                        </span>
-                        <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                          {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-                    <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                      {t("health.findSpecialist.experts.title", "Choose an expert")}
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {askExpertCards.map((expert) => {
-                        const Icon = expert.Icon;
-                        return (
-                          <button
-                            key={expert.id}
-                            type="button"
-                            data-testid={`button-ask-expert-${expert.id}`}
-                            onClick={expert.onClick}
-                            className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
-                          >
-                            <span
-                              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
-                              style={{ background: expert.iconBg, color: expert.iconColor }}
-                            >
-                              <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                                {expert.label}
-                              </span>
-                              <span className="sr-only">
-                                {expert.detail}
-                              </span>
-                            </span>
-                            <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-col gap-3">
-                    <button
-                      data-testid="button-specialist-voice-search"
-                      onClick={specialistVoiceListening ? stopSpecialistVoice : startSpecialistVoice}
-                      disabled={specialistMutation.isPending}
-                      className={`vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-black transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
-                      style={{
-                        background: specialistVoiceListening ? "#ECFDF5" : "#F5F3FF",
-                        color: specialistVoiceListening ? "#0A7C4E" : "#7C3AED",
-                        border: specialistVoiceListening ? "1px solid #6EE7B7" : "1px solid #DDD6FE",
-                      }}
-                    >
-                      {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
-                      {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
-                    </button>
-                    <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#DDD6FE] bg-white px-4">
-                      <UserSearch size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
-                      <input
-                        data-testid="input-specialist-condition"
-                        value={specialistCondition}
-                        onChange={(e) => setSpecialistCondition(e.target.value)}
-                        placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
-                        className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#A99BB5]"
-                      />
-                    </label>
-                    <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EDE5DB] bg-[#FFFCF8] px-4">
-                      <MapPin size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#8A7A70]" aria-hidden="true" />
-                      <input
-                        data-testid="input-specialist-location"
-                        value={specialistLocation}
-                        onChange={(e) => {
-                          setSpecialistLocationEdited(true);
-                          setSpecialistLocation(e.target.value);
-                        }}
-                        placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
-                        className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#B4A69C]"
-                      />
-                    </label>
-                    <button
-                      data-testid="button-run-specialist-search"
-                      onClick={() => runSpecialistSearch()}
-                      disabled={specialistMutation.isPending}
-                      className="vyva-primary-action flex w-full items-center justify-center gap-2"
-                      style={{ background: "#7C3AED", color: "#FFFFFF" }}
-                    >
-                      <span>{specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}</span>
-                      <ChevronRight size={18} strokeWidth={2.6} aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  {specialistResult && (
-                    <div className="mt-[12px] flex flex-col gap-2">
-                      <div className="rounded-[14px] px-[14px] py-[11px]" style={{ background: "#F5F3FF", border: "1px solid #DDD6FE" }}>
-                        <p className="font-body text-[12px] font-semibold" style={{ color: "#6D28D9" }}>
-                          {t("health.findSpecialist.recommendedSpecialties", "Recommended specialties")}
-                        </p>
-                        <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-                          {specialistResult.matchedSpecialties.map((specialty) => displaySpecialtyText(specialty, specialistLanguage)).join(", ")}
-                        </p>
-                        <p className="font-body text-[11px] text-vyva-text-2 leading-snug mt-[6px]">
-                          {t("health.findSpecialist.disclaimer", "This is not a diagnosis. If symptoms are serious or sudden, call emergency services or your doctor.")}
-                        </p>
-                      </div>
-                      {specialistResult.providers.length === 0 ? (
-                        <div className="rounded-[16px] px-[14px] py-[14px]" style={{ background: "#FFF7ED", border: "1px solid #FED7AA" }}>
-                          <p className="font-body text-[16px] font-semibold leading-tight text-vyva-text-1">
-                            {t("health.findSpecialist.noProvidersTitle", "I could not find verified providers with enough data right now.")}
-                          </p>
-                          <p className="mt-2 font-body text-[13px] leading-snug text-vyva-text-2">
-                            {t("health.findSpecialist.noProvidersBody", "You can try another city or open Google Maps to look for nearby options.")}
-                          </p>
-                          <button
-                            data-testid="button-open-specialist-maps-search"
-                            onClick={() => {
-                              const query = specialistResult.mapsSearchUrl
-                                ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${displaySpecialtyText(specialistResult.matchedSpecialties[0] ?? t("health.findSpecialist.doctorSearchTerm", "doctor"), specialistLanguage)} ${specialistLocation || profileLocation}`)}`;
-                              window.open(query, "_blank", "noopener,noreferrer");
-                            }}
-                            className="mt-[12px] min-h-[44px] rounded-full px-[16px] font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                            style={{ background: "#7C3AED", color: "#FFFFFF" }}
-                          >
-                            <MapPin size={15} />
-                            {t("health.findSpecialist.openMaps", "Open Google Maps")}
-                          </button>
-                        </div>
-                      ) : specialistResult.providers.map((spec, i) => {
-                        const location = spec.address ?? spec.clinicName ?? specialistLocation;
-                        const providerActions = specialistProviderServiceActionsFor(spec);
-
-                        return (
-                        <div key={`${spec.name}-${i}`} className="rounded-[16px] px-[14px] py-[13px]" style={{ background: "#F9F6F2", border: "1px solid #EDE5DB" }}>
-                          <div className="flex items-start gap-3">
-                            <div className="w-[40px] h-[40px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#EDE9FE" }}>
-                              <UserSearch size={17} style={{ color: "#7C3AED" }} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-body text-[16px] font-semibold text-vyva-text-1 leading-tight">{spec.name}</p>
-                              <p className="font-body text-[13px] font-semibold mt-[2px]" style={{ color: "#7C3AED" }}>{displaySpecialty(spec, specialistLanguage)}</p>
-                            </div>
-                          </div>
-
-                          <div className="mt-[10px] grid gap-2">
-                            {spec.phone && (
-                              <div className="flex items-start gap-2 font-body text-[13px] text-vyva-text-2 leading-snug">
-                                <Phone size={14} className="mt-[2px] flex-shrink-0" style={{ color: "#7C3AED" }} />
-                                <span>{spec.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-start gap-2 font-body text-[13px] text-vyva-text-2 leading-snug">
-                              <MapPin size={14} className="mt-[2px] flex-shrink-0" style={{ color: "#7C3AED" }} />
-                              <span>{location}</span>
-                            </div>
-                            {spec.openingTimes && (
-                              <div className="flex items-start gap-2 font-body text-[13px] text-vyva-text-2 leading-snug">
-                                <Clock size={14} className="mt-[2px] flex-shrink-0" style={{ color: "#7C3AED" }} />
-                                <span>{spec.openingTimes}</span>
-                              </div>
-                            )}
-                            {spec.distanceLabel && (
-                              <div className="flex items-start gap-2 font-body text-[13px] text-vyva-text-2 leading-snug">
-                                <MapPin size={14} className="mt-[2px] flex-shrink-0" style={{ color: "#059669" }} />
-                                <span>{spec.distanceLabel}</span>
-                              </div>
-                            )}
-                            {spec.reviewScore && (
-                              <div className="flex items-center gap-1 font-body text-[12px] text-vyva-text-2">
-                                <Star size={12} fill="#F59E0B" style={{ color: "#F59E0B" }} />
-                                <span>{spec.reviewScore}{spec.reviewCount ? ` (${spec.reviewCount})` : ""}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mt-[12px] grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            {providerActions.map((action) => {
-                              if (action.kind === "call_provider" && action.href) {
-                                return (
-                                  <a
-                                    key={action.kind}
-                                    href={action.href}
-                                    data-testid={`button-specialist-call-provider-${i}`}
-                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                    style={{ background: "#7C3AED", color: "#FFFFFF" }}
-                                  >
-                                    <PhoneCall size={15} />
-                                    {t("health.findSpecialist.call", "Call")}
-                                  </a>
-                                );
-                              }
-
-                              if (action.kind === "book_appointment") {
-                                if (action.href) {
-                                  return (
-                                    <a
-                                      key={action.kind}
-                                      href={action.href}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      data-testid={`button-specialist-book-appointment-${i}`}
-                                      className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                      style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                                    >
-                                      <Calendar size={15} />
-                                      {t("health.findSpecialist.bookAppointment", "Appointment")}
-                                    </a>
-                                  );
-                                }
-
-                                return (
-                                  <button
-                                    key={action.kind}
-                                    type="button"
-                                    data-testid={`button-specialist-book-appointment-${i}`}
-                                    onClick={() => bookSpecialistMutation.mutate(spec)}
-                                    disabled={bookSpecialistMutation.isPending}
-                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                                    style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                                  >
-                                    <Calendar size={15} />
-                                    {t("health.findSpecialist.bookAppointment", "Appointment")}
-                                  </button>
-                                );
-                              }
-
-                              if (action.kind === "book_ride") {
-                                return (
-                                  <button
-                                    key={action.kind}
-                                    type="button"
-                                    data-testid={`button-specialist-book-ride-${i}`}
-                                    onClick={() => navigate("/concierge", { state: specialistRideState(spec, specialistCondition, specialistLanguage) })}
-                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                    style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
-                                  >
-                                    <Car size={15} />
-                                    {t("health.findSpecialist.bookRide", "Find transport")}
-                                  </button>
-                                );
-                              }
-
-                              if (action.kind === "open_map" && action.href) {
-                                return (
-                                  <button
-                                    key={action.kind}
-                                    type="button"
-                                    data-testid={`button-map-specialist-${i}`}
-                                    onClick={() => window.open(action.href!, "_blank", "noopener,noreferrer")}
-                                    className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                                    style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
-                                  >
-                                    <MapPin size={15} />
-                                    {t("health.findSpecialist.map", "Map")}
-                                  </button>
-                                );
-                              }
-
-                              return null;
-                            })}
-                            <button
-                              data-testid={`button-share-specialist-${i}`}
-                              onClick={() => shareSpecialistProvider(spec)}
-                              className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
-                              style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                            >
-                              <Share2 size={15} />
-                              {t("health.findSpecialist.share", "Share")}
-                            </button>
-                          </div>
-
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div> : null}

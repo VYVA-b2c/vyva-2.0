@@ -2457,7 +2457,7 @@ const en = {
             homeRepair: "Home Repair",
             homeRepairDetail: "Plumber, electrician, cleaning",
             healthcare: "Healthcare",
-            healthcareDetail: "Find a specialist or health support",
+            healthcareDetail: "Find the right care for a health worry",
             adminService: "Admin Service",
             adminServiceDetail: "Forms, letters, government paperwork",
             homeCare: "Home Care",
