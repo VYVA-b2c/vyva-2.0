@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  careFinderLang,
   careRouteOptions,
   careTypeSearchTerms,
   classifyCareNeed,
@@ -277,5 +278,47 @@ describe("persistence and resume", () => {
 
   it("asks the next question when nothing is saved", () => {
     expect(nextCareFinderStep(initialCareFinderState())).toBe("who");
+  });
+});
+
+describe("French and German", () => {
+  it.each([
+    ["J'ai une douleur dans la poitrine", "chest"],
+    ["Je n'arrive pas à respirer", "breathing"],
+    ["Son visage est affaissé, c'est peut-être un AVC", "stroke"],
+    ["Ma mère est tombée et n'arrive pas à se relever", "fall_head"],
+    ["Je ne veux plus vivre", "self_harm"],
+    ["Ich habe Schmerzen in der Brust", "chest"],
+    ["Ich bekomme keine Luft", "breathing"],
+    ["Ihr Gesicht hängt, vielleicht ein Schlaganfall", "stroke"],
+    ["Meine Mutter ist gestürzt und kann nicht aufstehen", "fall_head"],
+    ["Ich will nicht mehr leben", "self_harm"],
+    ["Seine Zunge ist geschwollen", "allergic"],
+  ])("flags %s", (text, flag) => {
+    expect(detectCareRedFlags(text)).toContain(flag);
+  });
+
+  it("ignores negated warning signs", () => {
+    expect(detectCareRedFlags("Je n'ai pas de douleur à la poitrine, juste le genou")).toEqual([]);
+    expect(detectCareRedFlags("Ich habe keine Brustschmerzen, nur das Knie")).toEqual([]);
+  });
+
+  it.each([
+    ["J'ai mal au genou et les escaliers sont difficiles", "pain", ["step_free"]],
+    ["Je n'entends plus bien la télévision", "hearing", []],
+    ["Mein Knie tut weh und Treppen sind schwer", "pain", ["step_free"]],
+    ["Mein Fuß schmerzt", "pain", []],
+    ["Ich vergesse in letzter Zeit viel", "memory", []],
+  ])("understands %s", (text, need, access) => {
+    expect(classifyCareNeed(text)).toBe(need);
+    expect(inferCareAccessNeeds(text)).toEqual(access);
+  });
+
+  it("detects the language and asks clinics for staff who speak it", () => {
+    expect(careFinderLang("fr-FR")).toBe("fr");
+    expect(careFinderLang("de")).toBe("de");
+    expect(careFinderLang("it")).toBe("en");
+    expect(careTypeSearchTerms("physiotherapy", "private", ["english"], "fr")).toContain("fisioterapia habla francés");
+    expect(careTypeSearchTerms("physiotherapy", "private", ["english"], "de")).toContain("fisioterapia habla alemán");
   });
 });

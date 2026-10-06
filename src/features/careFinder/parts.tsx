@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Check, Mic, Square, Volume2 } from "lucide-react";
 import { useSpeechRecognition } from "@/games/memory/useSpeechRecognition";
-import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
+import { CARE_FINDER_LOCALE, type CareFinderLang } from "../../../shared/careFinder/careRoutes";
 import type { CareFinderCopy } from "./copy";
 
 const cx = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ");
@@ -213,7 +213,7 @@ export function ReadAloudButton({ getText, lang, copy, resetKey }: { getText: ()
       onClick={() => {
         if (speaking) return stop();
         const utterance = new SpeechSynthesisUtterance(getText());
-        utterance.lang = lang === "es" ? "es-ES" : "en-GB";
+        utterance.lang = CARE_FINDER_LOCALE[lang];
         utterance.rate = 0.9;
         utterance.onend = () => setSpeaking(false);
         utterance.onerror = () => setSpeaking(false);

@@ -8,7 +8,7 @@ import { CareFinder, type CareFinderServices } from "@/features/careFinder/CareF
 import { fetchCareFinderProfile, searchCareFinder } from "@/features/careFinder/api";
 import { loadCareFinderTask, useCareFinderTaskPersistence, type CareFinderLoadResult } from "@/features/careFinder/useCareFinderTask";
 import { careFinderCopy } from "@/features/careFinder/copy";
-import { formatCheckedAt } from "@/features/careFinder/ResultsStep";
+import { formatDateOnly } from "@/features/careFinder/ResultsStep";
 import { CARE_NEEDS, CARE_TYPES, careFinderLang, pick, type CareFinderLang } from "../../shared/careFinder/careRoutes";
 import type { CareFinderState } from "../../shared/careFinder/flow";
 import type { CareFinderResultOption } from "../../shared/careFinder/search";
@@ -56,7 +56,7 @@ function CareFinderSession({
     about: resume.state.description
       ? `“${resume.state.description.slice(0, 60)}”`
       : resume.state.need ? pick(lang, CARE_NEEDS[resume.state.need].label).toLowerCase() : "",
-    when: formatCheckedAt(resume.updatedAt, lang).replace(/^(el|on) /, ""),
+    when: formatDateOnly(resume.updatedAt, lang),
     onContinue: () => onResume(resume),
   } : null;
 

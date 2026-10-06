@@ -6,7 +6,7 @@ import {
   type ProviderComparisonCriterion,
   type ProviderComparisonFact,
 } from "../../../shared/providerComparison";
-import { CARE_TYPES, pick, type CareFinderLang } from "../../../shared/careFinder/careRoutes";
+import { CARE_FINDER_LOCALE, CARE_TYPES, pick, type CareFinderLang } from "../../../shared/careFinder/careRoutes";
 import type { CareFinderResultOption, CareFinderSearchResponse } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
 import { ActionButton, Notice, actionClass } from "./parts";
@@ -19,13 +19,25 @@ const FACT_ORDER: ProviderComparisonCriterion[] = ["distance", "availability", "
 // Shown even when unknown, because they decide whether a place is usable.
 const ALWAYS_SHOWN: ProviderComparisonCriterion[] = ["distance", "accessibility", "coverage", "price"];
 
+const RELATIVE_DAY: Record<CareFinderLang, { today: string; on: string }> = {
+  en: { today: "today", on: "on" },
+  es: { today: "hoy", on: "el" },
+  fr: { today: "aujourd'hui", on: "le" },
+  de: { today: "heute", on: "am" },
+};
+
+/** The bare date (no "on"/"el"/"le"/"am"), for sentences that add their own. */
+export function formatDateOnly(value: string, lang: CareFinderLang): string {
+  return new Intl.DateTimeFormat(CARE_FINDER_LOCALE[lang], { day: "numeric", month: "long" }).format(new Date(value));
+}
+
 export function formatCheckedAt(value: string | null | undefined, lang: CareFinderLang, now = new Date()): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  if (date.toDateString() === now.toDateString()) return lang === "es" ? "hoy" : "today";
-  const formatted = new Intl.DateTimeFormat(lang === "es" ? "es-ES" : "en-GB", { day: "numeric", month: "long" }).format(date);
-  return lang === "es" ? `el ${formatted}` : `on ${formatted}`;
+  if (date.toDateString() === now.toDateString()) return RELATIVE_DAY[lang].today;
+  const formatted = new Intl.DateTimeFormat(CARE_FINDER_LOCALE[lang], { day: "numeric", month: "long" }).format(date);
+  return `${RELATIVE_DAY[lang].on} ${formatted}`;
 }
 
 function FactStatus({ fact, copy }: { fact: ProviderComparisonFact; copy: CareFinderCopy }) {
@@ -48,7 +60,7 @@ function factValue(fact: ProviderComparisonFact, copy: CareFinderCopy): string {
 }
 
 export function usualDoctorOption(doctor: { name: string; phone?: string | null; address?: string | null }, lang: CareFinderLang): CareFinderResultOption {
-  const source = lang === "es" ? "Su perfil de VYVA" : "Your VYVA profile";
+  const source = pick(lang, { en: "Your VYVA profile", es: "Su perfil de VYVA", fr: "Votre profil VYVA", de: "Ihr VYVA-Profil" });
   return {
     id: USUAL_DOCTOR_OPTION_ID,
     name: doctor.name,

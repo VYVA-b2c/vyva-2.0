@@ -28,6 +28,7 @@ import {
   CARE_TYPES,
   CARE_URGENCY,
   CARE_URGENCY_IDS,
+  CARE_FINDER_LOCALE,
   pick,
   type CareAccessNeedId,
   type CareFinderLang,
@@ -225,7 +226,7 @@ export function CareFinder({
         return (
           <div className="space-y-4">
             {notice ? <Notice tone="info" role="status">{notice}</Notice> : null}
-            {state.legacy ? <Notice tone="info">{copy.legacy(state.legacy.foundAt ? new Intl.DateTimeFormat(lang === "es" ? "es-ES" : "en-GB", { day: "numeric", month: "long" }).format(new Date(state.legacy.foundAt)) : null)}</Notice> : null}
+            {state.legacy ? <Notice tone="info">{copy.legacy(state.legacy.foundAt ? new Intl.DateTimeFormat(CARE_FINDER_LOCALE[lang], { day: "numeric", month: "long" }).format(new Date(state.legacy.foundAt)) : null)}</Notice> : null}
             {resumeOffer ? (
               <section aria-labelledby="care-resume-title" className="space-y-3 rounded-[22px] border-2 border-[var(--cf-accent)] bg-[var(--cf-surface)] p-5">
                 <h2 id="care-resume-title" className="text-[23px] font-semibold">{copy.resume.title}</h2>
@@ -434,7 +435,8 @@ export function CareFinder({
       }
 
       case "access": {
-        const visibleNeeds = CARE_ACCESS_NEED_IDS.filter((need) => need !== "english" || lang === "en");
+        // "Staff who speak my language" only makes sense when that isn't Spanish.
+        const visibleNeeds = CARE_ACCESS_NEED_IDS.filter((need) => need !== "english" || lang !== "es");
         const suggestedStepFree = state.suggestedAccessNeeds.includes("step_free") && !state.accessAnswered;
         return (
           <div className="space-y-3">
@@ -524,7 +526,7 @@ export function CareFinder({
   const canGoBack = state.history.length > 0 && state.step !== "who";
 
   return (
-    <div className="care-finder min-h-full w-full" data-care-finder-theme={theme} lang={lang === "es" ? "es" : "en"} data-testid="care-finder">
+    <div className="care-finder min-h-full w-full" data-care-finder-theme={theme} lang={lang} data-testid="care-finder">
       <div className="mx-auto w-full cf-page max-w-[1120px] pb-[calc(9rem+env(safe-area-inset-bottom))]">
         <header className="mb-5 flex flex-wrap items-center gap-3">
           <button
