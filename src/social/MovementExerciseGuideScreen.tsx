@@ -769,32 +769,9 @@ export default function MovementExerciseGuideScreen() {
         className="mt-4"
       >
         <div className="flex items-center justify-between gap-3 pb-2">
-          <div className="flex items-center gap-1.5" aria-label="Exercise chapters">
-            <button
-              type="button"
-              onClick={() => moveToStep(stepIndex - 1)}
-              disabled={stepIndex === 0 || runState === "saving" || isAudioStarting}
-              className="vyva-tap inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D6E8EF] bg-white text-[#123047] shadow-[0_5px_12px_rgba(18,48,71,0.05)] disabled:cursor-not-allowed disabled:opacity-35"
-              data-testid="button-movement-guide-previous-step"
-              aria-label={`${guideCopy.previousStep}. ${guideCopy.stepLabel(Math.max(1, stepIndex), totalSteps)}`}
-            >
-              <ChevronLeft size={20} strokeWidth={2.8} aria-hidden="true" />
-            </button>
-            <span className="min-w-[82px] text-center font-body text-[13px] font-black text-[#55707D]">
-              {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
-            </span>
-            <button
-              type="button"
-              onClick={() => moveToStep(stepIndex + 1)}
-              disabled={isLastStep || runState === "saving" || isAudioStarting}
-              className="vyva-tap inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-[0_6px_14px_rgba(18,48,71,0.10)] disabled:cursor-not-allowed disabled:opacity-35"
-              style={{ background: visual.accent }}
-              data-testid="button-movement-guide-next-step"
-              aria-label={`${guideCopy.nextStep}. ${guideCopy.stepLabel(Math.min(totalSteps, stepIndex + 2), totalSteps)}`}
-            >
-              <ChevronRight size={20} strokeWidth={2.8} aria-hidden="true" />
-            </button>
-          </div>
+          <span className="font-body text-[13px] font-black text-[#55707D]">
+            {guideCopy.stepLabel(stepIndex + 1, totalSteps)}
+          </span>
           <span
             className="font-body text-[15px] font-black tabular-nums text-[#123047]"
             data-testid="movement-guide-countdown"
@@ -818,7 +795,8 @@ export default function MovementExerciseGuideScreen() {
       </div>
 
       <main className="mt-5 flex flex-1 flex-col justify-center">
-        {showStepInstructionIntro ? (
+        <div className="relative">
+          {showStepInstructionIntro ? (
           <section
             className="grid min-h-[520px] place-items-center rounded-[28px] border border-white/20 bg-[radial-gradient(circle_at_50%_18%,#8B3DCE_0%,#6B21A8_56%,#581C87_100%)] px-7 py-10 text-center text-white shadow-[0_20px_44px_rgba(107,33,168,0.24)]"
             data-testid="movement-guide-step-intro"
@@ -836,7 +814,7 @@ export default function MovementExerciseGuideScreen() {
               </h2>
             </div>
           </section>
-        ) : (
+          ) : (
           <MovementStepAnimation
             motion={currentStepMotion}
             image={currentStepImage}
@@ -849,7 +827,36 @@ export default function MovementExerciseGuideScreen() {
             instruction={currentStep}
             isGuiding={isVisualGuidePresent}
           />
-        )}
+          )}
+
+          <nav
+            className="absolute bottom-4 right-4 z-10 inline-flex overflow-hidden rounded-full border border-white/70 bg-white/90 shadow-[0_8px_22px_rgba(18,48,71,0.14)] backdrop-blur-md"
+            aria-label="Exercise chapters"
+          >
+            <button
+              type="button"
+              onClick={() => moveToStep(stepIndex - 1)}
+              disabled={stepIndex === 0 || runState === "saving" || isAudioStarting}
+              className="vyva-tap inline-flex h-11 w-11 items-center justify-center text-[#526875] transition-colors hover:bg-[#F4EFFB] disabled:cursor-not-allowed disabled:opacity-25"
+              data-testid="button-movement-guide-previous-step"
+              aria-label={`${guideCopy.previousStep}. ${guideCopy.stepLabel(Math.max(1, stepIndex), totalSteps)}`}
+            >
+              <ChevronLeft size={20} strokeWidth={2.6} aria-hidden="true" />
+            </button>
+            <span className="my-2 w-px bg-[#E7DFF0]" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => moveToStep(stepIndex + 1)}
+              disabled={isLastStep || runState === "saving" || isAudioStarting}
+              className="vyva-tap inline-flex h-11 w-11 items-center justify-center transition-colors hover:bg-[#F4EFFB] disabled:cursor-not-allowed disabled:opacity-25"
+              style={{ color: visual.accent }}
+              data-testid="button-movement-guide-next-step"
+              aria-label={`${guideCopy.nextStep}. ${guideCopy.stepLabel(Math.min(totalSteps, stepIndex + 2), totalSteps)}`}
+            >
+              <ChevronRight size={20} strokeWidth={2.6} aria-hidden="true" />
+            </button>
+          </nav>
+        </div>
 
         {runState === "blocked" ? (
           <div className="mt-4 rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] p-4 text-center" data-testid="movement-guide-audio-fallback">
