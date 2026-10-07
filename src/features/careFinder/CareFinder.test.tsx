@@ -20,6 +20,7 @@ function option(id: string, name: string, minutes: number, extra: Partial<CareFi
   const checkedAt = "2026-10-05T10:00:00.000Z";
   return {
     id,
+    origin: "google_places",
     name,
     category: "Physiotherapist",
     care_type: "physiotherapy",

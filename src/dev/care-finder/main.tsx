@@ -22,6 +22,7 @@ function fact(value: string | null, status: "reported" | "verified" | "unknown",
 function option(id: string, name: string, minutes: number, km: string, extra: Partial<CareFinderResultOption> = {}): CareFinderResultOption {
   return {
     id,
+    origin: "google_places",
     name,
     category: lang === "es" ? "Fisioterapeuta" : "Physiotherapist",
     care_type: "physiotherapy",

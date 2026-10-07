@@ -63,6 +63,7 @@ export function usualDoctorOption(doctor: { name: string; phone?: string | null;
   const source = pick(lang, { en: "Your VYVA profile", es: "Su perfil de VYVA", fr: "Votre profil VYVA", de: "Ihr VYVA-Profil" });
   return {
     id: USUAL_DOCTOR_OPTION_ID,
+    origin: "profile",
     name: doctor.name,
     category: pick(lang, CARE_TYPES.primary_care.label),
     care_type: "primary_care",
@@ -269,7 +270,7 @@ export function ResultsStep({
   return (
     <div>
       {heading(r.heading(results.options.length, careLabel, location))}
-      <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{results.orderedBy === "travel_time" ? r.orderTravel : r.orderRelevance}</p>
+      <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{results.orderedBy === "travel_time" ? r.orderTravel : results.orderedBy === "distance" ? r.orderDistance : r.orderRelevance}</p>
 
       <details className="mb-5 rounded-[18px] border border-[var(--cf-border-soft)] bg-[var(--cf-surface)] px-5 py-3">
         <summary className="min-h-[44px] cursor-pointer py-2 text-[18px] font-semibold text-[var(--cf-text)]">{r.legendTitle}</summary>

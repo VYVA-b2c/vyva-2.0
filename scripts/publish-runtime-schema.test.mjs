@@ -44,6 +44,7 @@ test("publishes scheduled support before enrollments and verifies before commit"
   assert.ok(migrations.some((name) => name.endsWith("0106_provider_reputation.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0107_provider_job_outcomes.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0108_vetted_partner_providers.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0109_care_register_places.sql")));
   for (const migration of migrations) {
     assert.ok(readFileSync(new URL(`../migrations/${migration.split("/").at(-1)}`, import.meta.url), "utf8").length);
   }
