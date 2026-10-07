@@ -13,6 +13,11 @@
 //   --no-regional              skip the Castilla y León register (its coordinates save geocoding)
 //   --geocode-limit N          geocode at most N places without coordinates (default 2000; 0 = none)
 //   --geocode-province 49,37   only geocode these province codes (default: all)
+//   --geocode-concurrency N    lookups in flight at once (default 4, max 8)
+//   --geocode-only             skip the download and save; only fill in missing coordinates (needs --apply)
+//
+// All of Spain in one go (about 83,000 lookups, roughly 2-3 hours):
+//   npx tsx scripts/import-care-register.ts --apply --geocode-only --geocode-limit 100000
 //
 // What it does:
 //   1. Downloads the four monthly REGCESS files (C1, C2, C3, E) and parses
@@ -31,7 +36,6 @@
 // cedido por © Instituto Geográfico Nacional".
 import "dotenv/config";
 import pg from "pg";
-import { readSheet } from "read-excel-file/node";
 import {
   REGISTER_DOWNLOAD_URL,
   REGISTER_LISTINGS,
@@ -48,6 +52,7 @@ import {
   type StoredPosition,
 } from "../shared/careFinder/register.js";
 import { geocodeSpanishAddress } from "../server/services/cartoCiudad.js";
+import { forEachXlsxRow } from "./xlsx-rows.js";
 import {
   CASTILLA_LEON_HEALTH_MAP_SOURCE,
   CASTILLA_LEON_HEALTH_MAP_URL,
@@ -74,6 +79,8 @@ function option(name: string): string | null {
 const APPLY = process.argv.includes("--apply");
 const USE_REGIONAL = !process.argv.includes("--no-regional");
 const GEOCODE_LIMIT = Number(option("--geocode-limit") ?? 2000);
+const GEOCODE_CONCURRENCY = Number(option("--geocode-concurrency") ?? 4);
+const GEOCODE_ONLY = process.argv.includes("--geocode-only");
 const GEOCODE_PROVINCES = new Set((option("--geocode-province") ?? "").split(",").map((code) => code.trim()).filter(Boolean));
 const LOCAL_FILES = new Map<string, string>();
 process.argv.forEach((value, index) => {
@@ -85,6 +92,8 @@ process.argv.forEach((value, index) => {
 const DATE_OVERRIDE = option("--date");
 if (DATE_OVERRIDE && !/^\d{4}-\d{2}-\d{2}$/.test(DATE_OVERRIDE)) fail("--date must be YYYY-MM-DD");
 if (!Number.isInteger(GEOCODE_LIMIT) || GEOCODE_LIMIT < 0) fail("--geocode-limit must be a whole number");
+if (!Number.isInteger(GEOCODE_CONCURRENCY) || GEOCODE_CONCURRENCY < 1 || GEOCODE_CONCURRENCY > 8) fail("--geocode-concurrency must be 1 to 8");
+if (GEOCODE_ONLY && !APPLY) fail("--geocode-only writes coordinates; add --apply.");
 
 if (process.env.REPLIT_DEPLOYMENT) fail("running inside a deployment. Run from the workspace Shell.");
 if (!process.env.DATABASE_URL) fail("DATABASE_URL (Development) is not set.");
@@ -104,14 +113,19 @@ async function loadListing(listing: RegisterListing): Promise<{ places: Register
   const { body, lastModified } = localPath
     ? { body: await import("node:fs/promises").then((fs) => fs.readFile(localPath)), lastModified: null }
     : await download(`${REGISTER_DOWNLOAD_URL}${listing}`);
-  const sheet = await readSheet(body);
-  const [header, ...rows] = sheet;
-  if (!header) throw new Error(`${listing}: empty file`);
-  const index = registerColumnIndex(header);
-  const places = rows
-    .map((row) => registerPlaceFromRow(row, index, listing))
-    .filter((place): place is RegisterPlace => place !== null);
-  return { places, lastModified, rows: rows.length };
+  // Row by row: reading the 119,000-row C2 file whole needs over 1 GB.
+  let index: ReturnType<typeof registerColumnIndex> | null = null;
+  const places: RegisterPlace[] = [];
+  const total = forEachXlsxRow(body, (row) => {
+    if (!index) {
+      index = registerColumnIndex(row);
+      return;
+    }
+    const place = registerPlaceFromRow(row, index, listing);
+    if (place) places.push(place);
+  });
+  if (!index) throw new Error(`${listing}: empty file`);
+  return { places, lastModified, rows: Math.max(0, total - 1) };
 }
 
 async function loadRegionalPositions(): Promise<Map<string, { lat: number; lng: number }>> {
@@ -239,26 +253,52 @@ async function geocodeMissing(client: pg.Client) {
   const queue = rows.filter((row) => relevant.has(row.ccn)).slice(0, GEOCODE_LIMIT);
   console.log(`Geocoding ${queue.length} places with CartoCiudad (${relevant.size} relevant places still without coordinates).`);
   let found = 0;
-  for (const [position, row] of queue.entries()) {
-    const point = await geocodeSpanishAddress(row.geocoded_address, { timeoutMs: 10_000 });
-    // Never trust a point in another province or town: the geocoder snaps to the nearest match.
-    if (point && geocodeFitsPlace(point, row)) {
-      await client.query(
-        `update care_register_places set lat = $2, lng = $3, geocode_source = 'cartociudad', geocoded_at = now()
-         where ccn = $1 and geocoded_address = $4`,
-        [row.ccn, point.lat, point.lng, row.geocoded_address],
-      );
-      found += 1;
+  let done = 0;
+  let next = 0;
+  const startedAt = Date.now();
+  // A few lookups in flight at once, each worker pausing between its own
+  // requests: several times faster, still gentle on a free public service.
+  const worker = async () => {
+    while (next < queue.length) {
+      const row = queue[next];
+      next += 1;
+      const point = await geocodeSpanishAddress(row.geocoded_address, { timeoutMs: 10_000 });
+      // Never trust a point in another province or town: the geocoder snaps to the nearest match.
+      if (point && geocodeFitsPlace(point, row)) {
+        await client.query(
+          `update care_register_places set lat = $2, lng = $3, geocode_source = 'cartociudad', geocoded_at = now()
+           where ccn = $1 and geocoded_address = $4`,
+          [row.ccn, point.lat, point.lng, row.geocoded_address],
+        );
+        found += 1;
+      }
+      done += 1;
+      if (done % 500 === 0) {
+        const perSecond = done / ((Date.now() - startedAt) / 1000);
+        const minutesLeft = Math.round((queue.length - done) / perSecond / 60);
+        console.log(`  ${done}/${queue.length} (${found} placed, about ${minutesLeft} min left)`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120));
     }
-    if ((position + 1) % 250 === 0) console.log(`  ${position + 1}/${queue.length} (${found} placed)`);
-    // Be polite to a free public service.
-    await new Promise((resolve) => setTimeout(resolve, 120));
-  }
-  console.log(`Geocoded ${found} of ${queue.length}.`);
+  };
+  await Promise.all(Array.from({ length: Math.min(GEOCODE_CONCURRENCY, queue.length) }, worker));
+  console.log(`Geocoded ${found} of ${queue.length}. Places not found keep no coordinates; running again retries them.`);
 }
 
 async function main() {
   console.log(APPLY ? "APPLY: changes will be committed." : "DRY RUN: nothing will be committed. Pass --apply to write.");
+  if (GEOCODE_ONLY) {
+    // Coordinates only: the places are already saved, so skip the download.
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    try {
+      await geocodeMissing(client);
+    } finally {
+      await client.end();
+    }
+    return;
+  }
+
   const regional = await loadRegionalPositions();
   console.log(`Castilla y León register: ${regional.size} positions.`);
 
