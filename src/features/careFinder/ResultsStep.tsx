@@ -201,7 +201,7 @@ function PublicCarePanel({
         <div className="mt-4 flex flex-col gap-2">
           <a href={booking.url} target="_blank" rel="noreferrer" className={actionClass("primary")} data-testid="link-public-booking">
             <ExternalLink size={20} aria-hidden="true" />
-            <span>{r.bookOnline(service)}<span className="sr-only"> ({r.opensOfficialSite})</span></span>
+            <span>{r.bookOnline(service)}{" "}<span className="sr-only">({r.opensOfficialSite})</span></span>
           </a>
           <p className="text-[17px] text-[var(--cf-text-2)]">{pick(lang, booking.needs ?? CARE_HEALTH_CARD_NEEDED)}</p>
         </div>

@@ -119,7 +119,9 @@ export async function findHealthMapCentres(municipalityCode: string): Promise<He
   const zones = new Set(found.map((row) => String(row.zone_name)));
   if (found.length === 0 || zones.size !== 1) return null;
   return {
-    centres: Array.from(new Set(found.map((row) => String(row.centre_name)))),
+    // The register often names a rural centre after its zone ("Centro de
+    // Salud de Aliste" for "C.S. Alcañices"), so both names may match.
+    centres: Array.from(new Set(found.flatMap((row) => [String(row.centre_name), String(row.zone_name)]))),
     source: String(found[0].source),
     updatedOn: found[0].source_updated_on ? day(found[0].source_updated_on) : null,
   };

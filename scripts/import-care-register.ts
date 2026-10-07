@@ -21,7 +21,9 @@
 //      its registration number matches the REGCESS regional code.
 //   3. Upserts every place by its permanent REGCESS code. Places missing from
 //      this month's files are marked withdrawn, never deleted.
-//   4. Geocodes places Care Finder can show that still have no coordinates,
+//   4. Loads the Castilla y León health map (which centre serves each
+//      municipality, CC BY 4.0) for naming a person's own public centre.
+//   5. Geocodes places Care Finder can show that still have no coordinates,
 //      with CartoCiudad (IGN). Re-geocodes only when an address changed.
 //
 // Sources and terms: REGCESS reuse is allowed with the source cited and the
@@ -46,6 +48,13 @@ import {
   type StoredPosition,
 } from "../shared/careFinder/register.js";
 import { geocodeSpanishAddress } from "../server/services/cartoCiudad.js";
+import {
+  CASTILLA_LEON_HEALTH_MAP_SOURCE,
+  CASTILLA_LEON_HEALTH_MAP_URL,
+  castillaLeonHealthMapRows,
+  normaliseMunicipalityName,
+  type HealthMapRow,
+} from "../shared/careFinder/publicCare.js";
 
 const JCYL_REGISTER_URL = "https://datosabiertos.jcyl.es/web/jcyl/risp/es/salud/centros_sanitarios/1284289592598.csv";
 // A file this much smaller than what is stored is more likely broken than real.
@@ -168,6 +177,51 @@ async function upsert(client: pg.Client, places: Array<RegisterPlace & StoredPos
   }
 }
 
+/**
+ * Regional health maps (which centre serves each municipality). Castilla y
+ * León only for now. Its file names municipalities without codes, so names
+ * are matched to the register's own municipality codes in each province.
+ */
+async function replaceHealthMaps(client: pg.Client, places: RegisterPlace[]) {
+  if (!USE_REGIONAL) return;
+  const municipalities = new Map<string, Map<string, string>>();
+  for (const place of places) {
+    if (!place.provinceCode || !place.municipalityCode || !place.municipalityName) continue;
+    const byName = municipalities.get(place.provinceCode) ?? new Map<string, string>();
+    byName.set(normaliseMunicipalityName(place.municipalityName), place.municipalityCode);
+    municipalities.set(place.provinceCode, byName);
+  }
+  let parsed: { rows: HealthMapRow[]; unmatched: string[] };
+  try {
+    const { body } = await download(CASTILLA_LEON_HEALTH_MAP_URL);
+    const lines = body.toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean).map((line) => splitDelimitedLine(line));
+    parsed = castillaLeonHealthMapRows(lines, municipalities);
+  } catch (error) {
+    console.warn(`Castilla y León health map skipped: ${error instanceof Error ? error.message : error}`);
+    return;
+  }
+  // Names the register doesn't hold (municipalities with no listed place)
+  // are left out; Care Finder then uses the nearest centre there.
+  console.log(`Castilla y León health map: ${parsed.rows.length} municipality rows, ${parsed.unmatched.length} names not matched.`);
+  if (parsed.unmatched.length) console.log(`  e.g. ${parsed.unmatched.slice(0, 10).join("; ")}`);
+  if (parsed.rows.length === 0) return;
+  await client.query(`delete from care_health_zone_municipalities where region_code = '07'`);
+  for (let start = 0; start < parsed.rows.length; start += BATCH_SIZE) {
+    const batch = parsed.rows.slice(start, start + BATCH_SIZE);
+    const values: unknown[] = [];
+    const tuples = batch.map((row) => {
+      values.push(row.municipalityCode, row.municipalityName, row.regionCode, row.zoneName, row.centreName, CASTILLA_LEON_HEALTH_MAP_SOURCE);
+      const base = values.length - 6;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
+    });
+    await client.query(
+      `insert into care_health_zone_municipalities (municipality_code, municipality_name, region_code, zone_name, centre_name, source)
+       values ${tuples.join(", ")} on conflict do nothing`,
+      values,
+    );
+  }
+}
+
 async function geocodeMissing(client: pg.Client) {
   if (GEOCODE_LIMIT === 0) return;
   const { rows } = await client.query<{ ccn: string; geocoded_address: string; province_code: string | null; municipality_code: string | null }>(
@@ -224,6 +278,8 @@ async function main() {
   try {
     const exists = await client.query(`select to_regclass('public.care_register_places') as name`);
     if (!exists.rows[0]?.name) fail("table care_register_places is missing. Apply migrations/0109_care_register_places.sql first.");
+    const mapTable = await client.query(`select to_regclass('public.care_health_zone_municipalities') as name`);
+    if (!mapTable.rows[0]?.name) fail("table care_health_zone_municipalities is missing. Apply migrations/0110_care_health_zone_municipalities.sql first.");
 
     const stored = await client.query<{ ccn: string; listing: string; lat: number | null; lng: number | null; geocode_source: StoredPosition["geocodeSource"]; geocoded_address: string | null }>(
       `select ccn, listing, lat, lng, geocode_source, geocoded_address from care_register_places where withdrawn_at is null`,
@@ -263,6 +319,7 @@ async function main() {
       [startedAt],
     );
     console.log(`Upserted ${rows.length}. Newly withdrawn (no longer in the register): ${withdrawn.rowCount}.`);
+    await replaceHealthMaps(client, rows);
     if (!APPLY) {
       await client.query("rollback");
       console.log("Rolled back (dry run). Geocoding skipped.");

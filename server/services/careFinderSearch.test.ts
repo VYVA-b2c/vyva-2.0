@@ -219,7 +219,7 @@ describe("searchCareProviders", () => {
           findHealthMapCentres: async (code) => (code === "49275" ? { centres: ["C.S. Puerta Nueva"], source: "Junta de Castilla y León", updatedOn: "2026-09-01" } : null),
         });
         // More candidates than shown, so the mapped centre is found even when it isn't among the closest three.
-        expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ limit: 25 }));
+        expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ limit: 80 }));
         expect(result.orderedBy).toBe("assigned_first");
         expect(result.options.map((option) => option.id)).toEqual(["regcess:0749000104", "regcess:0749000101", "regcess:0749000102"]);
         expect(result.publicCare).toEqual({

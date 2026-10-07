@@ -75,8 +75,8 @@ export interface CareFinderSearchDependencies {
 }
 
 // Enough public centres to find the one on the health map, even when it
-// isn't among the three closest.
-const PUBLIC_CENTRE_CANDIDATES = 25;
+// isn't among the three closest (rural Zamora has 419 local clinics).
+const PUBLIC_CENTRE_CANDIDATES = 80;
 
 function isPublicPrimaryCare(request: CareFinderSearchRequest): boolean {
   return request.access === "public" && (request.careType === "primary_care" || request.careType === "same_day");
