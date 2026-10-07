@@ -178,8 +178,12 @@ type SocialPublishingConnection = {
   provider: string;
   accountId: string;
   accountName: string;
-  instagramBusinessAccountId: string | null;
-  instagramUsername: string | null;
+  instagramBusinessAccountId?: string | null;
+  instagramUsername?: string | null;
+  organizationUrn?: string | null;
+  organizationRole?: string | null;
+  memberName?: string | null;
+  memberEmail?: string | null;
   status: string;
   connectedAt: string;
   updatedAt: string;
@@ -4225,6 +4229,7 @@ export default function MarketingAdminPage() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
   const [metaConnectionBusy, setMetaConnectionBusy] = useState(false);
+  const [linkedInConnectionBusy, setLinkedInConnectionBusy] = useState(false);
   const [exportPreview, setExportPreview] =
     useState<LovableExportPreview | null>(null);
   const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
@@ -6951,6 +6956,10 @@ export default function MarketingAdminPage() {
     window.location.assign("/api/admin/marketing/social-publishing/meta/connect");
   }
 
+  function connectLinkedIn() {
+    window.location.assign("/api/admin/marketing/social-publishing/linkedin/connect");
+  }
+
   async function verifyMeta() {
     setMetaConnectionBusy(true);
     setMessage("Verifying the Meta connection...");
@@ -6965,6 +6974,23 @@ export default function MarketingAdminPage() {
       setMessage(error instanceof Error ? error.message : "Meta connection verification failed.");
     } finally {
       setMetaConnectionBusy(false);
+    }
+  }
+
+  async function verifyLinkedIn() {
+    setLinkedInConnectionBusy(true);
+    setMessage("Verifying the LinkedIn connection...");
+    try {
+      const result = await api<{ verifiedOrganizationName: string | null }>(
+        "/api/admin/marketing/social-publishing/linkedin/verify",
+        { method: "POST" },
+      );
+      setMessage(`LinkedIn connection verified for ${result.verifiedOrganizationName || "the selected organization"}.`);
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "LinkedIn connection verification failed.");
+    } finally {
+      setLinkedInConnectionBusy(false);
     }
   }
 
@@ -7000,6 +7026,8 @@ export default function MarketingAdminPage() {
   );
   const metaProvider = socialPublishing.providers.find((provider) => provider.id === "meta");
   const metaConnections = metaProvider?.connections ?? [];
+  const linkedInProvider = socialPublishing.providers.find((provider) => provider.id === "linkedin");
+  const linkedInConnections = linkedInProvider?.connections ?? [];
   const tokenAliasPresent = syncDiagnostics?.tokenAliasPresent ?? {};
   const urlAliasPresent = syncDiagnostics?.urlAliasPresent ?? {};
   const yesNo = (value: boolean | undefined) => (value ? "yes" : "no");
@@ -13679,25 +13707,81 @@ export default function MarketingAdminPage() {
                   ) : null}
 
                   <div className="grid gap-3 md:grid-cols-2">
-                    {(["linkedin", "tiktok"] as const).map((channel) => (
-                      <div
-                        key={`social-setup-${channel}`}
-                        className="rounded-xl border border-[#eadfd5] bg-white p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
                           <h3 className="font-black text-[#2f173d]">
-                            {channelLabel[channel]}
+                            LinkedIn
                           </h3>
-                          <Pill className="bg-blue-50 text-blue-800">
-                            Planning only
-                          </Pill>
+                          <p className="mt-1 text-sm font-semibold text-[#6f5b55]">
+                            Company Page publishing connection.
+                          </p>
                         </div>
-                        <p className="mt-2 text-sm font-semibold text-[#6f5b55]">
-                          Keep posts as planning records until this provider is
-                          connected.
-                        </p>
+                        <Pill className={linkedInProvider?.connectionReady ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                          {linkedInProvider?.connectionReady ? "Connected" : "Setup needed"}
+                        </Pill>
                       </div>
-                    ))}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {linkedInProvider?.connectionReady ? (
+                          <button
+                            type="button"
+                            onClick={verifyLinkedIn}
+                            disabled={linkedInConnectionBusy}
+                            className="inline-flex items-center gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f173d] hover:border-purple-300 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            <CheckCircle2 size={15} />
+                            {linkedInConnectionBusy ? "Checking..." : "Verify"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={connectLinkedIn}
+                          disabled={!linkedInProvider?.connectionConfigured}
+                          className="inline-flex items-center gap-2 rounded-lg bg-purple-700 px-3 py-2 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+                        >
+                          <ExternalLink size={15} />
+                          {linkedInProvider?.connectionReady ? "Reconnect LinkedIn" : "Connect LinkedIn"}
+                        </button>
+                      </div>
+                      {!linkedInProvider?.connectionConfigured ? (
+                        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                          Add <span className="font-black">LINKEDIN_CLIENT_ID</span> and
+                          <span className="mx-1 font-black">LINKEDIN_CLIENT_SECRET</span>
+                          to the admin deployment before connecting.
+                        </p>
+                      ) : null}
+                      {linkedInConnections.length ? (
+                        <div className="mt-3 grid gap-2">
+                          {linkedInConnections.map((connection) => (
+                            <div
+                              key={connection.id}
+                              className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
+                            >
+                              <p className="font-black text-emerald-950">{connection.accountName}</p>
+                              <p className="mt-1 font-semibold text-emerald-900">
+                                LinkedIn organization connected
+                                {connection.organizationRole ? ` · ${connection.organizationRole}` : ""}
+                                {connection.memberName ? ` · ${connection.memberName}` : ""}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="font-black text-[#2f173d]">
+                          TikTok
+                        </h3>
+                        <Pill className="bg-blue-50 text-blue-800">
+                          Planning only
+                        </Pill>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-[#6f5b55]">
+                        Keep TikTok concepts and creator prompts as planning records until this provider is approved and connected.
+                      </p>
+                    </div>
                   </div>
 
                   <details className="rounded-lg border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#6f5b55]">
