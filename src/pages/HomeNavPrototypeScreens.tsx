@@ -629,77 +629,15 @@ function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem
   );
 }
 
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+
 function HealthHubActionCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
-  const { isLarge } = useReadableTextSize();
-  const Icon = item.icon;
-  const palette = rowTonePalettes[item.tone ?? "neutral"];
-  const subtitleSize = isLarge ? "text-[15px] md:text-[16px]" : "text-[13.5px] md:text-[14px]";
-  const metaSize = isLarge ? "text-[12px] md:text-[13px]" : "text-[11px] md:text-[12px]";
-
-  return (
-    <button
-      type="button"
-      data-testid={item.testId}
-      onClick={() => {
-        item.onClick?.();
-        if (item.path) navigate(item.path);
-      }}
-      className={[
-        "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
-        isDark
-          ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
-          : item.solidSurface
-            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
-            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
-          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
-        ].join(" ")}
-        data-testid={item.testId ? `${item.testId}-icon` : undefined}
-        data-vyva-icon-tile={item.brandIcon ?? item.iconAccent ?? "utility"}
-        aria-hidden="true"
-      >
-        <VyvaIcon
-          icon={Icon}
-          glyph={item.brandIcon}
-          accent={item.iconAccent}
-          size={item.brandIcon ? 44 : 29}
-          strokeWidth={2.55}
-          tone="brand"
-        />
-      </span>
-      <span className="min-w-0 self-center md:self-start">
-        <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
-          {item.title}
-        </span>
-        <span
-          className="sr-only"
-        >
-          {item.subtitle}
-        </span>
-      </span>
-      {item.meta ? (
-        <span
-          className={["self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start", metaSize].join(" ")}
-          style={{
-            background: isDark ? palette.darkChip : palette.chip,
-            color: isDark ? palette.darkIcon : palette.icon,
-          }}
-          data-testid={item.testId ? `${item.testId}-status` : undefined}
-        >
-          {item.meta}
-        </span>
-      ) : null}
-      <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
-        <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
-      </span>
-    </button>
-  );
+  return <CanonicalMenuTile title={item.title} detail={item.subtitle} icon={item.icon}
+    glyph={item.brandIcon} accent={item.iconAccent} isDark={isDark} testId={item.testId}
+    onClick={() => { item.onClick?.(); if (item.path) navigate(item.path); }}
+    status={item.meta ? <span className="sr-only" data-testid={item.testId ? `${item.testId}-status` : undefined}>{item.meta}</span> : undefined} />;
 }
 
 function HealthHubActionGrid({

@@ -136,7 +136,8 @@ describe("SocialHub home-style layout", () => {
     renderSocialHub();
 
     expect(screen.getByTestId("community-master-layout")).toBeInTheDocument();
-    expect(screen.getByTestId("community-master-hero")).toHaveTextContent("Community ready");
+    expect(screen.getByRole("heading", { level: 1, name: "Community" })).toBeInTheDocument();
+    expect(screen.queryByTestId("community-master-hero")).not.toBeInTheDocument();
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(voiceHeroMock).not.toHaveBeenCalled();
 

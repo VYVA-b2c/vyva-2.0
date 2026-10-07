@@ -1438,9 +1438,9 @@ describe("ConciergeScreen action hub", () => {
     expect(voiceHeroMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("Shop");
     expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Get Help");
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Home Repair");
+    expect(screen.getByTestId("button-concierge-card-service-detail")).toHaveClass("sr-only");
     expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("Order In");
-    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("A Ride");
+    expect(screen.getByTestId("button-concierge-card-delivery-detail")).toHaveClass("sr-only");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Book Appointments");
     expect(screen.getByTestId("button-concierge-card-discover")).toHaveTextContent("Discover");
     expect(screen.queryByRole("button", { name: "Plan a Trip" })).not.toBeInTheDocument();
@@ -1450,14 +1450,13 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-card-delivery")).not.toHaveTextContent("Groceries, essentials, prepared meals");
     expect(screen.getByTestId("button-concierge-card-delivery")).toHaveAccessibleName("Order In. A ride, food, shopping");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Medical");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Admin");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Personal Care");
+    expect(screen.getByTestId("button-concierge-card-appointment-detail")).toHaveClass("sr-only");
     expect(screen.getByTestId("button-concierge-card-appointment")).not.toHaveTextContent("Ride");
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Book Appointments. Medical, admin, personal care");
     expect(screen.queryByTestId("button-concierge-fast-safe-home")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-concierge-trusted-help")).not.toBeInTheDocument();
     expect(screen.getByTestId("concierge-master-cards").querySelector("[data-card-layout]")).toHaveAttribute("data-card-layout", "canonical-action-grid");
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
     expect(screen.getByTestId("button-concierge-card-service-title")).toHaveTextContent("Get Help");
     expect(screen.getByTestId("button-concierge-card-service").querySelector('[data-vyva-icon-tile="signal"]')).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-card-delivery").querySelector('[data-vyva-icon-tile="check"]')).toBeInTheDocument();
