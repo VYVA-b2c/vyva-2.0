@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ProviderComparisonSourceOption } from "../providerComparison.js";
+import type { CareFinderPublicCare } from "./publicCare.js";
 import {
   CARE_ACCESS_NEED_IDS,
   CARE_COVERAGE_IDS,
@@ -49,11 +50,14 @@ export interface CareFinderSearchResponse {
   access: CareAccessRoute;
   location: string;
   // distance: straight line from the member's address, register results only.
-  orderedBy: "travel_time" | "distance" | "search_relevance";
+  // assigned_first: their own public health centre, then the closest others.
+  orderedBy: "travel_time" | "distance" | "assigned_first" | "search_relevance";
   checkedAt: string;
   options: CareFinderResultOption[];
   // A self-service fallback, always labelled as not checked by VYVA.
   mapsSearchUrl: string;
+  // Public route to a family doctor only: their centre and region.
+  publicCare?: CareFinderPublicCare | null;
 }
 
 export function careFinderMapsSearchUrl(term: string, location: string): string {

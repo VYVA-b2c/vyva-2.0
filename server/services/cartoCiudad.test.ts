@@ -7,11 +7,11 @@ describe("geocodeSpanishAddress", () => {
   it("reads the plain JSON /find response", async () => {
     // Recorded from CartoCiudad on 7 Oct 2026.
     const fetcher = respond(JSON.stringify({
-      id: "07.49.G49_492750014493", province: "Zamora", provinceCode: "49", muni: "Zamora", muniCode: "49275", type: "portal",
+      id: "07.49.G49_492750014493", province: "Zamora", comunidadAutonomaCode: "07", provinceCode: "49", muni: "Zamora", muniCode: "49275", type: "portal",
       address: "SANTA CLARA", postalCode: "49003", lat: 41.505226193220395, lng: -5.743797960946443, portalNumber: 12, state: 0,
     }));
     const point = await geocodeSpanishAddress("calle Santa Clara 10, 49014 Zamora", { fetch: fetcher });
-    expect(point).toEqual({ lat: 41.505226193220395, lng: -5.743797960946443, postcode: "49003", provinceCode: "49", municipalityCode: "49275", precision: "portal" });
+    expect(point).toEqual({ lat: 41.505226193220395, lng: -5.743797960946443, postcode: "49003", regionCode: "07", provinceCode: "49", municipalityCode: "49275", precision: "portal" });
     const url = new URL(String((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]));
     expect(url.pathname).toBe("/geocoder/api/geocoder/find");
     expect(url.searchParams.get("q")).toBe("calle Santa Clara 10, 49014 Zamora");

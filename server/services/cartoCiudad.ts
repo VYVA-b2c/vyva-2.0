@@ -10,6 +10,8 @@ export interface GeocodedPoint {
   lat: number;
   lng: number;
   postcode: string | null;
+  // INE autonomous community code ("07" Castilla y León), as REGCESS uses.
+  regionCode: string | null;
   provinceCode: string | null;
   // INE municipality code, 5 digits (REGCESS uses 6: the same plus a check digit).
   municipalityCode: string | null;
@@ -21,6 +23,7 @@ type FindResponse = {
   lat?: unknown;
   lng?: unknown;
   postalCode?: unknown;
+  comunidadAutonomaCode?: unknown;
   provinceCode?: unknown;
   muniCode?: unknown;
   type?: unknown;
@@ -52,6 +55,7 @@ export async function geocodeSpanishAddress(
       lat: data.lat,
       lng: data.lng,
       postcode: text(data.postalCode),
+      regionCode: text(data.comunidadAutonomaCode),
       provinceCode: text(data.provinceCode),
       municipalityCode: text(data.muniCode),
       precision: text(data.type),

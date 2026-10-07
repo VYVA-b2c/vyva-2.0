@@ -96,3 +96,31 @@ export function rankRegisterPlaces(
     .sort((left, right) => left.km - right.km || left.place.ccn.localeCompare(right.place.ccn))
     .slice(0, params.limit);
 }
+
+export interface HealthMapCentres {
+  centres: string[];
+  source: string;
+  updatedOn: string | null;
+}
+
+/**
+ * The health centre a region's published health map gives for a
+ * municipality (5-digit INE code). Null when the map has no entry, or when
+ * the municipality is split between zones (cities): the address decides
+ * there, and we don't have zone boundaries.
+ */
+export async function findHealthMapCentres(municipalityCode: string): Promise<HealthMapCentres | null> {
+  const { db } = await import("../db.js");
+  const result = await db.execute(sql`
+    SELECT zone_name, centre_name, source, source_updated_on
+    FROM care_health_zone_municipalities
+    WHERE municipality_code = ${municipalityCode.slice(0, 5)}`);
+  const found = rows(result);
+  const zones = new Set(found.map((row) => String(row.zone_name)));
+  if (found.length === 0 || zones.size !== 1) return null;
+  return {
+    centres: Array.from(new Set(found.map((row) => String(row.centre_name)))),
+    source: String(found[0].source),
+    updatedOn: found[0].source_updated_on ? day(found[0].source_updated_on) : null,
+  };
+}

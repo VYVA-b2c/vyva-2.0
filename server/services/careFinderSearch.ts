@@ -26,7 +26,8 @@ import {
   registerDisplayAddress,
   registerDisplayName,
 } from "../../shared/careFinder/register.js";
-import { findRegisterPlaces, type RegisterMatch } from "./careRegister.js";
+import { findHealthMapCentres, findRegisterPlaces, type HealthMapCentres, type RegisterMatch } from "./careRegister.js";
+import { chooseAssignedCentre, type CareAssignedBasis, type CareFinderPublicCare } from "../../shared/careFinder/publicCare.js";
 import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
 import {
   careFinderMapsSearchUrl,
@@ -70,6 +71,15 @@ export interface CareFinderSearchDependencies {
   geocode?: (address: string) => Promise<GeocodedPoint | null>;
   // null switches the official register off (Google only).
   findRegisterPlaces?: typeof findRegisterPlaces | null;
+  findHealthMapCentres?: (municipalityCode: string) => Promise<HealthMapCentres | null>;
+}
+
+// Enough public centres to find the one on the health map, even when it
+// isn't among the three closest.
+const PUBLIC_CENTRE_CANDIDATES = 25;
+
+function isPublicPrimaryCare(request: CareFinderSearchRequest): boolean {
+  return request.access === "public" && (request.careType === "primary_care" || request.careType === "same_day");
 }
 
 function timeoutSignal(ms: number): AbortSignal | undefined {
@@ -189,6 +199,10 @@ function publicCentreAssumptions(request: CareFinderSearchRequest, lang: CareFin
   })];
 }
 
+function titleCaseMunicipality(value: string | null): string {
+  return registerDisplayAddress({ street: null, postcode: null, municipalityName: value }) ?? "";
+}
+
 function formatDay(isoDay: string, lang: CareFinderLang): string {
   const date = new Date(`${isoDay}T12:00:00Z`);
   if (Number.isNaN(date.getTime())) return isoDay;
@@ -208,7 +222,7 @@ function aboutKm(km: number, lang: CareFinderLang): string {
 /** An option from the official register. Everything in it may be stored. */
 async function registerOption(
   match: RegisterMatch,
-  index: number,
+  role: { closest: boolean; assigned: { basis: CareAssignedBasis; mapSource: string | null } | null },
   request: CareFinderSearchRequest,
   lang: CareFinderLang,
   careLabel: string,
@@ -263,7 +277,24 @@ async function registerOption(
     fr: `Autorisé pour ces soins dans le registre officiel espagnol des centres de santé (mis à jour le ${updatedOn})`,
     de: `Im offiziellen spanischen Register der Gesundheitseinrichtungen für diese Versorgung zugelassen (Stand ${updatedOn})`,
   })];
-  if (index === 0) {
+  if (role.assigned?.basis === "health_map") {
+    const municipality = titleCaseMunicipality(place.municipalityName);
+    const source = role.assigned.mapSource ?? "";
+    matched.unshift(text(lang, {
+      en: `The health centre for ${municipality} on the health map published by ${source}`,
+      es: `El centro de salud que corresponde a ${municipality} según el mapa sanitario publicado por ${source}`,
+      fr: `Le centre de santé de ${municipality} selon la carte sanitaire publiée par ${source}`,
+      de: `Das Gesundheitszentrum für ${municipality} laut der Gesundheitskarte, veröffentlicht von ${source}`,
+    }));
+  } else if (role.assigned?.basis === "nearest") {
+    matched.unshift(text(lang, {
+      en: "The closest public health centre to your address. The one printed on your health card is the one that counts.",
+      es: "El centro de salud público más cercano a su dirección. El que cuenta es el que figura en su tarjeta sanitaria.",
+      fr: "Le centre de santé public le plus proche de votre adresse. C'est celui indiqué sur votre carte de santé qui compte.",
+      de: "Das nächstgelegene öffentliche Gesundheitszentrum. Maßgeblich ist das auf Ihrer Gesundheitskarte.",
+    }));
+  }
+  if (role.closest && role.assigned?.basis !== "nearest") {
     matched.push(text(lang, { en: "The closest of the options found", es: "La más cercana de las encontradas", fr: "La plus proche des options trouvées", de: "Die nächstgelegene der gefundenen Möglichkeiten" }));
   }
   if (request.accessNeeds.includes("home_visit") && homeCare) {
@@ -325,23 +356,59 @@ export async function searchCareProviders(
     refreshProviderEvidence({ candidate, locale, criteria: ["price", "availability", "accessibility", "coverage", "reputation"] })
   ));
 
+  // Region known, centre unknown: the booking link still helps.
+  let publicCareFallback: CareFinderPublicCare | null = null;
+
   // Official register first: every option it returns is authorised for this care.
   const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
   if (findRegister) {
     const origin = await (dependencies.geocode ?? geocodeMemberLocation)(request.location).catch(() => null);
+    const publicPrimary = isPublicPrimaryCare(request);
     const matches = origin
-      ? await findRegister({ careType: request.careType, access: request.access, origin, limit: MAX_RESULTS }).catch((error) => {
+      ? await findRegister({
+        careType: request.careType,
+        access: request.access,
+        origin,
+        limit: publicPrimary ? PUBLIC_CENTRE_CANDIDATES : MAX_RESULTS,
+      }).catch((error) => {
         console.warn("[care-finder] register search failed, using Google", error instanceof Error ? error.message : error);
         return [] as RegisterMatch[];
       })
       : [];
     if (matches.length > 0) {
-      const options = await Promise.all(matches.map((match, index) => registerOption(match, index, request, lang, careLabel, checkedAt, refresh)));
-      return { ...base, status: "ok", orderedBy: "distance", options };
+      let chosen = matches.slice(0, MAX_RESULTS);
+      let publicCare: CareFinderPublicCare | null = null;
+      let assigned: { ccn: string; basis: CareAssignedBasis; mapSource: string | null } | null = null;
+      if (publicPrimary) {
+        const healthMap = origin?.municipalityCode
+          ? await (dependencies.findHealthMapCentres ?? findHealthMapCentres)(origin.municipalityCode).catch(() => null)
+          : null;
+        const pick = chooseAssignedCentre(matches.map((match) => ({ id: match.place.ccn, name: match.place.name, km: match.km })), healthMap?.centres ?? null);
+        if (pick) {
+          assigned = { ccn: pick.id, basis: pick.basis, mapSource: pick.basis === "health_map" ? healthMap?.source ?? null : null };
+          // Their centre first, then the closest others.
+          const theirs = matches.find((match) => match.place.ccn === pick.id)!;
+          chosen = [theirs, ...matches.filter((match) => match !== theirs)].slice(0, MAX_RESULTS);
+        }
+        publicCare = {
+          regionCode: origin?.regionCode ?? matches[0].place.regionCode,
+          assignedOptionId: assigned ? `regcess:${assigned.ccn}` : null,
+          basis: assigned?.basis ?? null,
+          mapSource: assigned?.mapSource ?? null,
+          mapUpdatedOn: assigned?.basis === "health_map" ? healthMap?.updatedOn ?? null : null,
+        };
+      }
+      const closest = chosen.reduce((best, match) => (match.km < best.km ? match : best), chosen[0]);
+      const options = await Promise.all(chosen.map((match) => registerOption(match, {
+        closest: match === closest,
+        assigned: assigned && match.place.ccn === assigned.ccn ? assigned : null,
+      }, request, lang, careLabel, checkedAt, refresh)));
+      return { ...base, status: "ok", orderedBy: assigned ? "assigned_first" : "distance", options, publicCare };
     }
+    if (publicPrimary) publicCareFallback = { regionCode: origin?.regionCode ?? null, assignedOptionId: null, basis: null, mapSource: null, mapUpdatedOn: null };
   }
 
-  if (!key) return { ...base, status: "unavailable", orderedBy: "search_relevance", options: [] };
+  if (!key) return { ...base, status: "unavailable", orderedBy: "search_relevance", options: [], publicCare: publicCareFallback };
 
   const found: Array<{ place: TextSearchPlace; term: string }> = [];
   const seen = new Set<string>();
@@ -357,7 +424,7 @@ export async function searchCareProviders(
   }
 
   const candidates = found.slice(0, MAX_CANDIDATES);
-  if (candidates.length === 0) return { ...base, status: "no_results", orderedBy: "search_relevance", options: [] };
+  if (candidates.length === 0) return { ...base, status: "no_results", orderedBy: "search_relevance", options: [], publicCare: publicCareFallback };
 
   const travel = await travelEstimates(fetcher, key, request.location, candidates.map((item) => item.place), lang);
   const ranked = candidates
@@ -474,5 +541,5 @@ export async function searchCareProviders(
     };
   }));
 
-  return { ...base, status: "ok", orderedBy, options };
+  return { ...base, status: "ok", orderedBy, options, publicCare: publicCareFallback };
 }

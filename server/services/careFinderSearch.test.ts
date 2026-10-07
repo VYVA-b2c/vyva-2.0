@@ -116,7 +116,7 @@ describe("searchCareProviders", () => {
   });
 
   describe("official register first", () => {
-    const zamora = { lat: 41.5052, lng: -5.7438, postcode: "49003", provinceCode: "49", municipalityCode: "49275", precision: "portal" };
+    const zamora = { lat: 41.5052, lng: -5.7438, postcode: "49003", regionCode: "07", provinceCode: "49", municipalityCode: "49275", precision: "portal" };
     const registerPlace = (ccn: string, name: string, extra: Partial<RegisterPlaceWithPosition> = {}): RegisterPlaceWithPosition => ({
       ccn, regionalCode: `49-C22-${ccn.slice(-4)}`, listing: "C2", centreClass: "C22", centreClassName: "Consultas de Otros Profesionales Sanitarios",
       name, regionCode: "07", regionName: "Castilla y León", provinceCode: "49", provinceName: "Zamora", municipalityCode: "492755",
@@ -197,6 +197,68 @@ describe("searchCareProviders", () => {
       });
       expect(result.status).toBe("ok");
       expect(result.options).toHaveLength(2);
+    });
+
+    describe("public route to a family doctor", () => {
+      const publicRequest = { ...request, careType: "primary_care" as const, access: "public" as const, accessNeeds: [] };
+      const centre = (ccn: string, name: string, km: number, centreClass = "C231") => ({
+        place: registerPlace(ccn, name, { centreClass, ownership: "public", careCodes: ["U.1", "U.2"], phone: "980100100" }),
+        km,
+      });
+      const publicMatches: RegisterMatch[] = [
+        centre("0749000101", "CONSULTORIO LOCAL DE VILLARALBO", 0.8, "C232"),
+        centre("0749000102", "C.S. SANTA ELENA", 1.2),
+        centre("0749000103", "C.S. TORO", 1.9),
+        centre("0749000104", "CENTRO DE SALUD PUERTA NUEVA", 2.5),
+      ];
+
+      it("puts the health-map centre first and says where that comes from", async () => {
+        const findRegisterPlaces = vi.fn(async () => publicMatches);
+        const result = await searchCareProviders(publicRequest, {
+          apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora, findRegisterPlaces,
+          findHealthMapCentres: async (code) => (code === "49275" ? { centres: ["C.S. Puerta Nueva"], source: "Junta de Castilla y León", updatedOn: "2026-09-01" } : null),
+        });
+        // More candidates than shown, so the mapped centre is found even when it isn't among the closest three.
+        expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ limit: 25 }));
+        expect(result.orderedBy).toBe("assigned_first");
+        expect(result.options.map((option) => option.id)).toEqual(["regcess:0749000104", "regcess:0749000101", "regcess:0749000102"]);
+        expect(result.publicCare).toEqual({
+          regionCode: "07", assignedOptionId: "regcess:0749000104", basis: "health_map", mapSource: "Junta de Castilla y León", mapUpdatedOn: "2026-09-01",
+        });
+        expect(result.options[0].matched[0]).toBe("The health centre for Zamora on the health map published by Junta de Castilla y León");
+        expect(result.options[1].matched).toContain("The closest of the options found");
+        expect(result.options[0].comparison?.coverage).toMatchObject({ status: "verified", value: "Public health system" });
+        expect(storableCareFinderResults(result)).toBe(result);
+      });
+
+      it("names the closest public centre, with the health-card caveat, when there is no map", async () => {
+        const result = await searchCareProviders(publicRequest, {
+          apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora,
+          findRegisterPlaces: async () => publicMatches, findHealthMapCentres: async () => null,
+        });
+        expect(result.orderedBy).toBe("assigned_first");
+        expect(result.publicCare).toMatchObject({ assignedOptionId: "regcess:0749000101", basis: "nearest", mapSource: null });
+        expect(result.options[0].matched[0]).toMatch(/closest public health centre.*health card/);
+        expect(result.options[0].matched).not.toContain("The closest of the options found");
+      });
+
+      it("keeps the region for the booking link when only Google answers", async () => {
+        const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
+          ? { status: "OK", results: [{ place_id: "cs", name: "Centro de Salud", types: ["doctor"] }] }
+          : { status: "OK", result: {} }));
+        const result = await searchCareProviders(publicRequest, {
+          apiKey: "key", fetch: fetcher, refreshEvidence: async () => null, geocode: async () => zamora, findRegisterPlaces: async () => [],
+        });
+        expect(result.publicCare).toEqual({ regionCode: "07", assignedOptionId: null, basis: null, mapSource: null, mapUpdatedOn: null });
+      });
+
+      it("adds nothing for private care", async () => {
+        const result = await searchCareProviders(request, {
+          apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora, findRegisterPlaces: async () => matches,
+        });
+        expect(result.publicCare ?? null).toBeNull();
+        expect(result.orderedBy).toBe("distance");
+      });
     });
   });
 });

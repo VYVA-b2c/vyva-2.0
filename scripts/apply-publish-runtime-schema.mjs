@@ -27,6 +27,7 @@ const migrationPaths = [
   "0107_provider_job_outcomes.sql",
   "0108_vetted_partner_providers.sql",
   "0109_care_register_places.sql",
+  "0110_care_health_zone_municipalities.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
@@ -38,6 +39,7 @@ const requiredTables = [
   "vetted_partner_organisations",
   "vetted_partner_providers",
   "care_register_places",
+  "care_health_zone_municipalities",
   "triage_reports",
   "scheduled_interactions",
   "interaction_logs",
