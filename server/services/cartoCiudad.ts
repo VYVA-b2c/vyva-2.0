@@ -5,6 +5,7 @@
 
 export const CARTOCIUDAD_ATTRIBUTION = "CartoCiudad cedido por © Instituto Geográfico Nacional";
 const FIND_URL = "https://www.cartociudad.es/geocoder/api/geocoder/find";
+const CANDIDATES_URL = "https://www.cartociudad.es/geocoder/api/geocoder/candidates";
 
 export interface GeocodedPoint {
   lat: number;
@@ -31,15 +32,28 @@ type FindResponse = {
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
 
-export async function geocodeSpanishAddress(
-  address: string,
-  dependencies: { fetch?: typeof fetch; timeoutMs?: number } = {},
-): Promise<GeocodedPoint | null> {
-  const query = address.trim();
-  if (!query) return null;
+function pointFrom(data: FindResponse | null | undefined): GeocodedPoint | null {
+  if (!data || typeof data.lat !== "number" || typeof data.lng !== "number") return null;
+  if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
+  return {
+    lat: data.lat,
+    lng: data.lng,
+    postcode: text(data.postalCode),
+    regionCode: text(data.comunidadAutonomaCode),
+    provinceCode: text(data.provinceCode),
+    municipalityCode: text(data.muniCode),
+    precision: text(data.type),
+  };
+}
+
+async function request(
+  endpoint: string,
+  params: Record<string, string>,
+  dependencies: { fetch?: typeof fetch; timeoutMs?: number },
+): Promise<unknown> {
   const fetcher = dependencies.fetch ?? fetch;
-  const url = new URL(FIND_URL);
-  url.searchParams.set("q", query);
+  const url = new URL(endpoint);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   try {
     const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
       ? AbortSignal.timeout(dependencies.timeoutMs ?? 7000)
@@ -47,22 +61,51 @@ export async function geocodeSpanishAddress(
     const response = await fetcher(url, { signal });
     if (!response.ok) return null;
     const body = await response.text();
-    if (!body.trim()) return null;
-    const data = JSON.parse(body) as FindResponse | null;
-    if (!data || typeof data.lat !== "number" || typeof data.lng !== "number") return null;
-    if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
-    return {
-      lat: data.lat,
-      lng: data.lng,
-      postcode: text(data.postalCode),
-      regionCode: text(data.comunidadAutonomaCode),
-      provinceCode: text(data.provinceCode),
-      municipalityCode: text(data.muniCode),
-      precision: text(data.type),
-    };
+    return body.trim() ? JSON.parse(body) : null;
   } catch {
     return null;
   }
+}
+
+/** The geocoder's single best match. */
+export async function geocodeSpanishAddress(
+  address: string,
+  dependencies: { fetch?: typeof fetch; timeoutMs?: number } = {},
+): Promise<GeocodedPoint | null> {
+  const query = address.trim();
+  if (!query) return null;
+  return pointFrom(await request(FIND_URL, { q: query }, dependencies) as FindResponse | null);
+}
+
+/**
+ * Several matches, best first. The single best match is often a same-named
+ * street in another town; the right one is usually further down the list.
+ */
+export async function geocodeCandidates(
+  address: string,
+  dependencies: { fetch?: typeof fetch; timeoutMs?: number; limit?: number } = {},
+): Promise<GeocodedPoint[]> {
+  const query = address.trim();
+  if (!query) return [];
+  const data = await request(CANDIDATES_URL, { q: query, limit: String(dependencies.limit ?? 10) }, dependencies);
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => pointFrom(item as FindResponse)).filter((point): point is GeocodedPoint => point !== null);
+}
+
+/**
+ * The first match, across queries tried in order, that passes `fits` (the
+ * right town). Stops at the first query that yields one.
+ */
+export async function geocodeFirstFitting(
+  queries: readonly string[],
+  fits: (point: GeocodedPoint) => boolean,
+  dependencies: { fetch?: typeof fetch; timeoutMs?: number } = {},
+): Promise<GeocodedPoint | null> {
+  for (const query of queries) {
+    const match = (await geocodeCandidates(query, dependencies)).find(fits);
+    if (match) return match;
+  }
+  return null;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanRegisterStreet,
   distanceKm,
   geocodeFitsPlace,
   uninvertPlaceName,
@@ -11,6 +12,7 @@ import {
   registerDisplayAddress,
   registerDisplayName,
   registerGeocodeAddress,
+  registerGeocodeQueries,
   registerPlaceFromRow,
   registerPlaceIsRelevant,
   registerPlaceOffers,
@@ -227,6 +229,36 @@ describe("coordinates", () => {
     expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275" }, { province_code: "49", municipality_code: "492755" })).toBe(true);
     // A postcode-only match has no codes and can't be checked.
     expect(geocodeFitsPlace({ provinceCode: null, municipalityCode: null }, place)).toBe(false);
+    // A town centre is in the right town but too rough for a distance.
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275", precision: "portal" }, place)).toBe(true);
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275", precision: "callejero" }, place)).toBe(true);
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275", precision: "Municipio" }, place)).toBe(false);
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275", precision: "poblacion" }, place)).toBe(false);
+  });
+
+  it("cleans floors, doors and premises out of register streets", () => {
+    // Real register streets that CartoCiudad did not find as written (7 Oct 2026).
+    expect(cleanRegisterStreet("CALLE JUAN DE HERRERA Nº 2 2º IZDA")).toBe("CALLE JUAN DE HERRERA 2");
+    expect(cleanRegisterStreet("PASEO TERUEL 15,ESC.IZDA,4º A")).toBe("PASEO TERUEL 15");
+    expect(cleanRegisterStreet("AVDA CIUDAD DE NARA, 2, C.C. BUENAVISTA, LOCAL 11-12")).toBe("AVDA CIUDAD DE NARA 2");
+    expect(cleanRegisterStreet("CALLE BISBE CAMPINS 10 BAIXOS DERECHA")).toBe("CALLE BISBE CAMPINS 10");
+    expect(cleanRegisterStreet("CALLE OBISPO DOMINGUEZ VALDECAÑAS (QUINTANA) 2")).toBe("CALLE OBISPO DOMINGUEZ VALDECAÑAS 2");
+    expect(cleanRegisterStreet("CALLE AGUSTINA DE ARAGON S/N S/N")).toBe("CALLE AGUSTINA DE ARAGON");
+    expect(cleanRegisterStreet("CALLE ALBACETE ESQ. CALLE CORREOS S/N")).toBe("CALLE ALBACETE");
+    expect(cleanRegisterStreet("CALLE ARZOBISPO APAOLAZA 36 ENT C")).toBe("CALLE ARZOBISPO APAOLAZA 36");
+    expect(cleanRegisterStreet("AVDA 28 DE FEBRERO 77")).toBe("AVDA 28 DE FEBRERO 77");
+    expect(cleanRegisterStreet(null)).toBeNull();
+  });
+
+  it("tries the registered address, then cleaned, then the street alone", () => {
+    expect(registerGeocodeQueries({ street: "CALLE JUAN DE HERRERA Nº 2 2º IZDA", municipalityName: "Santander" })).toEqual([
+      "CALLE JUAN DE HERRERA Nº 2 2º IZDA, Santander",
+      "CALLE JUAN DE HERRERA 2, Santander",
+      "CALLE JUAN DE HERRERA, Santander",
+    ]);
+    expect(registerGeocodeQueries({ street: "CALLE PONENT 15", municipalityName: "Mutxamel" })).toEqual(["CALLE PONENT 15, Mutxamel", "CALLE PONENT, Mutxamel"]);
+    expect(registerGeocodeQueries({ street: "CALLE NUEVA S/N", municipalityName: "Huéscar" })).toEqual(["CALLE NUEVA S/N, Huéscar", "CALLE NUEVA, Huéscar"]);
+    expect(registerGeocodeQueries({ street: null, municipalityName: "Zamora" })).toEqual([]);
   });
 
   it("reads Castilla y León positions and rejects points outside Spain", () => {

@@ -224,7 +224,6 @@ export function registerPlaceFromRow(row: readonly unknown[], index: RegisterCol
   };
 }
 
-/** The address sent to the geocoder. A change means the place moved. */
 /** "Puerto de Santa María, El" → "El Puerto de Santa María". */
 export function uninvertPlaceName(value: string | null): string | null {
   if (!value) return null;
@@ -245,19 +244,71 @@ export function registerGeocodeAddress(place: Pick<RegisterPlace, "street" | "mu
   return `${place.street}, ${municipality}`;
 }
 
+// Words after which a register street holds only floor, door or premises
+// details ("4º A", "LOCAL 11-12", "ESC.1ª", "BAJO"), or a cross street.
+const STREET_DETAIL = /[\s,.]+(?:ESC|ESCALERA|PTA|PUERTA|PISO|PLANTA|PL|LOCAL|LOCALES|BAJO|BAJOS|BAIXOS|BAIX|ENTLO|ENTRESUELO|ENT|ATICO|ÁTICO|IZDA|IZQ|IZQUIERDA|DCHA|DRCHA|DERECHA|EDIF|EDIFICIO|BLOQUE|BLQ|PORTAL|NAVE|OFICINA|OF|ESQ|ESQUINA|CV|C\.C|CENTRO COMERCIAL|C\/V)\b.*$/i;
+
+/**
+ * The street without what a geocoder trips over: brackets, "S/N", "Nº",
+ * floors ("2º"), doors and premises. "CALLE JUAN DE HERRERA Nº 2 2º IZDA"
+ * becomes "CALLE JUAN DE HERRERA 2".
+ */
+export function cleanRegisterStreet(street: string | null): string | null {
+  if (!street) return null;
+  const cleaned = street
+    .replace(/\([^)]*\)/g, " ")
+    .replace(STREET_DETAIL, "")
+    .replace(/\bS\s*\/\s*N\b/gi, " ")
+    .replace(/\bN[º°]\.?\s*/gi, " ")
+    // A floor ("2º", "1ª") and everything after it.
+    .replace(/\s+\d+\s*[º°ª].*$/, "")
+    // "AVDA CIUDAD DE NARA, 2, C.C. …": the number, then nothing more.
+    .replace(/^([^,]*?),\s*(\d+[A-Z]?)\b.*$/i, "$1 $2")
+    .replace(/\s*,\s*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || null;
+}
+
+/** The street name alone, for when the number is not known to the geocoder. */
+function streetNameOnly(street: string): string | null {
+  const words = street.split(/\s+/);
+  while (words.length > 2 && /^[\d/-]+[A-Z]?$|^[A-Z]$/i.test(words[words.length - 1])) words.pop();
+  const name = words.join(" ");
+  return name === street ? null : name;
+}
+
+/**
+ * Geocoder queries for a place, best first: the address as registered,
+ * then cleaned of floor and door details, then the street alone.
+ */
+export function registerGeocodeQueries(place: Pick<RegisterPlace, "street" | "municipalityName">): string[] {
+  const exact = registerGeocodeAddress(place);
+  const municipality = uninvertPlaceName(place.municipalityName);
+  if (!exact || !municipality) return [];
+  const cleaned = cleanRegisterStreet(place.street);
+  const name = cleaned ? streetNameOnly(cleaned) : null;
+  return Array.from(new Set([exact, cleaned && `${cleaned}, ${municipality}`, name && `${name}, ${municipality}`]
+    .filter((query): query is string => Boolean(query))));
+}
+
 /**
  * Whether a geocoded point can belong to this place. The geocoder snaps to
  * the nearest match it has, sometimes in another province. CartoCiudad's
  * municipality code is the 6-digit REGCESS one without its check digit.
  */
+const IMPRECISE_MATCHES: ReadonlySet<string> = new Set(["municipio", "poblacion", "provincia", "codpost", "comunidad autonoma"]);
+
 export function geocodeFitsPlace(
-  point: { provinceCode: string | null; municipalityCode: string | null },
+  point: { provinceCode: string | null; municipalityCode: string | null; precision?: string | null },
   place: { province_code?: string | null; municipality_code?: string | null; provinceCode?: string | null; municipalityCode?: string | null },
 ): boolean {
   const province = place.provinceCode ?? place.province_code ?? null;
   const municipality = place.municipalityCode ?? place.municipality_code ?? null;
   if (province && point.provinceCode && point.provinceCode !== province) return false;
   if (municipality && point.municipalityCode && point.municipalityCode !== municipality.slice(0, 5)) return false;
+  // A town or postcode centre is too rough to measure distance from.
+  if (point.precision && IMPRECISE_MATCHES.has(point.precision.toLowerCase())) return false;
   return Boolean(point.provinceCode || point.municipalityCode);
 }
 
