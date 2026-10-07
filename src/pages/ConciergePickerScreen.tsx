@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { CARE_FINDER_PATH } from "@/lib/careFinderNavigation";
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
 import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
 import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -49,10 +51,6 @@ import { apiFetch } from "@/lib/queryClient";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import { buildConciergeTaskInbox, fetchConciergeTaskPendingItems, fetchConciergeTaskCompletedSessions } from "@/lib/conciergeTaskInbox";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
-import {
-  CANONICAL_MENU_ITEM_SUBTITLE_CLASS,
-  CANONICAL_MENU_ITEM_TITLE_CLASS,
-} from "@/design/canonicalMenuTypography";
 
 export type ConciergePickerCategory = "get-help" | "order-in" | "book-appointments" | "discover";
 
@@ -560,7 +558,7 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     <CanonicalDetailFlowShell
       shellContract={shellContract}
       onBack={() => blockedOption ? setBlockedOption(null) : navigate(backPath)}
-      frameClassName="concierge-picker-frame !px-4 sm:!px-5"
+      frameClassName="concierge-picker-frame canonical-submenu-frame"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
@@ -608,35 +606,15 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
         <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
         <button type="button" disabled={profileFetching} className="min-h-11 text-vyva-purple underline" onClick={() => void retryProfile()}>{homeServiceText(language, "Retry")}</button>
       </div>}
-      {!blockedOption && <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
+      {!blockedOption && <div className={MENU_GRID_CLASS} data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
           const label = t(option.labelKey, option.labelFallback);
           const detail = t(option.detailKey, option.detailFallback);
           return (
-            <button
-              key={option.id}
-              type="button"
-              data-testid={option.testId}
-              onClick={() => handleOptionSelect(option)}
-              disabled={profileLoading || profileError}
-              aria-label={`${label}. ${detail}`}
-              style={{ "--picker-accent-tint": `${option.iconColor}18`, ...(!isDark ? { background: `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${option.iconBg} 100%)` } : {}) } as CSSProperties}
-              className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}
-            >
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px]" style={{ background: option.iconBg, color: option.iconColor }}>
-                <Icon size={24} strokeWidth={2.6} aria-hidden="true" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS} ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
-                  {label}
-                </span>
-                <span className={`mt-1 block truncate ${CANONICAL_MENU_ITEM_SUBTITLE_CLASS} ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-3"}`}>
-                  {detail}
-                </span>
-              </span>
-              <ChevronRight size={20} strokeWidth={2.6} className={`flex-shrink-0 ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`} aria-hidden="true" />
-            </button>
+            <CanonicalMenuTile key={option.id} title={label} detail={detail} icon={Icon}
+              isDark={isDark} onClick={() => handleOptionSelect(option)} testId={option.testId}
+              disabled={profileLoading || profileError} />
           );
         })}
       </div>}

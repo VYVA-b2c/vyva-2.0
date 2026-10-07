@@ -313,8 +313,7 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.getByTestId(`${testId}-icon`)).not.toHaveClass("text-white");
       expect(screen.getByTestId(`${testId}-icon`).getAttribute("style")).toBeNull();
       expect(screen.getByTestId(`${testId}-icon`).querySelector("svg")).toHaveAttribute("data-brand-icon");
-      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("background:");
-      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("color:");
+      expect(screen.getByTestId(`${testId}-status`)).toHaveClass("sr-only");
     }
     expect(screen.getByTestId("button-health-symptom-report-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "doctor");
     expect(screen.getByTestId("button-health-plan-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "longevity");

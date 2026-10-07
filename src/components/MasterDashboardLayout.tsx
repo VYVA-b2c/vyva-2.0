@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucide-react";
+import { CanonicalVoiceButton } from "./CanonicalDetailFlowShell";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { CANONICAL_MENU_ITEM_TITLE_CLASS } from "@/design/canonicalMenuTypography";
+import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
+import { CanonicalMenuTile } from "./CanonicalMenuTile";
 
 type MasterTone = {
   iconBg: string;
@@ -268,10 +271,16 @@ export default function MasterDashboardLayout({
       data-testid={testId}
       data-home-master-theme={resolvedDarkMode ? "dark" : "light"}
       data-home-master-intent-layer={isHomeMasterIntentLayer ? "true" : "false"}
+      data-menu-canon={usesCanonicalCardGrid && showCards ? "submenu" : undefined}
     >
       {modeSwitcher}
+      {usesCanonicalCardGrid && !modeSwitcher ? <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
+        <a href="/menu" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full border border-current/20"><ArrowLeft size={18} aria-hidden="true" /></a>
+        <h1 className="text-center font-display text-[24px] font-semibold leading-tight">{hero.eyebrow || hero.title}</h1>
+        <CanonicalVoiceButton contextHint={hero.action.contextHint ?? hero.title} agentSlug={hero.action.voiceAgentSlug} dynamicVariables={hero.action.voiceDynamicVariables} testId={hero.action.testId} label={hero.action.label} />
+      </header> : null}
 
-      {showHero ? <section
+      {showHero && !usesCanonicalCardGrid ? <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
@@ -462,7 +471,7 @@ export default function MasterDashboardLayout({
             isHomeMaster
               ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-4 lg:gap-5")
               : usesCanonicalCardGrid
-                ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 md:gap-4"
+                ? MENU_GRID_CLASS
                 : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"
           }
           data-card-layout={usesCanonicalCardGrid ? "canonical-action-grid" : "dashboard-grid"}
@@ -494,7 +503,7 @@ export default function MasterDashboardLayout({
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
               <div key={card.id} className={`flex min-w-0 flex-col ${card.nudgeLabel ? `overflow-hidden rounded-[22px] border ${usesDarkCanonicalCards ? "border-white/15 bg-white/[0.06]" : "border-vyva-border bg-white"}` : ""}`}>
-              <button
+              {usesCanonicalCardGrid ? <CanonicalMenuTile title={card.title} detail={visibleDetail} ariaLabel={cardAriaLabel} icon={Icon} glyph={card.brandIcon} accent={card.iconAccent} isDark={resolvedDarkMode} onClick={card.onClick} testId={card.testId} /> : <button
                 type="button"
                 onClick={card.onClick}
                 data-testid={card.testId}
@@ -668,7 +677,7 @@ export default function MasterDashboardLayout({
                     </span>
                   ) : null}
                 </span>
-              </button>
+              </button>}
               {card.nudgeContent ?? (card.nudgeLabel && card.onNudgeClick ? (
                 <div className="flex items-center border-t border-vyva-border">
                 <button
