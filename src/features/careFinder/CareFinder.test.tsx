@@ -20,6 +20,7 @@ function option(id: string, name: string, minutes: number, extra: Partial<CareFi
   const checkedAt = "2026-10-05T10:00:00.000Z";
   return {
     id,
+    origin: "google_places",
     name,
     category: "Physiotherapist",
     care_type: "physiotherapy",
@@ -380,3 +381,78 @@ describe("accessibility", () => {
     expect(screen.getByTestId("toggle-access-step_free").className).toContain("min-h-[72px]");
   });
 });
+
+describe("public cover: your own health centre", () => {
+  const publicState = () => careFinderStateFromProgress({
+    canvasStep: "results",
+    serviceType: "primary_care",
+    answers: {
+      version: "care_finder_v1", who: "self", need: "unwell", safetyAnswered: "yes", urgency: "this_week",
+      coverage: "public", location: "Calle Santa Clara 10, Zamora", careAccess: "public", accessAnswered: "yes",
+    },
+  });
+  const centre = (id: string, name: string) => ({
+    ...option(id, name, 0),
+    origin: "official_register" as const,
+    category: "Family doctor (GP)",
+    care_type: "primary_care" as const,
+    source_label: "REGCESS, Ministerio de Sanidad",
+    source_status: "verified" as const,
+    source_type: "official" as const,
+    travel_minutes: null,
+  });
+  const publicResults = (basis: "health_map" | "nearest" | null, regionCode: string | null): CareFinderSearchResponse => ({
+    ...okResults,
+    careType: "primary_care",
+    access: "public",
+    location: "Calle Santa Clara 10, Zamora",
+    orderedBy: basis ? "assigned_first" : "distance",
+    options: [centre("regcess:1", "Centro de Salud Puerta Nueva"), centre("regcess:2", "Centro de Salud Santa Elena")],
+    publicCare: {
+      regionCode,
+      assignedOptionId: basis ? "regcess:1" : null,
+      basis,
+      mapSource: basis === "health_map" ? "Junta de Castilla y León" : null,
+      mapUpdatedOn: null,
+    },
+  });
+
+  it("names their centre from the health map and links to the region's official booking", async () => {
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("health_map", "07")) } });
+    const panel = await screen.findByTestId("care-public-care");
+    expect(within(panel).getByRole("heading", { name: "Your health centre" })).toBeInTheDocument();
+    expect(within(panel).getByText("Centro de Salud Puerta Nueva is the centre for your area on the health map published by Junta de Castilla y León.")).toBeInTheDocument();
+    const booking = within(panel).getByTestId("link-public-booking");
+    expect(booking).toHaveAttribute("href", "https://citaweb.saludcastillayleon.es/CitaPreviaWeb/#/start");
+    expect(booking).toHaveAccessibleName("Book online: Sacyl Conecta (Castile and León Health Service) (opens the official website)");
+    expect(within(panel).getByText(/first surname and your health card number/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("care-option-regcess:1")).getByTestId("care-assigned-badge")).toHaveTextContent("Your health centre");
+    expect(within(screen.getByTestId("care-option-regcess:2")).queryByTestId("care-assigned-badge")).toBeNull();
+    expect(screen.getByText("Your own health centre first, then the closest others. This order is not a quality ranking.")).toBeInTheDocument();
+    const result = await axe.run(screen.getByTestId("care-finder"), { rules: { "color-contrast": { enabled: false } } });
+    expect(result.violations.map((violation) => violation.id)).toEqual([]);
+  });
+
+  it("is honest when the centre is only the closest one", async () => {
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("nearest", "07")) } });
+    const panel = await screen.findByTestId("care-public-care");
+    expect(within(panel).getByText(/is the closest public health centre to you\. Your own centre is printed on your health card/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("care-option-regcess:1")).getByTestId("care-assigned-badge")).toHaveTextContent("Closest public health centre");
+  });
+
+  it("suggests calling when the region's booking page isn't listed", async () => {
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults(null, "10")) } });
+    const panel = await screen.findByTestId("care-public-care");
+    expect(within(panel).getByText("Your own health centre is printed on your health card.")).toBeInTheDocument();
+    expect(within(panel).getByText(/call your health centre to book/)).toBeInTheDocument();
+    expect(within(panel).queryByTestId("link-public-booking")).toBeNull();
+  });
+
+  it("speaks Spanish", async () => {
+    renderFinder({ lang: "es", initialState: publicState(), services: { search: vi.fn(async () => publicResults("health_map", "07")) } });
+    const panel = await screen.findByTestId("care-public-care");
+    expect(within(panel).getByRole("heading", { name: "Su centro de salud" })).toBeInTheDocument();
+    expect(within(panel).getByTestId("link-public-booking")).toHaveTextContent("Pedir cita por internet: Sacyl Conecta (Sacyl, Junta de Castilla y León)");
+  });
+});
+

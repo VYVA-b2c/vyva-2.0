@@ -29,7 +29,7 @@ import {
   isCareRedFlagId,
   type CareRedFlagId,
 } from "./redFlags.js";
-import { isCareFinderSearchResponse, type CareFinderSearchResponse } from "./search.js";
+import { isCareFinderSearchResponse, storableCareFinderResults, type CareFinderSearchResponse } from "./search.js";
 
 export const CARE_FINDER_PROGRESS_VERSION = "care_finder_v1";
 export const CARE_FINDER_PROVIDER_SEARCH_MODE = "specialist";
@@ -88,6 +88,9 @@ export interface CareFinderState {
   suggestedAccessNeeds: CareAccessNeedId[];
   results: CareFinderSearchResponse | null;
   selectedOptionId: string | null;
+  // The option the person had chosen when results couldn't be saved with the
+  // task. Re-selected once the search has run again, if it's still offered.
+  pendingOptionId: string | null;
   shareItems: CareShareItemId[];
   outcome: CareOutcomeId | null;
   // Present when this state came from a pre-Care-Finder saved task.
@@ -140,6 +143,7 @@ export function initialCareFinderState(overrides: Partial<CareFinderState> = {})
     suggestedAccessNeeds: [],
     results: null,
     selectedOptionId: null,
+    pendingOptionId: null,
     shareItems: ["coverage", "access", "companion"],
     outcome: null,
     legacy: null,
@@ -186,16 +190,17 @@ function clearAfterNeed(state: CareFinderState): CareFinderState {
     careAccess: null,
     results: null,
     selectedOptionId: null,
+    pendingOptionId: null,
     outcome: null,
   };
 }
 
 function clearRoute(state: CareFinderState): CareFinderState {
-  return { ...state, careType: null, careAccess: null, results: null, selectedOptionId: null, outcome: null };
+  return { ...state, careType: null, careAccess: null, results: null, selectedOptionId: null, pendingOptionId: null, outcome: null };
 }
 
 function clearResults(state: CareFinderState): CareFinderState {
-  return { ...state, results: null, selectedOptionId: null, outcome: null };
+  return { ...state, results: null, selectedOptionId: null, pendingOptionId: null, outcome: null };
 }
 
 function mergeAccessSuggestions(state: CareFinderState, text: string): CareFinderState {
@@ -318,8 +323,14 @@ export function careFinderReducer(
       return advance(state, { ...base, accessAnswered: true, accessNeeds: needs }, profile);
     }
 
-    case "resultsLoaded":
-      return { ...state, results: action.results, legacy: null, step: "results" };
+    case "resultsLoaded": {
+      const pending = state.pendingOptionId;
+      const loaded = { ...state, results: action.results, legacy: null, pendingOptionId: null };
+      if (pending && action.results.options.some((option) => option.id === pending)) {
+        return { ...loaded, selectedOptionId: pending, step: "contact", history: [...state.history, "results"] };
+      }
+      return { ...loaded, step: "results" };
+    }
 
     case "selectOption":
       return { ...state, selectedOptionId: action.optionId, step: "contact", history: [...state.history, state.step] };
@@ -404,10 +415,11 @@ export function careFinderProgressPayload(state: CareFinderState): ConciergeTask
     providerSearchMode: CARE_FINDER_PROVIDER_SEARCH_MODE,
     query: state.description,
     criteria: legacyCriteriaFor(state),
-    providerResult: state.results as unknown as Record<string, unknown> | null,
+    // Only content we may keep. Ids (REGCESS codes, Google place_ids) may be.
+    providerResult: storableCareFinderResults(state.results) as unknown as Record<string, unknown> | null,
     shortlistIds: (state.results?.options ?? []).map((option) => option.id).slice(0, 3),
-    selectedProviderOptionId: state.selectedOptionId,
-    canvasStep: state.step,
+    selectedProviderOptionId: state.selectedOptionId ?? state.pendingOptionId,
+    canvasStep: state.pendingOptionId ? "contact" : state.step,
     serviceType: state.careType,
     answers,
     textDrafts: { description: state.description },
@@ -415,7 +427,7 @@ export function careFinderProgressPayload(state: CareFinderState): ConciergeTask
 }
 
 export function careFinderTaskStage(state: CareFinderState): PersistedConciergeTaskStage {
-  return state.results ? "review" : "details";
+  return state.results || state.pendingOptionId ? "review" : "details";
 }
 
 function oneOf<T extends string>(values: readonly T[], value: unknown): T | null {
@@ -442,7 +454,9 @@ export function careFinderStateFromProgress(
 ): CareFinderState {
   const payload = progress ?? {};
   const answers = payload.answers ?? {};
-  const savedResults = isCareFinderSearchResponse(payload.providerResult) ? payload.providerResult : null;
+  const savedResults = isCareFinderSearchResponse(payload.providerResult)
+    ? storableCareFinderResults(payload.providerResult)
+    : null;
 
   if (answers.version === CARE_FINDER_PROGRESS_VERSION) {
     const state = initialCareFinderState({
@@ -473,6 +487,10 @@ export function careFinderStateFromProgress(
     const resumable = savedStep && CARE_FINDER_STEPS.indexOf(savedStep) <= CARE_FINDER_STEPS.indexOf(pending)
       ? savedStep
       : pending;
+    if (resumable === "contact" && !state.results) {
+      // Results weren't kept: search again, then return to the chosen option.
+      return { ...state, step: "results", selectedOptionId: null, pendingOptionId: state.selectedOptionId };
+    }
     const step = resumable === "contact" && !state.selectedOptionId ? "results" : resumable;
     return { ...state, step };
   }

@@ -38,6 +38,7 @@ const results: CareFinderSearchResponse = {
   mapsSearchUrl: "https://www.google.com/maps/search/?api=1&query=fisioterapia",
   options: [{
     id: "place-1",
+    origin: "official_register",
     name: "Fisioterapia Tarifa",
     care_type: "physiotherapy",
     address: "Calle Real 1, Tarifa",
@@ -244,6 +245,62 @@ describe("persistence and resume", () => {
       selectedOptionId: "place-1",
     });
     expect(restored.results?.options[0].name).toBe("Fisioterapia Tarifa");
+  });
+
+  it("never saves Google Places content, only the chosen option's id", () => {
+    const google: CareFinderSearchResponse = { ...results, options: [{ ...results.options[0], origin: "google_places" }] };
+    const state = run([
+      { type: "chooseWho", who: "self" },
+      { type: "submitDescription", text: "Mi rodilla duele" },
+      { type: "answerSafety", flags: [] },
+      { type: "chooseUrgency", urgency: "this_week" },
+      { type: "acceptProfile", facts: profile },
+      { type: "chooseRoute", careType: "physiotherapy", access: "private" },
+      { type: "setAccessNeeds", needs: [] },
+      { type: "resultsLoaded", results: google },
+      { type: "selectOption", optionId: "place-1" },
+    ]);
+    const payload = conciergeTaskProgressPayloadSchema.parse(careFinderProgressPayload(state));
+    expect(payload.providerResult).toBeNull();
+    expect(JSON.stringify(payload)).not.toContain("Fisioterapia Tarifa");
+    expect(payload.selectedProviderOptionId).toBe("place-1");
+
+    // Resuming searches again, then returns to the chosen option.
+    const restored = careFinderStateFromProgress(payload);
+    expect(restored).toMatchObject({ step: "results", results: null, selectedOptionId: null, pendingOptionId: "place-1" });
+    // While the search is still running, a save keeps the choice.
+    expect(careFinderProgressPayload(restored)).toMatchObject({ selectedProviderOptionId: "place-1", canvasStep: "contact" });
+    const reloaded = careFinderReducer(restored, { type: "resultsLoaded", results: google }, profile);
+    expect(reloaded).toMatchObject({ step: "contact", selectedOptionId: "place-1", pendingOptionId: null });
+  });
+
+  it("shows fresh results when the chosen option is no longer offered", () => {
+    const restored = careFinderStateFromProgress({
+      canvasStep: "contact",
+      selectedProviderOptionId: "gone",
+      serviceType: "physiotherapy",
+      answers: {
+        version: CARE_FINDER_PROGRESS_VERSION, who: "self", need: "pain", safetyAnswered: "yes", urgency: "this_week",
+        coverage: "private", location: "11380 Tarifa", careAccess: "private", accessAnswered: "yes",
+      },
+    });
+    expect(restored.pendingOptionId).toBe("gone");
+    const reloaded = careFinderReducer(restored, { type: "resultsLoaded", results }, profile);
+    expect(reloaded).toMatchObject({ step: "results", selectedOptionId: null, pendingOptionId: null });
+  });
+
+  it("drops results saved before origins existed, since they came from Google", () => {
+    const legacyGoogle = { ...results, options: results.options.map(({ origin: _origin, ...rest }) => rest) };
+    const restored = careFinderStateFromProgress({
+      canvasStep: "results",
+      providerResult: legacyGoogle as unknown as Record<string, unknown>,
+      serviceType: "physiotherapy",
+      answers: {
+        version: CARE_FINDER_PROGRESS_VERSION, who: "self", need: "pain", safetyAnswered: "yes", urgency: "this_week",
+        coverage: "private", location: "11380 Tarifa", careAccess: "private", accessAnswered: "yes",
+      },
+    });
+    expect(restored).toMatchObject({ step: "results", results: null });
   });
 
   it("never resumes past an unanswered question", () => {

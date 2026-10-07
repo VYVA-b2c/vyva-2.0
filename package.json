@@ -57,6 +57,7 @@
     "test:concierge-whatsapp": "cross-env DATABASE_URL=postgresql://127.0.0.1:1/test VITEST_CHUNK_TIMEOUT_MS=900000 node scripts/run-vitest.mjs --project=server --no-file-parallelism server/services/conciergeWhatsappAdapter.test.ts server/services/conciergeActionAdapters.test.ts server/services/conciergeChannelReadiness.test.ts server/services/communicationDispatcher.whatsapp.test.ts server/services/communicationDispatcher.resend.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "care-register:import": "tsx scripts/import-care-register.ts",
     "audit:i18n": "tsx scripts/audit-ui-localization.ts"
   },
   "dependencies": {
@@ -165,6 +166,7 @@
     "jsdom": "^29.1.1",
     "postcss": "^8.5.6",
     "prisma": "^6.19.3",
+    "read-excel-file": "^9.3.10",
     "supertest": "^7.2.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",

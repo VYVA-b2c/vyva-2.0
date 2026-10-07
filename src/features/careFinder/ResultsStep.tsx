@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle, Info, Loader2, MapPin, Phone, UserRound } from "lucide-react";
+import { AlertTriangle, CalendarCheck, CheckCircle2, ExternalLink, HelpCircle, Info, Loader2, MapPin, Phone, UserRound } from "lucide-react";
 import {
   buildProviderComparisonOption,
   PROVIDER_COMPARISON_CRITERIA,
@@ -8,6 +8,7 @@ import {
 } from "../../../shared/providerComparison";
 import { CARE_FINDER_LOCALE, CARE_TYPES, pick, type CareFinderLang } from "../../../shared/careFinder/careRoutes";
 import type { CareFinderResultOption, CareFinderSearchResponse } from "../../../shared/careFinder/search";
+import { CARE_HEALTH_CARD_NEEDED, regionBooking, type CareFinderPublicCare } from "../../../shared/careFinder/publicCare";
 import type { CareFinderCopy } from "./copy";
 import { ActionButton, Notice, actionClass } from "./parts";
 
@@ -63,6 +64,7 @@ export function usualDoctorOption(doctor: { name: string; phone?: string | null;
   const source = pick(lang, { en: "Your VYVA profile", es: "Su perfil de VYVA", fr: "Votre profil VYVA", de: "Ihr VYVA-Profil" });
   return {
     id: USUAL_DOCTOR_OPTION_ID,
+    origin: "profile",
     name: doctor.name,
     category: pick(lang, CARE_TYPES.primary_care.label),
     care_type: "primary_care",
@@ -86,6 +88,7 @@ function OptionCard({
   lang,
   onPrepare,
   usual,
+  badge,
 }: {
   option: CareFinderResultOption;
   index: number;
@@ -93,6 +96,7 @@ function OptionCard({
   lang: CareFinderLang;
   onPrepare: () => void;
   usual?: boolean;
+  badge?: string | null;
 }) {
   const r = copy.results;
   const comparison = useMemo(() => buildProviderComparisonOption(option, index), [option, index]);
@@ -106,6 +110,9 @@ function OptionCard({
       <article aria-labelledby={headingId} className="rounded-[22px] border-2 border-[var(--cf-border-soft)] bg-[var(--cf-surface)] p-5" data-testid={`care-option-${option.id}`}>
         {usual ? (
           <p className="mb-1 inline-flex items-center gap-2 text-[17px] font-semibold text-[var(--cf-accent)]"><UserRound size={20} aria-hidden="true" />{r.usualDoctorTitle}</p>
+        ) : null}
+        {badge ? (
+          <p className="mb-1 inline-flex items-center gap-2 text-[17px] font-semibold text-[var(--cf-accent)]" data-testid="care-assigned-badge"><CheckCircle2 size={20} aria-hidden="true" />{badge}</p>
         ) : null}
         <h3 id={headingId} className="text-[24px] font-semibold leading-tight text-[var(--cf-text)]">{option.name}</h3>
         <p className="mt-1 text-[18px] text-[var(--cf-text-2)]">{usual ? r.usualDoctorDetail : option.category}</p>
@@ -160,6 +167,48 @@ function OptionCard({
         </div>
       </article>
     </li>
+  );
+}
+
+function PublicCarePanel({
+  publicCare,
+  options,
+  copy,
+  lang,
+}: {
+  publicCare: CareFinderPublicCare;
+  options: CareFinderResultOption[];
+  copy: CareFinderCopy;
+  lang: CareFinderLang;
+}) {
+  const r = copy.results;
+  const assigned = options.find((option) => option.id === publicCare.assignedOptionId) ?? null;
+  const booking = regionBooking(publicCare.regionCode);
+  const service = booking ? (booking.app ? `${booking.app} (${pick(lang, booking.name)})` : pick(lang, booking.name)) : null;
+  return (
+    <section aria-labelledby="care-public-title" className="mb-5 rounded-[22px] border-2 border-[var(--cf-accent)] bg-[var(--cf-surface)] p-5" data-testid="care-public-care">
+      <h3 id="care-public-title" className="flex items-center gap-2 text-[22px] font-semibold text-[var(--cf-text)]">
+        <CalendarCheck size={24} aria-hidden="true" />{r.publicTitle}
+      </h3>
+      <p className="mt-2 text-[18px] text-[var(--cf-text)]">
+        {assigned && publicCare.basis === "health_map" && publicCare.mapSource
+          ? r.publicHealthMap(assigned.name, publicCare.mapSource)
+          : assigned
+            ? r.publicNearest(assigned.name)
+            : r.publicUnknown}
+      </p>
+      {booking && service ? (
+        <div className="mt-4 flex flex-col gap-2">
+          <a href={booking.url} target="_blank" rel="noreferrer" className={actionClass("primary")} data-testid="link-public-booking">
+            <ExternalLink size={20} aria-hidden="true" />
+            <span>{r.bookOnline(service)}{" "}<span className="sr-only">({r.opensOfficialSite})</span></span>
+          </a>
+          <p className="text-[17px] text-[var(--cf-text-2)]">{pick(lang, booking.needs ?? CARE_HEALTH_CARD_NEEDED)}</p>
+        </div>
+      ) : (
+        <p className="mt-3 text-[17px] text-[var(--cf-text-2)]">{r.bookNotListed}</p>
+      )}
+    </section>
   );
 }
 
@@ -269,7 +318,14 @@ export function ResultsStep({
   return (
     <div>
       {heading(r.heading(results.options.length, careLabel, location))}
-      <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{results.orderedBy === "travel_time" ? r.orderTravel : r.orderRelevance}</p>
+      <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{
+        results.orderedBy === "travel_time" ? r.orderTravel
+          : results.orderedBy === "distance" ? r.orderDistance
+            : results.orderedBy === "assigned_first" ? r.orderAssigned
+              : r.orderRelevance
+      }</p>
+
+      {results.publicCare ? <PublicCarePanel publicCare={results.publicCare} options={results.options} copy={copy} lang={lang} /> : null}
 
       <details className="mb-5 rounded-[18px] border border-[var(--cf-border-soft)] bg-[var(--cf-surface)] px-5 py-3">
         <summary className="min-h-[44px] cursor-pointer py-2 text-[18px] font-semibold text-[var(--cf-text)]">{r.legendTitle}</summary>
@@ -285,7 +341,17 @@ export function ResultsStep({
           <OptionCard option={usualDoctor} index={-1} copy={copy} lang={lang} onPrepare={() => onPrepare(USUAL_DOCTOR_OPTION_ID)} usual />
         ) : null}
         {results.options.map((option, index) => (
-          <OptionCard key={option.id} option={option} index={index} copy={copy} lang={lang} onPrepare={() => onPrepare(option.id)} />
+          <OptionCard
+            key={option.id}
+            option={option}
+            index={index}
+            copy={copy}
+            lang={lang}
+            onPrepare={() => onPrepare(option.id)}
+            badge={option.id === results.publicCare?.assignedOptionId
+              ? (results.publicCare.basis === "health_map" ? r.badgeHealthMap : r.badgeNearest)
+              : null}
+          />
         ))}
       </ol>
 

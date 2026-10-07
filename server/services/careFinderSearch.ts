@@ -11,6 +11,7 @@ import {
   type ProviderComparisonFact,
 } from "../../shared/providerComparison.js";
 import {
+  CARE_FINDER_LOCALE,
   CARE_TYPES,
   careFinderLang,
   type Localized,
@@ -18,6 +19,16 @@ import {
   pick,
   type CareFinderLang,
 } from "../../shared/careFinder/careRoutes.js";
+import {
+  HOME_CARE_CODE,
+  REGISTER_SEARCH_URL,
+  REGISTER_SOURCE_LABEL,
+  registerDisplayAddress,
+  registerDisplayName,
+} from "../../shared/careFinder/register.js";
+import { findHealthMapCentres, findRegisterPlaces, type HealthMapCentres, type RegisterMatch } from "./careRegister.js";
+import { chooseAssignedCentre, type CareAssignedBasis, type CareFinderPublicCare } from "../../shared/careFinder/publicCare.js";
+import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
 import {
   careFinderMapsSearchUrl,
   type CareFinderResultOption,
@@ -57,6 +68,18 @@ export interface CareFinderSearchDependencies {
   apiKey?: string | null;
   now?: () => Date;
   refreshEvidence?: (candidate: ProviderSourceCandidate, locale: string) => Promise<ProviderEvidenceRefreshResult | null>;
+  geocode?: (address: string) => Promise<GeocodedPoint | null>;
+  // null switches the official register off (Google only).
+  findRegisterPlaces?: typeof findRegisterPlaces | null;
+  findHealthMapCentres?: (municipalityCode: string) => Promise<HealthMapCentres | null>;
+}
+
+// Enough public centres to find the one on the health map, even when it
+// isn't among the three closest (rural Zamora has 419 local clinics).
+const PUBLIC_CENTRE_CANDIDATES = 80;
+
+function isPublicPrimaryCare(request: CareFinderSearchRequest): boolean {
+  return request.access === "public" && (request.careType === "primary_care" || request.careType === "same_day");
 }
 
 function timeoutSignal(ms: number): AbortSignal | undefined {
@@ -166,6 +189,150 @@ function text(lang: CareFinderLang, copy: Localized): string {
   return copy[lang];
 }
 
+function publicCentreAssumptions(request: CareFinderSearchRequest, lang: CareFinderLang): string[] {
+  if (request.access !== "public" || (request.careType !== "primary_care" && request.careType !== "same_day")) return [];
+  return [text(lang, {
+    en: "Health centres are part of the public system. You are normally registered at one by your address, so check your health card for yours.",
+    es: "Los centros de salud son de la sanidad pública. Normalmente le corresponde uno según su domicilio; compruébelo en su tarjeta sanitaria.",
+    fr: "Les centres de santé font partie du système public. Vous êtes normalement inscrit dans l'un d'eux selon votre adresse ; vérifiez lequel sur votre carte de santé.",
+    de: "Gesundheitszentren gehören zum öffentlichen System. Normalerweise sind Sie je nach Adresse bei einem angemeldet; prüfen Sie auf Ihrer Gesundheitskarte, bei welchem.",
+  })];
+}
+
+function titleCaseMunicipality(value: string | null): string {
+  return registerDisplayAddress({ street: null, postcode: null, municipalityName: value }) ?? "";
+}
+
+function formatDay(isoDay: string, lang: CareFinderLang): string {
+  const date = new Date(`${isoDay}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDay;
+  return new Intl.DateTimeFormat(CARE_FINDER_LOCALE[lang], { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+function aboutKm(km: number, lang: CareFinderLang): string {
+  const value = new Intl.NumberFormat(CARE_FINDER_LOCALE[lang], { maximumFractionDigits: km < 10 ? 1 : 0 }).format(Math.max(0.1, km));
+  return text(lang, {
+    en: `About ${value} km away in a straight line`,
+    es: `A unos ${value} km en línea recta`,
+    fr: `À environ ${value} km à vol d'oiseau`,
+    de: `Etwa ${value} km Luftlinie entfernt`,
+  });
+}
+
+/** An option from the official register. Everything in it may be stored. */
+async function registerOption(
+  match: RegisterMatch,
+  role: { closest: boolean; assigned: { basis: CareAssignedBasis; mapSource: string | null } | null },
+  request: CareFinderSearchRequest,
+  lang: CareFinderLang,
+  careLabel: string,
+  checkedAt: string,
+  refresh: (candidate: ProviderSourceCandidate, locale: string) => Promise<ProviderEvidenceRefreshResult | null>,
+): Promise<CareFinderResultOption> {
+  const { place, km } = match;
+  const name = registerDisplayName(place);
+  const address = registerDisplayAddress(place);
+  const registerDate = place.sourceUpdatedOn ? `${place.sourceUpdatedOn}T00:00:00.000Z` : checkedAt;
+  const updatedOn = formatDay(place.sourceUpdatedOn, lang);
+  // A plain link the member can open; no map data is fetched or kept.
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([name, address].filter(Boolean).join(", "))}`;
+  const evidence = place.website
+    ? await refresh({
+      id: place.ccn,
+      name,
+      sector: "doctor_care",
+      address,
+      websiteUrl: place.website,
+      mapsUrl: null,
+      placeId: null,
+      rating: null,
+      reviewCount: null,
+      openNow: null,
+    }, lang).catch(() => null)
+    : null;
+  const facts = evidence?.facts;
+  const distance = aboutKm(km, lang);
+  const homeCare = place.careCodes.includes(HOME_CARE_CODE);
+
+  const registerFact = (value: string): ProviderComparisonEvidence => ({
+    value, status: "verified", source: REGISTER_SOURCE_LABEL, sourceType: "official", sourceUrl: REGISTER_SEARCH_URL, checkedAt: registerDate,
+  });
+  const comparison: Record<ProviderComparisonCriterion, ProviderComparisonFact> = {
+    // Worked out by VYVA from the register address, so it is reported, not verified.
+    distance: mergeFact("distance", undefined, [{
+      value: distance, status: "reported", source: "VYVA", sourceType: "manual", sourceUrl: null, checkedAt,
+    }]),
+    availability: mergeFact("availability", facts?.availability, []),
+    accessibility: mergeFact("accessibility", facts?.accessibility, []),
+    price: mergeFact("price", facts?.price, []),
+    coverage: mergeFact("coverage", facts?.coverage, place.ownership === "public"
+      ? [registerFact(text(lang, { en: "Public health system", es: "Sanidad pública", fr: "Système de santé public", de: "Öffentliches Gesundheitssystem" }))]
+      : []),
+    reputation: mergeFact("reputation", undefined, []),
+  };
+
+  const matched = [text(lang, {
+    en: `Authorised for this care in Spain's official register of health centres (updated ${updatedOn})`,
+    es: `Autorizado para esta atención en el registro oficial de centros sanitarios (actualizado el ${updatedOn})`,
+    fr: `Autorisé pour ces soins dans le registre officiel espagnol des centres de santé (mis à jour le ${updatedOn})`,
+    de: `Im offiziellen spanischen Register der Gesundheitseinrichtungen für diese Versorgung zugelassen (Stand ${updatedOn})`,
+  })];
+  if (role.assigned?.basis === "health_map") {
+    const municipality = titleCaseMunicipality(place.municipalityName);
+    const source = role.assigned.mapSource ?? "";
+    matched.unshift(text(lang, {
+      en: `The health centre for ${municipality} on the health map published by ${source}`,
+      es: `El centro de salud que corresponde a ${municipality} según el mapa sanitario publicado por ${source}`,
+      fr: `Le centre de santé de ${municipality} selon la carte sanitaire publiée par ${source}`,
+      de: `Das Gesundheitszentrum für ${municipality} laut der Gesundheitskarte, veröffentlicht von ${source}`,
+    }));
+  } else if (role.assigned?.basis === "nearest") {
+    matched.unshift(text(lang, {
+      en: "The closest public health centre to your address. The one printed on your health card is the one that counts.",
+      es: "El centro de salud público más cercano a su dirección. El que cuenta es el que figura en su tarjeta sanitaria.",
+      fr: "Le centre de santé public le plus proche de votre adresse. C'est celui indiqué sur votre carte de santé qui compte.",
+      de: "Das nächstgelegene öffentliche Gesundheitszentrum. Maßgeblich ist das auf Ihrer Gesundheitskarte.",
+    }));
+  }
+  if (role.closest && role.assigned?.basis !== "nearest") {
+    matched.push(text(lang, { en: "The closest of the options found", es: "La más cercana de las encontradas", fr: "La plus proche des options trouvées", de: "Die nächstgelegene der gefundenen Möglichkeiten" }));
+  }
+  if (request.accessNeeds.includes("home_visit") && homeCare) {
+    matched.push(text(lang, {
+      en: "Also authorised for home health care. Ask whether they visit for this",
+      es: "También autorizado para atención sanitaria a domicilio. Pregunte si hacen visitas para esto",
+      fr: "Également autorisé pour les soins à domicile. Demandez s'ils se déplacent pour cela",
+      de: "Auch für häusliche Versorgung zugelassen. Fragen Sie, ob sie dafür Hausbesuche machen",
+    }));
+  }
+
+  return {
+    id: `regcess:${place.ccn}`,
+    origin: "official_register",
+    name,
+    category: careLabel,
+    care_type: request.careType,
+    address,
+    what_it_offers: careLabel,
+    phone: place.phone,
+    email: place.email,
+    website: place.website,
+    booking_url: evidence?.discoveredBookingUrl ?? null,
+    maps_url: mapsUrl,
+    source_label: REGISTER_SOURCE_LABEL,
+    source_status: "verified",
+    source_type: "official",
+    source_url: REGISTER_SEARCH_URL,
+    checked_at: registerDate,
+    comparison,
+    travel_text: distance,
+    travel_minutes: null,
+    wheelchair_entrance: null,
+    matched,
+    assumptions: publicCentreAssumptions(request, lang),
+  };
+}
+
 export async function searchCareProviders(
   request: CareFinderSearchRequest,
   dependencies: CareFinderSearchDependencies = {},
@@ -185,7 +352,63 @@ export async function searchCareProviders(
     mapsSearchUrl: careFinderMapsSearchUrl(terms[0] ?? careLabel, request.location),
   };
 
-  if (!key) return { ...base, status: "unavailable", orderedBy: "search_relevance", options: [] };
+  const refresh = dependencies.refreshEvidence ?? (async (candidate: ProviderSourceCandidate, locale: string) => (
+    refreshProviderEvidence({ candidate, locale, criteria: ["price", "availability", "accessibility", "coverage", "reputation"] })
+  ));
+
+  // Region known, centre unknown: the booking link still helps.
+  let publicCareFallback: CareFinderPublicCare | null = null;
+
+  // Official register first: every option it returns is authorised for this care.
+  const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
+  if (findRegister) {
+    const origin = await (dependencies.geocode ?? geocodeMemberLocation)(request.location).catch(() => null);
+    const publicPrimary = isPublicPrimaryCare(request);
+    const matches = origin
+      ? await findRegister({
+        careType: request.careType,
+        access: request.access,
+        origin,
+        limit: publicPrimary ? PUBLIC_CENTRE_CANDIDATES : MAX_RESULTS,
+      }).catch((error) => {
+        console.warn("[care-finder] register search failed, using Google", error instanceof Error ? error.message : error);
+        return [] as RegisterMatch[];
+      })
+      : [];
+    if (matches.length > 0) {
+      let chosen = matches.slice(0, MAX_RESULTS);
+      let publicCare: CareFinderPublicCare | null = null;
+      let assigned: { ccn: string; basis: CareAssignedBasis; mapSource: string | null } | null = null;
+      if (publicPrimary) {
+        const healthMap = origin?.municipalityCode
+          ? await (dependencies.findHealthMapCentres ?? findHealthMapCentres)(origin.municipalityCode).catch(() => null)
+          : null;
+        const pick = chooseAssignedCentre(matches.map((match) => ({ id: match.place.ccn, name: match.place.name, km: match.km })), healthMap?.centres ?? null);
+        if (pick) {
+          assigned = { ccn: pick.id, basis: pick.basis, mapSource: pick.basis === "health_map" ? healthMap?.source ?? null : null };
+          // Their centre first, then the closest others.
+          const theirs = matches.find((match) => match.place.ccn === pick.id)!;
+          chosen = [theirs, ...matches.filter((match) => match !== theirs)].slice(0, MAX_RESULTS);
+        }
+        publicCare = {
+          regionCode: origin?.regionCode ?? matches[0].place.regionCode,
+          assignedOptionId: assigned ? `regcess:${assigned.ccn}` : null,
+          basis: assigned?.basis ?? null,
+          mapSource: assigned?.mapSource ?? null,
+          mapUpdatedOn: assigned?.basis === "health_map" ? healthMap?.updatedOn ?? null : null,
+        };
+      }
+      const closest = chosen.reduce((best, match) => (match.km < best.km ? match : best), chosen[0]);
+      const options = await Promise.all(chosen.map((match) => registerOption(match, {
+        closest: match === closest,
+        assigned: assigned && match.place.ccn === assigned.ccn ? assigned : null,
+      }, request, lang, careLabel, checkedAt, refresh)));
+      return { ...base, status: "ok", orderedBy: assigned ? "assigned_first" : "distance", options, publicCare };
+    }
+    if (publicPrimary) publicCareFallback = { regionCode: origin?.regionCode ?? null, assignedOptionId: null, basis: null, mapSource: null, mapUpdatedOn: null };
+  }
+
+  if (!key) return { ...base, status: "unavailable", orderedBy: "search_relevance", options: [], publicCare: publicCareFallback };
 
   const found: Array<{ place: TextSearchPlace; term: string }> = [];
   const seen = new Set<string>();
@@ -201,7 +424,7 @@ export async function searchCareProviders(
   }
 
   const candidates = found.slice(0, MAX_CANDIDATES);
-  if (candidates.length === 0) return { ...base, status: "no_results", orderedBy: "search_relevance", options: [] };
+  if (candidates.length === 0) return { ...base, status: "no_results", orderedBy: "search_relevance", options: [], publicCare: publicCareFallback };
 
   const travel = await travelEstimates(fetcher, key, request.location, candidates.map((item) => item.place), lang);
   const ranked = candidates
@@ -218,10 +441,6 @@ export async function searchCareProviders(
   const details = await Promise.all(ranked.map((item) => (
     item.place.place_id ? placeDetails(fetcher, key, item.place.place_id, lang) : Promise.resolve(null)
   )));
-
-  const refresh = dependencies.refreshEvidence ?? (async (candidate: ProviderSourceCandidate, locale: string) => (
-    refreshProviderEvidence({ candidate, locale, criteria: ["price", "availability", "accessibility", "coverage", "reputation"] })
-  ));
 
   const options = await Promise.all(ranked.map(async (item, index): Promise<CareFinderResultOption> => {
     const { place, term } = item;
@@ -294,18 +513,11 @@ export async function searchCareProviders(
       }));
     }
 
-    const assumptions: string[] = [];
-    if (request.access === "public" && (request.careType === "primary_care" || request.careType === "same_day")) {
-      assumptions.push(text(lang, {
-        en: "Health centres are part of the public system. You are normally registered at one by your address, so check your health card for yours.",
-        es: "Los centros de salud son de la sanidad pública. Normalmente le corresponde uno según su domicilio; compruébelo en su tarjeta sanitaria.",
-        fr: "Les centres de santé font partie du système public. Vous êtes normalement inscrit dans l'un d'eux selon votre adresse ; vérifiez lequel sur votre carte de santé.",
-        de: "Gesundheitszentren gehören zum öffentlichen System. Normalerweise sind Sie je nach Adresse bei einem angemeldet; prüfen Sie auf Ihrer Gesundheitskarte, bei welchem.",
-      }));
-    }
+    const assumptions = publicCentreAssumptions(request, lang);
 
     return {
       id: place.place_id ?? `care-${index + 1}`,
+      origin: "google_places",
       name: place.name ?? careLabel,
       category: careLabel,
       care_type: request.careType,
@@ -329,5 +541,5 @@ export async function searchCareProviders(
     };
   }));
 
-  return { ...base, status: "ok", orderedBy, options };
+  return { ...base, status: "ok", orderedBy, options, publicCare: publicCareFallback };
 }
