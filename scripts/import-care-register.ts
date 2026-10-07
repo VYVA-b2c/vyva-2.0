@@ -31,7 +31,6 @@
 // cedido por © Instituto Geográfico Nacional".
 import "dotenv/config";
 import pg from "pg";
-import { readSheet } from "read-excel-file/node";
 import {
   REGISTER_DOWNLOAD_URL,
   REGISTER_LISTINGS,
@@ -48,6 +47,7 @@ import {
   type StoredPosition,
 } from "../shared/careFinder/register.js";
 import { geocodeSpanishAddress } from "../server/services/cartoCiudad.js";
+import { forEachXlsxRow } from "./xlsx-rows.js";
 import {
   CASTILLA_LEON_HEALTH_MAP_SOURCE,
   CASTILLA_LEON_HEALTH_MAP_URL,
@@ -104,14 +104,19 @@ async function loadListing(listing: RegisterListing): Promise<{ places: Register
   const { body, lastModified } = localPath
     ? { body: await import("node:fs/promises").then((fs) => fs.readFile(localPath)), lastModified: null }
     : await download(`${REGISTER_DOWNLOAD_URL}${listing}`);
-  const sheet = await readSheet(body);
-  const [header, ...rows] = sheet;
-  if (!header) throw new Error(`${listing}: empty file`);
-  const index = registerColumnIndex(header);
-  const places = rows
-    .map((row) => registerPlaceFromRow(row, index, listing))
-    .filter((place): place is RegisterPlace => place !== null);
-  return { places, lastModified, rows: rows.length };
+  // Row by row: reading the 119,000-row C2 file whole needs over 1 GB.
+  let index: ReturnType<typeof registerColumnIndex> | null = null;
+  const places: RegisterPlace[] = [];
+  const total = forEachXlsxRow(body, (row) => {
+    if (!index) {
+      index = registerColumnIndex(row);
+      return;
+    }
+    const place = registerPlaceFromRow(row, index, listing);
+    if (place) places.push(place);
+  });
+  if (!index) throw new Error(`${listing}: empty file`);
+  return { places, lastModified, rows: Math.max(0, total - 1) };
 }
 
 async function loadRegionalPositions(): Promise<Map<string, { lat: number; lng: number }>> {
