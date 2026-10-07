@@ -6,6 +6,8 @@ const it = {
     more: "Altro",
   },
   common: {
+    showMoreGames: "Altro",
+    showFewerGames: "Mostra meno",
     back: "Indietro",
     continue: "Continua",
     start: "Inizia",
@@ -1477,7 +1479,7 @@ const it = {
       drawHint: "Scorri il dito lungo il percorso che ricordi",
       done: "Fatto",
       resultGreat: "Ottimo lavoro, esploratore!",
-      resultTry: "Ci sei quasi! Riprova domani.",
+      resultTry: "Riprova",
       accuracy: "Precisione",
       streak: "Serie",
       score: "Punteggio",

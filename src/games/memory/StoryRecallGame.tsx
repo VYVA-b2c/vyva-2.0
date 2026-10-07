@@ -142,7 +142,6 @@ export default function StoryRecallGame({
   t,
   onBack,
   showBackButton = true,
-  onOpenRecommended,
   onOpenNextLevel,
   onOpenSameGame,
   actionLoading,
@@ -300,10 +299,12 @@ export default function StoryRecallGame({
           nextLevelDisplayLabel={canOpenNextLevel ? getBrainCoachProgressLabel(nextLevel) : undefined}
           replayLabel={t("brainGames.resultActions.playAgain")}
           anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
-          onContinue={onOpenRecommended}
+          onContinue={() => void onOpenSameGame(plan.level)}
           onNextLevel={canOpenNextLevel ? () => void onOpenNextLevel() : undefined}
           onReplay={() => void onOpenSameGame(plan.level)}
           onAnother={onBack}
+          onClose={onBack}
+          closeLabel={t("common.close", "Close")}
           disabled={actionLoading !== null}
           details={
             <div className="grid gap-2">

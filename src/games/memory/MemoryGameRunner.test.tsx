@@ -55,6 +55,7 @@ function renderMemoryGame(initialEntry: string) {
         <Route path="/memory-games/:gameType" element={<MemoryGameRunner />} />
         <Route path="/brain-coach/activity/:gameType" element={<MemoryGameRunner />} />
         <Route path="/dev/connections" element={<MemoryGameRunner forcedGameType="association_memory" />} />
+        <Route path="/brain-coach/remember" element={<h1>Memory menu</h1>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -204,6 +205,7 @@ describe("MemoryGameRunner word recall", () => {
     expect(await screen.findByText("You remembered 9 of 9")).toBeInTheDocument();
     expect(screen.getByText(/building the base/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue to Level 2" })).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Play again" })).not.toBeInTheDocument();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
@@ -314,6 +316,7 @@ describe("MemoryGameRunner word recall", () => {
     renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
+    expect(screen.queryByText("Turn over two cards at a time.")).not.toBeInTheDocument();
     expect(screen.queryByText("Different pictures? Both cards turn back. Try another pair.")).not.toBeInTheDocument();
     expect(screen.getByText("Find all 3 pairs to finish. There is no timer.")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -378,6 +381,18 @@ describe("MemoryGameRunner word recall", () => {
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
+  });
+
+  it("can close the Visual Memory result and return to the memory menu", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
+
+    await completeLevelOneVisualMemoryBoard();
+
+    const closeButton = await screen.findByRole("button", { name: "Close" });
+    fireEvent.click(closeButton);
+
+    expect(await screen.findByRole("heading", { name: "Memory menu" })).toBeInTheDocument();
   });
 
   it("keeps Next Level available when earlier Visual Memory history exists", async () => {

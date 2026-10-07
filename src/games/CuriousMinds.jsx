@@ -605,6 +605,8 @@ export default function CuriousMinds({
             onContinue={onExit}
             onReplay={() => void loadGame()}
             onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+            onClose={onExit}
+            closeLabel={t("common.close", "Close")}
             disabled={saving}
           />
         ) : null}

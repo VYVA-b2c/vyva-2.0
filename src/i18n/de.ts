@@ -6,6 +6,8 @@ const de = {
     more: "Mehr",
   },
   common: {
+    showMoreGames: "Mehr",
+    showFewerGames: "Weniger anzeigen",
     back: "Zuruck",
     continue: "Weiter",
     start: "Starten",
@@ -1567,7 +1569,7 @@ const de = {
       drawHint: "Ziehe den Finger uber den Weg, an den du dich erinnerst",
       done: "Fertig",
       resultGreat: "Sehr gut gemacht, Entdecker!",
-      resultTry: "Fast geschafft! Versuche es morgen wieder.",
+      resultTry: "Versuche es noch einmal",
       accuracy: "Genauigkeit",
       streak: "Serie",
       score: "Punkte",

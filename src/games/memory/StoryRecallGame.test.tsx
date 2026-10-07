@@ -41,6 +41,8 @@ vi.mock("./gameStorage", async () => {
 const t = (path: string, fallback?: string) => translate("en", path, fallback);
 
 function renderStoryRecall() {
+  const onOpenRecommended = vi.fn();
+  const onOpenSameGame = vi.fn();
   mocks.scoreRetell.mockResolvedValue({
     covered: [1],
     not_covered: [2],
@@ -49,7 +51,7 @@ function renderStoryRecall() {
     error: null,
   });
 
-  return render(
+  const view = render(
     <StoryRecallGame
       plan={{
         gameType: "story_recall",
@@ -81,17 +83,19 @@ function renderStoryRecall() {
       language="en"
       t={t}
       onBack={vi.fn()}
-      onOpenRecommended={vi.fn()}
+      onOpenRecommended={onOpenRecommended}
       onOpenNextLevel={vi.fn()}
-      onOpenSameGame={vi.fn()}
+      onOpenSameGame={onOpenSameGame}
       actionLoading={null}
     />,
   );
+
+  return { ...view, onOpenRecommended, onOpenSameGame };
 }
 
 describe("StoryRecallGame", () => {
   it("guides the story round into the shared completion dialog", async () => {
-    renderStoryRecall();
+    const { onOpenRecommended, onOpenSameGame } = renderStoryRecall();
 
     expect(screen.getByText("Level 6 - Build")).toBeInTheDocument();
     expect(screen.getByText("Read, then hide the story.")).toBeInTheDocument();
@@ -110,6 +114,9 @@ describe("StoryRecallGame", () => {
 
     expect(await screen.findByRole("dialog", { name: "Well done" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "More games" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onOpenSameGame).toHaveBeenCalledWith(6);
+    expect(onOpenRecommended).not.toHaveBeenCalled();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "story_recall",

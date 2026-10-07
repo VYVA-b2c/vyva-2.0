@@ -22,6 +22,7 @@ type CanonicalBrainCoachActivityCardProps = Omit<ButtonHTMLAttributes<HTMLButton
   borderColor?: string;
   dense?: boolean;
   showArrow?: boolean;
+  tile?: boolean;
 };
 
 export function CanonicalBrainCoachActivityCard({
@@ -41,6 +42,7 @@ export function CanonicalBrainCoachActivityCard({
   borderColor: _borderColor,
   dense = false,
   showArrow = true,
+  tile = false,
   className,
   disabled,
   type = "button",
@@ -64,6 +66,7 @@ export function CanonicalBrainCoachActivityCard({
           ? "border-white/[0.14] bg-white/[0.08] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
           : "border-[#EEE8F1] bg-white text-[#241C30]",
         isFeatured && (isDark ? "ring-2 ring-white/[0.14]" : "ring-2 ring-[#E9DDF8]"),
+        tile && "min-h-[144px] grid-cols-1 justify-items-center gap-3 rounded-lg p-4 text-center shadow-sm lg:min-h-[144px]",
         className,
       )}
       style={style}
@@ -94,7 +97,7 @@ export function CanonicalBrainCoachActivityCard({
       </span>
 
       <span className={cn("min-w-0 self-center", !dense && "lg:col-span-3 lg:row-start-3 lg:self-start")}>
-        <span className="block font-display text-[20px] font-semibold leading-tight tracking-normal lg:text-[22px]">
+        <span className={cn("block font-display font-semibold leading-tight tracking-normal", tile ? "text-[18px] [overflow-wrap:anywhere]" : "text-[20px] lg:text-[22px]")}>
           {title}
         </span>
         {description ? (

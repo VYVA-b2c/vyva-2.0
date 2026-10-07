@@ -1,4 +1,4 @@
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 import {
   BRAIN_COACH_COMPLETION_SHELL_CONTRACT,
   getBrainCoachPresentationAttributes,
@@ -39,8 +39,11 @@ export default function BrainGameCompletionDialog({
   onReplay,
   onAnother,
   onAssessmentReturn,
+  onClose,
+  closeLabel = "Close",
   disabled = false,
   className = "",
+  embedded = false,
 }) {
   const { isDark } = useHomeMasterTheme();
   const visibleMetrics = metrics.filter(Boolean);
@@ -97,12 +100,12 @@ export default function BrainGameCompletionDialog({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-[3px]",
-        isDark ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]",
+        embedded ? "w-full pb-28 pt-2" : "fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-[3px]",
+        !embedded && (isDark ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]"),
         className,
       )}
-      role="dialog"
-      aria-modal="true"
+      role={embedded ? "region" : "dialog"}
+      aria-modal={embedded ? undefined : "true"}
       aria-labelledby={titleId}
       aria-describedby={summary ? summaryId : undefined}
       {...getBrainCoachPresentationAttributes({
@@ -116,14 +119,31 @@ export default function BrainGameCompletionDialog({
       })}
     >
       <div className={cn(
-        "w-full max-w-[680px] rounded-[30px] border px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7",
-        isDark ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
+        embedded ? "relative mx-auto w-full max-w-[680px] text-center" : "relative w-full max-w-[680px] rounded-[30px] border px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7",
+        embedded ? (isDark ? "text-[#F7F0FF]" : "text-[#241C30]") : isDark ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
       )}>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={disabled}
+            aria-label={closeLabel}
+            className={cn(
+              "absolute right-3 top-3 grid h-12 w-12 place-items-center rounded-full transition-colors disabled:opacity-60 sm:right-5 sm:top-5",
+              isDark
+                ? "bg-white/[0.08] text-[#F7F0FF] hover:bg-white/[0.14]"
+                : "bg-[#F7F1FC] text-vyva-purple hover:bg-[#EFE4FA]",
+            )}
+          >
+            <X size={24} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        )}
+
         <div className="mx-auto flex h-[78px] w-[78px] items-center justify-center rounded-[26px] bg-[#ECFDF5] text-[#0A7C4E] shadow-[0_12px_30px_rgba(10,124,78,0.18)]">
           <CheckCircle2 size={38} />
         </div>
 
-        <h2 id={titleId} className="mt-4 font-display text-[34px] leading-tight text-inherit sm:text-[38px]">
+        <h2 id={titleId} className={embedded ? "mt-4 font-display text-[26px] font-semibold leading-tight text-inherit" : "mt-4 font-display text-[34px] leading-tight text-inherit sm:text-[38px]"}>
           {title}
         </h2>
         {summary && (
@@ -133,9 +153,9 @@ export default function BrainGameCompletionDialog({
         )}
 
         {visibleMetrics.length > 0 && (
-          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", metricGridClass(visibleMetrics.length), isDark ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
-            {visibleMetrics.map((item) => (
-              <div key={item.label} className={cn("px-3 py-4", isDark ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
+          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), isDark ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
+            {visibleMetrics.map((item, index) => (
+              <div key={item.label} className={cn("px-3 py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", isDark ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
                 <dt className={cn("text-[12px] font-semibold uppercase", isDark ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
                 <dd className="mt-1 text-[24px] font-extrabold leading-none text-inherit">{item.value}</dd>
               </div>
@@ -175,7 +195,7 @@ export default function BrainGameCompletionDialog({
               >
                 <span>{action.label}</span>
                 {action.hint && (
-                  <span className="text-[14px] font-bold leading-[1.15] text-white/85 sm:text-[15px]">{action.hint}</span>
+                  <span className="sr-only">{action.hint}</span>
                 )}
               </button>
             ))}
@@ -183,7 +203,7 @@ export default function BrainGameCompletionDialog({
         )}
 
         {details && (
-          <div className="mt-5 max-h-[28dvh] overflow-y-auto pr-1 text-left">
+          <div className={embedded ? "mt-6 text-left" : "mt-5 max-h-[28dvh] overflow-y-auto pr-1 text-left"}>
             {details}
           </div>
         )}

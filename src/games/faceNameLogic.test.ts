@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   computeFaceNameScore,
+  FACE_NAME_ADVANCE_ACCURACY,
+  selectFreshFaceNameGroup,
   getFaceNameDistractorCount,
   getFaceNameFaceCount,
   getFaceNameRecallModes,
@@ -8,14 +10,27 @@ import {
 } from "./faceNameLogic";
 
 describe("face-name match logic", () => {
+  it("accepts three correct answers out of four for progression", () => {
+    expect(FACE_NAME_ADVANCE_ACCURACY).toBe(75);
+    expect(100 * 3 / 4).toBeGreaterThanOrEqual(FACE_NAME_ADVANCE_ACCURACY);
+    expect(100 * 2 / 4).toBeLessThan(FACE_NAME_ADVANCE_ACCURACY);
+  });
+
+  it("replaces people from the previous round without changing their identities", () => {
+    const pool = Array.from({ length: 7 }, (_, i) => ({ id: String(i), name: `Name ${i}` }));
+    const previous = pool.slice(0, 4);
+    const next = selectFreshFaceNameGroup(pool, 4, previous.map((p) => p.id));
+    expect(next.map((p) => p.id)).toEqual(["4", "5", "6", "0"]);
+    expect(new Set(next.map((p) => p.id)).size).toBe(4);
+    expect(next[0]).toBe(pool[4]);
+    expect(selectFreshFaceNameGroup(pool, 4, next.map((p) => p.id)).map((p) => p.id)).not.toEqual(next.map((p) => p.id));
+  });
   it("scales difficulty by tier", () => {
     expect(getFaceNameFaceCount(1)).toBe(4);
     expect(getFaceNameFaceCount(5)).toBe(5);
     expect(getFaceNameFaceCount(10)).toBe(6);
     expect(getFaceNameFaceCount(16)).toBe(8);
-    expect(getFaceNameStudySeconds(1)).toBe(45);
-    expect(getFaceNameStudySeconds(10)).toBe(30);
-    expect(getFaceNameStudySeconds(20)).toBe(22);
+    expect(getFaceNameStudySeconds()).toBe(10);
     expect(getFaceNameDistractorCount(2)).toBe(0);
     expect(getFaceNameDistractorCount(3)).toBe(1);
     expect(getFaceNameDistractorCount(8)).toBe(2);

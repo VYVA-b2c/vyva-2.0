@@ -40,6 +40,15 @@ const COPY: Record<LanguageCode, {
   pt: { study: "Recorde estes planos", studyHint: "Cada pessoa tem detalhes diferentes.", startRecall: "Começar a recordar", reset: "Liberte a mente", resetHint: "Toque nos números do menor para o maior.", resetTry: "Escolha o próximo número mais pequeno.", recall: "Recorde as ligações", question: "Pergunta", notSure: "Não tenho a certeza", review: "Revisão", remembered: "Ligações recordadas", missed: "Reveja estas ligações", yourAnswer: "A sua resposta", correctAnswer: "Ligação correta", noAnswer: "Não tenho a certeza", seeResults: "Ver resultados", nextRound: "Próxima ronda", nextLevel: "Nível seguinte", tryAgain: "Tentar novamente", moreActivities: "Mais atividades", complete: "Ligações concluídas", accuracy: "Precisão", time: "Tempo" },
 };
 
+const CLOSE_LABEL: Record<LanguageCode, string> = {
+  en: "Close",
+  es: "Cerrar",
+  fr: "Fermer",
+  de: "Schliessen",
+  it: "Chiudi",
+  pt: "Fechar",
+};
+
 const TONE_CLASSES: Record<ConnectionRecord["tone"], string> = {
   purple: "bg-[#F3E8FF] text-[#6B21A8]",
   teal: "bg-[#DDF7F1] text-[#0F766E]",
@@ -162,6 +171,8 @@ export default function ConnectionsGame({
           onNextLevel={canAdvance ? () => void onOpenSameGame(nextLevel) : undefined}
           onReplay={() => void onOpenSameGame(plan.level)}
           onAnother={onBack}
+          onClose={onBack}
+          closeLabel={CLOSE_LABEL[language] ?? CLOSE_LABEL.en}
           disabled={actionLoading !== null}
         />
       </div>
