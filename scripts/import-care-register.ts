@@ -9,7 +9,7 @@
 // Options:
 //   --apply                    commit (default: everything runs in a transaction that is rolled back)
 //   --file C2=/path/C2.xlsx    use a downloaded file instead of fetching it (repeatable)
-//   --date 2026-10-01          the register date to record (default: the file's Last-Modified, else the 1st of this month)
+//   --date 2026-10-01          the register date to record (default: the 1st of this month, the date the Ministry gives its monthly files)
 //   --no-regional              skip the Castilla y León register (its coordinates save geocoding)
 //   --geocode-limit N          geocode at most N places without coordinates (default 2000; 0 = none)
 //   --geocode-province 49,37   only geocode these province codes (default: all)
@@ -33,6 +33,7 @@ import { readSheet } from "read-excel-file/node";
 import {
   REGISTER_DOWNLOAD_URL,
   REGISTER_LISTINGS,
+  geocodeFitsPlace,
   parseRegionalPosition,
   positionForImport,
   registerColumnIndex,
@@ -169,8 +170,8 @@ async function upsert(client: pg.Client, places: Array<RegisterPlace & StoredPos
 
 async function geocodeMissing(client: pg.Client) {
   if (GEOCODE_LIMIT === 0) return;
-  const { rows } = await client.query<{ ccn: string; geocoded_address: string; province_code: string | null }>(
-    `select ccn, geocoded_address, province_code from care_register_places
+  const { rows } = await client.query<{ ccn: string; geocoded_address: string; province_code: string | null; municipality_code: string | null }>(
+    `select ccn, geocoded_address, province_code, municipality_code from care_register_places
      where withdrawn_at is null and lat is null and geocoded_address is not null
        and ($1::text[] is null or province_code = any($1::text[]))
      order by province_code, ccn`,
@@ -186,8 +187,8 @@ async function geocodeMissing(client: pg.Client) {
   let found = 0;
   for (const [position, row] of queue.entries()) {
     const point = await geocodeSpanishAddress(row.geocoded_address, { timeoutMs: 10_000 });
-    // Never trust a point in another province: the geocoder snaps to the nearest match.
-    if (point && (!row.province_code || !point.provinceCode || point.provinceCode === row.province_code)) {
+    // Never trust a point in another province or town: the geocoder snaps to the nearest match.
+    if (point && geocodeFitsPlace(point, row)) {
       await client.query(
         `update care_register_places set lat = $2, lng = $3, geocode_source = 'cartociudad', geocoded_at = now()
          where ccn = $1 and geocoded_address = $4`,

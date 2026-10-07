@@ -36,6 +36,8 @@ export interface RegisterCareRule {
   classes?: string[];
   // Only for the public route: restrict to these classes, public ownership.
   publicClasses?: string[];
+  // Only for the private route: the code must be held by one of these classes.
+  privateClasses?: string[];
   // Extra condition on top of a weak code (U.900 "other units").
   nameHint?: RegExp;
 }
@@ -44,7 +46,9 @@ export interface RegisterCareRule {
 // by royal decree; the importer stores codes verbatim, so a renamed code only
 // needs this table updated.
 export const REGISTER_CARE_RULES: Record<CareTypeId, RegisterCareRule> = {
-  primary_care: { codes: ["U.1"], publicClasses: PRIMARY_CARE_CENTRES },
+  // Privately, a family doctor is a medical practice or a multi-specialty
+  // centre; hospitals and specialist clinics also hold U.1 but aren't one.
+  primary_care: { codes: ["U.1"], publicClasses: PRIMARY_CARE_CENTRES, privateClasses: ["C21", "C24"] },
   same_day: { codes: ["U.68"], publicClasses: PRIMARY_CARE_CENTRES },
   physiotherapy: { codes: ["U.59"] },
   orthopaedics: { codes: ["U.55"] },
@@ -221,11 +225,40 @@ export function registerPlaceFromRow(row: readonly unknown[], index: RegisterCol
 }
 
 /** The address sent to the geocoder. A change means the place moved. */
-export function registerGeocodeAddress(place: Pick<RegisterPlace, "street" | "postcode" | "municipalityName" | "provinceName">): string | null {
-  if (!place.street || !place.municipalityName) return null;
-  return [place.street, [place.postcode, place.municipalityName].filter(Boolean).join(" "), place.provinceName]
-    .filter(Boolean)
-    .join(", ");
+/** "Puerto de Santa María, El" → "El Puerto de Santa María". */
+export function uninvertPlaceName(value: string | null): string | null {
+  if (!value) return null;
+  const match = /^(.+),\s*(El|La|Los|Las|L'|Els|Les|O|A|Os|As)$/i.exec(value.trim());
+  if (!match) return value.trim();
+  return match[2].endsWith("'") ? `${match[2]}${match[1]}` : `${match[2]} ${match[1]}`;
+}
+
+/**
+ * The address sent to the geocoder; a change means the place moved.
+ * "street, municipality" only: CartoCiudad finds far fewer register
+ * addresses when the postcode and province are included (checked on
+ * 7 Oct 2026: Barcelona 0/20 with them, 19/20 without).
+ */
+export function registerGeocodeAddress(place: Pick<RegisterPlace, "street" | "municipalityName">): string | null {
+  const municipality = uninvertPlaceName(place.municipalityName);
+  if (!place.street || !municipality) return null;
+  return `${place.street}, ${municipality}`;
+}
+
+/**
+ * Whether a geocoded point can belong to this place. The geocoder snaps to
+ * the nearest match it has, sometimes in another province. CartoCiudad's
+ * municipality code is the 6-digit REGCESS one without its check digit.
+ */
+export function geocodeFitsPlace(
+  point: { provinceCode: string | null; municipalityCode: string | null },
+  place: { province_code?: string | null; municipality_code?: string | null; provinceCode?: string | null; municipalityCode?: string | null },
+): boolean {
+  const province = place.provinceCode ?? place.province_code ?? null;
+  const municipality = place.municipalityCode ?? place.municipality_code ?? null;
+  if (province && point.provinceCode && point.provinceCode !== province) return false;
+  if (municipality && point.municipalityCode && point.municipalityCode !== municipality.slice(0, 5)) return false;
+  return Boolean(point.provinceCode || point.municipalityCode);
 }
 
 export function registerDisplayName(place: Pick<RegisterPlace, "name">): string {
@@ -233,7 +266,7 @@ export function registerDisplayName(place: Pick<RegisterPlace, "name">): string 
 }
 
 export function registerDisplayAddress(place: Pick<RegisterPlace, "street" | "postcode" | "municipalityName">): string | null {
-  const parts = [titleCase(place.street), [place.postcode, titleCase(place.municipalityName)].filter(Boolean).join(" ")].filter(Boolean);
+  const parts = [titleCase(place.street), [place.postcode, titleCase(uninvertPlaceName(place.municipalityName))].filter(Boolean).join(" ")].filter(Boolean);
   return parts.length ? parts.join(", ") : null;
 }
 
@@ -251,6 +284,7 @@ export function registerPlaceOffers(
   // Private route, or care the public system reaches only by referral: show
   // places people can contact directly.
   if (place.ownership === "public") return false;
+  if (rule.privateClasses && !(place.centreClass && rule.privateClasses.includes(place.centreClass))) return false;
   if (rule.classes?.length && place.centreClass && rule.classes.includes(place.centreClass)) return true;
   if (!rule.codes?.length) return false;
   const strong = rule.codes.filter((code) => code !== "U.900");

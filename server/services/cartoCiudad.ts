@@ -60,3 +60,23 @@ export async function geocodeSpanishAddress(
     return null;
   }
 }
+
+/**
+ * A member's own location as typed: "Calle Santa Clara 10, Zamora",
+ * "49014 Zamora", "Benavente". CartoCiudad finds a bare postcode but not
+ * "postcode town", so fall back to the postcode, then to the rest.
+ */
+export async function geocodeMemberLocation(
+  location: string,
+  dependencies: { fetch?: typeof fetch; timeoutMs?: number } = {},
+): Promise<GeocodedPoint | null> {
+  const query = location.trim();
+  const direct = await geocodeSpanishAddress(query, dependencies);
+  if (direct) return direct;
+  const postcode = /\b(\d{5})\b/.exec(query)?.[1];
+  if (!postcode) return null;
+  const byPostcode = await geocodeSpanishAddress(postcode, dependencies);
+  if (byPostcode) return byPostcode;
+  const rest = query.replace(postcode, " ").replace(/^[\s,]+|[\s,]+$/g, "").replace(/\s{2,}/g, " ");
+  return rest ? geocodeSpanishAddress(rest, dependencies) : null;
+}

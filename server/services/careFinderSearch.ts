@@ -27,7 +27,7 @@ import {
   registerDisplayName,
 } from "../../shared/careFinder/register.js";
 import { findRegisterPlaces, type RegisterMatch } from "./careRegister.js";
-import { geocodeSpanishAddress, type GeocodedPoint } from "./cartoCiudad.js";
+import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
 import {
   careFinderMapsSearchUrl,
   type CareFinderResultOption,
@@ -328,7 +328,7 @@ export async function searchCareProviders(
   // Official register first: every option it returns is authorised for this care.
   const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
   if (findRegister) {
-    const origin = await (dependencies.geocode ?? geocodeSpanishAddress)(request.location).catch(() => null);
+    const origin = await (dependencies.geocode ?? geocodeMemberLocation)(request.location).catch(() => null);
     const matches = origin
       ? await findRegister({ careType: request.careType, access: request.access, origin, limit: MAX_RESULTS }).catch((error) => {
         console.warn("[care-finder] register search failed, using Google", error instanceof Error ? error.message : error);

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   distanceKm,
+  geocodeFitsPlace,
+  uninvertPlaceName,
   parseCareOffered,
   parseCentreClass,
   parseRegionalPosition,
@@ -136,7 +138,8 @@ describe("reading the REGCESS files", () => {
 
   it("builds a geocoder address and readable names", () => {
     const parsed = registerPlaceFromRow(c2Row(), c2Index, "C2")!;
-    expect(registerGeocodeAddress(parsed)).toBe("CALLE LUIS ULLOA PEREIRA 4, 49015 Zamora, Zamora");
+    // Street and town only: the geocoder misses most addresses given with postcode and province.
+    expect(registerGeocodeAddress(parsed)).toBe("CALLE LUIS ULLOA PEREIRA 4, Zamora");
     expect(registerDisplayName(parsed)).toBe("Vea Centro Laser de Oftalmologia");
     expect(registerDisplayAddress(parsed)).toBe("Calle Luis Ulloa Pereira 4, 49015 Zamora");
   });
@@ -159,6 +162,21 @@ describe("which places Care Finder may show", () => {
     for (const centreClass of ["C3", "C257", "C2510"]) {
       expect(registerPlaceOffers(place({ centreClass, careCodes: ["U.59"] }), "physiotherapy", "private")).toBe(false);
     }
+  });
+
+  it("puts municipality articles back in front", () => {
+    expect(uninvertPlaceName("Puerto de Santa María, El")).toBe("El Puerto de Santa María");
+    expect(uninvertPlaceName("Roda, La")).toBe("La Roda");
+    expect(uninvertPlaceName("Hospitalet de Llobregat, L'")).toBe("L'Hospitalet de Llobregat");
+    expect(uninvertPlaceName("Zamora")).toBe("Zamora");
+    expect(registerGeocodeAddress({ street: "CALLE LARGA 1", municipalityName: "Puerto de Santa María, El" })).toBe("CALLE LARGA 1, El Puerto de Santa María");
+  });
+
+  it("only offers a private family doctor at a medical practice or multi-specialty centre", () => {
+    expect(registerPlaceOffers(place({ centreClass: "C21", careCodes: ["U.1"] }), "primary_care", "private")).toBe(true);
+    expect(registerPlaceOffers(place({ centreClass: "C24", careCodes: ["U.1", "U.50"] }), "primary_care", "private")).toBe(true);
+    expect(registerPlaceOffers(place({ centreClass: "C11", careCodes: ["U.1"] }), "primary_care", "private")).toBe(false);
+    expect(registerPlaceOffers(place({ centreClass: "C2590", careCodes: ["U.1"] }), "primary_care", "private")).toBe(false);
   });
 
   it("uses public health centres for the public route to a family doctor", () => {
@@ -198,6 +216,17 @@ describe("coordinates", () => {
     const stored = { lat: 41.5, lng: -5.7, geocodeSource: "cartociudad" as const, geocodedAddress: address };
     expect(positionForImport(stored, address, undefined)).toBe(stored);
     expect(positionForImport(stored, "CALLE NUEVA 1, 49015 Zamora, Zamora", undefined)).toMatchObject({ lat: null, geocodeSource: null });
+  });
+
+  it("rejects geocoder points in another province or town", () => {
+    const place = { provinceCode: "49", municipalityCode: "492755" };
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275" }, place)).toBe(true);
+    expect(geocodeFitsPlace({ provinceCode: "24", municipalityCode: "24089" }, place)).toBe(false);
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49021" }, place)).toBe(false);
+    // Database rows use snake case.
+    expect(geocodeFitsPlace({ provinceCode: "49", municipalityCode: "49275" }, { province_code: "49", municipality_code: "492755" })).toBe(true);
+    // A postcode-only match has no codes and can't be checked.
+    expect(geocodeFitsPlace({ provinceCode: null, municipalityCode: null }, place)).toBe(false);
   });
 
   it("reads Castilla y León positions and rejects points outside Spain", () => {
