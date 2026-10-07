@@ -5,7 +5,7 @@ import { ChevronLeft, Mic, Stethoscope } from "lucide-react";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
-import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileStandaloneHeader, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
 import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
@@ -346,27 +346,7 @@ const GPSection = () => {
 
   return (
     <div className="min-h-screen bg-vyva-cream flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-12 pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            data-testid="button-gp-back"
-            onClick={() => navigate("/onboarding/profile")}
-            className="w-10 h-10 rounded-full bg-white border border-vyva-border flex items-center justify-center"
-          >
-            <ChevronLeft size={20} className="text-vyva-text-1" />
-          </button>
-          <div className="flex items-center gap-2">
-            <div
-              className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0"
-              style={{ background: "#EFF6FF" }}
-            >
-              <Stethoscope size={18} style={{ color: "#1D4ED8" }} />
-            </div>
-            <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">GP details</h1>
-          </div>
-        </div>
-      </div>
+      <ProfileStandaloneHeader title="GP details" backTestId="button-gp-back" onBack={() => navigate(window.location.pathname.startsWith("/dev/profile-overview/") ? "/dev/profile-overview/group/providers" : "/onboarding/profile/group/providers")} />
 
       <div className="flex-1 px-5 space-y-7">
         <OnboardingCompanionModeChip
@@ -386,6 +366,7 @@ const GPSection = () => {
         />
 
         <ProfileSectionHero
+          hideTitle
           icon={Stethoscope}
           title="Doctor details"
           kicker="One click away"

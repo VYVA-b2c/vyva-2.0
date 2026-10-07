@@ -4,6 +4,8 @@ export type AgentPolicyDomain =
   | "health"
   | "concierge"
   | "brain_coach"
+  | "wellness"
+  | "breathing_meditation"
   | "companion"
   | "doctor"
   | "social";

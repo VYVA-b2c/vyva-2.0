@@ -16,7 +16,10 @@ export type ConciergeHomeServiceCanvasStep =
   | "provider"
   | "searching"
   | "options"
+  | "contact_consent"
+  | "contact_method"
   | "review"
+  | "paused"
   | "waiting"
   | "completed"
   | "error";
@@ -26,6 +29,8 @@ export type ConciergeHomeServiceCanvasOption = {
   label: string;
   description: string;
 };
+
+export type ConciergeHomeServiceContactChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
 export type ConciergeHomeServiceCanvasCopy = ReturnType<typeof homeServiceCanvasCopy>;
 
@@ -45,12 +50,75 @@ export type BuildConciergeHomeServiceCanvasInput = {
   savedProviderName?: string;
   options?: ConciergeHomeServiceCanvasOption[];
   selectedOption?: ConciergeHomeServiceCanvasOption | null;
+  contactChannels?: Array<{ id: ConciergeHomeServiceContactChannel; label: string; description?: string; recommended?: boolean }>;
+  selectedContactChannel?: ConciergeHomeServiceContactChannel | null;
   contactChannelLabel?: string;
   photoWillBeSent?: boolean;
   error?: string | null;
 };
 
 const COPY = {
+  de: {
+    serviceTitle: "Welche Hilfe benötigen Sie?", serviceHelper: "Wählen Sie einen Service. Sie können ihn später ändern.",
+    plumber: "Klempner", electrician: "Elektriker", locksmith: "Schlüsseldienst", cleaner: "Reinigung", other: "Etwas anderes",
+    descriptionTitle: "Was ist passiert?", descriptionHelper: "Beschreiben Sie VYVA das Problem. Ein Foto ist optional.", descriptionLabel: "Problem", descriptionPlaceholder: "Zum Beispiel: Unter dem Waschbecken läuft Wasser aus", addPhoto: "Foto hinzufügen", replacePhoto: "Foto ersetzen", removePhoto: "Foto entfernen", photoReady: "Foto zur Prüfung bereit", photoNeedsReattach: "Fügen Sie das Foto vor dem Teilen erneut hinzu", continue: "Weiter", back: "Zurück",
+    dangerTitle: "Ist jemand in unmittelbarer Gefahr?", dangerHelper: "Zum Beispiel: Feuer, Rauch, Gas, schwere Überschwemmung, Verletzung oder Aussperren unter gefährlichen Bedingungen.", dangerYes: "Ja, akute Gefahr", dangerNo: "Nein, alle sind sicher", dangerUnsure: "Ich bin nicht sicher", emergencyTitle: "Holen Sie jetzt dringend Hilfe", emergencyHelper: "Warten Sie nicht auf einen Dienstleister. Rufen Sie den Notdienst und verlassen Sie den Gefahrenbereich, wenn das sicher möglich ist.", callEmergency: "Notdienst anrufen", safeNow: "Ich bin jetzt in Sicherheit",
+    safetyTitle: "Eine kurze Sicherheitsfrage", safetyHelpers: { plumber: "Tritt viel Wasser aus oder ist es in der Nähe von Strom?", electrician: "Gibt es Funken, Rauch, Hitze oder Brandgeruch?", locksmith: "Ist eine schutzbedürftige Person ein- oder ausgesperrt?", cleaner: "Gibt es Glasscherben, verschüttete Chemikalien oder andere Gefahren?", other: "Gibt es Gefahren, die VYVA kennen sollte?" }, safetyYes: "Ja", safetyNo: "Nein", safetyUnsure: "Nicht sicher",
+    urgencyTitle: "Wie schnell benötigen Sie Hilfe?", urgencyHelper: "So kann VYVA die Verfügbarkeit prüfen.", now: "Jetzt", today: "Heute", thisWeek: "Diese Woche", flexible: "Ich bin flexibel",
+    timeTitle: "Welche Uhrzeit passt Ihnen?", timeHelper: "Nennen Sie eine Uhrzeit oder einen Zeitraum.", timeLabel: "Gewünschte Zeit", timePlaceholder: "Zum Beispiel: morgen Vormittag",
+    accessTitle: "Was sollte der Anbieter noch wissen?", accessHelper: "Optional: Zugang, Parken, Haustiere, Treppen oder Mobilität.", accessLabel: "Zugangshinweise", accessPlaceholder: "Zum Beispiel: am Seiteneingang klingeln", skip: "Überspringen",
+    locationTitle: "Wo findet der Besuch statt?", locationHelper: "Verwenden Sie Ihre gespeicherte Adresse oder eine andere.", savedHome: "Gespeicherte Wohnadresse verwenden", anotherAddress: "Andere Adresse", locationLabel: "Besuchsadresse", locationPlaceholder: "Adresse eingeben",
+    providerTitle: "Wen soll VYVA prüfen?", providerHelper: "Wählen Sie einen vertrauten Anbieter oder vergleichen Sie neue Optionen.", compareProviders: "Neue Anbieter vergleichen", compareDescription: "Verfügbarkeit, Preis, Entfernung und Bewertungen prüfen", addProvider: "Vertrauten Anbieter hinzufügen", savedProviderDescription: "In Ihrem Profil gespeichert",
+    searchingTitle: "Passende Anbieter werden gesucht", searchingHelper: "VYVA sucht nach nachvollziehbaren Informationen.", optionsTitle: "Wählen Sie eine Option zur Prüfung", optionsHelper: "Unbekannte oder ungeprüfte Angaben bleiben gekennzeichnet.",
+    reviewTitle: "Prüfen Sie die zu teilenden Angaben", reviewHelper: "Ohne Ihre Bestätigung erfolgen keine Anrufe, Nachrichten, Buchungen oder Datenweitergaben.", service: "Service", problem: "Problem", urgency: "Dringlichkeit", preferredTime: "Gewünschte Zeit", visitAddress: "Adresse", accessNotes: "Zugang", provider: "Anbieter", contactRoute: "Kontaktweg", photo: "Foto", photoSent: "An die E-Mail an den Anbieter angehängt", photoNotSent: "Bleibt privat; wird auf diesem Weg nicht gesendet", noPhoto: "Kein Foto", unknown: "Nicht angegeben", confirm: "Bestätigen und Kontakt vorbereiten", change: "Angaben ändern",
+    waitingTitle: "Nächster Schritt wird vorbereitet", waitingHelper: "VYVA verwendet nur die von Ihnen bestätigten Angaben.", completedTitle: "Anfrage vorbereitet", completedHelper: "Sie können die Antwort unter Jetzt verfolgen.", errorTitle: "Dieser Schritt erfordert Ihre Aufmerksamkeit", tryAgain: "Erneut versuchen",
+  },
+  it: {
+    serviceTitle: "Di quale aiuto hai bisogno?", serviceHelper: "Scegli un servizio. Potrai cambiarlo in seguito.",
+    plumber: "Idraulico", electrician: "Elettricista", locksmith: "Fabbro", cleaner: "Pulizie", other: "Altro servizio",
+    descriptionTitle: "Cosa sta succedendo?", descriptionHelper: "Descrivi il problema a VYVA. La foto è facoltativa.", descriptionLabel: "Problema", descriptionPlaceholder: "Per esempio: perde acqua sotto il lavandino", addPhoto: "Aggiungi foto", replacePhoto: "Sostituisci foto", removePhoto: "Rimuovi foto", photoReady: "Foto pronta da verificare", photoNeedsReattach: "Aggiungi di nuovo la foto prima di condividerla", continue: "Continua", back: "Indietro",
+    dangerTitle: "Qualcuno è in pericolo immediato?", dangerHelper: "Per esempio: incendio, fumo, gas, grave allagamento, ferite o essere chiusi fuori in condizioni pericolose.", dangerYes: "Sì, pericolo immediato", dangerNo: "No, tutti sono al sicuro", dangerUnsure: "Non so", emergencyTitle: "Chiedi subito aiuto urgente", emergencyHelper: "Non aspettare un fornitore. Contatta i soccorsi e allontanati dal pericolo se puoi farlo in sicurezza.", callEmergency: "Chiama i soccorsi", safeNow: "Ora sono al sicuro",
+    safetyTitle: "Una breve verifica di sicurezza", safetyHelpers: { plumber: "C’è un allagamento o acqua vicino all’elettricità?", electrician: "Ci sono scintille, fumo, calore o odore di bruciato?", locksmith: "Una persona vulnerabile è chiusa dentro o fuori?", cleaner: "Ci sono vetri rotti, sostanze chimiche versate o altri pericoli?", other: "Ci sono pericoli che VYVA dovrebbe conoscere?" }, safetyYes: "Sì", safetyNo: "No", safetyUnsure: "Non so",
+    urgencyTitle: "Quando hai bisogno di aiuto?", urgencyHelper: "Questo permette a VYVA di verificare le disponibilità.", now: "Ora", today: "Oggi", thisWeek: "Questa settimana", flexible: "Sono flessibile",
+    timeTitle: "Quale orario preferisci?", timeHelper: "Indica un’ora o una fascia oraria.", timeLabel: "Orario preferito", timePlaceholder: "Per esempio: domani mattina",
+    accessTitle: "Il fornitore deve sapere altro?", accessHelper: "Facoltativo: accesso, parcheggio, animali, scale o mobilità.", accessLabel: "Note di accesso", accessPlaceholder: "Per esempio: suonare all’ingresso laterale", skip: "Salta",
+    locationTitle: "Dove avverrà l’intervento?", locationHelper: "Usa il tuo indirizzo salvato o inseriscine un altro.", savedHome: "Usa il mio indirizzo salvato", anotherAddress: "Altro indirizzo", locationLabel: "Indirizzo dell’intervento", locationPlaceholder: "Inserisci l’indirizzo",
+    providerTitle: "Chi deve consultare VYVA?", providerHelper: "Scegli qualcuno di fiducia o confronta nuove opzioni.", compareProviders: "Confronta nuovi fornitori", compareDescription: "Verifica disponibilità, prezzo, distanza e reputazione", addProvider: "Aggiungi un fornitore di fiducia", savedProviderDescription: "Salvato nel tuo profilo",
+    searchingTitle: "Ricerca di fornitori adatti", searchingHelper: "VYVA cerca informazioni che potrai esaminare.", optionsTitle: "Scegli un’opzione da esaminare", optionsHelper: "I dettagli sconosciuti o non verificati restano segnalati.",
+    reviewTitle: "Verifica cosa verrà condiviso", reviewHelper: "Nessuna chiamata, messaggio, prenotazione o condivisione senza la tua conferma.", service: "Servizio", problem: "Problema", urgency: "Urgenza", preferredTime: "Orario preferito", visitAddress: "Indirizzo", accessNotes: "Accesso", provider: "Fornitore", contactRoute: "Metodo di contatto", photo: "Foto", photoSent: "Allegata all’email al fornitore", photoNotSent: "Privata; non inviata tramite questo canale", noPhoto: "Nessuna foto", unknown: "Non indicato", confirm: "Conferma e prepara il contatto", change: "Modifica i dettagli",
+    waitingTitle: "Preparazione del prossimo passo", waitingHelper: "VYVA usa solo i dettagli che hai approvato.", completedTitle: "Richiesta preparata", completedHelper: "Puoi seguire la risposta nella sezione Adesso.", errorTitle: "Questo passaggio richiede attenzione", tryAgain: "Riprova",
+  },
+  pt: {
+    serviceTitle: "De que ajuda precisa?", serviceHelper: "Escolha um serviço. Pode alterá-lo depois.",
+    plumber: "Canalizador", electrician: "Eletricista", locksmith: "Chaveiro", cleaner: "Limpeza", other: "Outro serviço",
+    descriptionTitle: "O que está a acontecer?", descriptionHelper: "Descreva o problema à VYVA. A fotografia é opcional.", descriptionLabel: "Problema", descriptionPlaceholder: "Por exemplo: há uma fuga de água debaixo do lava-loiça", addPhoto: "Adicionar fotografia", replacePhoto: "Substituir fotografia", removePhoto: "Remover fotografia", photoReady: "Fotografia pronta para verificar", photoNeedsReattach: "Adicione novamente a fotografia antes de a partilhar", continue: "Continuar", back: "Voltar",
+    dangerTitle: "Alguém está em perigo imediato?", dangerHelper: "Por exemplo: incêndio, fumo, gás, inundação grave, ferimentos ou alguém fechado fora em condições perigosas.", dangerYes: "Sim, perigo imediato", dangerNo: "Não, todos estão seguros", dangerUnsure: "Não sei", emergencyTitle: "Peça ajuda urgente agora", emergencyHelper: "Não espere por um prestador. Contacte os serviços de emergência e afaste-se do perigo se o puder fazer em segurança.", callEmergency: "Ligar para a emergência", safeNow: "Agora estou em segurança",
+    safetyTitle: "Uma breve verificação de segurança", safetyHelpers: { plumber: "Há inundação ou água perto de eletricidade?", electrician: "Há faíscas, fumo, calor ou cheiro a queimado?", locksmith: "Há uma pessoa vulnerável fechada dentro ou fora?", cleaner: "Há vidros partidos, produtos químicos derramados ou outro perigo?", other: "Há algum perigo que a VYVA deva conhecer?" }, safetyYes: "Sim", safetyNo: "Não", safetyUnsure: "Não sei",
+    urgencyTitle: "Quando precisa de ajuda?", urgencyHelper: "Isto permite à VYVA verificar a disponibilidade.", now: "Agora", today: "Hoje", thisWeek: "Esta semana", flexible: "Sou flexível",
+    timeTitle: "Que horário prefere?", timeHelper: "Indique uma hora ou um período.", timeLabel: "Horário preferido", timePlaceholder: "Por exemplo: amanhã de manhã",
+    accessTitle: "O prestador deve saber mais alguma coisa?", accessHelper: "Opcional: acesso, estacionamento, animais, escadas ou mobilidade.", accessLabel: "Notas de acesso", accessPlaceholder: "Por exemplo: tocar à campainha lateral", skip: "Ignorar",
+    locationTitle: "Onde será a visita?", locationHelper: "Use a morada guardada ou introduza outra.", savedHome: "Usar a minha morada guardada", anotherAddress: "Outra morada", locationLabel: "Morada da visita", locationPlaceholder: "Introduza a morada",
+    providerTitle: "Quem deve a VYVA consultar?", providerHelper: "Escolha alguém de confiança ou compare novas opções.", compareProviders: "Comparar novos prestadores", compareDescription: "Verificar disponibilidade, preço, distância e reputação", addProvider: "Adicionar prestador de confiança", savedProviderDescription: "Guardado no seu perfil",
+    searchingTitle: "A procurar prestadores adequados", searchingHelper: "A VYVA procura informações que poderá analisar.", optionsTitle: "Escolha uma opção para analisar", optionsHelper: "Os dados desconhecidos ou não verificados continuam identificados.",
+    reviewTitle: "Verifique o que será partilhado", reviewHelper: "Não são feitas chamadas, mensagens, reservas ou partilhas sem a sua confirmação.", service: "Serviço", problem: "Problema", urgency: "Urgência", preferredTime: "Horário preferido", visitAddress: "Morada", accessNotes: "Acesso", provider: "Prestador", contactRoute: "Meio de contacto", photo: "Fotografia", photoSent: "Anexada ao email para o prestador", photoNotSent: "Privada; não enviada por este meio", noPhoto: "Sem fotografia", unknown: "Não indicado", confirm: "Confirmar e preparar contacto", change: "Alterar dados",
+    waitingTitle: "A preparar o próximo passo", waitingHelper: "A VYVA usa apenas os dados que aprovou.", completedTitle: "Pedido preparado", completedHelper: "Pode acompanhar a resposta na secção Agora.", errorTitle: "Este passo precisa de atenção", tryAgain: "Tentar novamente",
+  },
+  fr: {
+    serviceTitle: "De quelle aide avez-vous besoin ?", serviceHelper: "Choisissez un service. Vous pourrez le modifier ensuite.",
+    plumber: "Plombier", electrician: "Électricien", locksmith: "Serrurier", cleaner: "Ménage", other: "Autre service",
+    descriptionTitle: "Que se passe-t-il ?", descriptionHelper: "Expliquez le problème à VYVA. Une photo est facultative.", descriptionLabel: "Problème", descriptionPlaceholder: "Par exemple : de l’eau fuit sous l’évier", addPhoto: "Ajouter une photo", replacePhoto: "Remplacer la photo", removePhoto: "Supprimer la photo", photoReady: "Photo prête à vérifier", photoNeedsReattach: "Ajoutez à nouveau la photo avant de la partager", continue: "Continuer", back: "Retour",
+    dangerTitle: "Quelqu’un est-il en danger immédiat ?", dangerHelper: "Par exemple : incendie, fumée, gaz, inondation importante, blessure ou personne bloquée dehors dans des conditions dangereuses.", dangerYes: "Oui, danger immédiat", dangerNo: "Non, tout le monde est en sécurité", dangerUnsure: "Je ne sais pas", emergencyTitle: "Demandez une aide urgente", emergencyHelper: "N’attendez pas un prestataire. Contactez les secours et éloignez-vous du danger si vous pouvez le faire sans risque.", callEmergency: "Appeler les secours", safeNow: "Je suis en sécurité maintenant",
+    safetyTitle: "Une vérification de sécurité", safetyHelpers: { plumber: "Y a-t-il une inondation ou de l’eau près de l’électricité ?", electrician: "Y a-t-il des étincelles, de la fumée, de la chaleur ou une odeur de brûlé ?", locksmith: "Une personne vulnérable est-elle enfermée ou bloquée dehors ?", cleaner: "Y a-t-il du verre cassé, un produit chimique renversé ou un autre danger ?", other: "Y a-t-il un danger que VYVA doit connaître ?" }, safetyYes: "Oui", safetyNo: "Non", safetyUnsure: "Je ne sais pas",
+    urgencyTitle: "Quand avez-vous besoin d’aide ?", urgencyHelper: "VYVA pourra ainsi vérifier les disponibilités.", now: "Maintenant", today: "Aujourd’hui", thisWeek: "Cette semaine", flexible: "Je suis flexible",
+    timeTitle: "Quel horaire vous convient ?", timeHelper: "Indiquez une heure ou un créneau.", timeLabel: "Horaire souhaité", timePlaceholder: "Par exemple : demain matin",
+    accessTitle: "Le prestataire doit-il savoir autre chose ?", accessHelper: "Facultatif : accès, stationnement, animaux, escaliers ou mobilité.", accessLabel: "Informations d’accès", accessPlaceholder: "Par exemple : sonner à l’entrée latérale", skip: "Passer",
+    locationTitle: "Où aura lieu l’intervention ?", locationHelper: "Utilisez votre adresse enregistrée ou une autre adresse.", savedHome: "Utiliser mon adresse enregistrée", anotherAddress: "Autre adresse", locationLabel: "Adresse de l’intervention", locationPlaceholder: "Saisissez l’adresse",
+    providerTitle: "Qui VYVA doit-il consulter ?", providerHelper: "Choisissez une personne de confiance ou comparez de nouveaux prestataires.", compareProviders: "Comparer de nouveaux prestataires", compareDescription: "Vérifier disponibilité, prix, distance et réputation", addProvider: "Ajouter un prestataire de confiance", savedProviderDescription: "Enregistré dans votre profil",
+    searchingTitle: "Recherche de prestataires adaptés", searchingHelper: "VYVA recherche des informations que vous pourrez examiner.",
+    optionsTitle: "Choisissez une option à examiner", optionsHelper: "Les informations inconnues ou non vérifiées restent signalées.",
+    reviewTitle: "Vérifiez les informations à partager", reviewHelper: "Aucun appel, message, réservation ou partage sans votre confirmation.", service: "Service", problem: "Problème", urgency: "Urgence", preferredTime: "Horaire souhaité", visitAddress: "Adresse", accessNotes: "Accès", provider: "Prestataire", contactRoute: "Moyen de contact", photo: "Photo", photoSent: "Jointe au courriel du prestataire", photoNotSent: "Privée ; non envoyée par ce moyen", noPhoto: "Aucune photo", unknown: "Non renseigné", confirm: "Confirmer et préparer le contact", change: "Modifier les informations",
+    waitingTitle: "Préparation de la prochaine étape", waitingHelper: "VYVA utilise uniquement les informations approuvées.", completedTitle: "Demande préparée", completedHelper: "Vous pouvez suivre la réponse dans la rubrique En ce moment.", errorTitle: "Cette étape nécessite votre attention", tryAgain: "Réessayer",
+  },
   en: {
     serviceTitle: "What kind of help do you need?", serviceHelper: "Choose one. You can change it later.",
     plumber: "Plumber", electrician: "Electrician", locksmith: "Locksmith", cleaner: "Cleaning", other: "Something else",
@@ -85,8 +153,19 @@ const COPY = {
   },
 } as const;
 
+const CONTACT_COPY = {
+  de: { consentTitle: "Soll VYVA diesen Anbieter kontaktieren?", consentHelper: "Die Auswahl des Anbieters erlaubt noch keinen Kontakt.", consentYes: "Ja, kontaktieren", consentNotNow: "Nicht jetzt", consentChange: "Anderen Anbieter wählen", methodTitle: "Wie soll VYVA Kontakt aufnehmen?", methodHelper: "Wählen Sie einen verfügbaren Kontaktweg.", recommended: "Empfohlen", pausedTitle: "Für später gespeichert", pausedHelper: "Es wurde kein Anbieter kontaktiert. Sie können diese Aufgabe später fortsetzen.", confirmContact: "Bestätigen und Anbieter kontaktieren" },
+  it: { consentTitle: "Vuoi che VYVA contatti questo fornitore?", consentHelper: "La scelta del fornitore non autorizza ancora alcun contatto.", consentYes: "Sì, contattalo", consentNotNow: "Non ora", consentChange: "Scegli un altro fornitore", methodTitle: "Come deve contattarlo VYVA?", methodHelper: "Scegli un metodo disponibile.", recommended: "Consigliato", pausedTitle: "Salvato per dopo", pausedHelper: "Nessun fornitore è stato contattato. Puoi riprendere questa attività in seguito.", confirmContact: "Conferma e contatta il fornitore" },
+  pt: { consentTitle: "Quer que a VYVA contacte este prestador?", consentHelper: "Escolher o prestador ainda não autoriza qualquer contacto.", consentYes: "Sim, contactar", consentNotNow: "Agora não", consentChange: "Escolher outro prestador", methodTitle: "Como deve a VYVA contactar?", methodHelper: "Escolha um meio de contacto disponível.", recommended: "Recomendado", pausedTitle: "Guardado para mais tarde", pausedHelper: "Nenhum prestador foi contactado. Pode retomar esta tarefa mais tarde.", confirmContact: "Confirmar e contactar prestador" },
+  fr: { consentTitle: "Souhaitez-vous que VYVA contacte ce prestataire ?", consentHelper: "Choisir le prestataire n’autorise pas encore le contact.", consentYes: "Oui, le contacter", consentNotNow: "Pas maintenant", consentChange: "Choisir un autre prestataire", methodTitle: "Comment VYVA doit-il le contacter ?", methodHelper: "Choisissez un moyen de contact disponible.", recommended: "Recommandé", pausedTitle: "Enregistré pour plus tard", pausedHelper: "Aucun prestataire n’a été contacté. Vous pourrez reprendre cette tâche plus tard.", confirmContact: "Confirmer et contacter le prestataire" },
+  en: { consentTitle: "Would you like VYVA to contact this provider?", consentHelper: "Choosing a provider does not give permission to contact them.", consentYes: "Yes, contact them", consentNotNow: "Not now", consentChange: "Choose another provider", methodTitle: "How should VYVA contact them?", methodHelper: "Choose one of the available contact methods.", recommended: "Recommended", pausedTitle: "Saved for later", pausedHelper: "No provider was contacted. You can resume this task later.", confirmContact: "Confirm and contact provider" },
+  es: { consentTitle: "¿Quieres que VYVA contacte con este proveedor?", consentHelper: "Elegir el proveedor todavía no autoriza ningún contacto.", consentYes: "Sí, contactar", consentNotNow: "Ahora no", consentChange: "Elegir otro proveedor", methodTitle: "¿Cómo debe contactar VYVA?", methodHelper: "Elige una vía de contacto disponible.", recommended: "Recomendado", pausedTitle: "Guardado para más tarde", pausedHelper: "No se ha contactado con ningún proveedor. Puedes retomar esta tarea más tarde.", confirmContact: "Confirmar y contactar proveedor" },
+} as const;
+
 export function homeServiceCanvasCopy(locale: string) {
-  return locale.toLowerCase().startsWith("es") ? COPY.es : COPY.en;
+  const language = locale.toLowerCase().split(/[-_]/)[0];
+  const key = Object.prototype.hasOwnProperty.call(COPY, language) ? language as keyof typeof COPY : "en";
+  return { ...COPY[key], ...CONTACT_COPY[key] };
 }
 
 function progress(current: number) {
@@ -175,6 +254,23 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
     sceneId: "home-service-options", kind: "choice", title: copy.optionsTitle, helperText: copy.optionsHelper,
     choices: (input.options ?? []).map((option) => ({ id: option.id, label: option.label, description: option.description })), secondaryAction: { label: copy.back },
   };
+  if (step === "contact_consent") return {
+    sceneId: "home-service-contact-consent", kind: "choice", title: copy.consentTitle, helperText: copy.consentHelper,
+    choices: [
+      { id: "contact_yes", label: copy.consentYes },
+      { id: "contact_not_now", label: copy.consentNotNow },
+      { id: "contact_change_provider", label: copy.consentChange },
+    ],
+  };
+  if (step === "contact_method") return {
+    sceneId: "home-service-contact-method", kind: "choice", title: copy.methodTitle, helperText: copy.methodHelper,
+    choices: (input.contactChannels ?? []).map((channel) => ({
+      id: channel.id,
+      label: channel.label,
+      description: channel.description ?? (channel.recommended ? copy.recommended : undefined),
+    })),
+    secondaryAction: { label: copy.back },
+  };
   if (step === "review") return {
     sceneId: "home-service-review", kind: "review", title: copy.reviewTitle, helperText: copy.reviewHelper,
     summaryRows: [
@@ -197,9 +293,10 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
               : copy.photoNotSent
           : copy.noPhoto,
       },
-    ], primaryAction: { label: copy.confirm, disabled: !input.selectedOption }, secondaryAction: { label: copy.change },
+    ], primaryAction: { label: copy.confirmContact, disabled: !input.selectedOption || !input.selectedContactChannel }, secondaryAction: { label: copy.change },
   };
   if (step === "waiting") return { sceneId: "home-service-waiting", kind: "waiting", title: copy.waitingTitle, helperText: copy.waitingHelper, status: "loading" };
+  if (step === "paused") return { sceneId: "home-service-paused", kind: "completed", title: copy.pausedTitle, helperText: copy.pausedHelper, status: "success" };
   if (step === "completed") return { sceneId: "home-service-completed", kind: "completed", title: copy.completedTitle, helperText: copy.completedHelper, status: "success" };
   return { sceneId: "home-service-error", kind: "blocked", title: copy.errorTitle, helperText: input.error || undefined, status: "blocked", primaryAction: { label: copy.tryAgain }, secondaryAction: { label: copy.change } };
 }

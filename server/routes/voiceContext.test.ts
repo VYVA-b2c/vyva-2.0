@@ -13,6 +13,17 @@ describe("voice context domain resolution", () => {
     expect(resolveVoiceContextDomain({ agent_slug: "dr-ai" })).toBe("health");
     expect(resolveVoiceContextDomain({ agent_slug: "ask-dr-ai" })).toBe("health");
   });
+
+  it("uses each My Team role's least-privileged context domain", () => {
+    expect(resolveVoiceContextDomain({ agent_slug: "amara" })).toBe("health");
+    expect(resolveVoiceContextDomain({ agent_slug: "nora" })).toBe("health");
+    expect(resolveVoiceContextDomain({ agent_slug: "diego" })).toBe("safety");
+    expect(resolveVoiceContextDomain({ agent_slug: "tomas" })).toBe("companion");
+    expect(resolveVoiceContextDomain({ agent_slug: "elena" })).toBe("companion");
+    expect(resolveVoiceContextDomain({ agent_slug: "ines" })).toBe("companion");
+    expect(resolveVoiceContextDomain({ agent_slug: "sabio" })).toBe("concierge");
+    expect(resolveVoiceContextDomain({ agent_slug: "marta" })).toBe("concierge");
+  });
 });
 
 describe("voice context Mem0 privacy boundary", () => {

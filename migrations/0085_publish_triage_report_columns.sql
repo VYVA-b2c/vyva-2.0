@@ -1,0 +1,26 @@
+-- Bring existing triage reports up to the schema read by the Vitals dashboard.
+-- Preserve all reports; this is the additive upgrade also used by reports.ts.
+alter table public.triage_reports
+  add column if not exists symptoms text[] not null default '{}',
+  add column if not exists recommendations text[] not null default '{}',
+  add column if not exists disclaimer text not null default '',
+  add column if not exists ai_summary text,
+  add column if not exists next_step_label text,
+  add column if not exists next_step_level text,
+  add column if not exists triage_reasons text[] not null default '{}',
+  add column if not exists watch_signs text[] not null default '{}',
+  add column if not exists profile_considerations text[] not null default '{}',
+  add column if not exists vitals_notes text[] not null default '{}',
+  add column if not exists vitals_snapshot jsonb,
+  add column if not exists scan_results jsonb not null default '[]'::jsonb,
+  add column if not exists scan_notes text[] not null default '{}',
+  add column if not exists interpretation text,
+  add column if not exists possible_patterns jsonb not null default '[]'::jsonb,
+  add column if not exists uncertainty text[] not null default '{}',
+  add column if not exists reassessment_window text,
+  add column if not exists change_plan_triggers text[] not null default '{}',
+  add column if not exists clinical_handoff jsonb,
+  add column if not exists bpm integer,
+  add column if not exists respiratory_rate integer,
+  add column if not exists duration_seconds integer,
+  add column if not exists created_at timestamptz not null default now();

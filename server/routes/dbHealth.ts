@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { pool } from "../db.js";
+import { runtimeIdentity } from "../lib/runtimeIdentity.js";
 
 export const DB_HEALTH_REQUIRED_TABLES = [
   "users",
@@ -350,6 +351,7 @@ export async function loadDbHealth() {
 
   return {
     ok: missingTables.length === 0 && missingLearningMigrationPieces === 0,
+    runtime: runtimeIdentity(),
     database: {
       connected: true,
       checkedAt: pingResult.rows[0]?.checked_at ?? null,
@@ -377,6 +379,7 @@ export async function dbHealthHandler(_req: Request, res: Response) {
     console.error("[health/db] database health check failed:", error);
     return res.status(503).json({
       ok: false,
+      runtime: runtimeIdentity(),
       database: {
         connected: false,
         databaseUrlConfigured: Boolean(process.env.DATABASE_URL),

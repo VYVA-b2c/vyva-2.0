@@ -10,6 +10,8 @@ import {
   type BulkUploadLanguage,
 } from "../../shared/contentBulkUpload.js";
 import { loadCognitiveAssessmentReadiness } from "../lib/cognitiveAssessmentReadiness.js";
+import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
+import { queueCognitiveAssessmentTestReminder } from "../services/cognitiveAssessmentReminders.js";
 
 const bulkUploadBodySchema = z.object({
   contentType: z.enum([
@@ -19,6 +21,10 @@ const bulkUploadBodySchema = z.object({
   language: z.enum(["es", "de", "en", "fr", "pt"]),
   jsonText: z.string().min(1),
   skipAdminReview: z.boolean().optional().default(false),
+});
+
+const testReminderBodySchema = z.object({
+  userId: z.string().uuid(),
 });
 
 const BULK_UPLOAD_COLUMNS: Record<BulkUploadInsertTable, readonly string[]> = {
@@ -78,6 +84,10 @@ function databaseErrorMessage(error: unknown) {
     return `Database insert failed: ${message}`;
   }
   return "Bulk content upload failed.";
+}
+
+function adminActionErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Admin action failed.";
 }
 
 async function insertBulkUploadRows(table: BulkUploadInsertTable, rows: BulkUploadInsertRow[]) {
@@ -172,6 +182,37 @@ adminCognitiveAssessmentRouter.post("/bulk-upload", async (req: Request, res: Re
   } catch (error) {
     console.error("[admin] Cognitive assessment bulk upload failed:", error);
     return res.status(500).json({ error: databaseErrorMessage(error) });
+  }
+});
+
+adminCognitiveAssessmentRouter.post("/test-reminder", async (req: Request, res: Response) => {
+  const parsed = testReminderBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Choose a valid member before sending a test reminder." });
+  }
+
+  try {
+    const queued = await queueCognitiveAssessmentTestReminder({
+      userId: parsed.data.userId,
+      requestedBy: reviewerFor(req),
+    });
+    if (!queued.communicationId) {
+      return res.status(500).json({ error: "Test reminder could not be queued." });
+    }
+
+    const dispatch = await dispatchCommunicationsByIds([queued.communicationId]);
+    const result = dispatch.results[0] ?? null;
+    return res.json({
+      communicationId: queued.communicationId,
+      channel: queued.channel,
+      recipient: queued.recipient,
+      status: result?.status ?? "queued",
+      error: result?.error ?? null,
+      dispatch,
+    });
+  } catch (error) {
+    console.error("[admin] Cognitive assessment test reminder failed:", error);
+    return res.status(400).json({ error: adminActionErrorMessage(error) });
   }
 });
 

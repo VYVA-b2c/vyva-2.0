@@ -9,6 +9,9 @@ import {
   type ProviderComparisonCriterion,
   type ProviderComparisonEvidenceSourceType,
   type ProviderComparisonFact,
+  type ProviderPersonalisedFit,
+  type ProviderPriorityContext,
+  type ProviderServiceIntake,
 } from "../../shared/providerComparison.js";
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 import {
@@ -36,6 +39,8 @@ interface OffersRequestBody {
   document_context?: BillDocumentAnalysis;
   recheck_context?: ProviderRecheckRequest;
   provider_mode?: string;
+  priorities?: Partial<ProviderPriorityContext>;
+  service_intake?: Partial<ProviderServiceIntake>;
 }
 
 interface ProviderRecheckRequestTarget {
@@ -120,6 +125,7 @@ interface PlaceCandidate {
 }
 
 interface RankedOffer {
+  id?: string;
   label: "Opcion recomendada" | "Alternativa 1" | "Alternativa 2";
   name: string;
   category: OfferCategory;
@@ -140,6 +146,7 @@ interface RankedOffer {
   checked_at: string;
   source_priority: ProviderComparisonEvidenceSourceType[];
   comparison: Record<ProviderComparisonCriterion, ProviderComparisonFact>;
+  personalised_fit?: ProviderPersonalisedFit;
   score: number;
   score_breakdown: {
     distance: number;
@@ -148,6 +155,13 @@ interface RankedOffer {
     simplicity: number;
     preference_match: number;
   };
+}
+
+interface ProviderSearchRecommendation {
+  options: RankedOffer[];
+  bestFitProviderId: string | null;
+  explanation: string;
+  confident: boolean;
 }
 
 interface OfferProtectionSummary {
@@ -325,7 +339,7 @@ Rules:
 - Keep user_summary under 28 words.`;
 }
 
-async function extractPdfText(base64Data: string): Promise<string> {
+export async function extractPdfText(base64Data: string): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const bytes = Uint8Array.from(Buffer.from(base64Data, "base64"));
   const loadingTask = pdfjs.getDocument({ data: bytes, disableWorker: true });
@@ -1082,7 +1096,8 @@ function buildRankedOffer(
   const hasVerifiedEvidence = evidenceSummary.evidence.some((item) => item.status === "verified");
 
   return {
-    label: index === 0 ? "Opcion recomendada" : index === 1 ? "Alternativa 1" : "Alternativa 2",
+    // Ordering is not a quality ranking, so no option is labelled "recommended".
+    label: es ? `Opción ${index + 1}` : `Option ${index + 1}`,
     name: candidate.name,
     category,
     what_it_offers: hasVerifiedEvidence
@@ -1277,6 +1292,194 @@ function recheckCriteria(recheck: ProviderRecheckRequest): ProviderComparisonCri
   return criteria.length > 0 ? criteria : [...PROVIDER_COMPARISON_CRITERIA];
 }
 
+const PRIORITY_ALIASES: Record<string, ProviderComparisonCriterion> = {
+  nearby: "distance",
+  distance: "distance",
+  "clear-price": "price",
+  price: "price",
+  reputation: "reputation",
+  "available-soon": "availability",
+  availability: "availability",
+  accessible: "accessibility",
+  accessibility: "accessibility",
+  coverage: "coverage",
+};
+
+function normalisePriorityContext(value: Partial<ProviderPriorityContext> | undefined): ProviderPriorityContext {
+  const strings = (items: unknown) => Array.isArray(items)
+    ? items.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 8)
+    : [];
+  const orderedCriteria = strings(value?.orderedCriteria)
+    .map((item) => PRIORITY_ALIASES[item])
+    .filter((item, index, items): item is ProviderComparisonCriterion => Boolean(item) && items.indexOf(item) === index)
+    .slice(0, 3);
+  return {
+    orderedCriteria,
+    mustHaves: strings(value?.mustHaves),
+    dealBreakers: strings(value?.dealBreakers),
+    constraints: strings(value?.constraints),
+  };
+}
+
+function normaliseServiceIntake(value: Partial<ProviderServiceIntake> | undefined): ProviderServiceIntake | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const clean = (item: unknown, limit = 120) => typeof item === "string" ? item.trim().slice(0, limit) : "";
+  const answers = Object.entries(value.answers && typeof value.answers === "object" ? value.answers : {})
+    .slice(0, 12)
+    .reduce<Record<string, string[]>>((result, [key, raw]) => {
+      const safeKey = clean(key, 60);
+      if (!safeKey || !Array.isArray(raw)) return result;
+      result[safeKey] = raw.map((item) => clean(item)).filter(Boolean).slice(0, 8);
+      return result;
+    }, {});
+  return {
+    mode: clean(value.mode, 40),
+    serviceType: clean(value.serviceType),
+    answers,
+    mustHaveAnswerIds: Array.isArray(value.mustHaveAnswerIds) ? value.mustHaveAnswerIds.map((item) => clean(item, 60)).filter(Boolean).slice(0, 12) : [],
+    additionalDetails: clean(value.additionalDetails, 500),
+  };
+}
+
+function serviceIntakeSearchTerms(value: ProviderServiceIntake | undefined): string[] {
+  if (!value) return [];
+  return [value.serviceType, ...Object.values(value.answers).flat(), value.additionalDetails ?? ""].filter(Boolean);
+}
+
+function criterionForRequirement(value: string): ProviderComparisonCriterion | null {
+  const normalized = value.toLowerCase();
+  if (/wheelchair|step-free|accessible|mobility|transfer|silla de ruedas|acceso|movilidad/.test(normalized)) return "accessibility";
+  if (/insurance|coverage|funding|public|seguro|cobertura|financiaci/.test(normalized)) return "coverage";
+  if (/today|tomorrow|urgent|week|availability|hoy|mañana|urgente|semana/.test(normalized)) return "availability";
+  if (/certif|guarantee|warranty|reviews|regular caregiver|garant|opiniones|mismo cuidador/.test(normalized)) return "reputation";
+  if (/price|quote|budget|precio|presupuesto/.test(normalized)) return "price";
+  if (/delivery|near|distance|domicilio|cerca|distancia/.test(normalized)) return "distance";
+  return Object.entries(PRIORITY_ALIASES).find(([key]) => normalized === key || normalized.includes(key))?.[1] ?? null;
+}
+
+function requirementMatchesFact(
+  requirement: string,
+  criterion: ProviderComparisonCriterion,
+  fact: ProviderComparisonFact,
+): boolean {
+  if (fact.status !== "verified" || !fact.value) return false;
+  const requested = requirement.toLowerCase();
+  const evidence = fact.value.toLowerCase();
+  const generic = new Set([criterion, ...Object.entries(PRIORITY_ALIASES).filter(([, mapped]) => mapped === criterion).map(([alias]) => alias)]);
+  if (generic.has(requested)) return true;
+
+  const explicitChecks: Array<[RegExp, RegExp]> = [
+    [/wheelchair|silla de ruedas/, /wheelchair|silla de ruedas/],
+    [/step[- ]free|sin escalones/, /step[- ]free|sin escalones/],
+    [/public (coverage|funding)|cobertura p[uú]blica|financiaci[oó]n p[uú]blica/, /public|p[uú]blic/],
+    [/private insurance|seguro privado/, /insurance|insurer|seguro|sanitas|adeslas|asisa|mapfre/],
+    [/home delivery|delivery|entrega a domicilio|domicilio/, /delivery|delivered at home|home visit|entrega|domicilio/],
+    [/today|hoy/, /today|same day|hoy|mismo d[ií]a/],
+    [/tomorrow|mañana/, /tomorrow|next day|mañana|d[ií]a siguiente/],
+    [/within 3 days|en 3 d[ií]as/, /3 days|72 hours|tres d[ií]as/],
+    [/within 2 weeks|en 2 semanas/, /2 weeks|14 days|dos semanas/],
+    [/certification|certificaci[oó]n/, /certif|licen[cs]ed|colegiad/],
+    [/written quote|presupuesto escrito/, /written quote|written estimate|presupuesto escrito/],
+    [/guarantee|warranty|garant[ií]a/, /guarantee|warranty|garant[ií]a/],
+    [/24-hour medical|supervisi[oó]n m[eé]dica 24/, /24|round.the.clock|24 horas/],
+    [/private room|habitaci[oó]n privada/, /private room|habitaci[oó]n privada/],
+    [/same regular caregiver|mismo cuidador/, /same|regular|continuity|mismo|continuidad/],
+  ];
+  const check = explicitChecks.find(([requirementPattern]) => requirementPattern.test(requested));
+  return check ? check[1].test(evidence) : false;
+}
+
+function personaliseOffers(
+  offers: RankedOffer[],
+  priorities: ProviderPriorityContext,
+  locale: string,
+): ProviderSearchRecommendation {
+  const es = locale === "es";
+  const priorityOrder = priorities.orderedCriteria.length > 0
+    ? priorities.orderedCriteria
+    : (["distance", "reputation", "accessibility"] as ProviderComparisonCriterion[]);
+  const mustHaveCriteria = priorities.mustHaves.map(criterionForRequirement).filter((item): item is ProviderComparisonCriterion => Boolean(item));
+  const evaluated = offers.map((offer) => {
+    const matchedPriorities: string[] = [];
+    const tradeOffs: string[] = [];
+    const unknowns: string[] = [];
+    let fitScore = 0;
+    priorityOrder.forEach((criterion, index) => {
+      const fact = offer.comparison[criterion];
+      const weight = priorityOrder.length - index;
+      if (fact.status === "verified" && fact.value) {
+        matchedPriorities.push(criterion);
+        fitScore += weight * 3;
+      } else if (fact.status === "reported" && fact.value) {
+        matchedPriorities.push(criterion);
+        fitScore += weight * 2;
+      } else if (fact.status === "conflicting") {
+        tradeOffs.push(`${criterion}: ${es ? "las fuentes no coinciden" : "sources disagree"}`);
+        fitScore -= weight * 2;
+      } else {
+        unknowns.push(criterion);
+        fitScore -= weight;
+      }
+    });
+    const unmetMustHaves = priorities.mustHaves.filter((requirement) => {
+      const criterion = criterionForRequirement(requirement);
+      if (!criterion) return true;
+      const fact = offer.comparison[criterion];
+      return !requirementMatchesFact(requirement, criterion, fact);
+    });
+    fitScore -= unmetMustHaves.length * 20;
+    const searchableFacts = [offer.name, offer.what_it_offers, ...Object.values(offer.comparison).map((fact) => fact.value ?? "")].join(" ").toLowerCase();
+    const matchedDealBreakers = priorities.dealBreakers.filter((value) => {
+      const terms = value.toLowerCase().split(/[^a-z0-9áéíóúüñ]+/).filter((term) => term.length >= 4);
+      return terms.length > 0 && terms.every((term) => searchableFacts.includes(term));
+    });
+    matchedDealBreakers.forEach((value) => tradeOffs.push(`${es ? "Evitar" : "Avoid"}: ${value}`));
+    fitScore -= matchedDealBreakers.length * 30;
+    return { offer, matchedPriorities, tradeOffs, unknowns, unmetMustHaves, fitScore };
+  }).sort((left, right) => right.fitScore - left.fitScore || right.offer.score - left.offer.score);
+
+  const winner = evaluated[0];
+  const winnerHasVerifiedPriority = Boolean(winner) && priorityOrder.some((criterion) => {
+    const fact = winner.offer.comparison[criterion];
+    return fact.status === "verified" && Boolean(fact.value);
+  });
+  const winnerHasPriorityConflict = Boolean(winner) && priorityOrder.some(
+    (criterion) => winner.offer.comparison[criterion].status === "conflicting",
+  );
+  const confident = Boolean(winner) && winner.unmetMustHaves.length === 0
+    && winnerHasVerifiedPriority
+    && !winnerHasPriorityConflict
+    && !mustHaveCriteria.some((criterion) => winner.offer.comparison[criterion].status !== "verified");
+  const bestFitProviderId = confident ? winner.offer.id ?? null : null;
+  const options = evaluated.map((item, index) => ({
+    ...item.offer,
+    personalised_fit: {
+      matchedPriorities: item.matchedPriorities,
+      tradeOffs: item.tradeOffs,
+      unmetMustHaves: item.unmetMustHaves,
+      unknowns: item.unknowns,
+      recommendationStatus: index === 0 && confident ? "best_fit" : item.unmetMustHaves.length > 0 ? "cautious" : "possible_fit",
+      explanation: item.unmetMustHaves.length > 0
+        ? (es ? `Falta confirmar: ${item.unmetMustHaves.join(", ")}.` : `Still to confirm: ${item.unmetMustHaves.join(", ")}.`)
+        : item.matchedPriorities.length > 0
+          ? (es ? `Encaja con: ${item.matchedPriorities.join(", ")}.` : `Matches: ${item.matchedPriorities.join(", ")}.`)
+          : (es ? "No hay suficientes datos para confirmar el encaje." : "There is not enough evidence to confirm the fit."),
+    },
+  }));
+  return {
+    options,
+    bestFitProviderId,
+    confident,
+    explanation: confident && winner
+      ? (es
+          ? `${winner.offer.name} es la mejor opcion respaldada para tus prioridades. Revisa tambien sus limites y datos pendientes.`
+          : `${winner.offer.name} is the best-supported fit for your priorities. Review its trade-offs and remaining unknowns too.`)
+      : (es
+          ? "No hay una mejor opcion confirmada todavia. Compara las diferencias y confirma los requisitos marcados."
+          : "There is no confirmed best fit yet. Compare the differences and confirm the highlighted requirements."),
+  };
+}
+
 export async function buildProviderOffers(
   query: string,
   category: OfferCategory,
@@ -1286,14 +1489,24 @@ export async function buildProviderOffers(
   recheckRequest?: ProviderRecheckRequest,
   providerMode?: string,
   evidenceDependencies?: ProviderSourceAdapterDependencies,
+  priorityContext?: Partial<ProviderPriorityContext>,
+  serviceIntakeInput?: Partial<ProviderServiceIntake>,
 ) {
+  const normalizedPriorities = normalisePriorityContext(priorityContext);
+  const serviceIntake = normaliseServiceIntake(serviceIntakeInput);
   const documentQuery = documentContextQuery(documentContext, locale);
   const recheck = normaliseRecheckRequest(recheckRequest);
+  // Health searches must stay on the person's own words: the "Vivienda y
+  // cuidados" category terms are care homes and home help, which turned a
+  // knee-pain search into a care-home list.
+  const healthSearch = providerMode === "specialist";
   const searchTerms = [
+    serviceIntakeSearchTerms(serviceIntake).join(" "),
     ...recheckSearchTerms(recheck),
     documentQuery,
     query,
-    ...CATEGORY_SEARCH_TERMS[category],
+    ...(healthSearch ? [] : CATEGORY_SEARCH_TERMS[category]),
+    ...normalizedPriorities.constraints,
     context.mobilityPreference === "delivery" ? "domicilio entrega" : "",
     context.priceSensitivity === "high" ? "descuento ahorro" : "",
   ].filter(Boolean);
@@ -1301,7 +1514,8 @@ export async function buildProviderOffers(
   const allResults = (await Promise.all(
     searchTerms.slice(0, 4).map((term) => searchGooglePlaces(term, context, locale).catch(() => [])),
   )).flat();
-  const guidedResults = allResults.length === 0
+  // Template "options" are not providers; never present them for health care.
+  const guidedResults = allResults.length === 0 && !healthSearch
     ? buildGuidedCandidates(category, context, locale)
     : [];
 
@@ -1322,7 +1536,7 @@ export async function buildProviderOffers(
     .sort((left, right) => right.recheckPriority - left.recheckPriority || right.score - left.score)
     .slice(0, 3);
 
-  return await Promise.all(selected.map(async ({ candidate }, index) => {
+  const offers = await Promise.all(selected.map(async ({ candidate }, index) => {
     const evidenceRefresh = sector
       ? await refreshProviderEvidence({
           candidate: {
@@ -1340,12 +1554,13 @@ export async function buildProviderOffers(
             reviewCount: candidate.reviewCount ?? null,
             openNow: candidate.openNow ?? null,
           },
-          criteria: recheckCriteria(recheck),
+          criteria: [...new Set([...normalizedPriorities.orderedCriteria, ...recheckCriteria(recheck), ...PROVIDER_COMPARISON_CRITERIA])],
           locale,
         }, evidenceDependencies)
       : undefined;
-    return buildRankedOffer(candidate, category, context, query, locale, index, checkedAt, evidenceRefresh);
+    return { ...buildRankedOffer(candidate, category, context, query, locale, index, checkedAt, evidenceRefresh), id: candidate.placeId ?? `${candidate.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${index + 1}` };
   }));
+  return personaliseOffers(offers, normalizedPriorities, locale).options;
 }
 
 export async function analyzeOfferDocumentHandler(req: Request, res: Response) {
@@ -1424,7 +1639,7 @@ export async function analyzeOfferDocumentHandler(req: Request, res: Response) {
 router.post("/analyze-document", analyzeOfferDocumentHandler);
 
 router.post("/search", async (req: Request, res: Response) => {
-  const { query = "", category, locale = "es", document_context, recheck_context, provider_mode } = req.body as OffersRequestBody;
+  const { query = "", category, locale = "es", document_context, recheck_context, provider_mode, priorities, service_intake } = req.body as OffersRequestBody;
   const cleanedQuery = query.trim();
   if (!cleanedQuery && !category) {
     return res.status(400).json({ error: "query or category is required" });
@@ -1449,15 +1664,27 @@ router.post("/search", async (req: Request, res: Response) => {
       documentContext,
       recheck_context,
       provider_mode,
+      undefined,
+      priorities,
+      service_intake,
     );
     const es = normalizedLocale === "es";
     const documentNote = documentDecisionContext(documentContext, normalizedLocale);
+    const bestFit = offers.find((offer) => offer.personalised_fit?.recommendationStatus === "best_fit") ?? null;
+    const recommendationExplanation = bestFit
+      ? (es
+          ? `${bestFit.name} es la mejor opcion respaldada para tus prioridades. Revisa tambien sus limites y datos pendientes.`
+          : `${bestFit.name} is the best-supported fit for your priorities. Review its trade-offs and remaining unknowns too.`)
+      : (es
+          ? "No hay una mejor opcion confirmada todavia. Compara las diferencias y confirma los requisitos marcados."
+          : "There is no confirmed best fit yet. Compare the differences and confirm the highlighted requirements.");
     return res.json({
       category: classifiedCategory,
       options: offers,
-      decision_explanation: es
-        ? `Como he elegido estas opciones: he priorizado precio o valor, confianza, facilidad, adecuacion a su situacion y cercania cuando era relevante.${documentNote}`
-        : `How I chose these options: I prioritised price or value, trust, ease, fit for your situation, and proximity when relevant.${documentNote}`,
+      best_fit_provider_id: bestFit?.id ?? null,
+      recommendation_confident: Boolean(bestFit),
+      recommendation_explanation: recommendationExplanation,
+      decision_explanation: `${recommendationExplanation}${documentNote}`,
       neutrality_note: es
         ? "VYVA no recibe comisiones ni promociona servicios. Estas opciones se muestran de forma neutral para ayudarle a elegir lo mejor para usted."
         : "VYVA does not receive commissions or promote services. These options are shown neutrally to help you choose what is best for you.",

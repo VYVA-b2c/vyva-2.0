@@ -21,7 +21,9 @@ import {
   cognitiveSessionIndex,
   cognitiveDailyPlans,
   cognitiveDailyPlanItems,
+  scamChecks,
 } from "../../shared/schema.js";
+import { breathingSessions } from "../../shared/breathingSchema.js";
 import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
 import {
@@ -52,6 +54,8 @@ export type VoiceContextDomain =
   | "health"
   | "concierge"
   | "brain_coach"
+  | "wellness"
+  | "breathing_meditation"
   | "onboarding_profile"
   | "companion"
   | "doctor"
@@ -63,6 +67,8 @@ const VOICE_CONTEXT_DOMAINS: readonly VoiceContextDomain[] = [
   "health",
   "concierge",
   "brain_coach",
+  "wellness",
+  "breathing_meditation",
   "onboarding_profile",
   "companion",
   "doctor",
@@ -82,6 +88,14 @@ type BuildVoiceContextOptions = {
     store?: HealthSemanticMemoryOutboxStore;
     now?: Date;
   };
+};
+
+type BreathingSessionContext = {
+  lastSessionAt: Date | string | null;
+  lastCompletedAt: Date | string | null;
+  lastExerciseSlug: string;
+  lastStatus: string;
+  lastDurationMinutes: number | null;
 };
 
 const SENSITIVE_LEGACY_MEMORY_DOMAINS = new Set<VoiceContextDomain>([
@@ -189,6 +203,14 @@ function formatTriageReport(report: typeof triageReports.$inferSelect) {
     report.triage_reasons?.length ? `why ${report.triage_reasons.join("; ")}` : null,
     report.symptoms?.length ? `symptoms ${report.symptoms.join(", ")}` : null,
   ], "");
+}
+
+function formatScamCheck(check: typeof scamChecks.$inferSelect) {
+  return valueList([
+    check.risk_level ? `${check.risk_level}` : null,
+    check.result_title,
+    formatRelativeTime(check.checked_at),
+  ], " — ");
 }
 
 function formatVital(vital: typeof vitalsReadings.$inferSelect) {
@@ -1225,11 +1247,29 @@ function criticalSafetyContext(input: {
 function domainAllows(domain: VoiceContextDomain, category: "medical" | "social" | "logistics" | "safety") {
   const allowed: Record<typeof category, VoiceContextDomain[]> = {
     medical: ["health", "doctor", "meds", "safety"],
-    social: ["companion", "social", "brain_coach", "concierge", "health", "doctor"],
+    social: ["companion", "social", "brain_coach", "wellness", "breathing_meditation", "concierge", "health", "doctor"],
     logistics: ["concierge", "safety", "health", "doctor", "meds"],
-    safety: ["safety", "health", "doctor", "meds", "concierge"],
+    safety: ["safety", "health", "doctor", "meds", "concierge", "wellness"],
   };
   return allowed[category].includes(domain);
+}
+
+function isWellnessContextDomain(domain: VoiceContextDomain) {
+  return domain === "wellness" || domain === "breathing_meditation";
+}
+
+function formatBreathingSessionContext(
+  session: BreathingSessionContext | null,
+  now: Date,
+) {
+  if (!session?.lastSessionAt) return "";
+  return compactLines([
+    `Last breathing/meditation session: ${formatDateTime(session.lastSessionAt)} (${formatRelativeTime(session.lastSessionAt, now)}).`,
+    session.lastExerciseSlug ? `Last exercise: ${session.lastExerciseSlug}.` : "",
+    session.lastStatus ? `Last status: ${session.lastStatus}.` : "",
+    session.lastDurationMinutes ? `Last duration: ${session.lastDurationMinutes} minutes.` : "",
+    session.lastCompletedAt ? `Last completed: ${formatDateTime(session.lastCompletedAt)} (${formatRelativeTime(session.lastCompletedAt, now)}).` : "",
+  ], 700);
 }
 
 function isOnboardingProfileDomain(domain: VoiceContextDomain) {
@@ -1263,6 +1303,8 @@ export async function buildVoiceContext(
     voiceExchangeCountRows,
     recommendationFeedbackRows,
     brainCoachSessionRows,
+    recentBreathingSessionRows,
+    recentScamCheckRows,
   ] = await Promise.all([
     db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
     db.select().from(userMedications).where(eq(userMedications.user_id, userId)).limit(20),
@@ -1320,6 +1362,36 @@ export async function buildVoiceContext(
           .where(eq(cognitiveSessionIndex.userId, userId))
           .orderBy(desc(cognitiveSessionIndex.playedAt))
           .limit(300)
+      : Promise.resolve([]),
+    isWellnessContextDomain(domain)
+      ? db
+          .select({
+            lastSessionAt: breathingSessions.created_at,
+            lastCompletedAt: breathingSessions.completed_at,
+            lastExerciseSlug: breathingSessions.exercise_slug,
+            lastStatus: breathingSessions.status,
+            lastDurationMinutes: breathingSessions.duration_minutes,
+          })
+          .from(breathingSessions)
+          .where(eq(breathingSessions.user_id, userId))
+          .orderBy(desc(breathingSessions.created_at))
+          .limit(1)
+          .catch((err) => {
+            console.warn("[voiceContext] breathing sessions unavailable", err);
+            return [];
+          })
+      : Promise.resolve([]),
+    domainAllows(domain, "safety")
+      ? db
+          .select()
+          .from(scamChecks)
+          .where(eq(scamChecks.user_id, userId))
+          .orderBy(desc(scamChecks.checked_at))
+          .limit(5)
+          .catch((err) => {
+            console.warn("[voiceContext] scam checks unavailable", err);
+            return [];
+          })
       : Promise.resolve([]),
   ]);
 
@@ -1438,6 +1510,10 @@ export async function buildVoiceContext(
         now,
       })
     : null;
+  const breathingSessionContext = isWellnessContextDomain(domain)
+    ? recentBreathingSessionRows[0] ?? null
+    : null;
+  const breathingContextSummary = formatBreathingSessionContext(breathingSessionContext, now);
   const userRow = userRows[0] ?? null;
   const latestVoiceExchange = latestVoiceExchangeRows[0] ?? null;
   const allHobbies = [...new Set([
@@ -1462,6 +1538,14 @@ export async function buildVoiceContext(
     socialInterests?.preferred_times ?? [],
   );
   const mobilityContext = valueList([mobilityLevel, livingSituation]);
+  const breathingAdaptationContext = isWellnessContextDomain(domain)
+    ? compactLines([
+        conditions.length ? `Health conditions noted: ${joinList(conditions)}.` : "",
+        mobilityContext ? `Mobility/living context: ${mobilityContext}.` : "",
+        profile?.known_allergies?.length ? "Known allergies are recorded but usually not relevant to breathing guidance." : "",
+        "Use this silently for safer seated, low-effort, optional wellness guidance. Do not recite private conditions unless the user raises them or they directly affect safety.",
+      ], 900)
+    : "";
   const localInterestOpportunities = buildLocalInterestOpportunities({
     city: profile?.city ?? "",
     region: profile?.region ?? "",
@@ -1517,6 +1601,8 @@ export async function buildVoiceContext(
     upcomingEvents.length ? `Upcoming events/reminders: ${joinList(upcomingEvents)}` : "",
     recentActivitySummary ? `Activity history: ${recentActivitySummary}` : "",
     brainCoachVoiceContext?.summary ? `Brain Coach context: ${brainCoachVoiceContext.summary}` : "",
+    breathingContextSummary ? `Breathing context: ${breathingContextSummary}` : "",
+    breathingAdaptationContext ? `Breathing adaptation context: ${breathingAdaptationContext}` : "",
     socialActivitySummary ? `Social activity: ${socialActivitySummary}` : "",
     matchingSocialRooms ? `Suggested social rooms: ${matchingSocialRooms}` : "",
     localInterestOpportunities ? `Nearby interest opportunities: ${localInterestOpportunities}` : "",
@@ -1530,6 +1616,7 @@ export async function buildVoiceContext(
     localInterestOpportunities ? "Offer Concierge to verify a nearby event or place before naming specifics." : "",
     recentActivitySummary ? "Use recent activity to suggest a balanced movement, rest, or routine step." : "",
     brainCoachVoiceContext ? "Use today's Brain Coach plan and recent cognitive history when the user wants a brain activity." : "",
+    breathingAdaptationContext ? "Use health and mobility adaptation context silently for gentle breathing guidance." : "",
     birthday ? "Use birthday context warmly only when it feels natural." : "",
   ], 1400);
   const orchestratorContext = compactLines([
@@ -1601,6 +1688,18 @@ export async function buildVoiceContext(
     time_since_last_app_visit: formatRelativeTime(appLastSeenAt, now),
     last_voice_session_at: formatDateTime(lastVoiceSessionAt),
     time_since_last_voice_session: formatRelativeTime(lastVoiceSessionAt, now),
+    last_breathing_session_at: formatDateTime(breathingSessionContext?.lastSessionAt),
+    time_since_last_breathing_session: formatRelativeTime(breathingSessionContext?.lastSessionAt, now),
+    last_breathing_completed_at: formatDateTime(breathingSessionContext?.lastCompletedAt),
+    time_since_last_breathing_completed: formatRelativeTime(breathingSessionContext?.lastCompletedAt, now),
+    last_breathing_exercise_slug: breathingSessionContext?.lastExerciseSlug ?? "",
+    last_breathing_session_status: breathingSessionContext?.lastStatus ?? "",
+    last_breathing_duration_minutes: breathingSessionContext?.lastDurationMinutes ?? "",
+    breathing_session_context: breathingContextSummary,
+    breathing_adaptation_context: breathingAdaptationContext,
+    wellness_adaptation_context: breathingAdaptationContext,
+    mobility_context: isWellnessContextDomain(domain) ? mobilityContext : "",
+    health_condition_context: isWellnessContextDomain(domain) ? joinList(conditions) : "",
     last_visit_activity: relationshipContinuityContext,
     preference_context: preferenceContext,
     app_insight_context: appInsightContext,
@@ -1624,7 +1723,7 @@ export async function buildVoiceContext(
     voice_app_action_tool:
       isOnboardingProfileDomain(domain)
         ? "Unavailable in onboarding profile sessions. Do not call app navigation tools or ask the user to navigate."
-        : "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. For a broad pillar request with no specific task, call open_app_action with only the matching domain: health for Health, brain_coach for Mind, social for Community, or concierge for Concierge. Do not invent a route or action_type; the app owns the correct visual destination. Use specific actions for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. For home-service requests such as plumber or electrician, ask the relevant service-specific questions first, then call open_app_action with action_type concierge.home_service and simple fields such as service_type, urgency, problem_summary, problem_type, criteria, and intake_origin=voice. Do not mention the tool to the user.",
+        : "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. For a broad pillar request with no specific task, call open_app_action with only the matching domain: health for Health, brain_coach for Mind, social for Community, or concierge for Concierge. Do not invent a route or action_type; the app owns the correct visual destination. Use specific actions for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. For provider and home-service requests, ask only for missing facts that change safety or search quality, then call open_app_action with action_type concierge.home_service and fields such as service_type, urgency, problem_summary, problem_type, criteria, hard_constraints, confirmed_location, consider_saved_providers, and intake_origin=voice. The app is authoritative for safety, eligibility, ranking, and availability. When the app provides a provider shortlist context update, summarize no more than three visible options and preserve all stated unknowns. To act on the active shortlist, call the same action with provider_command select_provider_option, refine_provider_search, or prepare_provider_contact plus provider_request_id and provider_option_id where required. Never invent an option id, provider fact, ranking, availability, or contact action. Preparing contact only opens the visible confirmation step; it does not authorize contact. Do not mention tools to the user.",
     voice_action_result_tool:
       isOnboardingProfileDomain(domain)
         ? "Unavailable in onboarding profile sessions. Local review and save are app-owned."
@@ -1764,6 +1863,10 @@ export async function buildVoiceContext(
       emergencyContact,
       careTeam,
     });
+    variables.recent_scam_checks = joinList(
+      recentScamCheckRows.map(formatScamCheck),
+      "No recent scam or fraud checks on file.",
+    );
   }
 
   return variables;

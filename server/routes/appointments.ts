@@ -1,5 +1,21 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { randomUUID } from "node:crypto";
+import { verifyProvider, incompleteVerification } from "../services/providerVerification.js";
+import { findPartnersForSearch, type PartnerSearchMatch } from "../services/vettedPartners.js";
+import { currentVerification, patternConcernCategories, verificationConcernLevel } from "../../shared/providerVerification.js";
+import { listDueOutcomes, loadMemberOutcomeCounts, recordOutcome } from "../services/providerOutcomes.js";
+import { loadPersonalProviderProfile } from "../services/personalProviderProfile.js";
+import { parsePersonalProfile } from "../../shared/personalProviderProfile.js";
+import { providerOutcomeAnswerSchema, type MemberOutcomeCounts } from "../../shared/providerOutcomes.js";
+import { loadSharedVerification, loadSharedVerifications, saveSharedVerification, sharedVerificationFor, type ReputationKey } from "../services/providerReputation.js";
+import { languageText, requestDisplayLanguage } from "../../shared/language.js";
+import { homeServiceText } from "../../shared/homeServiceText.js";
+import { homeServiceContactSummaryLines, providerContactLanguage } from "../../shared/homeServiceContactMessage.js";
+import {
+  providerServiceWhatsappTemplateSid,
+  providerServiceWhatsappTemplateVariables,
+} from "../lib/providerServiceWhatsappTemplate.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -14,6 +30,7 @@ import {
   scheduledEvents,
   userProviders,
   type AppointmentProviderOption,
+  type AppointmentAttempt,
   type AppointmentRequest,
   type UserProvider,
 } from "../../shared/schema.js";
@@ -28,6 +45,7 @@ import { dispatchCommunicationsByIds } from "../services/communicationDispatcher
 import {
   appointmentOptionIdentity,
   discoverAppointmentProviderOptions,
+  refreshAppointmentProviderContact,
   type AppointmentSearchLocation,
 } from "../services/appointmentDiscovery.js";
 import {
@@ -49,6 +67,19 @@ import {
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
+import { evaluateConciergeChannelReadiness } from "../../shared/conciergeChannelReadiness.js";
+import { toolFromAppointmentChannel } from "../../shared/conciergeToolReadiness.js";
+import {
+  conciergeChannelReadinessForToolWithAdminSettings,
+  loadConciergeChannelReadinessFlagsWithAdminSettings,
+} from "../services/conciergeChannelReadiness.js";
+import {
+  decideProviderCandidates,
+  homeServiceRankingPriorities,
+  type ProviderCandidate,
+  type ProviderDecisionRequest,
+  type ProviderDecisionResult,
+} from "../../shared/providerDecision.js";
 
 const router = Router();
 
@@ -85,17 +116,37 @@ const addOptionSchema = z.object({
 });
 
 const confirmAttemptSchema = z.object({
+  attempt_id: z.string().uuid().optional(),
+  preview_revision: z.number().int().positive().optional(),
+  idempotency_key: z.string().trim().min(8).max(200).optional(),
   option_id: z.string().uuid().optional(),
   channel: z.enum(APPOINTMENT_CHANNELS),
+  contact_authorized: z.boolean().optional().default(false),
   result_notes: z.string().trim().max(1000).optional(),
   share_details: z.object({
     share_home_address: z.boolean().optional().default(false),
+    share_access_notes: z.boolean().optional().default(false),
     photo: z.object({
       name: z.string().trim().min(1).max(180),
       type: z.enum(["image/jpeg", "image/png", "image/webp"]),
       data_url: z.string().startsWith("data:image/").max(2_500_000),
     }).optional(),
   }).optional(),
+  draft: z.object({
+    subject: z.string().trim().max(300).optional(),
+    body: z.string().trim().min(1).max(5000).optional(),
+  }).optional(),
+});
+
+const prepareAttemptSchema = z.object({
+  option_id: z.string().uuid(),
+  channel: z.enum(APPOINTMENT_CHANNELS),
+});
+
+const commitBookingSchema = z.object({
+  preview_revision: z.number().int().positive(),
+  idempotency_key: z.string().trim().min(8).max(200),
+  confirmed_terms: z.boolean(),
 });
 
 const markBookedSchema = z.object({
@@ -171,53 +222,6 @@ function appointmentChannelRecipient(channel: AppointmentChannel, snapshot: Reco
   return null;
 }
 
-function scoreProviderForType(
-  provider: UserProvider,
-  appointmentType: string,
-  detail: string,
-  requestPreferences: Record<string, unknown> = {},
-): number {
-  const haystack = normalizeForMatch([
-    provider.category,
-    provider.name,
-    provider.notes,
-    provider.address,
-    JSON.stringify(provider.metadata ?? {}),
-  ].filter(Boolean).join(" "));
-  const detailText = normalizeForMatch(detail);
-  let score = 0;
-
-  if (appointmentType === "medical" && /(medical|doctor|gp|clinic|hospital|pharmacy|dentist|health|salud|medic|farmacia)/.test(haystack)) score += 70;
-  if (appointmentType === "personal-care" && /(personal|care|hair|beauty|barber|nail|spa|podiatry)/.test(haystack)) score += 70;
-  if (appointmentType === "government" && /(government|council|ayuntamiento|public|office|administration)/.test(haystack)) score += 70;
-  if (appointmentType === "home-service" && /(home|repair|plumber|electrician|locksmith|cleaner|maintenance)/.test(haystack)) score += 70;
-  if (appointmentType === "social" && /(social|restaurant|cafe|meal|food|community|club)/.test(haystack)) score += 70;
-
-  if (appointmentType === "home-service") {
-    const intake = homeServiceIntakeFromPreferences(requestPreferences);
-    const serviceTerms = homeServiceSearchTerms(intake?.service_type);
-    if (serviceTerms.some((term) => haystack.includes(normalizeForMatch(term)))) score += 90;
-  }
-
-  for (const word of detailText.split(/[^a-z0-9]+/).filter((entry) => entry.length > 3)) {
-    if (haystack.includes(word)) score += 8;
-  }
-
-  if (provider.booking_url) score += 10;
-  if (provider.phone) score += 8;
-  if (provider.email || provider.whatsapp) score += 5;
-  if (provider.is_primary) score += 3;
-  return score;
-}
-
-function matchReason(provider: UserProvider, appointmentType: string, score: number, requestPreferences: Record<string, unknown> = {}): string {
-  const intake = appointmentType === "home-service" ? homeServiceIntakeFromPreferences(requestPreferences) : null;
-  if (intake && score >= 70) return `Saved ${homeServiceTypeLabel(intake.service_type, "en").toLowerCase()} provider`;
-  if (score >= 70) return `Saved ${appointmentType.replace("-", " ")} provider`;
-  if (provider.is_primary) return "Saved provider from Settings";
-  return "Saved provider";
-}
-
 async function loadRequestForUser(requestId: string, userId: string): Promise<AppointmentRequest | null> {
   const rows = await db
     .select()
@@ -225,6 +229,21 @@ async function loadRequestForUser(requestId: string, userId: string): Promise<Ap
     .where(and(eq(appointmentRequests.id, requestId), eq(appointmentRequests.user_id, userId)))
     .limit(1);
   return rows[0] ?? null;
+}
+
+async function loadAttemptForUser(attemptId: string, userId: string): Promise<AppointmentAttempt | null> {
+  const rows = await db
+    .select()
+    .from(appointmentAttempts)
+    .where(and(eq(appointmentAttempts.id, attemptId), eq(appointmentAttempts.user_id, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+function attemptMetadata(attempt: AppointmentAttempt | null | undefined): Record<string, unknown> {
+  return attempt?.metadata && typeof attempt.metadata === "object" && !Array.isArray(attempt.metadata)
+    ? attempt.metadata as Record<string, unknown>
+    : {};
 }
 
 async function loadAppointmentSearchLocation(userId: string): Promise<AppointmentSearchLocation> {
@@ -405,6 +424,12 @@ function confirmedHomeServicePayload(
   } else {
     payload.home_address_shared = Boolean(payload.home_address);
   }
+  if (shareDetails?.share_access_notes !== true) {
+    payload.home_access_or_safety_notes = null;
+    payload.access_notes_shared = false;
+  } else {
+    payload.access_notes_shared = Boolean(payload.home_access_or_safety_notes);
+  }
   payload.photo_available = Boolean(shareDetails?.photo);
   payload.photo_name = shareDetails?.photo?.name ?? null;
   return payload;
@@ -549,14 +574,15 @@ async function loadOptionForRequest(optionId: string, requestId: string, userId:
   return rows[0] ?? null;
 }
 
-async function loadOptionsForRequest(requestId: string, userId: string): Promise<AppointmentProviderOption[]> {
-  return await db
+async function loadOptionsForRequest(requestId: string, userId: string, includeExcluded = false): Promise<AppointmentProviderOption[]> {
+  const rows = await db
     .select()
     .from(appointmentProviderOptions)
     .where(and(
       eq(appointmentProviderOptions.request_id, requestId),
       eq(appointmentProviderOptions.user_id, userId),
     ));
+  return includeExcluded ? rows : rows.filter((option) => option.status !== "excluded");
 }
 
 async function savedProviderOptions(
@@ -566,6 +592,7 @@ async function savedProviderOptions(
   detail: string,
   requestPreferences: Record<string, unknown>,
 ) {
+  if (appointmentType === "home-service" && requestPreferences.use_saved_provider === false) return [];
   const providers = await db
     .select()
     .from(userProviders)
@@ -576,37 +603,192 @@ async function savedProviderOptions(
     ))
     .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at));
 
-  return providers
-    .map((provider) => ({
-      provider,
-      score: scoreProviderForType(provider, appointmentType, detail, requestPreferences),
-    }))
-    .filter((item) => item.score > 0 || providers.length <= 3)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map((item, index) => {
-      const snapshot = providerSnapshot(item.provider);
+  const intake = appointmentType === "home-service" ? homeServiceIntakeFromPreferences(requestPreferences) : null;
+  const decision = decideProviderCandidates(providers.map(savedProviderCandidate), {
+    appointmentType,
+    serviceType: intake?.service_type,
+    detail,
+    criteria: intake?.criteria,
+    maxResults: 3,
+  });
+
+  return decision.ranked.map((item, index) => {
+      const provider = item.candidate.raw as UserProvider;
+      const snapshot = providerSnapshot(provider);
       const ordered = orderAppointmentChannels({
-        channels: channelsForProvider(item.provider),
+        channels: channelsForProvider(provider),
         providerSnapshot: snapshot,
         requestPreferences,
       });
       return {
         request_id: requestId,
         user_id: userId,
-        provider_id: item.provider.id,
+        provider_id: provider.id,
         provider_source: "saved",
         provider_snapshot: {
           ...snapshot,
           provider_preference_snapshot: ordered.preferenceSnapshot,
           preferred_channel: ordered.preferredChannel,
+          provider_decision: providerDecisionSnapshot(item),
         },
-        match_reason: matchReason(item.provider, appointmentType, item.score, requestPreferences),
+        match_reason: providerMatchReason(item, appointmentType, intake?.service_type, "en"),
         available_channels: ordered.channels,
         rank: index + 1,
         status: index === 0 ? "recommended" : "suggested",
       };
     });
+}
+
+function savedProviderCandidate(provider: UserProvider): ProviderCandidate {
+  const metadata = recordValue(provider.metadata);
+  return {
+    id: provider.id,
+    source: "saved",
+    name: provider.name,
+    category: provider.category,
+    specialtyText: [provider.category, provider.name, provider.notes, JSON.stringify(metadata)].filter(Boolean).join(" "),
+    address: provider.address,
+    phone: provider.phone,
+    website: provider.website_url ?? provider.booking_url,
+    placeId: provider.place_id,
+    active: provider.is_active,
+    trusted: provider.is_trusted,
+    preferred: provider.is_primary,
+    availability: "unknown",
+    evidenceStatus: metadata.source === "profile_settings" ? "reported" : "unknown",
+    checkedAt: provider.updated_at?.toISOString() ?? null,
+    contactable: channelsForProvider(provider).some((channel) => channel !== "manual"),
+    raw: provider,
+  };
+}
+
+function phoneKey(phone: string | null | undefined): string {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length >= 7 ? digits.slice(-9) : "";
+}
+
+function partnerOption(match: PartnerSearchMatch, serviceType: string) {
+  const { provider, organisation } = match;
+  const channels: AppointmentChannel[] = [];
+  if (provider.website) channels.push("booking_url");
+  if (provider.phone) channels.push("phone");
+  if (provider.email) channels.push("email");
+  channels.push("manual");
+  return {
+    provider_source: "partner" as const,
+    provider_snapshot: {
+      source: "vetted_partner",
+      partner_provider_id: provider.id,
+      partner_organisation_id: organisation.id,
+      partner_organisation_name: organisation.name,
+      name: provider.name,
+      category: "home_service",
+      // Trade vocabulary lets the shared matcher confirm the requested service.
+      notes: [...provider.trades.flatMap(trade => homeServiceSearchTerms(trade)), provider.notes ?? ""].join(" "),
+      address: provider.address,
+      phone: provider.phone,
+      email: provider.email,
+      website_url: provider.website,
+      languages: provider.languages,
+      requested_service_type: serviceType,
+    },
+    match_reason: `Vetted by ${organisation.name}`,
+    available_channels: channels,
+    status: "suggested" as const,
+  };
+}
+
+function memberOutcomesFromSnapshot(value: unknown): MemberOutcomeCounts | null {
+  const record = recordValue(value);
+  const keys = ["jobs", "noShows", "aboveQuote", "wouldUseAgain", "wouldNotUseAgain"] as const;
+  return keys.every(key => Number.isInteger(record[key]) && (record[key] as number) >= 0) ? record as unknown as MemberOutcomeCounts : null;
+}
+
+function optionCandidate(option: AppointmentProviderOption): ProviderCandidate {
+  const snapshot = recordValue(option.provider_snapshot);
+  const verification = snapshot.verification_eligible === true ? currentVerification(snapshot.verification) : null;
+  return {
+    id: option.id,
+    source: option.provider_source === "saved" || option.provider_source === "manual" || option.provider_source === "partner" ? option.provider_source : "external",
+    name: snapshotText(snapshot, "name") ?? "Provider",
+    category: snapshotText(snapshot, "category") ?? (Array.isArray(snapshot.place_types) ? snapshot.place_types.map(String).join(" ") : null),
+    specialtyText: [
+      snapshotText(snapshot, "category"),
+      snapshotText(snapshot, "name"),
+      Array.isArray(snapshot.place_types) ? snapshot.place_types.join(" ") : "",
+      snapshotText(snapshot, "notes"),
+    ].filter(Boolean).join(" "),
+    address: snapshotText(snapshot, "address"),
+    phone: snapshotText(snapshot, "phone"),
+    website: snapshotText(snapshot, "website_url") ?? snapshotText(snapshot, "booking_url"),
+    placeId: snapshotText(snapshot, "place_id"),
+    active: snapshotText(snapshot, "business_status") !== "CLOSED_PERMANENTLY",
+    trusted: option.provider_source === "saved",
+    preferred: option.status === "recommended" && option.provider_source === "saved",
+    rating: typeof snapshot.rating === "number" ? snapshot.rating : null,
+    reviewCount: typeof snapshot.review_count === "number" ? snapshot.review_count : null,
+    openNow: typeof snapshot.open_now === "boolean" ? snapshot.open_now : null,
+    openToday: typeof snapshot.open_today === "boolean" ? snapshot.open_today : null,
+    priceLevel: typeof snapshot.price_level === "number" ? snapshot.price_level : null,
+    availability: "unknown",
+    evidenceStatus: verification?.status === "verified" ? "verified" : option.provider_source === "saved" || option.provider_source === "partner" ? "reported" : "unknown",
+    concernLevel: verification ? verificationConcernLevel(verification) : null,
+    patternConcerns: verification ? patternConcernCategories(verification.concernDetails ?? []) : null,
+    countryCode: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
+    hasBusinessAddress: typeof snapshot.has_business_address === "boolean" ? snapshot.has_business_address : null,
+    priceEvidence: verification?.pricing ?? null,
+    credentialStated: verification?.credentials ? verification.credentials.length > 0 : null,
+    memberOutcomes: memberOutcomesFromSnapshot(snapshot.member_outcomes),
+    languagesStated: verification?.languages ?? null,
+    checkedAt: option.updated_at?.toISOString() ?? null,
+    contactable: option.available_channels.some((channel) => channel !== "manual"),
+    raw: option,
+  };
+}
+
+function providerDecisionRequest(request: AppointmentRequest): ProviderDecisionRequest {
+  const preferences = recordValue(request.preferences);
+  const intake = request.appointment_type === "home-service" ? homeServiceIntakeFromPreferences(preferences) : null;
+  return {
+    appointmentType: request.appointment_type,
+    serviceType: intake?.service_type,
+    detail: intake?.research_brief ?? request.reason_detail,
+    urgency: intake?.urgency,
+    criteria: intake?.criteria,
+    maxResults: request.appointment_type === "home-service" ? 12 : 3,
+    personal: request.appointment_type === "home-service" ? parsePersonalProfile(preferences.personal_profile) : null,
+  };
+}
+
+function reputationKey(option: AppointmentProviderOption, request: AppointmentRequest, language: string): ReputationKey | null {
+  const snapshot = recordValue(option.provider_snapshot);
+  const placeId = snapshotText(snapshot, "place_id");
+  const serviceType = homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type;
+  if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !placeId || !serviceType) return null;
+  return { placeId, serviceType, language };
+}
+
+function providerDecisionSnapshot(item: ProviderDecisionResult) {
+  return {
+    code: item.code,
+    score: item.score,
+    reasons: item.reasons,
+    uncertainties: item.uncertainties,
+    priority_notes: item.priorityNotes ?? [],
+    advice: item.advice ?? [],
+    listing_risk: item.listingRisk ?? [],
+    category: item.canonicalCategory,
+    exact_subservice_match: item.exactSubserviceMatch,
+  };
+}
+
+function providerMatchReason(item: ProviderDecisionResult, appointmentType: string, serviceType?: string | null, language = "en") {
+  const spanish = language.startsWith("es");
+  if (appointmentType === "home-service" && serviceType) {
+    const label = homeServiceTypeLabel(serviceType, language);
+    return homeServiceText(language, "{service} matching this request").replace("{service}", label);
+  }
+  return spanish ? "Coincide con esta solicitud" : "Matches this request";
 }
 
 function appointmentMessage(
@@ -616,48 +798,89 @@ function appointmentMessage(
   approvedHomeServicePayload?: Record<string, unknown>,
 ) {
   const provider = optionName(option);
+  const snapshot = recordValue(option.provider_snapshot);
+  const contactLanguage = providerContactLanguage(snapshot, request.language);
+  const copy = languageText(contactLanguage, {
+    en: { subject: "Home service request", intro: "I’m VYVA, contacting you on behalf of a client who needs a home service.", ask: "Could you confirm availability, visit timing, estimated cost if possible, and anything the client should do before you arrive?", request: "Request", address: "Visit address", access: "Access/safety notes", close: "Please send the available options for review. Do not reserve or book anything yet.", thanks: "Thank you", hello: "Hello" },
+    es: { subject: "Solicitud de servicio a domicilio", intro: "Soy VYVA y contacto en nombre de un cliente que necesita un servicio a domicilio.", ask: "¿Puede confirmar disponibilidad, plazo de visita, coste estimado y cualquier preparación necesaria?", request: "Solicitud", address: "Dirección de la visita", access: "Notas de acceso o seguridad", close: "Envíe las opciones disponibles para revisarlas. No reserve ninguna cita todavía.", thanks: "Gracias", hello: "Hola" },
+    fr: { subject: "Demande de service à domicile", intro: "Je suis VYVA et je vous contacte au nom d’un client qui a besoin d’un service à domicile.", ask: "Pouvez-vous confirmer vos disponibilités, le délai d’intervention, le coût estimé et toute préparation nécessaire ?", request: "Demande", address: "Adresse de l’intervention", access: "Consignes d’accès ou de sécurité", close: "Merci d’envoyer les options disponibles pour examen. Ne réservez rien pour le moment.", thanks: "Merci", hello: "Bonjour" },
+    de: { subject: "Anfrage für einen Hausservice", intro: "Ich bin VYVA und kontaktiere Sie im Namen eines Kunden, der einen Hausservice benötigt.", ask: "Können Sie Verfügbarkeit, Termin, geschätzte Kosten und notwendige Vorbereitungen bestätigen?", request: "Anfrage", address: "Einsatzadresse", access: "Zugangs- oder Sicherheitshinweise", close: "Bitte senden Sie die verfügbaren Optionen zur Prüfung. Buchen Sie noch keinen Termin.", thanks: "Vielen Dank", hello: "Guten Tag" },
+    it: { subject: "Richiesta di servizio a domicilio", intro: "Sono VYVA e la contatto per conto di un cliente che necessita di un servizio a domicilio.", ask: "Può confermare disponibilità, tempi, costo stimato ed eventuali preparativi necessari?", request: "Richiesta", address: "Indirizzo dell’intervento", access: "Note di accesso o sicurezza", close: "Invii le opzioni disponibili per la revisione. Non prenoti ancora alcun appuntamento.", thanks: "Grazie", hello: "Buongiorno" },
+    pt: { subject: "Pedido de serviço ao domicílio", intro: "Sou a VYVA e entro em contacto em nome de um cliente que precisa de um serviço ao domicílio.", ask: "Pode confirmar disponibilidade, prazo, custo estimado e qualquer preparação necessária?", request: "Pedido", address: "Morada da visita", access: "Notas de acesso ou segurança", close: "Envie as opções disponíveis para análise. Não faça qualquer marcação por enquanto.", thanks: "Obrigado", hello: "Olá" },
+  });
   const reason = request.reason_detail?.trim() || "I would like to arrange an appointment.";
   const isHomeService = request.appointment_type === "home-service";
   const homeServicePayload = isHomeService ? approvedHomeServicePayload ?? homeServiceActionPayload(request) : {};
   const homeAddress = typeof homeServicePayload.home_address === "string" ? homeServicePayload.home_address : "";
   const accessNotes = typeof homeServicePayload.home_access_or_safety_notes === "string" ? homeServicePayload.home_access_or_safety_notes : "";
-  const subject = isHomeService ? "Home service request" : "Appointment request";
+  const subject = isHomeService ? copy.subject : "Appointment request";
   const requestLine = isHomeService
-    ? "VYVA is helping me arrange a home service visit."
+    ? copy.intro
     : "VYVA is helping me arrange an appointment.";
   const askLine = isHomeService
-    ? "Could you confirm availability, visit timing, estimated cost if possible, and anything I should do before you arrive?"
+    ? copy.ask
     : "Could you send available dates, times, location, price if relevant, and any preparation needed?";
-  const addressLine = isHomeService && homeAddress ? `Visit address: ${homeAddress}` : "";
-  const accessLine = isHomeService && accessNotes ? `Access/safety notes: ${accessNotes}` : "";
+  const addressLine = isHomeService && homeAddress ? `${copy.address}: ${homeAddress}` : "";
+  const accessLine = isHomeService && accessNotes ? `${copy.access}: ${accessNotes}` : "";
+  const wizardSummaryLines = isHomeService ? homeServiceContactSummaryLines(homeServicePayload, contactLanguage) : [];
   const body = channel === "whatsapp"
     ? [
-        `Hello ${provider}, ${requestLine}`,
-        `Request: ${reason}.`,
+        `${copy.hello} ${provider}, ${requestLine}`,
+        ...wizardSummaryLines.map((line) => `${line}.`),
+        `${copy.request}: ${reason}.`,
         addressLine ? `${addressLine}.` : "",
         accessLine ? `${accessLine}.` : "",
         askLine,
-        "Nothing is confirmed until I approve the next step. Thank you.",
+        `${copy.close} ${copy.thanks}.`,
       ].filter(Boolean).join(" ")
     : [
-        `Hello ${provider},`,
+        `${copy.hello} ${provider},`,
         "",
         requestLine,
-        `Request: ${reason}`,
+        ...wizardSummaryLines,
+        `${copy.request}: ${reason}`,
         addressLine,
         accessLine,
         "",
         askLine,
         "",
-        "Nothing is confirmed until I approve the next step.",
+        copy.close,
         "",
-        "Thank you.",
+        `${copy.thanks}.`,
       ].join("\n");
 
   return { subject, body };
 }
 
 router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
+
+router.get("/contact-channel-readiness", async (_req: Request, res: Response) => {
+  try {
+    const liveChannels = APPOINTMENT_CHANNELS.filter((channel) => channel !== "manual");
+    const flags = await loadConciergeChannelReadinessFlagsWithAdminSettings();
+    const results = liveChannels.map((channel) => {
+      const readiness = evaluateConciergeChannelReadiness({
+        tool: toolFromAppointmentChannel(channel),
+        dryRun: false,
+        flags,
+      });
+      return [channel, {
+        status: readiness.status,
+        external_action_allowed: readiness.external_action_allowed,
+      }] as const;
+    });
+
+    return res.json({
+      channels: {
+        ...Object.fromEntries(results),
+        manual: { status: "manual_review", external_action_allowed: true },
+      },
+    });
+  } catch (err) {
+    console.error("[appointments GET /contact-channel-readiness]", err);
+    return res.status(503).json({ error: "Contact channel readiness is unavailable" });
+  }
+});
 
 router.get("/context", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
@@ -893,6 +1116,8 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
         provider_source: parsed.data.provider_source,
         provider_snapshot: {
           ...snapshot,
+          verification: null,
+          verification_eligible: false,
           provider_preference_snapshot: ordered.preferenceSnapshot,
           preferred_channel: ordered.preferredChannel,
         },
@@ -938,26 +1163,56 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
   try {
     const [location, existingOptions] = await Promise.all([
       loadAppointmentSearchLocation(userId),
-      loadOptionsForRequest(request.id, userId),
+      loadOptionsForRequest(request.id, userId, true),
     ]);
 
     const requestPreferences = recordValue(request.preferences);
     const serviceIntake = request.appointment_type === "home-service"
       ? homeServiceIntakeFromPreferences(requestPreferences)
       : null;
+    const visitAddress = request.appointment_type === "home-service"
+      ? homeServiceAddressFromPreferences(requestPreferences).trim()
+      : "";
+    // Personal context loads alongside the search; it never delays or blocks it.
+    const personalProfilePromise = request.appointment_type === "home-service"
+      ? loadPersonalProviderProfile({
+        userId,
+        serviceType: serviceIntake?.service_type,
+        countryCode: location.countryCode,
+        inferPriorities: homeServiceRankingPriorities(serviceIntake?.criteria ?? []).length === 0,
+      }).catch(() => null)
+      : Promise.resolve(null);
     const discovery = await discoverAppointmentProviderOptions({
       appointmentType: request.appointment_type,
       detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
-      location,
-      language: request.language,
-      maxResults: 5,
+      location: visitAddress ? { address: visitAddress } : location,
+      language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+      // Service eligibility is evaluated below, before the ranked display limit.
+      maxResults: request.appointment_type === "home-service" ? 40 : 12,
+      serviceType: serviceIntake?.service_type,
+      urgency: serviceIntake?.urgency,
+      constraints: serviceIntake?.criteria,
     });
 
     const existingIdentities = new Set(
-      existingOptions.map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
+      (request.appointment_type === "home-service" ? [] : existingOptions).map((option) => appointmentOptionIdentity((option.provider_snapshot ?? {}) as Record<string, unknown>)),
     );
     const nextRank = existingOptions.reduce((max, option) => Math.max(max, option.rank ?? 0), 0) + 1;
-    const candidates = discovery.options
+    // Vetted partners covering this address come first; a Google listing with
+    // the same phone number is the same business and is dropped.
+    const partnerMatches = request.appointment_type === "home-service" && serviceIntake?.service_type && discovery.search_center
+      ? await findPartnersForSearch({
+        userId,
+        serviceType: serviceIntake.service_type,
+        point: { countryCode: discovery.search_center.countryCode, lat: discovery.search_center.lat, lng: discovery.search_center.lng, addressText: discovery.search_center.address },
+      })
+      : [];
+    const partnerPhones = new Set(partnerMatches.map(match => phoneKey(match.provider.phone)).filter(Boolean));
+    const discoveredOptions = [
+      ...partnerMatches.map(match => partnerOption(match, serviceIntake?.service_type ?? "other")),
+      ...discovery.options.filter(option => !partnerPhones.has(phoneKey(snapshotText(option.provider_snapshot, "phone")))),
+    ];
+    const candidates = discoveredOptions
       .filter((option) => {
         const identity = appointmentOptionIdentity(option.provider_snapshot);
         if (existingIdentities.has(identity)) return false;
@@ -977,6 +1232,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
           provider_source: option.provider_source,
           provider_snapshot: {
             ...option.provider_snapshot,
+            verification_eligible: option.provider_source === "external",
             provider_preference_snapshot: ordered.preferenceSnapshot,
             preferred_channel: ordered.preferredChannel,
           },
@@ -990,24 +1246,110 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
     const insertedOptions = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
-    const allOptions = [...existingOptions, ...insertedOptions].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-    const status = allOptions.length > 0 ? "options_ready" : request.status;
+    const displayLanguage = requestDisplayLanguage(req.get("x-vyva-language"), request.language);
+    if (request.appointment_type === "home-service" && insertedOptions.length > 0) {
+      // Earlier members' checks rank known businesses before anything is shown:
+      // serious allegations drop out, repeated concerns sink, verified ones rise.
+      const keyed = insertedOptions.map(option => ({ option, key: reputationKey(option, request, displayLanguage) }));
+      const shared = await loadSharedVerifications(keyed.flatMap(({ key }) => key ? [key] : []));
+      const serviceType = serviceIntake?.service_type ?? "";
+      const outcomes = await loadMemberOutcomeCounts(keyed.flatMap(({ key }) => key ? [key.placeId] : []), serviceType);
+      for (const { option, key } of keyed) {
+        const verification = key ? sharedVerificationFor(shared, key) : null;
+        const memberOutcomes = key ? outcomes.get(key.placeId) : undefined;
+        if (verification || memberOutcomes) option.provider_snapshot = {
+          ...recordValue(option.provider_snapshot),
+          ...(verification ? { verification } : {}),
+          ...(memberOutcomes ? { member_outcomes: memberOutcomes } : {}),
+        };
+      }
+    }
+    const personalProfile = await personalProfilePromise;
+    const rankedRequest = personalProfile ? { ...request, preferences: { ...requestPreferences, personal_profile: personalProfile } } : request;
+    const allCandidates = [...existingOptions, ...insertedOptions];
+    // Replace old Home Repair results: they may belong to an earlier location or lack geographic validation.
+    const declinedSaved = request.appointment_type === "home-service"
+      ? existingOptions : [];
+    for (const option of declinedSaved) {
+      await db.update(appointmentProviderOptions).set({ status: "excluded" })
+        .where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    }
+    const decision = decideProviderCandidates(
+      allCandidates.filter(option => !declinedSaved.includes(option)).map(optionCandidate),
+      providerDecisionRequest(rankedRequest),
+    );
+    const decisionById = new Map([...decision.ranked, ...decision.excluded].map((item) => [item.candidate.id, item]));
+    await Promise.all(allCandidates.map(async (option) => {
+      const item = decisionById.get(option.id);
+      if (!item) return;
+      const snapshot = recordValue(option.provider_snapshot);
+      await db.update(appointmentProviderOptions).set({
+        rank: item.eligible ? decision.ranked.findIndex((ranked) => ranked.candidate.id === option.id) + 1 : option.rank,
+        status: item.eligible
+          ? decision.ranked[0]?.candidate.id === option.id ? "recommended" : "suggested"
+          : "excluded",
+        match_reason: item.eligible
+          ? providerMatchReason(item, request.appointment_type, serviceIntake?.service_type, request.language)
+          : option.match_reason,
+        provider_snapshot: {
+          ...snapshot,
+          provider_decision: providerDecisionSnapshot(item),
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentProviderOptions.id, option.id));
+    }));
+    const rankedOptions = decision.ranked.map((item, index) => {
+      const option = item.candidate.raw as AppointmentProviderOption;
+      return {
+        ...option,
+        rank: index + 1,
+        status: index === 0 ? "recommended" : "suggested",
+        match_reason: providerMatchReason(item, request.appointment_type, serviceIntake?.service_type, request.language),
+        provider_snapshot: {
+          ...recordValue(option.provider_snapshot),
+          provider_decision: providerDecisionSnapshot(item),
+        },
+      };
+    });
+    const searchId = randomUUID();
+    console.info("[provider-decision]", JSON.stringify({
+      search_id: searchId,
+      request_id: request.id,
+      appointment_type: request.appointment_type,
+      service_type: serviceIntake?.service_type ?? null,
+      discovery_fallback_reason: discovery.fallback_reason ?? null,
+      candidate_count: allCandidates.length,
+      eligible_count: rankedOptions.length,
+      exclusion_summary: decision.exclusionSummary,
+      confidence: decision.confidence,
+    }));
+    const status = rankedOptions.length > 0 ? "options_ready" : request.status;
     const [updatedRequest] = await db
       .update(appointmentRequests)
-      .set({ status, updated_at: new Date() })
+      .set({
+        status,
+        updated_at: new Date(),
+        // Merge so preference edits made while the search ran survive.
+        ...(personalProfile ? { preferences: sql`coalesce(${appointmentRequests.preferences}, '{}'::jsonb) || ${JSON.stringify({ personal_profile: personalProfile })}::jsonb` } : {}),
+      })
       .where(eq(appointmentRequests.id, request.id))
       .returning();
 
     const responseRequest = updatedRequest ?? request;
     return res.json({
       request: responseRequest,
-      options: allOptions,
-      mission: missionStateFor({ request: responseRequest, options: allOptions }),
+      options: rankedOptions,
+      mission: missionStateFor({ request: responseRequest, options: rankedOptions }),
       discovery: {
+        search_id: searchId,
         source: discovery.source,
         fallback_reason: discovery.fallback_reason,
         reservation_systems: discovery.reservation_systems,
         inserted_count: insertedOptions.length,
+        exclusion_summary: decision.exclusionSummary,
+        criteria_used: decision.criteriaUsed,
+        result_confidence: decision.confidence,
+        eligible_count: decision.ranked.length,
       },
     });
   } catch (err) {
@@ -1016,29 +1358,316 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
   }
 });
 
-router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response) => {
+const activeProviderChecks = new Set<string>();
+router.post("/requests/:id/options/:optionId/refresh-contact", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || typeof req.params.optionId !== "string") {
+    return res.status(400).json({ error: "Invalid request" });
+  }
 
   const request = await loadRequestForUser(req.params.id, userId);
+  if (!request) return res.status(404).json({ error: "Request not found" });
+  const option = await loadOptionForRequest(req.params.optionId, request.id, userId);
+  if (!option) return res.status(404).json({ error: "Provider not found" });
+  if (option.provider_source !== "external") return res.json({ option, refreshed: false });
+
+  const refreshed = await refreshAppointmentProviderContact({
+    snapshot: recordValue(option.provider_snapshot),
+    appointmentType: request.appointment_type,
+    language: requestDisplayLanguage(req.get("x-vyva-language"), request.language),
+  });
+  if (!refreshed) return res.json({ option, refreshed: false });
+
+  const [updated] = await db.update(appointmentProviderOptions).set({
+    provider_snapshot: refreshed.snapshot,
+    available_channels: refreshed.availableChannels,
+    updated_at: new Date(),
+  }).where(and(
+    eq(appointmentProviderOptions.id, option.id),
+    eq(appointmentProviderOptions.user_id, userId),
+  )).returning();
+
+  return res.json({ option: updated ?? option, refreshed: true });
+});
+
+router.get("/outcomes/due", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  return res.json({ items: await listDueOutcomes(userId) });
+});
+
+router.post("/requests/:id/outcome", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || !/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Invalid request" });
+  const parsed = providerOutcomeAnswerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid answer" });
+  try {
+    const status = await recordOutcome({ userId, requestId: req.params.id, answer: parsed.data });
+    return status === "recorded" ? res.json({ recorded: true }) : res.status(404).json({ error: "Request not found" });
+  } catch (err) {
+    console.error("[appointments POST /requests/:id/outcome]", err);
+    return res.status(503).json({ error: "Could not save the answer" });
+  }
+});
+
+router.post("/requests/:id/options/:optionId/verify", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  if (typeof req.params.id !== "string" || typeof req.params.optionId !== "string") return res.status(400).json({ error: "Invalid request" });
+  const request = await loadRequestForUser(req.params.id, userId);
+  if (!request || request.appointment_type !== "home-service") return res.status(404).json({ error: "Request not found" });
+  const options = await loadOptionsForRequest(request.id, userId, true);
+  // Display ranking may change during an audit or differ after a page refresh.
+  // Eligibility comes from the owned request and public-source guards, not rank.
+  const option = options.find(o => o.id === req.params.optionId && o.status !== "excluded");
+  if (!option) return res.status(404).json({ error: "Provider not found" });
+  const snapshot = recordValue(option.provider_snapshot);
+  // Saved/private contacts must not be submitted to external research services.
+  if (option.provider_source !== "external" || snapshot.verification_eligible !== true || !snapshotText(snapshot, "place_id")) return res.json({ verification: incompleteVerification("Only newly discovered public businesses can be researched.") });
+  const cached = currentVerification(snapshot.verification);
+  // Rank against the whole shortlist so cross-listing signals (a shared phone) still apply.
+  const checkedDecision = (verification: NonNullable<typeof cached>) => {
+    const checkedOption = { ...option, provider_snapshot: { ...snapshot, verification } };
+    const shortlist = options.filter(o => o.status !== "excluded").map(o => o.id === option.id ? checkedOption : o);
+    const decision = decideProviderCandidates(shortlist.map(optionCandidate), { ...providerDecisionRequest(request), maxResults: shortlist.length });
+    const item = decision.ranked.find(r => r.candidate.id === option.id);
+    return item ? providerDecisionSnapshot(item) : null;
+  };
+  if (cached && !cached.retryable) {
+    const ranking = checkedDecision(cached);
+    return res.json({ verification: cached, ranking, excluded: !ranking });
+  }
+  const language = requestDisplayLanguage(req.get("x-vyva-language"), request.language);
+  const sharedKey = reputationKey(option, request, language);
+  const shared = sharedKey ? await loadSharedVerification(sharedKey) : null;
+  if (shared) {
+    const ranking = checkedDecision(shared);
+    await db.update(appointmentProviderOptions).set({
+      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification: shared, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
+      updated_at: new Date(),
+    }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    return res.json({ verification: shared, ranking, excluded: !ranking });
+  }
+  if (activeProviderChecks.has(option.id)) return res.status(409).json({ error: "Check already in progress" });
+  if (activeProviderChecks.size >= 30) return res.status(429).json({ error: "Verification is busy. Try again later." });
+  activeProviderChecks.add(option.id);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 118000);
+  const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+  res.on("close", disconnect);
+  try {
+    const verification = await verifyProvider({
+      name: snapshotText(snapshot, "name") ?? "",
+      address: snapshotText(snapshot, "address") ?? "",
+      phone: snapshotText(snapshot, "phone") ?? "",
+      website: snapshotText(snapshot, "website_url") ?? "",
+      country: snapshotText(snapshot, "country_code") ?? snapshotText(snapshot, "search_country_code"),
+      service: homeServiceIntakeFromPreferences(recordValue(request.preferences))?.service_type ?? "home-service",
+      language,
+    }, controller.signal);
+    if (controller.signal.aborted) return;
+    if (sharedKey) await saveSharedVerification(sharedKey, verification);
+    const ranking = checkedDecision(verification);
+    // Merge into the current snapshot so concurrent preference changes survive.
+    await db.update(appointmentProviderOptions).set({
+      provider_snapshot: sql`coalesce(${appointmentProviderOptions.provider_snapshot}, '{}'::jsonb) || ${JSON.stringify({ verification, ...(ranking ? { provider_decision: ranking } : {}) })}::jsonb`,
+      updated_at: new Date(),
+    }).where(and(eq(appointmentProviderOptions.id, option.id), eq(appointmentProviderOptions.user_id, userId)));
+    return res.json({ verification, ranking, excluded: !ranking });
+  } catch {
+    if (!controller.signal.aborted) return res.status(503).json({ error: "Provider checks unavailable" });
+  } finally {
+    clearTimeout(timer);
+    res.off("close", disconnect);
+    activeProviderChecks.delete(option.id);
+    if (!res.writableEnded && !res.destroyed) res.status(504).json({ error: "Provider checks timed out" });
+  }
+});
+
+router.post("/requests/:id/prepare-attempt", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const request = await loadRequestForUser(req.params.id, userId);
+  if (!request) return res.status(404).json({ error: "Appointment request not found" });
+
+  const parsed = prepareAttemptSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const option = await loadOptionForRequest(parsed.data.option_id, request.id, userId);
+    if (!option) return res.status(404).json({ error: "Provider option not found" });
+    const channel = parsed.data.channel;
+    if (channel !== "manual" && !option.available_channels.includes(channel)) {
+      return res.status(400).json({ error: "This contact channel is not available for the provider" });
+    }
+
+    const readiness = channel === "manual"
+      ? null
+      : await conciergeChannelReadinessForToolWithAdminSettings({
+          tool: toolFromAppointmentChannel(channel),
+          dryRun: false,
+        });
+    if (readiness && !readiness.external_action_allowed) {
+      return res.status(409).json({
+        error: "This contact method is not currently available. Choose another method or manual review.",
+        code: "contact_channel_not_ready",
+        channel,
+      });
+    }
+
+    const snapshot = recordValue(option.provider_snapshot);
+    const contactLanguage = providerContactLanguage(snapshot, request.language);
+    const recipient = channel === "phone"
+      ? snapshotText(snapshot, "phone")
+      : channel === "booking_url"
+        ? snapshotText(snapshot, "booking_url")
+        : appointmentChannelRecipient(channel, snapshot);
+    if (channel !== "manual" && !recipient) {
+      return res.status(400).json({ error: "The provider does not have the selected contact detail" });
+    }
+
+    const safePayload = confirmedHomeServicePayload(request, {
+      share_home_address: false,
+      share_access_notes: false,
+    });
+    const message = channel === "email" || channel === "whatsapp"
+      ? appointmentMessage(channel, option, request, safePayload)
+      : null;
+    const revision = 1;
+    const preparedAt = new Date().toISOString();
+    const preview = {
+      version: 1,
+      revision,
+      channel,
+      provider_name: optionName(option),
+      contact_language: contactLanguage,
+      recipient,
+      message,
+      call: channel === "phone" ? {
+        objective: `Ask ${optionName(option)} about availability, timing, estimated cost, and preparation requirements.`,
+        questions: ["What availability do you have?", "What is the estimated cost?", "Is any preparation required?"],
+        commitment_policy: "VYVA may gather information but cannot accept a booking, price, deposit, or terms.",
+      } : null,
+      booking: channel === "booking_url" ? {
+        url: recipient,
+        submit_policy: "prepare_then_confirm",
+        commitment_policy: "VYVA will not submit until the user reviews the exact slot and terms and confirms again.",
+      } : null,
+      manual: channel === "manual" ? {
+        owner: "VYVA support",
+        next_step: "A VYVA operator will prepare the safest contact action and return it for confirmation.",
+      } : null,
+      share_options: {
+        home_address: Boolean(homeServiceAddressFromPreferences(recordValue(request.preferences))),
+        access_notes: Boolean(homeServiceAccessNotesFromPreferences(recordValue(request.preferences))),
+        photo: request.appointment_type === "home-service" && channel === "email",
+      },
+      readiness,
+      prepared_at: preparedAt,
+    };
+
+    const [attempt] = await db.insert(appointmentAttempts).values({
+      request_id: request.id,
+      user_id: userId,
+      provider_option_id: option.id,
+      provider_id: option.provider_id,
+      channel,
+      status: "awaiting_confirmation",
+      metadata: {
+        provider_snapshot: snapshot,
+        preview,
+        preview_revision: revision,
+        prepared_at: preparedAt,
+      },
+    }).returning();
+
+    await db.update(appointmentRequests).set({
+      status: "awaiting_confirmation",
+      selected_provider_id: option.provider_id,
+      selected_provider_option_id: option.id,
+      selected_channel: channel,
+      updated_at: new Date(),
+    }).where(eq(appointmentRequests.id, request.id));
+
+    return res.status(201).json({ attempt, preview });
+  } catch (err) {
+    console.error("[appointments POST /requests/:id/prepare-attempt]", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Could not prepare contact" });
+  }
+});
+
+async function executeAppointmentAttempt(req: Request, res: Response, preparedAttemptId?: string) {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const preparedAttempt = preparedAttemptId ? await loadAttemptForUser(preparedAttemptId, userId) : null;
+  if (preparedAttemptId && !preparedAttempt) return res.status(404).json({ error: "Prepared contact attempt not found" });
+  const requestId = preparedAttempt?.request_id ?? req.params.id;
+  const request = await loadRequestForUser(requestId, userId);
   if (!request) return res.status(404).json({ error: "Appointment request not found" });
 
   const parsed = confirmAttemptSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
+  if (preparedAttempt && parsed.data.attempt_id && parsed.data.attempt_id !== preparedAttempt.id) {
+    return res.status(400).json({ error: "Prepared attempt does not match" });
+  }
+  if (request.appointment_type === "home-service" && parsed.data.contact_authorized !== true) {
+    return res.status(400).json({ error: "Explicit permission is required before contacting this provider" });
+  }
+  if (request.appointment_type === "home-service" && !preparedAttempt) {
+    return res.status(409).json({
+      error: "Prepare and review this provider contact before confirming it.",
+      code: "contact_preview_required",
+    });
+  }
 
-  const optionId = parsed.data.option_id ?? request.selected_provider_option_id ?? undefined;
+  const optionId = parsed.data.option_id ?? preparedAttempt?.provider_option_id ?? request.selected_provider_option_id ?? undefined;
   if (!optionId) return res.status(400).json({ error: "Choose a provider option first" });
 
   try {
     const option = await loadOptionForRequest(optionId, request.id, userId);
     if (!option) return res.status(404).json({ error: "Provider option not found" });
-    if (!option.available_channels.includes(parsed.data.channel)) {
+    if (preparedAttempt && preparedAttempt.channel !== parsed.data.channel) {
+      return res.status(409).json({ error: "The selected channel changed. Prepare the contact again." });
+    }
+    const preparedMetadata = attemptMetadata(preparedAttempt);
+    if (preparedAttempt) {
+      if (preparedAttempt.status !== "awaiting_confirmation") {
+        const previousKey = typeof preparedMetadata.idempotency_key === "string" ? preparedMetadata.idempotency_key : null;
+        if (previousKey && previousKey === parsed.data.idempotency_key && preparedMetadata.execution_response) {
+          return res.status(200).json(preparedMetadata.execution_response);
+        }
+        return res.status(409).json({ error: "This prepared contact has already been used" });
+      }
+      if (parsed.data.preview_revision !== preparedMetadata.preview_revision) {
+        return res.status(409).json({ error: "This contact preview changed. Review it again before confirming.", code: "stale_preview" });
+      }
+      if (!parsed.data.idempotency_key) {
+        return res.status(400).json({ error: "An idempotency key is required" });
+      }
+    }
+    if (parsed.data.channel !== "manual" && !option.available_channels.includes(parsed.data.channel)) {
       return res.status(400).json({ error: "This contact channel is not available for the provider" });
+    }
+    if (request.appointment_type === "home-service" && parsed.data.channel !== "manual") {
+      const readiness = await conciergeChannelReadinessForToolWithAdminSettings({
+        tool: toolFromAppointmentChannel(parsed.data.channel),
+        dryRun: false,
+      });
+      if (!readiness.external_action_allowed) {
+        return res.status(409).json({
+          error: "This contact method is not currently available. Choose another method or manual review.",
+          code: "contact_channel_not_ready",
+          channel: parsed.data.channel,
+        });
+      }
     }
 
     const snapshot = (option.provider_snapshot ?? {}) as Record<string, unknown>;
+    const contactLanguage = providerContactLanguage(snapshot, request.language);
     const providerName = optionName(option);
     const providerPhone = snapshotText(snapshot, "phone");
     const providerEmail = snapshotText(snapshot, "email");
@@ -1072,7 +1701,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       return res.status(400).json({ error: "This provider does not have a booking page" });
     }
 
-    const [attempt] = await db
+    const attempt = preparedAttempt ?? (await db
       .insert(appointmentAttempts)
       .values({
         request_id: request.id,
@@ -1087,7 +1716,21 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           handled_by_vyva: true,
         },
       })
-      .returning();
+      .returning())[0];
+
+    if (preparedAttempt) {
+      await db.update(appointmentAttempts).set({
+        status: "executing",
+        metadata: {
+          ...preparedMetadata,
+          idempotency_key: parsed.data.idempotency_key,
+          contact_authorized_at: new Date().toISOString(),
+          approved_share_details: parsed.data.share_details ?? {},
+          approved_draft: parsed.data.draft ?? null,
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentAttempts.id, attempt.id));
+    }
 
     let pending: { pendingId?: string; status?: string; message?: string } | null = null;
     let communication: { id: string; channel: string; recipient: string; status: string; provider_message_id?: string | null; error?: string } | null = null;
@@ -1122,6 +1765,8 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
+            provider_contact_language: contactLanguage,
+            commitment_policy: "Collect information only. Do not accept a booking, price, deposit, or terms.",
             ...homeServicePayload,
           },
           language: request.language,
@@ -1135,6 +1780,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             pending_id: pending.pendingId ?? null,
             status: pending.status === "calling" ? "calling" : "call_started",
             metadata: {
+              ...(preparedAttempt ? preparedMetadata : {}),
               provider_snapshot: snapshot,
               handled_by_vyva: true,
               pending,
@@ -1148,6 +1794,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           .set({
             status: "failed",
             metadata: {
+              ...(preparedAttempt ? preparedMetadata : {}),
               provider_snapshot: snapshot,
               handled_by_vyva: true,
               error: err instanceof Error ? err.message : String(err),
@@ -1158,10 +1805,32 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         throw err;
       }
     } else if (channel === "email" || channel === "whatsapp") {
-      const message = appointmentMessage(channel, option, request, homeServicePayload);
-      const messageBody = photoAttachment
-        ? `${message.body}\n\nA photo is attached with the user's approval.`
-        : message.body;
+      const generatedMessage = appointmentMessage(channel, option, request, homeServicePayload);
+      const message = {
+        subject: parsed.data.draft?.subject ?? generatedMessage.subject,
+        body: parsed.data.draft?.body ?? generatedMessage.body,
+      };
+      const approvedDetailCopy = languageText(contactLanguage, {
+        en: { address: "Visit address", access: "Access/safety notes", photo: "A photo is attached with the user's approval." },
+        es: { address: "Dirección de la visita", access: "Notas de acceso o seguridad", photo: "Se adjunta una foto con la autorización del usuario." },
+        fr: { address: "Adresse de l’intervention", access: "Consignes d’accès ou de sécurité", photo: "Une photo est jointe avec l’autorisation de l’utilisateur." },
+        de: { address: "Einsatzadresse", access: "Zugangs- oder Sicherheitshinweise", photo: "Ein Foto ist mit Zustimmung des Nutzers beigefügt." },
+        it: { address: "Indirizzo dell’intervento", access: "Note di accesso o sicurezza", photo: "È allegata una foto con l’autorizzazione dell’utente." },
+        pt: { address: "Morada da visita", access: "Notas de acesso ou segurança", photo: "É anexada uma fotografia com a autorização do utilizador." },
+      });
+      const approvedDetailLines = parsed.data.draft ? [
+        typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
+          ? `${approvedDetailCopy.address}: ${homeServicePayload.home_address.trim()}`
+          : "",
+        typeof homeServicePayload.home_access_or_safety_notes === "string" && homeServicePayload.home_access_or_safety_notes.trim()
+          ? `${approvedDetailCopy.access}: ${homeServicePayload.home_access_or_safety_notes.trim()}`
+          : "",
+      ].filter(Boolean) : [];
+      const messageBody = [
+        message.body,
+        ...approvedDetailLines,
+        photoAttachment ? approvedDetailCopy.photo : "",
+      ].filter(Boolean).join("\n\n");
       const [queuedCommunication] = await db
         .insert(communicationsLog)
         .values({
@@ -1179,6 +1848,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_type: request.appointment_type,
             flow_reference: flowReference,
             provider_name: providerName,
+            provider_contact_language: contactLanguage,
             provider_phone: providerPhone,
             provider_email: providerEmail,
             provider_whatsapp: providerWhatsapp,
@@ -1189,6 +1859,15 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_snapshot: snapshot,
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
+            ...(channel === "whatsapp" && request.appointment_type === "home-service" ? {
+              content_sid: providerServiceWhatsappTemplateSid(contactLanguage),
+              content_variables: providerServiceWhatsappTemplateVariables({
+                language: contactLanguage,
+                providerName,
+                payload: homeServicePayload,
+                reason: request.reason_detail,
+              }),
+            } : {}),
           },
         })
         .returning();
@@ -1207,6 +1886,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         .set({
           status: communication.status === "sent" ? `${channel}_sent` : "failed",
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             communication_id: queuedCommunication.id,
@@ -1231,7 +1911,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
 
       formTask = { ...formResult };
 
-      if (formResult.status === "confirmed" && formResult.scheduled_for) {
+      if (!preparedAttempt && formResult.status === "confirmed" && formResult.scheduled_for) {
         const scheduledFor = new Date(formResult.scheduled_for);
         if (!Number.isNaN(scheduledFor.getTime())) {
           const homeVisitLocation = typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
@@ -1306,12 +1986,15 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         .update(appointmentAttempts)
         .set({
           pending_id: pending?.pendingId ?? null,
-          status: bookedFromForm
+          status: preparedAttempt && formResult.status === "confirmed"
+            ? "awaiting_booking_confirmation"
+            : bookedFromForm
             ? "form_confirmed"
             : pending
               ? "form_task_queued"
               : formResult.status,
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             booking_url: bookingUrl,
@@ -1361,6 +2044,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           pending_id: pending.pendingId ?? null,
           status: "manual_task_queued",
           metadata: {
+            ...(preparedAttempt ? preparedMetadata : {}),
             provider_snapshot: snapshot,
             handled_by_vyva: true,
             pending,
@@ -1412,7 +2096,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       scheduledEventId: bookedFromForm?.scheduled_event.id ?? null,
     });
 
-    return res.status(201).json({
+    const executionResponse = {
       attempt: {
         ...attempt,
         status: communication?.status === "sent"
@@ -1436,10 +2120,95 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       handled_by_vyva: true,
       needs_booking_confirmation: true,
       mission,
-    });
+    };
+    if (preparedAttempt) {
+      const latestAttempt = await loadAttemptForUser(attempt.id, userId);
+      await db.update(appointmentAttempts).set({
+        metadata: {
+          ...attemptMetadata(latestAttempt),
+          idempotency_key: parsed.data.idempotency_key,
+          execution_response: executionResponse,
+          executed_at: new Date().toISOString(),
+        },
+        updated_at: new Date(),
+      }).where(eq(appointmentAttempts.id, attempt.id));
+    }
+    return res.status(201).json(executionResponse);
   } catch (err) {
     console.error("[appointments POST /requests/:id/confirm-attempt]", err);
     return res.status(500).json({ error: "Could not confirm appointment attempt" });
+  }
+}
+
+router.post("/requests/:id/confirm-attempt", (req: Request, res: Response) => executeAppointmentAttempt(req, res));
+router.post("/attempts/:attemptId/execute", (req: Request, res: Response) => executeAppointmentAttempt(req, res, req.params.attemptId));
+
+router.post("/attempts/:attemptId/commit-booking", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const parsed = commitBookingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.data.confirmed_terms) return res.status(400).json({ error: "Review and confirm the booking terms first" });
+
+  try {
+    const attempt = await loadAttemptForUser(req.params.attemptId, userId);
+    if (!attempt) return res.status(404).json({ error: "Prepared booking attempt not found" });
+    if (attempt.channel !== "booking_url") return res.status(400).json({ error: "This attempt is not a booking form" });
+    const metadata = attemptMetadata(attempt);
+    if (metadata.booking_commit_idempotency_key === parsed.data.idempotency_key && metadata.booking_commit_response) {
+      return res.status(200).json(metadata.booking_commit_response);
+    }
+    if (metadata.preview_revision !== parsed.data.preview_revision) {
+      return res.status(409).json({ error: "This booking preview changed. Review it again before confirming.", code: "stale_preview" });
+    }
+    const formResult = recordValue(metadata.form_automation) as AppointmentFormAutomationResult;
+    if (formResult.status !== "confirmed" || !formResult.scheduled_for) {
+      return res.status(409).json({
+        error: "The provider has not returned a confirmed slot and terms yet.",
+        code: "booking_not_ready",
+      });
+    }
+    const scheduledFor = new Date(formResult.scheduled_for);
+    if (Number.isNaN(scheduledFor.getTime())) return res.status(409).json({ error: "The confirmed booking time is invalid" });
+    const request = await loadRequestForUser(attempt.request_id, userId);
+    if (!request) return res.status(404).json({ error: "Appointment request not found" });
+    const option = attempt.provider_option_id
+      ? await loadOptionForRequest(attempt.provider_option_id, request.id, userId)
+      : null;
+    if (!option) return res.status(404).json({ error: "Provider option not found" });
+
+    const booked = await createScheduledAppointmentFromRequest({
+      userId,
+      request: { ...request, selected_channel: "booking_url" },
+      selectedOption: option,
+      scheduledFor,
+      timezone: formResult.timezone ?? "Europe/Madrid",
+      providerName: optionName(option),
+      location: formResult.location ?? snapshotText(recordValue(option.provider_snapshot), "address"),
+      notes: formResult.notes ?? request.reason_detail ?? null,
+      sourceMetadata: { form_automation: formResult },
+    });
+    const response = { scheduled_event: booked.scheduled_event, attempt_id: attempt.id, status: "booked" };
+    await db.update(appointmentAttempts).set({
+      status: "form_confirmed",
+      metadata: {
+        ...metadata,
+        booking_commit_idempotency_key: parsed.data.idempotency_key,
+        booking_confirmed_at: new Date().toISOString(),
+        booking_commit_response: response,
+        scheduled_event_id: booked.scheduled_event.id,
+      },
+      updated_at: new Date(),
+    }).where(eq(appointmentAttempts.id, attempt.id));
+    await db.update(appointmentRequests).set({
+      status: "booked",
+      linked_scheduled_event_id: booked.scheduled_event.id,
+      updated_at: new Date(),
+    }).where(eq(appointmentRequests.id, request.id));
+    return res.status(201).json(response);
+  } catch (err) {
+    console.error("[appointments POST /attempts/:attemptId/commit-booking]", err);
+    return res.status(500).json({ error: "Could not confirm booking" });
   }
 });
 

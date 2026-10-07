@@ -10,6 +10,7 @@ vi.mock("../db.js", () => dbMock);
 
 import {
   buildAdminConciergeChannelReadinessSnapshot,
+  loadConciergeChannelReadinessFlagsWithAdminSettings,
   runAdminConciergeChannelVerificationProbe,
   updateAdminConciergeChannelReadiness,
 } from "./conciergeChannelReadiness.js";
@@ -33,6 +34,8 @@ function resetChannelEnv() {
     "CONCIERGE_EMAIL_CHANNEL_VERIFIED",
     "CONCIERGE_WHATSAPP_CHANNEL_READY",
     "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+    "CONCIERGE_WHATSAPP_ADAPTER",
+    "CONCIERGE_WHATSAPP_PILOT_RECIPIENTS",
     "CONCIERGE_WHATSAPP_CHANNEL_VERIFIED",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_READY",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
@@ -108,6 +111,23 @@ describe("admin Concierge channel readiness", () => {
     expect(JSON.stringify(snapshot)).not.toContain("phone-secret");
   });
 
+  it("preserves environment readiness when no admin override row exists", async () => {
+    process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+    process.env.ELEVENLABS_CONCIERGE_CALLER_AGENT_ID = "agent-1";
+    process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID = "phone-1";
+    process.env.CONCIERGE_PHONE_CALL_CHANNEL_READY = "true";
+    process.env.CONCIERGE_PHONE_CALL_CHANNEL_VERIFIED = "true";
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    const flags = await loadConciergeChannelReadinessFlagsWithAdminSettings();
+
+    expect(flags.phone_call).toMatchObject({
+      adminEnabled: true,
+      configured: true,
+      verified: true,
+    });
+  });
+
   it("returns owned email pilot readiness without exposing provider secrets or pilot inboxes", async () => {
     process.env.CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED = "true";
     process.env.RESEND_API_KEY = "re_super_secret";
@@ -153,6 +173,29 @@ describe("admin Concierge channel readiness", () => {
     })).rejects.toThrow(/required setup has not been configured/i);
 
     expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("recognizes the existing Twilio sender without enabling live WhatsApp or exposing secrets", async () => {
+    process.env.CONCIERGE_WHATSAPP_ADAPTER = "twilio";
+    process.env.TWILIO_ACCOUNT_SID = "test-account-secret";
+    process.env.TWILIO_AUTH_TOKEN = "test-token-secret";
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+12025550100";
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    const snapshot = await buildAdminConciergeChannelReadinessSnapshot();
+    expect(snapshot.channels.find((channel) => channel.channel === "whatsapp")).toMatchObject({
+      configured: true,
+      verified: false,
+      ready: false,
+      external_action_allowed: false,
+      adapter_setup: {
+        source: "environment",
+        live_endpoint_reference: "TWILIO_WHATSAPP",
+        credential_reference: "TWILIO_AUTH_TOKEN",
+      },
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("test-account-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("test-token-secret");
   });
 
   it("stores adapter setup references without marking the channel live-ready", async () => {

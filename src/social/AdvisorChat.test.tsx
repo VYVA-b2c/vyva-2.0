@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import AdvisorChat from "./AdvisorChat";
+import AdvisorChat, { buildSeniorHomeFinderShareSummary } from "./AdvisorChat";
 import type { AdvisorSessionResponse } from "../../shared/advisors";
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -87,12 +87,12 @@ const amaraSession: AdvisorSessionResponse = {
   ui,
   advisor: {
     slug: "amara",
-    name: "Amara",
+    name: "Wellness",
     role: "Coach",
-    shortRole: "Movement",
-    intro: "Gentle movement, balance, Tai chi, chair yoga, and light strength.",
-    starter: "Would you like to move seated, with chair support, or a little more actively?",
-    disclaimerText: "Amara shares gentle movement guidance. Stop if you feel pain, dizzy, or short of breath.",
+    shortRole: "Movement and calm",
+    intro: "Movement, breathing, energy, and balance.",
+    starter: "Pick a gentle wellness routine.",
+    disclaimerText: "Stop if you feel pain, dizzy, or short of breath.",
     sortOrder: 5,
     iconKey: "coach",
     chipBg: "#E8F7EF",
@@ -106,12 +106,44 @@ const amaraSession: AdvisorSessionResponse = {
   messages: [],
 };
 
+const sabioSession: AdvisorSessionResponse = {
+  language: "en",
+  ui,
+  advisor: {
+    slug: "sabio",
+    name: "Sabio",
+    role: "Research",
+    shortRole: "Questions",
+    intro: "I can help you compare suitable senior living options.",
+    starter: "What matters most to you in a possible new home?",
+    disclaimerText: "Sabio gives general information; verify details with each provider.",
+    sortOrder: 40,
+    iconKey: "research",
+    chipBg: "#E3EDF7",
+    iconColor: "#3C6E9E",
+    recencyLabel: "Never talked",
+    sessionCount: 1,
+    lastMessageAt: "2026-07-07T10:00:00.000Z",
+  },
+  introRequired: false,
+  session: { id: "sabio-session-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: "2026-07-07T10:02:00.000Z" },
+  messages: [
+    { id: "m1", role: "user", text: "Can you compare two homes near Madrid?", source: "text", createdAt: "2026-07-07T10:01:00.000Z" },
+    { id: "m2", role: "assistant", text: "Willow Court and Oak Gardens both accept visits this week.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+  ],
+};
+
 function LocationProbe() {
   const location = useLocation();
-  return <div data-testid="current-route">{location.pathname}</div>;
+  return (
+    <>
+      <div data-testid="current-route">{location.pathname}</div>
+      <div data-testid="route-state">{JSON.stringify(location.state ?? null)}</div>
+    </>
+  );
 }
 
-function renderChat(initialPath = "/social-rooms/experts/nora") {
+function renderChat(initialPath: string | { pathname: string; state?: unknown } = "/social-rooms/experts/nora") {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
       <Routes>
@@ -158,23 +190,34 @@ describe("AdvisorChat", () => {
 
     renderChat();
 
-    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nora Nutrition");
-    expect(screen.queryByText("Hi, I am Nora. I can help with simple meal ideas.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("advisor-disclaimer")).toHaveTextContent("not medical advice");
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("Nutrition Expert");
+    expect(screen.getByRole("button", { name: /Voice chat/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Text chat/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent("I can help with meals, appetite and hydration.");
+    expect(screen.queryByText("How would you like to talk today?")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-disclaimer")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/nora/sessions?lang=en", expect.objectContaining({ method: "POST" }));
     });
     expect(startVoiceMock).toHaveBeenCalledWith(
-      expect.stringContaining("Ask an Expert with Nora"),
-      undefined,
+      expect.stringContaining("Nutrition Expert"),
+      expect.stringContaining("shopping-friendly substitutions"),
       expect.objectContaining({
         agentSlug: "nora",
         dynamicVariables: expect.objectContaining({ app_entrypoint: "ask_an_expert_chat" }),
       }),
     );
+  });
+
+  it("shows a message field immediately without a Text chat entry card", () => {
+    renderChat();
+    const input = screen.getByTestId("input-advisor-message");
+    expect(input).toBeInTheDocument();
+    expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
+    expect(startVoiceMock).not.toHaveBeenCalled();
   });
 
   it("sends typed messages and shows user plus assistant bubbles", async () => {
@@ -252,6 +295,43 @@ describe("AdvisorChat", () => {
     expect(screen.getByTestId("input-advisor-message")).toHaveValue("Please explain housing benefit");
   });
 
+  it("shows a hand-off message from router state instead of the static intro on a fresh advisor", () => {
+    queryMock.mockReturnValue({
+      data: noraSession,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat({
+      pathname: "/social-rooms/experts/nora",
+      state: { handoffMessage: "I can see you were looking at \"Housing benefit\". What would you like to know?" },
+    });
+
+    expect(screen.getByTestId("advisor-intro")).toHaveTextContent(
+      "I can see you were looking at \"Housing benefit\". What would you like to know?",
+    );
+    expect(screen.getByTestId("advisor-intro")).not.toHaveTextContent("I can help with meals, appetite and hydration.");
+  });
+
+  it("shows a hand-off message as the opening bubble when returning to an advisor with no messages yet", () => {
+    queryMock.mockReturnValue({
+      data: { ...noraSession, introRequired: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat({
+      pathname: "/social-rooms/experts/nora",
+      state: { handoffMessage: "Marta sent you here to double check a benefit." },
+    });
+
+    expect(screen.getByTestId("advisor-message-assistant")).toHaveTextContent(
+      "Marta sent you here to double check a benefit.",
+    );
+  });
+
   it("renders the backend movement coach with touch routine shortcuts", async () => {
     queryMock.mockReturnValue({
       data: amaraSession,
@@ -262,15 +342,25 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    expect(screen.getByRole("heading", { name: "Amara Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Talk by voice/i })).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-start-voice")).toHaveTextContent("");
+    expect(screen.queryByText("Speak naturally with VYVA")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-advisor-message")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
-    expect(screen.getByTestId("button-movement-coach-routine-sit-to-stand")).toBeInTheDocument();
-    expect(screen.queryByTestId("button-movement-coach-routine-calm-breathing")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-coach-routine-seated-strength")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^button-movement-coach-routine-/)).toHaveLength(4);
+    expect(screen.getByTestId("button-movement-coach-all-routines")).toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-coach-routine-calm-breathing")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-movement-coach-routine-chair-yoga"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/morning-movement/exercises/chair-yoga");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/social-rooms/experts/amara\"");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
@@ -295,18 +385,81 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    fireEvent.click(screen.getByTestId("button-advisor-start-talking"));
+    fireEvent.click(screen.getByTestId("button-advisor-start-voice"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/amara/sessions?lang=en", expect.objectContaining({ method: "POST" }));
       expect(startVoiceMock).toHaveBeenCalledWith(
-        expect.stringContaining("Ask an Expert with Amara Coach"),
-        undefined,
+        expect.stringContaining("Wellness Coach hub"),
+        expect.stringContaining("chair yoga"),
         expect.objectContaining({
-          agentSlug: "amara",
-          dynamicVariables: expect.objectContaining({ advisor_slug: "amara" }),
+          agentSlug: "wellness",
+          dynamicVariables: expect.objectContaining({
+            advisor_slug: "amara",
+            app_entrypoint: "wellness_coach_hub",
+            visible_screen: "wellness_routine_picker",
+            session_state: "routine_picker",
+          }),
         }),
       );
     });
+  });
+
+  it("only shows the shortlist share button for Sabio once there is an assistant reply", () => {
+    queryMock.mockReturnValue({ data: noraSession, isLoading: false, isError: false, refetch: vi.fn() });
+    renderChat("/social-rooms/experts/nora");
+    expect(screen.queryByTestId("button-advisor-share-shortlist")).not.toBeInTheDocument();
+    cleanup();
+
+    queryMock.mockReturnValue({
+      data: { ...sabioSession, messages: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    renderChat("/social-rooms/experts/sabio");
+    expect(screen.queryByTestId("button-advisor-share-shortlist")).not.toBeInTheDocument();
+    cleanup();
+
+    queryMock.mockReturnValue({ data: sabioSession, isLoading: false, isError: false, refetch: vi.fn() });
+    renderChat("/social-rooms/experts/sabio");
+    expect(screen.getByTestId("button-advisor-share-shortlist")).toBeInTheDocument();
+  });
+
+  it("creates a share link from the assistant's own messages and copies it when Web Share is unavailable", async () => {
+    queryMock.mockReturnValue({ data: sabioSession, isLoading: false, isError: false, refetch: vi.fn() });
+    apiFetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ token: "share-token-1" }) });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    vi.stubGlobal("navigator", { ...navigator, share: undefined });
+
+    renderChat("/social-rooms/experts/sabio");
+    fireEvent.click(screen.getByTestId("button-advisor-share-shortlist"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/advisors/sabio/share", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Sabio", language: "en", summary: "Willow Court and Oak Gardens both accept visits this week." }),
+      }));
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/shared/senior-home/share-token-1"));
+    });
+    expect(await screen.findByText("Link copied")).toBeInTheDocument();
+  });
+});
+
+describe("buildSeniorHomeFinderShareSummary", () => {
+  it("joins only the assistant's own messages, not the user's", () => {
+    const summary = buildSeniorHomeFinderShareSummary([
+      { id: "1", role: "user", text: "Compare two homes", source: "text", createdAt: "2026-07-07T10:00:00.000Z" },
+      { id: "2", role: "assistant", text: "Willow Court is nearby.", source: "text", createdAt: "2026-07-07T10:01:00.000Z" },
+      { id: "3", role: "assistant", text: "Oak Gardens has availability.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+    ]);
+    expect(summary).toBe("Willow Court is nearby.\n\nOak Gardens has availability.");
+  });
+
+  it("returns an empty string with no assistant messages", () => {
+    expect(buildSeniorHomeFinderShareSummary([])).toBe("");
   });
 });

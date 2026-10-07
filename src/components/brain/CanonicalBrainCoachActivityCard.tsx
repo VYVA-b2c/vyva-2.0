@@ -4,6 +4,7 @@ import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components
 import { cn } from "@/lib/utils";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { BRAIN_COACH_SHELL_CONTRACT } from "./brainCoachPresentation";
+import { CANONICAL_MENU_ITEM_TITLE_CLASS } from "@/design/canonicalMenuTypography";
 
 type CanonicalBrainCoachActivityCardProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title"> & {
   title: ReactNode;
@@ -97,7 +98,7 @@ export function CanonicalBrainCoachActivityCard({
       </span>
 
       <span className={cn("min-w-0 self-center", !dense && "lg:col-span-3 lg:row-start-3 lg:self-start")}>
-        <span className={cn("block font-display font-semibold leading-tight tracking-normal", tile ? "text-[18px] [overflow-wrap:anywhere]" : "text-[20px] lg:text-[22px]")}>
+        <span className={cn("block", tile ? "font-display text-[18px] font-semibold leading-tight tracking-normal [overflow-wrap:anywhere]" : CANONICAL_MENU_ITEM_TITLE_CLASS)}>
           {title}
         </span>
         {description ? (

@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Database, FileJson, RefreshCw, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, BellRing, CheckCircle2, Database, FileJson, MessageCircle, RefreshCw, Send, ShieldCheck, Upload, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import {
   CONTENT_UPLOAD_LANGUAGES,
@@ -26,6 +26,13 @@ type BulkUploadResponse = {
   error?: string;
 };
 
+type TestReminderResponse = {
+  status?: string;
+  channel?: string;
+  recipient?: string;
+  error?: string | null;
+};
+
 const READINESS_QUERY_KEY = ["/api/admin/cognitive-assessment/readiness"] as const;
 
 function previewSummary(preview: BulkUploadPreview) {
@@ -40,6 +47,16 @@ function readinessPill(ready: boolean) {
   return ready
     ? "border-emerald-200 bg-emerald-50 text-emerald-800"
     : "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+function monitorTone(tone: "good" | "warn" | "bad" | "neutral") {
+  const tones = {
+    good: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    warn: "border-amber-200 bg-amber-50 text-amber-900",
+    bad: "border-red-200 bg-red-50 text-red-700",
+    neutral: "border-[#eadfd5] bg-[#FFFCF8] text-[#2f2135]",
+  };
+  return tones[tone];
 }
 
 function requirementTone(requirement: CognitiveAssessmentReadinessRequirement) {
@@ -61,6 +78,219 @@ function ReadinessMetric({
     <div className={`rounded-2xl border px-4 py-3 ${readinessPill(ready)}`}>
       <p className="text-xs font-black uppercase tracking-[0.08em]">{label}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function formatInterval(ms: number | null) {
+  if (!ms) return "Set interval";
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 1) return `${Math.round(ms / 1000)}s`;
+  if (minutes === 1) return "1 min";
+  return `${minutes} min`;
+}
+
+function formatAdminDateTime(value: string | null) {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatChannelLabel(value: string | null | undefined) {
+  const channel = value?.trim().toLowerCase();
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "sms") return "SMS";
+  if (channel === "voice") return "Voice";
+  if (channel === "email") return "Email";
+  return value?.trim() || "configured channel";
+}
+
+function MonitorCard({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  tone: "good" | "warn" | "bad" | "neutral";
+}) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${monitorTone(tone)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.08em]">{label}</p>
+          <p className="mt-1 text-xl font-black">{value}</p>
+        </div>
+        <span className="rounded-xl bg-white/70 p-2">{icon}</span>
+      </div>
+      <p className="mt-2 text-xs font-bold">{detail}</p>
+    </div>
+  );
+}
+
+function CognitiveOperationsMonitor({
+  readiness,
+  readyLanguages,
+  languageTotal,
+}: {
+  readiness: CognitiveAssessmentReadinessResponse;
+  readyLanguages: number;
+  languageTotal: number;
+}) {
+  const queryClient = useQueryClient();
+  const [selectedTestUserId, setSelectedTestUserId] = useState("");
+  const [testReminderStatus, setTestReminderStatus] = useState<{ tone: "good" | "bad" | "neutral"; message: string } | null>(null);
+  const [sendingTest, setSendingTest] = useState(false);
+  const operations = readiness.operations;
+  if (!operations) return null;
+
+  const lastQueued = operations.reminders.lastQueued;
+  const lastError = operations.reminders.lastError;
+  const testCandidates = operations.reminders.testCandidates;
+  const selectedCandidateId = selectedTestUserId || testCandidates[0]?.userId || "";
+  const dispatcherDetail = operations.dispatcher.enabled
+    ? `Every ${formatInterval(operations.dispatcher.intervalMs)} - ${operations.reminders.activeEnrollments} active - ${operations.reminders.queuedPending} pending`
+    : `Missing ${operations.dispatcher.missingConfig.join(", ")}`;
+  const whatsappDetail = operations.whatsapp.configured
+    ? operations.whatsapp.provider
+    : `Missing ${operations.whatsapp.missingConfig.join(", ")}`;
+  const lastQueuedDetail = lastQueued
+    ? `${formatChannelLabel(lastQueued.channel)} - ${formatAdminDateTime(lastQueued.createdAt)}`
+    : "No Cognitive reminder has been queued yet.";
+  const lastErrorDetail = lastError
+    ? lastError.error ?? `${formatChannelLabel(lastError.channel)} failed ${formatAdminDateTime(lastError.createdAt)}`
+    : "No failed Cognitive reminder sends.";
+  const canSendTest = Boolean(selectedCandidateId) && !sendingTest;
+
+  const handleSendTestReminder = async () => {
+    if (!selectedCandidateId) return;
+    setSendingTest(true);
+    setTestReminderStatus(null);
+    try {
+      const response = await apiFetch("/api/admin/cognitive-assessment/test-reminder", {
+        method: "POST",
+        body: JSON.stringify({ userId: selectedCandidateId }),
+      });
+      const body = await response.json().catch(() => ({})) as TestReminderResponse;
+      if (!response.ok) {
+        setTestReminderStatus({ tone: "bad", message: body.error ?? "Test reminder failed." });
+        return;
+      }
+      if (body.status === "sent") {
+        setTestReminderStatus({ tone: "good", message: `Test sent via ${formatChannelLabel(body.channel)}.` });
+      } else if (body.status === "failed") {
+        setTestReminderStatus({ tone: "bad", message: body.error ? `Failed: ${body.error}` : `${formatChannelLabel(body.channel)} send failed.` });
+      } else {
+        setTestReminderStatus({ tone: "neutral", message: `Queued with status: ${body.status ?? "queued"}.` });
+      }
+      void queryClient.invalidateQueries({ queryKey: READINESS_QUERY_KEY });
+    } catch (error) {
+      setTestReminderStatus({
+        tone: "bad",
+        message: error instanceof Error ? error.message : "Test reminder failed.",
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  return (
+    <div className="mt-5">
+      <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Operations monitor</p>
+          <h2 className="font-serif text-2xl">Reminder health</h2>
+        </div>
+        <p className="text-xs font-bold text-[#7d6b65]">Live production checks from existing reminder and send logs.</p>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MonitorCard
+          icon={<BellRing size={18} />}
+          label="Reminders"
+          value={operations.dispatcher.enabled ? "Enabled" : "Off"}
+          detail={dispatcherDetail}
+          tone={operations.dispatcher.enabled ? "good" : "bad"}
+        />
+        <MonitorCard
+          icon={<MessageCircle size={18} />}
+          label="WhatsApp"
+          value={operations.whatsapp.configured ? "Ready" : "Missing"}
+          detail={whatsappDetail}
+          tone={operations.whatsapp.configured ? "good" : "bad"}
+        />
+        <MonitorCard
+          icon={<Send size={18} />}
+          label="Last queued"
+          value={lastQueued ? lastQueued.status : "None yet"}
+          detail={lastQueuedDetail}
+          tone={lastQueued ? "good" : "neutral"}
+        />
+        <MonitorCard
+          icon={<AlertTriangle size={18} />}
+          label="Last error"
+          value={lastError ? "Failed" : "None"}
+          detail={lastErrorDetail}
+          tone={lastError ? "bad" : "good"}
+        />
+        <MonitorCard
+          icon={<ShieldCheck size={18} />}
+          label="Content"
+          value={`${readyLanguages}/${languageTotal}`}
+          detail={readiness.ready ? "All languages ready" : "Content blockers active"}
+          tone={readiness.ready ? "good" : "warn"}
+        />
+      </div>
+      <div className="mt-3 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="block flex-1">
+            <span className="mb-1 block text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">Test member</span>
+            <select
+              value={selectedCandidateId}
+              onChange={(event) => {
+                setSelectedTestUserId(event.target.value);
+                setTestReminderStatus(null);
+              }}
+              disabled={!testCandidates.length}
+              className="min-h-[48px] w-full rounded-2xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 disabled:opacity-60"
+            >
+              {testCandidates.length ? testCandidates.map((candidate) => (
+                <option key={candidate.userId} value={candidate.userId}>
+                  {candidate.label} - {candidate.recipient}
+                </option>
+              )) : (
+                <option value="">No enrolled member with an outbound channel</option>
+              )}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleSendTestReminder()}
+            disabled={!canSendTest}
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 text-sm font-black text-white disabled:opacity-50"
+          >
+            <Send size={17} />
+            {sendingTest ? "Sending..." : "Send test"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs font-bold text-[#7d6b65]">
+          Sends one real reminder through the member&apos;s configured channel path.
+        </p>
+        {testReminderStatus ? (
+          <p className={`mt-3 rounded-xl border px-3 py-2 text-sm font-black ${monitorTone(testReminderStatus.tone)}`}>
+            {testReminderStatus.message}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -164,6 +394,8 @@ function CognitiveReadinessPanel() {
 
       {readiness ? (
         <>
+          <CognitiveOperationsMonitor readiness={readiness} readyLanguages={readyLanguages} languageTotal={languageTotal} />
+
           <div className={`mt-5 rounded-2xl border px-4 py-3 ${readinessPill(readiness.ready)}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>

@@ -168,10 +168,8 @@ describe("Concierge task inbox", () => {
       now: "2026-07-19T09:00:00.000Z",
     });
 
-    expect(findConciergeTaskInboxItem(inbox, "draft", rideReady.id)?.continuation)
-      .toMatchObject({ flow: "ride", state: "ready_to_confirm", sceneLabel: "Review", actionLabel: "Review and confirm" });
-    expect(findConciergeTaskInboxItem(inbox, "draft", appointmentDraft.id)?.continuation)
-      .toMatchObject({ flow: "appointment", state: "draft", sceneLabel: "Reason", actionLabel: "Continue" });
+    expect(findConciergeTaskInboxItem(inbox, "draft", rideReady.id)).toBeNull();
+    expect(findConciergeTaskInboxItem(inbox, "draft", appointmentDraft.id)).toBeNull();
     expect(findConciergeTaskInboxItem(inbox, "pending", "shopping-waiting")?.continuation)
       .toMatchObject({ flow: "shopping", state: "waiting", sceneLabel: "Waiting", actionLabel: "View status" });
     expect(findConciergeTaskInboxItem(inbox, "pending", "refill-blocked")?.continuation)
@@ -181,6 +179,26 @@ describe("Concierge task inbox", () => {
     expect(inbox.needs_you.map((item) => item.id)).toContain("provider-reply-ready");
     expect(findConciergeTaskInboxItem(inbox, "completed", "future-session")?.continuation)
       .toMatchObject({ flow: "future", state: "completed", sceneLabel: "Completed", actionLabel: "Use again" });
+  });
+
+  it("does not count unlinked wizard drafts as active tasks", () => {
+    const inbox = buildConciergeTaskInbox({
+      drafts: [
+        draft({ kind: "home_service", entry_payload: { kind: "home_service" }, stage: "details" }),
+        draft({
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          kind: "home_service",
+          entry_payload: { kind: "home_service" },
+          progress_payload: { serviceType: "plumber", canvasStep: "review" },
+          stage: "review",
+        }),
+      ],
+      pending: [],
+      completed: [],
+    });
+
+    expect(inbox.needs_you).toEqual([]);
+    expect(inbox.waiting).toEqual([]);
   });
 
   it("flags stale pending tasks as needs-you review without changing the safe resume path", () => {
@@ -210,7 +228,7 @@ describe("Concierge task inbox", () => {
       state: "blocked",
       stale: true,
       stateLabel: "Needs refresh",
-      actionLabel: "Review safely",
+      actionLabel: "View request",
     });
   });
 

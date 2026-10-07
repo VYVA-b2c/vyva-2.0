@@ -14,16 +14,37 @@ if (!process.env.DATABASE_URL) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const migrationPaths = [
+  "0019_scheduled_support.sql",
+  "0060_cognitive_assessment_program_enrollments.sql",
   "0076_marketing_social_studio.sql",
   "0077_marketing_social_connections.sql",
   "0081_health_semantic_memory_outbox.sql",
   "0083_replit_publish_runtime_schema.sql",
   "0084_replit_publish_schema_parity.sql",
+  "0085_publish_triage_report_columns.sql",
+  "0104_concierge_reminder_dismissals.sql",
+  "0106_provider_reputation.sql",
+  "0107_provider_job_outcomes.sql",
+  "0108_vetted_partner_providers.sql",
+  "0109_care_register_places.sql",
+  "0110_care_health_zone_municipalities.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
   .join("\n\n");
 const requiredTables = [
+  "concierge_reminder_dismissals",
+  "provider_reputation",
+  "provider_job_outcomes",
+  "vetted_partner_organisations",
+  "vetted_partner_providers",
+  "care_register_places",
+  "care_health_zone_municipalities",
+  "triage_reports",
+  "scheduled_interactions",
+  "interaction_logs",
+  "consent_audit_logs",
+  "cc_program_enrollments",
   "marketing_media_files",
   "marketing_social_connections",
   "health_semantic_memory_outbox",
@@ -33,6 +54,23 @@ const requiredTables = [
   "cross_pillar_execution_attempts",
 ];
 const requiredColumns = [
+  ...[
+    "id", "user_id", "chief_complaint", "urgency", "symptoms",
+    "recommendations", "disclaimer", "ai_summary", "next_step_label",
+    "next_step_level", "triage_reasons", "watch_signs", "profile_considerations",
+    "vitals_notes", "vitals_snapshot", "scan_results", "scan_notes", "interpretation",
+    "possible_patterns", "uncertainty", "reassessment_window", "change_plan_triggers",
+    "clinical_handoff", "bpm", "respiratory_rate", "duration_seconds", "created_at",
+  ].map((column) => `triage_reports.${column}`),
+  "cc_program_enrollments.user_id",
+  "cc_program_enrollments.status",
+  "cc_program_enrollments.start_date",
+  "cc_program_enrollments.frequency",
+  "cc_program_enrollments.reminder_time",
+  "cc_program_enrollments.timezone",
+  "cc_program_enrollments.scheduled_interaction_id",
+  "cc_program_enrollments.joined_at",
+  "cc_program_enrollments.updated_at",
   "user_providers.is_trusted",
   "user_channel_preferences.preventive_web_push_enabled",
   "user_channel_preferences.preventive_web_push_consent_revision",
@@ -63,7 +101,6 @@ try {
   await client.query("select pg_advisory_lock($1)", [83920083]);
   await client.query("begin");
   await client.query(migrationSql);
-  await client.query("commit");
 
   const tablesVerification = await client.query(
     `select table_name
@@ -92,6 +129,7 @@ try {
     );
   }
 
+  await client.query("commit");
   console.log("Publish runtime schema ready.");
 } catch (error) {
   try {

@@ -178,8 +178,12 @@ type SocialPublishingConnection = {
   provider: string;
   accountId: string;
   accountName: string;
-  instagramBusinessAccountId: string | null;
-  instagramUsername: string | null;
+  instagramBusinessAccountId?: string | null;
+  instagramUsername?: string | null;
+  organizationUrn?: string | null;
+  organizationRole?: string | null;
+  memberName?: string | null;
+  memberEmail?: string | null;
   status: string;
   connectedAt: string;
   updatedAt: string;
@@ -3830,7 +3834,7 @@ function SectionCard({
 }) {
   return (
     <section
-      className={`rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm ${className}`}
+      className={`min-w-0 w-full max-w-full overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm ${className}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -3843,7 +3847,7 @@ function SectionCard({
         </div>
         {action}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0 max-w-full">{children}</div>
     </section>
   );
 }
@@ -4225,6 +4229,7 @@ export default function MarketingAdminPage() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
   const [metaConnectionBusy, setMetaConnectionBusy] = useState(false);
+  const [linkedInConnectionBusy, setLinkedInConnectionBusy] = useState(false);
   const [exportPreview, setExportPreview] =
     useState<LovableExportPreview | null>(null);
   const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
@@ -6951,6 +6956,10 @@ export default function MarketingAdminPage() {
     window.location.assign("/api/admin/marketing/social-publishing/meta/connect");
   }
 
+  function connectLinkedIn() {
+    window.location.assign("/api/admin/marketing/social-publishing/linkedin/connect");
+  }
+
   async function verifyMeta() {
     setMetaConnectionBusy(true);
     setMessage("Verifying the Meta connection...");
@@ -6965,6 +6974,23 @@ export default function MarketingAdminPage() {
       setMessage(error instanceof Error ? error.message : "Meta connection verification failed.");
     } finally {
       setMetaConnectionBusy(false);
+    }
+  }
+
+  async function verifyLinkedIn() {
+    setLinkedInConnectionBusy(true);
+    setMessage("Verifying the LinkedIn connection...");
+    try {
+      const result = await api<{ verifiedOrganizationName: string | null }>(
+        "/api/admin/marketing/social-publishing/linkedin/verify",
+        { method: "POST" },
+      );
+      setMessage(`LinkedIn connection verified for ${result.verifiedOrganizationName || "the selected organization"}.`);
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "LinkedIn connection verification failed.");
+    } finally {
+      setLinkedInConnectionBusy(false);
     }
   }
 
@@ -7000,6 +7026,8 @@ export default function MarketingAdminPage() {
   );
   const metaProvider = socialPublishing.providers.find((provider) => provider.id === "meta");
   const metaConnections = metaProvider?.connections ?? [];
+  const linkedInProvider = socialPublishing.providers.find((provider) => provider.id === "linkedin");
+  const linkedInConnections = linkedInProvider?.connections ?? [];
   const tokenAliasPresent = syncDiagnostics?.tokenAliasPresent ?? {};
   const urlAliasPresent = syncDiagnostics?.urlAliasPresent ?? {};
   const yesNo = (value: boolean | undefined) => (value ? "yes" : "no");
@@ -7076,8 +7104,8 @@ export default function MarketingAdminPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#f7f2eb] px-3 py-6 text-[#2f2135] sm:px-6 sm:py-8">
+      <section className="mx-auto min-w-0 max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-serif text-3xl leading-tight text-[#2f2135]">
             Marketing
@@ -7110,7 +7138,7 @@ export default function MarketingAdminPage() {
           </div>
         </header>
 
-        <section className="mt-5 grid gap-4">
+        <section className="mt-5 min-w-0 grid gap-4">
           {showFoundationBanner ? (
             <div
               className="overflow-hidden rounded-[18px] border border-purple-200 bg-[#2f2135] text-white shadow-sm"
@@ -7182,8 +7210,8 @@ export default function MarketingAdminPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm xl:grid-cols-[1fr_180px_180px]">
-            <label className="relative block">
+          <div className="grid w-[calc(100vw-24px)] min-w-0 max-w-full gap-3 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm sm:w-auto xl:grid-cols-[minmax(0,1fr)_180px_180px]">
+            <label className="relative block min-w-0">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]"
                 aria-hidden="true"
@@ -7228,7 +7256,7 @@ export default function MarketingAdminPage() {
                 </option>
               ))}
             </select>
-            <div className="xl:col-span-3">
+            <div className="min-w-0 xl:col-span-3">
               {globalFiltersActive ? (
                 <div
                   className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-sm font-bold text-purple-900"
@@ -7279,7 +7307,10 @@ export default function MarketingAdminPage() {
           )}
 
           {activeTab === "dashboard" && (
-            <div className="grid gap-4" data-testid="marketing-dashboard-tab">
+            <div
+              className="grid w-[calc(100vw-24px)] min-w-0 max-w-full gap-4 sm:w-auto"
+              data-testid="marketing-dashboard-tab"
+            >
               {globalFiltersActive ? (
                 <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900">
                   Showing filtered dashboard results: {visibleCampaigns.length}{" "}
@@ -7789,7 +7820,7 @@ export default function MarketingAdminPage() {
                 </form>
               </details>
 
-              <div className="grid gap-4">
+              <div className="min-w-0 grid gap-4">
                 <SectionCard
                   title="Campaigns"
                   subtitle={
@@ -13679,25 +13710,81 @@ export default function MarketingAdminPage() {
                   ) : null}
 
                   <div className="grid gap-3 md:grid-cols-2">
-                    {(["linkedin", "tiktok"] as const).map((channel) => (
-                      <div
-                        key={`social-setup-${channel}`}
-                        className="rounded-xl border border-[#eadfd5] bg-white p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
                           <h3 className="font-black text-[#2f173d]">
-                            {channelLabel[channel]}
+                            LinkedIn
                           </h3>
-                          <Pill className="bg-blue-50 text-blue-800">
-                            Planning only
-                          </Pill>
+                          <p className="mt-1 text-sm font-semibold text-[#6f5b55]">
+                            Company Page publishing connection.
+                          </p>
                         </div>
-                        <p className="mt-2 text-sm font-semibold text-[#6f5b55]">
-                          Keep posts as planning records until this provider is
-                          connected.
-                        </p>
+                        <Pill className={linkedInProvider?.connectionReady ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                          {linkedInProvider?.connectionReady ? "Connected" : "Setup needed"}
+                        </Pill>
                       </div>
-                    ))}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {linkedInProvider?.connectionReady ? (
+                          <button
+                            type="button"
+                            onClick={verifyLinkedIn}
+                            disabled={linkedInConnectionBusy}
+                            className="inline-flex items-center gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f173d] hover:border-purple-300 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            <CheckCircle2 size={15} />
+                            {linkedInConnectionBusy ? "Checking..." : "Verify"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={connectLinkedIn}
+                          disabled={!linkedInProvider?.connectionConfigured}
+                          className="inline-flex items-center gap-2 rounded-lg bg-purple-700 px-3 py-2 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+                        >
+                          <ExternalLink size={15} />
+                          {linkedInProvider?.connectionReady ? "Reconnect LinkedIn" : "Connect LinkedIn"}
+                        </button>
+                      </div>
+                      {!linkedInProvider?.connectionConfigured ? (
+                        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                          Add <span className="font-black">LINKEDIN_CLIENT_ID</span> and
+                          <span className="mx-1 font-black">LINKEDIN_CLIENT_SECRET</span>
+                          to the admin deployment before connecting.
+                        </p>
+                      ) : null}
+                      {linkedInConnections.length ? (
+                        <div className="mt-3 grid gap-2">
+                          {linkedInConnections.map((connection) => (
+                            <div
+                              key={connection.id}
+                              className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
+                            >
+                              <p className="font-black text-emerald-950">{connection.accountName}</p>
+                              <p className="mt-1 font-semibold text-emerald-900">
+                                LinkedIn organization connected
+                                {connection.organizationRole ? ` · ${connection.organizationRole}` : ""}
+                                {connection.memberName ? ` · ${connection.memberName}` : ""}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="font-black text-[#2f173d]">
+                          TikTok
+                        </h3>
+                        <Pill className="bg-blue-50 text-blue-800">
+                          Planning only
+                        </Pill>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-[#6f5b55]">
+                        Keep TikTok concepts and creator prompts as planning records until this provider is approved and connected.
+                      </p>
+                    </div>
                   </div>
 
                   <details className="rounded-lg border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#6f5b55]">
@@ -14012,10 +14099,10 @@ function CampaignTable({
   void metricsByCampaignId;
   return (
     <div
-      className="overflow-x-auto rounded-xl border border-[#eadfd5]"
+      className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-[#eadfd5]"
       data-testid="marketing-campaign-table"
     >
-      <table className="w-full border-collapse text-left text-sm">
+      <table className="min-w-[700px] w-full border-collapse text-left text-sm">
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
             <th className="w-[30%] px-4 py-3">Campaign</th>

@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useBrainCoachNavigate as useNavigate } from "@/hooks/useBrainCoachNavigate";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
-import { CanonicalBrainCoachActivityCard } from "@/components/brain/CanonicalBrainCoachActivityCard";
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
 import {
   BRAIN_COACH_ACTIVITY_FLOW_ID,
   BRAIN_COACH_MAIN_SCENE_ID,
@@ -15,19 +16,20 @@ import { BRAIN_COACH_MODULES, getBrainCoachActivitiesForModule } from "@/games/b
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { cn } from "@/lib/utils";
-
-const MODULE_CHIPS = {
-  memory: { background: "#F1EAFF", color: "#7C3AED" },
-  reflexes: { background: "#EAFBF1", color: "#0F7A50" },
-  thinking: { background: "#FFF4CF", color: "#A16207" },
-  senses: { background: "#EAF9F7", color: "#0F766E" },
-} as const;
+import { CANONICAL_MENU_HEADER_CLASS } from "@/design/canonicalMenuTypography";
+import { useQuery } from "@tanstack/react-query";
+import type { BrainCoachProgress } from "@/lib/brainCoachReport";
+import { brainCoachSessionBadge, latestCompletedSessionForModule } from "@/games/brainCoachModuleProgress";
 
 export default function MindMemoryScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
+  const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
+    queryKey: ["/api/games/progress"],
+    retry: false,
+  });
   const mindPresentation = useScreenPresentation({
     screenId: "mind",
     presentationFamilyId: BRAIN_COACH_ACTIVITY_FLOW_ID,
@@ -51,11 +53,11 @@ export default function MindMemoryScreen() {
       className={cn(
         "prototype-shell relative min-h-[calc(100svh-136px)] w-full overflow-x-hidden",
         isDark
-          ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]"
+          ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)] text-[#F7F0FF]"
           : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
       )}
     >
-      <div className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4">
+      <div className="canonical-submenu-frame vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full flex-col">
         <header
           className="grid grid-cols-[40px_1fr_40px] items-center gap-3"
           data-testid="mind-memory-canonical-topbar"
@@ -75,7 +77,7 @@ export default function MindMemoryScreen() {
             <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
           </button>
 
-          <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+          <h1 className={`truncate text-center text-inherit ${CANONICAL_MENU_HEADER_CLASS}`}>
             {t("home.master.cards.mindMemoryShortTitle", "Brain Power")}
           </h1>
 
@@ -94,39 +96,23 @@ export default function MindMemoryScreen() {
         </header>
 
         <section
-          className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5"
+          className={`mt-7 ${MENU_GRID_CLASS}`}
           data-testid="mind-memory-cards"
           data-card-layout="canonical-health-hub-grid"
           aria-label={t("mindMemory.library.chooseSkill", "Choose a skill")}
         >
           {BRAIN_COACH_MODULES.map((module) => {
             const activityCount = getBrainCoachActivitiesForModule(module.id).length;
-            const chip = MODULE_CHIPS[module.id];
+            const latestSession = latestCompletedSessionForModule(brainCoachProgress, module.id);
+            const progressBadge = latestSession ? brainCoachSessionBadge(latestSession) : null;
 
             return (
-              <CanonicalBrainCoachActivityCard
-                key={module.id}
-                type="button"
-                data-testid={module.testId}
-                onClick={() => navigate(module.route)}
-                title={t(module.titleKey, module.title)}
-                icon={module.icon}
-                iconAccent={module.iconAccent}
-                iconBg={module.tone.iconBg}
-                iconColor={module.tone.iconColor}
-                borderColor={module.tone.borderColor}
-                badge={(
-                  <span data-testid={`${module.testId}-status`}>
-                    {t("mindMemory.library.activityCount", "{{count}} activities", { count: activityCount }).replace(
-                      "{{count}}",
-                      String(activityCount),
-                    )}
-                  </span>
-                )}
-                badgeBg={chip.background}
-                badgeColor={chip.color}
-                aria-label={t(module.titleKey, module.title)}
-              />
+              <CanonicalMenuTile key={module.id} testId={module.testId}
+                onClick={() => navigate(module.route)} title={t(module.titleKey, module.title)}
+                icon={module.icon} accent={module.iconAccent} isDark={isDark}
+                status={<span className="sr-only" data-testid={`${module.testId}-status`} aria-label={progressBadge?.accessible}>
+                  {progressBadge?.compact ?? t("mindMemory.library.activityCount", "{{count}} activities", { count: activityCount }).replace("{{count}}", String(activityCount))}
+                </span>} />
             );
           })}
         </section>

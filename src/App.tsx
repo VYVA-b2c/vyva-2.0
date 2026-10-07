@@ -22,7 +22,7 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
-import { writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { readHomeMasterTheme, writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { LongevityMoment, PreventionPlanData } from "./pages/PreventionPlan";
 import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
@@ -78,6 +78,8 @@ const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
+const ConciergePickerScreen = lazy(() => import("./pages/ConciergePickerScreen"));
+const CareFinderScreen = lazy(() => import("./pages/CareFinderScreen"));
 const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
@@ -196,7 +198,8 @@ const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
       source: "manual_entry",
       capture_method: "manual",
       source_confidence: "high",
-      source_display_label: "Daily check-in",
+      source_display_label: "Latest voice conversation",
+      source_ref: { conversation_channel: "voice", agent_name: "VYVA" },
       source_context_label: "Today",
       deviation_pct: 0,
       context_tag: "general",
@@ -241,6 +244,7 @@ const ChannelStep = lazy(() => import("./pages/onboarding/ChannelStep"));
 const DataConsentStep = lazy(() => import("./pages/onboarding/DataConsentStep"));
 const ActivationStep = lazy(() => import("./pages/onboarding/ActivationStep"));
 const ProfileOverview = lazy(() => import("./pages/onboarding/ProfileOverview"));
+const ProfileGroupPage = lazy(() => import("./pages/onboarding/ProfileGroupPage"));
 const SectionCompleteScreen = lazy(() => import("./pages/onboarding/SectionCompleteScreen"));
 const ProxySetupStep = lazy(() => import("./pages/onboarding/ProxySetupStep"));
 const ElderConfirmStep = lazy(() => import("./pages/onboarding/ElderConfirmStep"));
@@ -264,6 +268,7 @@ const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
 const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
 const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
+const SharedSeniorHomeReport = lazy(() => import("./pages/SharedSeniorHomeReport"));
 const VitalsScreen = lazy(() => import("./pages/VitalsScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
 const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
@@ -301,6 +306,7 @@ const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCover
 const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const TrustedHelpPartnersAdminPage = lazy(() => import("./pages/admin/TrustedHelpPartnersAdminPage"));
+const VettedPartnersAdminPage = lazy(() => import("./pages/admin/VettedPartnersAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
 const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
 const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
@@ -340,8 +346,22 @@ function RouteLoadingScreen() {
 function SectionRouter() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguage();
   const Section = id ? SECTION_MAP[id] : null;
+
+  if (id === "medications") {
+    const preview = location.pathname.startsWith("/dev/profile-overview/");
+    return (
+      <AppShell>
+        <MedsScreen
+          backPath={preview ? "/dev/profile-overview/group/medication" : "/onboarding/profile/group/medication"}
+          routeBase="/meds"
+          profileContext
+        />
+      </AppShell>
+    );
+  }
 
   if (Section) return <Section />;
 
@@ -360,7 +380,7 @@ function SectionRouter() {
   );
 }
 
-function BrainCoachActivityRoute() {
+function BrainCoachActivityRoute({ preview = false }: { preview?: boolean }) {
   const { activityId } = useParams<{ activityId: string }>();
   const activity = activityId ? getBrainCoachActivity(activityId) : undefined;
 
@@ -384,7 +404,7 @@ function BrainCoachActivityRoute() {
     case "face-name-match":
       return <AppShell><FaceNameMatchRoute /></AppShell>;
     case "curious-minds":
-      return <AppShell><CuriousMindsRoute /></AppShell>;
+      return <AppShell>{preview ? <CuriousMindsPreviewRoute /> : <CuriousMindsRoute />}</AppShell>;
     case "dual-task-walk":
       return <DualTaskWalkRoute />;
     case "number-trails":
@@ -472,8 +492,33 @@ function CuriousMindsPreviewRoute() {
 
   return (
     <CuriousMinds
-      userId="dev-user"
-      onExit={() => navigate("/login")}
+      userId="preview-user"
+      previewData={{
+        state: {
+          user_id: "preview-user",
+          current_level: 2,
+          streak_days: 3,
+          last_streak_date: "2026-09-24",
+          updated_at: "2026-09-24T09:45:00.000Z",
+        },
+        hook: {
+          id: "preview-hook",
+          fact_prompt: "Why do flamingos often stand on one leg?",
+          fact_answer: "It helps them rest while using less energy.",
+          category: "animals",
+          language: "en",
+          is_active: true,
+        },
+        prompt: {
+          id: "preview-prompt",
+          prompt_type: "alternate_uses",
+          prompt_text: "How many different uses can you think of for an umbrella, besides rain?",
+          topic: "umbrella",
+          language: "en",
+          is_active: true,
+        },
+      }}
+      onExit={() => navigate("/dev/home-master/brain")}
     />
   );
 }
@@ -659,6 +704,18 @@ function DualTaskWalkRoute() {
   return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/brain-coach/focus")} />;
 }
 
+function DualTaskWalkResultPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <DualTaskWalk
+      userId="dual-task-preview"
+      onExit={() => navigate("/dev/home-master/brain")}
+      previewResult
+    />
+  );
+}
+
 function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -764,6 +821,94 @@ function primeHomeMasterPreviewData() {
       minutesUntil: 25,
     },
   });
+  queryClient.setQueryData(["/api/meds/adherence-report/today"], {
+    medications: [
+      {
+        id: "preview-monoprost",
+        medication_name: "Monoprost",
+        dosage: "1 drop",
+        frequency: "once_daily",
+        scheduled_times: ["20:00"],
+        takenToday: false,
+        takenCountToday: 0,
+        scheduledCountToday: 1,
+      },
+      {
+        id: "preview-metformin",
+        medication_name: "Metformin",
+        dosage: "500 mg",
+        frequency: "twice_daily",
+        scheduled_times: ["08:00", "20:00"],
+        takenToday: true,
+        takenCountToday: 1,
+        scheduledCountToday: 2,
+      },
+    ],
+  });
+  queryClient.setQueryData(["/api/meds/refills/me"], {
+    alerts: [
+      {
+        id: "preview-refill-metformin",
+        title: "Metformin may run low soon",
+        medicineName: "Metformin",
+        severity: "attention",
+        summary: "About 6 days remaining based on your current routine.",
+      },
+    ],
+    permissions: { manage_inventory: true },
+  });
+  queryClient.setQueryData(["/api/meds/my-medicines"], {
+    medicines: [
+      {
+        id: "preview-monoprost",
+        display_name: "Monoprost",
+        common_name: "Monoprost",
+        dose_text: "1 drop",
+        purpose_text: "Eye pressure",
+        item_type: "prescription",
+        drug_class_tag: "other_uncategorized",
+        schedule_times: ["20:00"],
+        status: "active",
+        refill_alert_days: 7,
+        inventory_tracking_enabled: true,
+      },
+      {
+        id: "preview-metformin",
+        display_name: "Metformin",
+        common_name: "Metformin",
+        dose_text: "500 mg",
+        purpose_text: "Blood sugar",
+        item_type: "prescription",
+        drug_class_tag: "diabetes_blood_sugar",
+        schedule_times: ["08:00", "20:00"],
+        status: "active",
+        refill_alert_days: 7,
+        inventory_tracking_enabled: true,
+      },
+    ],
+    classTags: ["diabetes_blood_sugar", "other_uncategorized"],
+  });
+  queryClient.setQueryData(["/api/games/progress"], {
+    summary: {
+      totalSessions: 4,
+      completedSessions: 4,
+      streakDays: 2,
+      bestStreakDays: 2,
+      lastPlayedAt: "2026-09-24T09:45:00.000Z",
+      totalDurationSeconds: 720,
+    },
+    today: {
+      completedCount: 2,
+      activityTypes: ["word_recall", "sequence_memory"],
+      domains: ["memory", "attention"],
+    },
+    history: [
+      { activityType: "word_recall", domain: "memory", completed: true, score: 840, difficulty: 6, playedAt: "2026-09-24T09:45:00.000Z" },
+      { activityType: "sequence_memory", domain: "attention", completed: true, score: 610, difficulty: 3, playedAt: "2026-09-24T09:20:00.000Z" },
+      { activityType: "number_trails", domain: "executive_function", completed: true, score: 760, difficulty: 4, playedAt: "2026-09-23T10:30:00.000Z" },
+      { activityType: "breath_garden", domain: "sensory", completed: true, score: 420, difficulty: 2, playedAt: "2026-09-22T18:10:00.000Z" },
+    ],
+  });
 }
 
 function HomeMasterPreviewRoute() {
@@ -774,6 +919,28 @@ function HomeMasterPreviewRoute() {
       <PrototypeHomeScreen />
     </AppShell>
   );
+}
+
+function ProviderTaskWizardPreviewRoute() {
+  const location = useLocation();
+
+  if (!location.state) {
+    return (
+      <Navigate
+        replace
+        to={location.pathname}
+        state={{
+          conciergeTaskEntry: {
+            kind: "provider_contact",
+            providerSearchMode: "specialist",
+            query: "Find a physiotherapist near me",
+          },
+        }}
+      />
+    );
+  }
+
+  return <AppShell><ConciergeScreen mode="task" /></AppShell>;
 }
 
 function HomeMasterMenuPreviewRoute() {
@@ -812,7 +979,7 @@ function HealthHubRoute() {
         healthPlanPath="/health/prevention-plan"
         askDrAiPath="/health/symptom-check?fresh=1"
         vitalsPath="/health/vitals"
-        medicinesPath="/meds/my-medicines"
+        medicinesPath="/meds"
         voicePath="/"
         profilePath="/settings/account"
         backPath="/menu"
@@ -934,7 +1101,12 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
   }
 
   if (kind === "vitals") {
-    const scenario = new URLSearchParams(location.search).get("scenario");
+    const params = new URLSearchParams(location.search);
+    const scenario = params.get("scenario");
+    const requestedTheme = params.get("theme");
+    if ((requestedTheme === "light" || requestedTheme === "dark") && readHomeMasterTheme() !== requestedTheme) {
+      writeHomeMasterTheme(requestedTheme);
+    }
     return (
       <AppShell>
         <VitalsScreen
@@ -942,6 +1114,14 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
           previewConditions={["hypertension"]}
           backPath="/dev/home-master/health"
         />
+      </AppShell>
+    );
+  }
+
+  if (kind === "medicines") {
+    return (
+      <AppShell>
+        <MedsScreen />
       </AppShell>
     );
   }
@@ -965,7 +1145,17 @@ function HomeMasterProfileActionPreviewRoute({ kind }: { kind: "account" | "heal
   }
 
   if (kind === "health") return <ConditionsSection />;
-  if (kind === "medicines") return <MedicationsSection />;
+  if (kind === "medicines") {
+    return (
+      <AppShell>
+        <MedsScreen
+          backPath="/dev/home-master/profile"
+          routeBase="/dev/home-master/profile/medicines"
+          profileContext
+        />
+      </AppShell>
+    );
+  }
   if (kind === "emergency") return <EmergencySection />;
   if (kind === "care-team") return <CareTeamFlow />;
   if (kind === "providers") return <ProvidersSection />;
@@ -1046,7 +1236,7 @@ function HomeMasterPreviewLanguageSync() {
   const { language } = useLanguage();
 
   React.useEffect(() => {
-    if (!location.pathname.startsWith("/dev/home-master")) return;
+    if (!location.pathname.startsWith("/dev/home-master") && !location.pathname.startsWith("/dev/profile-overview")) return;
 
     const searchParams = new URLSearchParams(location.search);
     const requestedLanguage = searchParams.get("language") ?? searchParams.get("lang");
@@ -1092,6 +1282,7 @@ const App = () => (
                 <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
+                <Route path="/shared/senior-home/:token" element={<SharedSeniorHomeReport />} />
                 <Route path="/vyva-demo" element={<VyvaDemoEntry />} />
                 <Route path="/vyva-demo/senior/:seniorKey" element={<VyvaSeniorHome />} />
                 <Route path="/vyva-demo/senior/:seniorKey/daily" element={<VyvaSeniorDailyCheckIn />} />
@@ -1109,17 +1300,32 @@ const App = () => (
                     <Route path="/dev/brain/focus" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                     <Route path="/dev/brain/think" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                     <Route path="/dev/brain/calm" element={<AppShell><SensesPage /></AppShell>} />
-                    <Route path="/dev/brain/activity/:activityId" element={<BrainCoachActivityRoute />} />
+                    <Route path="/dev/brain/activity/:activityId" element={<BrainCoachActivityRoute preview />} />
                     <Route path="/dev/brain/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                     <Route path="/dev/brain/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/brain-coach/focus" /></AppShell>} />
-                    <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
-                    <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
+                    <Route path="/dev/home-master/community" element={<AppShell><AdvisorHub preview /></AppShell>} />
+                    <Route path="/dev/home-master/community-team" element={<AppShell><AdvisorHub preview /></AppShell>} />
+                    <Route path="/dev/home-master/community-team/chat" element={<AppShell><AdvisorChat preview /></AppShell>} />
+                    <Route path="/dev/home-master/concierge" element={<AppShell><ConciergeScreen mode="home" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview" element={<AppShell><ConciergeScreen mode="home" previewBasePath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/get-help" element={<AppShell><ConciergePickerScreen category="get-help" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/order-in" element={<AppShell><ConciergePickerScreen category="order-in" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/book-appointments" element={<AppShell><ConciergePickerScreen category="book-appointments" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/concierge-canonical-preview/discover" element={<AppShell><ConciergePickerScreen category="discover" backPath="/dev/concierge-canonical-preview" /></AppShell>} />
+                    <Route path="/dev/provider-task-preview/:taskId" element={<ProviderTaskWizardPreviewRoute />} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                    <Route path="/dev/home-master/settings" element={<SettingsHome />} />
                     <Route path="/dev/profile-overview" element={<ProfileOverview preview />} />
+                    <Route path="/dev/profile-overview/group/:groupId" element={<ProfileGroupPage preview />} />
+                    <Route path="/dev/profile-overview/section/:id" element={<SectionRouter />} />
                     <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
                     <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
                     <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/home-master/profile/medicines/my-medicines" element={<AppShell><MedsScreen backPath="/dev/home-master/profile" routeBase="/dev/home-master/profile/medicines" profileContext /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/interactions" element={<AppShell><MedsScreen backPath="/dev/home-master/profile" routeBase="/dev/home-master/profile/medicines" profileContext /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/refills" element={<AppShell><MedicationRefillsScreen /></AppShell>} />
+                    <Route path="/dev/home-master/profile/medicines/adherence-report" element={<AppShell><AdherenceReportScreen /></AppShell>} />
                     <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
                     <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
                     <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
@@ -1143,6 +1349,7 @@ const App = () => (
                     <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
                     <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
                     <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
+                    <Route path="/dev/dual-task-result" element={<DualTaskWalkResultPreviewRoute />} />
                     <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
                     <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
                     <Route path="/dev/admin-modules" element={<AdminModulesPage />} />
@@ -1163,6 +1370,7 @@ const App = () => (
                 <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/trusted-help-partners" element={<AdminRoute><TrustedHelpPartnersAdminPage /></AdminRoute>} />
+                <Route path="/admin/partner-providers" element={<AdminRoute><VettedPartnersAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
@@ -1187,12 +1395,14 @@ const App = () => (
                   </Route>
                   <Route path="/onboarding/activation" element={<ActivationStep />} />
                   <Route path="/onboarding/profile" element={<ProfileOverview />} />
+                  <Route path="/onboarding/profile/group/:groupId" element={<ProfileGroupPage />} />
+                  <Route path="/onboarding/profile/preferences" element={<PrototypeProfileActionPreviewScreen kind="accessibility" backPath="/onboarding/profile/group/preferences" />} />
                   <Route path="/onboarding/complete/:section" element={<SectionCompleteScreen />} />
                   <Route path="/onboarding/profile/:id" element={<SectionRouter />} />
                   <Route path="/onboarding/careteam" element={<CareTeamFlow />} />
                   <Route path="/settings/privacy" element={<PrivacySettings />} />
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
-                  <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
+                  <Route path="/settings" element={<SettingsHome />} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
@@ -1268,9 +1478,15 @@ const App = () => (
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/get-help" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="get-help" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/order-in" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="order-in" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/book-appointments" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="book-appointments" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/discover" element={<AppShell><ServiceGateRoute service="concierge"><ConciergePickerScreen category="discover" /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/care-finder" element={<AppShell><CareFinderScreen /></AppShell>} />
+                  <Route path="/care-finder/:taskId" element={<AppShell><CareFinderScreen /></AppShell>} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />

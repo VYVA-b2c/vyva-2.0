@@ -22,6 +22,7 @@ import type {
 } from "./types";
 import { buildConnectionsLevels } from "./connectionsData";
 import { buildNumberMemoryLevels } from "./numberMemoryData";
+import { buildStoryRecallLevels } from "./storyRecallData";
 
 type LocalizedValue<T> = Partial<Record<LanguageCode, T>> & { es: T };
 
@@ -63,6 +64,39 @@ type WordRecallSet = {
   prompts: Record<LanguageCode, string>;
   words: WordRecallItem[];
   distractors: WordRecallItem[];
+};
+
+const WORD_RECALL_SET_THEMES = ["food", "home", "garden", "community", "home", "community", "community", "home", "travel", "garden"] as const;
+const WORD_RECALL_THEME_EMOJI = { food: "🍲", home: "🏡", garden: "🌿", community: "🤝", travel: "🧳" } as const;
+const WORD_RECALL_THEME_SUPPLEMENTAL_WORDS: Partial<Record<(typeof WORD_RECALL_SET_THEMES)[number], WordRecallItem[]>> = {
+  food: [
+    { labels: { es: "manzana", en: "apple", fr: "pomme", de: "Apfel", it: "mela", pt: "maca" } },
+    { labels: { es: "arroz", en: "rice", fr: "riz", de: "Reis", it: "riso", pt: "arroz" } },
+    { labels: { es: "tomate", en: "tomato", fr: "tomate", de: "Tomate", it: "pomodoro", pt: "tomate" } },
+    { labels: { es: "te", en: "tea", fr: "the", de: "Tee", it: "te", pt: "cha" } },
+    { labels: { es: "yogur", en: "yogurt", fr: "yaourt", de: "Joghurt", it: "yogurt", pt: "iogurte" } },
+    { labels: { es: "galleta", en: "biscuit", fr: "biscuit", de: "Keks", it: "biscotto", pt: "bolacha" } },
+  ],
+  travel: [
+    { labels: { es: "autobus", en: "bus", fr: "bus", de: "Bus", it: "autobus", pt: "autocarro" } },
+    { labels: { es: "pasaporte", en: "passport", fr: "passeport", de: "Reisepass", it: "passaporto", pt: "passaporte" } },
+    { labels: { es: "hotel", en: "hotel", fr: "hotel", de: "Hotel", it: "hotel", pt: "hotel" } },
+    { labels: { es: "playa", en: "beach", fr: "plage", de: "Strand", it: "spiaggia", pt: "praia" } },
+    { labels: { es: "camara", en: "camera", fr: "appareil photo", de: "Kamera", it: "macchina fotografica", pt: "camara" } },
+    { labels: { es: "puente", en: "bridge", fr: "pont", de: "Brucke", it: "ponte", pt: "ponte" } },
+  ],
+};
+const WORD_RECALL_WORD_ICONS: Record<string, string> = {
+  bread: "🍞", milk: "🥛", cheese: "🧀", soup: "🥣", pear: "🍐", honey: "🍯",
+  key: "🔑", table: "🪑", chair: "🪑", lamp: "💡", window: "🪟", cushion: "🛋️",
+  cat: "🐈", dog: "🐕", bird: "🐦", fish: "🐟", horse: "🐴", rabbit: "🐇",
+  shirt: "👕", shoe: "👞", coat: "🧥", sock: "🧦", glove: "🧤", scarf: "🧣",
+  "wake up": "🌅", wash: "🫧", dress: "👔", breakfast: "☕", walk: "🚶", read: "📖",
+  park: "🌳", pharmacy: "⚕️", market: "🧺", church: "⛪", cafe: "☕", square: "🏘️",
+  doctor: "🩺", appointment: "📅", diary: "📔", taxi: "🚕", prescription: "📄", card: "💳",
+  television: "📺", remote: "🎛️", sofa: "🛋️", blanket: "🧶",
+  train: "🚆", ticket: "🎫", platform: "🚉", suitcase: "🧳", seat: "💺", map: "🗺️",
+  flower: "🌸", plant: "🪴", pot: "🪴", "watering can": "🚿", leaf: "🍃", bench: "🪑",
 };
 
 type RoutineTemplate = {
@@ -238,11 +272,11 @@ function buildListLevels(
 }
 
 function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
-  const distractionRotation = ["count_backwards", "choose_blue", "breathe_continue"] as const;
+  const distractionRotation = ["count_backwards", "choose_blue", "breathe_continue", "number_order"] as const;
   const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
     level,
-    count: Math.min(6, level + 2),
-    distractionType: level <= 4 ? null : distractionRotation[(level - 5) % distractionRotation.length],
+    count: Math.min(6, 3 + Math.floor((level - 1) / 5)),
+    distractionType: level <= 5 ? null : distractionRotation[(level - 6) % distractionRotation.length],
   }));
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
 
@@ -251,22 +285,34 @@ function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
     variants: sets.map((_set, index) => {
       const themeIndex = (index + spec.level - 1) % sets.length;
       const set = sets[themeIndex];
-      const rotatedThemeWords = [
-        ...set.words.slice((spec.level + index - 1) % set.words.length),
-        ...set.words.slice(0, (spec.level + index - 1) % set.words.length),
-      ];
+      const themeId = WORD_RECALL_SET_THEMES[themeIndex];
+      const precedingWordCount = levelSpecs
+        .filter((levelSpec) => levelSpec.level < spec.level)
+        .reduce((total, levelSpec) => total + levelSpec.count, 0);
+      const themeWords = [
+        ...sets.flatMap((candidateSet, candidateIndex) => (
+          WORD_RECALL_SET_THEMES[candidateIndex] === themeId ? candidateSet.words : []
+        )),
+        ...(WORD_RECALL_THEME_SUPPLEMENTAL_WORDS[themeId] ?? []),
+      ].filter((item, itemIndex, items) => items.findIndex((candidate) => candidate.labels.es === item.labels.es) === itemIndex);
+      const themeVariantRank = Array.from({ length: index }, (_, candidateIndex) => candidateIndex)
+        .filter((candidateIndex) => WORD_RECALL_SET_THEMES[(candidateIndex + spec.level - 1) % sets.length] === themeId)
+        .length;
+      const wordOffset = (precedingWordCount + themeVariantRank * spec.count) % themeWords.length;
+      const rotatedThemeWords = [...themeWords.slice(wordOffset), ...themeWords.slice(0, wordOffset)];
       const selectedWords = rotatedThemeWords.slice(0, spec.count);
       const selectedSpanishWords = new Set(selectedWords.map((item) => item.labels.es));
+      const distractorOffset = (spec.level + index) % set.distractors.length;
       const distractorCandidates = [
         ...rotatedThemeWords.slice(spec.count),
-        ...wordRecallSimilarDistractors[themeIndex],
-        ...set.distractors.slice((spec.level + index) % set.distractors.length),
-        ...set.distractors.slice(0, (spec.level + index) % set.distractors.length),
+        ...set.distractors.slice(distractorOffset),
+        ...set.distractors.slice(0, distractorOffset),
+        ...sets.flatMap((entry) => [...entry.distractors, ...entry.words]),
       ];
       const selectedDistractors = distractorCandidates.filter((item, candidateIndex, candidates) => (
         !selectedSpanishWords.has(item.labels.es)
         && candidates.findIndex((candidate) => candidate.labels.es === item.labels.es) === candidateIndex
-      )).slice(0, 3);
+      )).slice(0, spec.count + 1);
 
       const content = languages.reduce((accumulator, language) => {
         const distractionType = spec.distractionType;
@@ -280,6 +326,11 @@ function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
             distractionType,
             levelBand: getBrainCoachLevelBand(spec.level).label,
             recallMode: spec.level >= 15 ? "mastery" : spec.level >= 9 ? "delayed" : "guided",
+            themeId,
+            themeEmoji: WORD_RECALL_THEME_EMOJI[themeId],
+            wordIcons: selectedWords.map((item) => WORD_RECALL_WORD_ICONS[item.labels.en] ?? WORD_RECALL_THEME_EMOJI[themeId]),
+            showWordCues: spec.level <= 8,
+            challengeKind: spec.level >= 17 ? "order" : spec.level === 10 || spec.level === 15 ? "first" : spec.level >= 13 ? "category" : "recognition",
           },
         };
 
@@ -1672,7 +1723,7 @@ const wordRecallPlayableLevels = buildWordRecallLevels(wordRecallSets);
 const numberMemoryLevels = buildNumberMemoryLevels();
 const routineLevels = buildRoutineLevels(routineTemplates);
 const associationLevels = buildConnectionsLevels();
-const storyLevels = buildStoryLevels(storyTemplates);
+const storyLevels = buildStoryRecallLevels();
 const memoryMatchLevels = buildMemoryMatchLevels(visualMemoryJourneySets);
 
 export const MEMORY_GAME_ORDER: MemoryGameType[] = [

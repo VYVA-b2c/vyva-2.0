@@ -66,6 +66,41 @@ describe("Task 11 preventive outbound call provider", () => {
     expect(JSON.stringify(body)).not.toMatch(/symptom|medication|diagnosis|transcript/i);
   });
 
+  it("includes the honest reason summary as a dynamic variable only when the caller supplies one", async () => {
+    const resolved = resolvePreventiveOutboundCallProviderConfig(validPreventiveOutboundCallEnv());
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) throw new Error("invalid test config");
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      conversation_id: "conv.task11",
+      callSid: "CA11111111111111111111111111111111",
+    }), { status: 201 }));
+    const provider = createPreventiveOutboundCallProvider({
+      config: resolved.config,
+      fetcher: fetcher as typeof fetch,
+    });
+
+    await provider.start({
+      callAttemptId: "attempt.task11",
+      phoneE164: validPreventiveOutboundCallPhone,
+      confirmationToken: "a".repeat(43),
+      callbackUrl: "https://vyva.example.com/api/preventive-outbound-call/elevenlabs/confirm",
+    });
+    const withoutReason = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(withoutReason.conversation_initiation_client_data.dynamic_variables)
+      .not.toHaveProperty(PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.reasonSummaryVariable);
+
+    await provider.start({
+      callAttemptId: "attempt.task11.reason",
+      phoneE164: validPreventiveOutboundCallPhone,
+      confirmationToken: "b".repeat(43),
+      callbackUrl: "https://vyva.example.com/api/preventive-outbound-call/elevenlabs/confirm",
+      reasonSummary: "your Wellness Coach noticed it's been a while since your last check-in",
+    });
+    const withReason = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body));
+    expect(withReason.conversation_initiation_client_data.dynamic_variables[PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.reasonSummaryVariable])
+      .toBe("your Wellness Coach noticed it's been a while since your last check-in");
+  });
+
   it("fails uncertain when the provider omits mandatory correlation identifiers and ignores recording fields", async () => {
     const resolved = resolvePreventiveOutboundCallProviderConfig(validPreventiveOutboundCallEnv());
     expect(resolved.ok).toBe(true);

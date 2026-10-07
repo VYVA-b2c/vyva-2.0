@@ -431,6 +431,7 @@ const ProvidersSection = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const isHomeMasterProfilePreview = location.pathname.startsWith("/dev/home-master/profile/");
+  const isProfileOverviewPreview = location.pathname.startsWith("/dev/profile-overview/");
 
   const providerPrefill = providerPrefillFromState(location.state);
   const setupReturnTo = returnToFromState(location.state);
@@ -885,7 +886,7 @@ const ProvidersSection = () => {
       <div className="flex items-center gap-3 px-5 pt-12 pb-4">
         <button
           data-testid="button-providers-back"
-          onClick={() => navigate(isHomeMasterProfilePreview ? "/dev/home-master/profile" : "/onboarding/profile")}
+          onClick={() => navigate(isHomeMasterProfilePreview ? "/dev/home-master/profile" : isProfileOverviewPreview ? "/dev/profile-overview/group/providers" : "/onboarding/profile/group/providers")}
           className="home-master-profile-control w-10 h-10 rounded-full border flex items-center justify-center"
         >
           <ChevronLeft size={20} />
@@ -933,6 +934,7 @@ const ProvidersSection = () => {
           />
         ) : null}
         <ProfileSectionHero
+          hideTitle
           icon={Building2}
           title={t("onboarding.providers.title", "Trusted providers")}
           description={t(
@@ -1476,11 +1478,9 @@ const ProvidersSection = () => {
           saving={saving}
           onSave={handleSave}
           disabled={adding || !!removingId}
-          saveLabel={t("onboarding.providers.saveContinue", "Save and continue")}
+          saveLabel="Save changes"
           savingLabel={t("onboarding.providers.saving", "Saving...")}
           helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-          skipLabel={t("onboarding.providers.skip", "Skip for now")}
-          onSkip={() => navigate("/onboarding/profile")}
           testId="button-providers-save"
         />
         </OnboardingCompanionTarget>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Hand, Mic, type LucideIcon } from "lucide-react";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
@@ -99,16 +100,17 @@ export function CanonicalVoiceButton({
   contextHint,
   agentSlug,
   dynamicVariables,
-  label = "Talk to VYVA",
+  label,
   testId = "button-canonical-voice",
 }: CanonicalVoiceButtonProps) {
+  const { t } = useTranslation();
   const voice = useOptionalVyvaVoice();
   const active = voice?.status === "connected" || voice?.isConnecting;
 
   return (
     <button
       type="button"
-      aria-label={active ? "Return to touch mode" : label}
+      aria-label={active ? t("canonicalControls.touch", "Return to touch mode") : label ?? t("canonicalControls.talk", "Talk to VYVA")}
       data-testid={testId}
       onClick={() => {
         if (!voice) return;
@@ -141,6 +143,8 @@ type CanonicalDetailFlowShellProps = {
   shellTestId?: string;
   contentTestId?: string;
   backTestId?: string;
+  frameClassName?: string;
+  titleId?: string;
 };
 
 const shellSurface = {
@@ -165,7 +169,10 @@ export function CanonicalDetailFlowShell({
   shellTestId = "canonical-detail-flow-screen",
   contentTestId = "canonical-detail-flow-content",
   backTestId = "button-prototype-back",
+  frameClassName = "",
+  titleId,
 }: CanonicalDetailFlowShellProps) {
+  const { t } = useTranslation();
   const { isDark: prefersDark } = useHomeMasterTheme();
   const isDark = appearance === "adaptive" && prefersDark;
   const { size: readableTextSize } = useReadableTextSize();
@@ -183,7 +190,7 @@ export function CanonicalDetailFlowShell({
       className={`prototype-shell relative min-h-[calc(100svh-136px)] w-full overflow-x-clip ${isDark ? shellSurface.dark : shellSurface.light}`}
     >
       <div
-        className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4"
+        className={`vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4 ${frameClassName}`}
         data-testid={`${shellTestId}-frame`}
       >
         <div
@@ -192,23 +199,23 @@ export function CanonicalDetailFlowShell({
           <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3" data-testid="prototype-home-master-topbar">
             <button
               type="button"
-              aria-label="Back"
+              aria-label={t("canonicalControls.back", "Back")}
               data-testid={backTestId}
               onClick={onBack}
               className={`vyva-tap grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full transition-colors duration-150 ${isDark ? quietControl.dark : quietControl.light}`}
             >
               <ArrowLeft size={18} strokeWidth={2.35} aria-hidden="true" />
-              <span className="sr-only">Back</span>
+              <span className="sr-only">{t("canonicalControls.back", "Back")}</span>
             </button>
             <div className="min-w-0 text-center">
-              <h1 className="truncate font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+              <h1 id={titleId} className="truncate font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
                 {shellContract.headerTitle}
               </h1>
             </div>
             {onInteractionModeChange && !inlineVoiceControl ? (
               <button
                 type="button"
-                aria-label={interactionMode === "voice" ? "Switch to touch mode" : "Switch to voice mode"}
+                aria-label={interactionMode === "voice" ? t("canonicalControls.touchSwitch", "Switch to touch mode") : t("canonicalControls.voice", "Switch to voice mode")}
                 data-testid={interactionMode === "voice" ? "button-symptom-mode-touch" : "button-symptom-mode-voice"}
                 onClick={() => onInteractionModeChange(interactionMode === "voice" ? "touch" : "voice")}
                 className="vyva-tap grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full bg-vyva-purple text-white ring-2 ring-white/80 shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"

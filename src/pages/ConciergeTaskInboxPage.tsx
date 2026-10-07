@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DeleteConciergeRequest } from "@/components/DeleteConciergeRequest";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -13,17 +14,24 @@ import {
   Search,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { homeServiceText } from "../../shared/homeServiceText";
+import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  normalizeConciergeActionEnvelope,
+  normalizeConciergeActionItems,
+  type ConciergeActionListEnvelope,
+} from "@/lib/conciergeActionLists";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import {
   buildConciergeTaskInbox,
-  fetchConciergeTaskCompletedSessions,
-  fetchConciergeTaskPendingItems,
   findConciergeTaskInboxItem,
+  type ConciergeTaskCompletedSession,
   type ConciergeTaskInboxGroup,
   type ConciergeTaskInboxItem,
+  type ConciergeTaskPendingItem,
 } from "@/lib/conciergeTaskInbox";
-import { readLocalConciergeCanvasTaskItems } from "@/lib/conciergeLocalCanvasTasks";
 import {
   conciergeTaskInboxPath,
   parseConciergeTaskInboxKey,
@@ -37,6 +45,12 @@ import {
 } from "../../shared/conciergeProviderReplyResolution";
 
 const ACTIVE_GROUPS: ConciergeTaskInboxGroup[] = ["needs_you", "waiting"];
+
+async function fetchConciergeActionEnvelope<T>(path: string, label: string): Promise<ConciergeActionListEnvelope<T>> {
+  const response = await apiFetch(path);
+  if (!response.ok) throw new Error(`Concierge ${label} request failed: ${response.status}`);
+  return normalizeConciergeActionEnvelope<T>(await response.json());
+}
 
 function payloadText(payload: Record<string, unknown> | null, keys: string[]): string {
   if (!payload) return "";
@@ -134,42 +148,30 @@ function TaskRow({
   onOpen: () => void;
 }) {
   const date = formatDate(item.updatedAt, language);
+  const primaryText = item.summary || item.title;
   return (
+    <div className="flex items-center border-b border-vyva-border">
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`${item.title}. ${item.continuation.stateLabel}. ${item.summary}`}
-      className="vyva-tap flex min-h-[104px] w-full items-center gap-3 border-b border-vyva-border bg-white px-4 py-4 text-left last:border-b-0 hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
+      aria-label={`${primaryText}. ${item.continuation.stateLabel}`}
+      className="vyva-tap flex min-h-[82px] w-full items-center gap-3 bg-white px-4 py-3.5 text-left hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
       data-testid={`concierge-inbox-task-${item.key}`}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="min-w-0 break-words font-body text-[16px] font-black text-vyva-text-1">{item.title}</p>
-          <span
-            className="rounded-full bg-[#F4F0FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple"
-            data-testid={`concierge-inbox-task-state-${item.key}`}
-          >
-            {item.continuation.stateLabel}
-          </span>
-          <span className="font-body text-[11px] font-black text-vyva-text-3">{item.continuation.flowLabel}</span>
-        </div>
-        <p className="mt-1 line-clamp-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-          {item.summary}
-        </p>
-        <p
-          className="mt-2 break-words font-body text-[12px] font-black text-vyva-text-2"
-          data-testid={`concierge-inbox-task-scene-${item.key}`}
-        >
-          {item.continuation.sceneLabel}
+        <p className="line-clamp-2 break-words font-body text-[15px] font-black leading-snug text-vyva-text-1">
+          {primaryText}
         </p>
         {(item.providerName || date) ? (
-          <p className="mt-2 truncate font-body text-[12px] font-semibold text-vyva-text-3">
-            {[item.providerName, date].filter(Boolean).join(" | ")}
+          <p className="mt-1.5 truncate font-body text-[12px] font-semibold text-vyva-text-3">
+            {[item.providerName, date].filter(Boolean).join(" · ")}
           </p>
         ) : null}
       </div>
       <ChevronRight size={20} className="flex-shrink-0 text-vyva-text-3" aria-hidden="true" />
     </button>
+    <DeleteConciergeRequest taskKey={item.draftId ? `draft:${item.draftId}` : item.pendingId ? `pending:${item.pendingId}` : item.key} title={item.title} language={language} />
+    </div>
   );
 }
 
@@ -177,12 +179,14 @@ function InboxList({
   inbox,
   language,
   isSpanish,
+  isDark,
   onBack,
   onOpen,
 }: {
   inbox: ReturnType<typeof buildConciergeTaskInbox>;
   language: string;
   isSpanish: boolean;
+  isDark: boolean;
   onBack: () => void;
   onOpen: (item: ConciergeTaskInboxItem) => void;
 }) {
@@ -195,9 +199,11 @@ function InboxList({
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedSearch)))
     : inbox.completed;
-  const groups = view === "active" ? ACTIVE_GROUPS : ["completed" as const];
+  const groups = view === "active"
+    ? ACTIVE_GROUPS.filter((group) => inbox[group].length > 0)
+    : ["completed" as const];
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-inbox">
+    <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox">
       <header className="border-b border-vyva-border pb-4">
         <button
           type="button"
@@ -205,7 +211,7 @@ function InboxList({
           className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-1 font-body text-[14px] font-black text-vyva-text-2"
         >
           <ArrowLeft size={19} aria-hidden="true" />
-          {isSpanish ? "Concierge" : "Concierge"}
+          {isSpanish ? "Obtener ayuda" : "Get Help"}
         </button>
         <div className="mt-2 flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#ECFDF5] text-[#047857]">
@@ -213,7 +219,7 @@ function InboxList({
           </span>
           <div>
             <h1 className="font-body text-[26px] font-black leading-tight text-vyva-text-1">
-              {isSpanish ? "Mis tareas" : "My tasks"}
+              {isSpanish ? "Solicitudes de ayuda" : "Get Help requests"}
             </h1>
             <p className="font-body text-[13px] font-semibold text-vyva-text-2">
               {activeCount > 0
@@ -224,7 +230,7 @@ function InboxList({
         </div>
       </header>
 
-      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de tareas" : "Task views"}>
+      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de solicitudes" : "Request views"}>
         {(["active", "completed"] as const).map((option) => {
           const selected = view === option;
           const label = option === "active"
@@ -263,6 +269,11 @@ function InboxList({
       ) : null}
 
       <div className="mt-5 space-y-6">
+        {view === "active" && groups.length === 0 ? (
+          <p className="border-y border-vyva-border px-4 py-4 font-body text-[13px] font-semibold text-vyva-text-3">
+            {isSpanish ? "Todo al dia." : "All caught up."}
+          </p>
+        ) : null}
         {groups.map((group) => {
           const copy = groupCopy(group, isSpanish);
           const Icon = copy.icon;
@@ -563,16 +574,20 @@ function TaskDetail({
   item,
   language,
   isSpanish,
+  isDark,
   onBack,
   onPrimaryAction,
 }: {
   item: ConciergeTaskInboxItem;
   language: string;
   isSpanish: boolean;
+  isDark: boolean;
   onBack: () => void;
   onPrimaryAction: () => void;
 }) {
   const date = formatDate(item.updatedAt, language);
+  const copy = (text: string) => homeServiceText(language, text);
+  const reminder = conciergeTaskReminder(item, language);
   const providerReplyResolution = parseConciergeProviderReplyResolution(
     item.actionPayload?.provider_reply_resolution,
   );
@@ -589,55 +604,35 @@ function TaskDetail({
   ));
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-detail">
+    <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-detail">
       <button
         type="button"
         onClick={onBack}
         className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-1 font-body text-[14px] font-black text-vyva-text-2"
       >
         <ArrowLeft size={19} aria-hidden="true" />
-        {isSpanish ? "Todas las tareas" : "All tasks"}
+        {copy("All tasks")}
       </button>
 
       <header className="mt-2 border-b border-vyva-border pb-5">
-        <p className="font-body text-[12px] font-black uppercase text-vyva-purple">{item.statusLabel}</p>
-        <h1 className="mt-2 font-body text-[28px] font-black leading-tight text-vyva-text-1">{item.title}</h1>
-        <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{item.summary}</p>
+        <div className="float-right"><DeleteConciergeRequest taskKey={item.draftId ? `draft:${item.draftId}` : item.pendingId ? `pending:${item.pendingId}` : item.key} title={item.title} language={language} onDeleted={onBack} /></div>
+        <p className="font-body text-[12px] font-black uppercase text-vyva-purple">{copy(item.source === "draft" ? "Saved request" : item.statusLabel)}</p>
+        <h1 className="mt-2 font-body text-[28px] font-black leading-tight text-vyva-text-1">{copy(item.title)}</h1>
+        {item.source !== "draft" && <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{copy(item.summary)}</p>}
       </header>
 
       <section
         className="border-b border-vyva-border py-5"
         data-testid="concierge-task-continuation"
-        aria-label={isSpanish ? "Progreso del Canvas" : "Canvas progress"}
+        aria-label={copy("Your request")}
       >
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-body text-[16px] font-black text-vyva-text-1">
-            {isSpanish ? "Continuar Canvas" : "Continue Canvas"}
+            {item.source === "draft" ? copy("Continue where you left off") : copy(item.continuation.actionLabel)}
           </h2>
-          <span className="rounded-full bg-[#F4F0FF] px-2 py-1 font-body text-[11px] font-black text-vyva-purple">
-            {item.continuation.stateLabel}
-          </span>
         </div>
-        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="min-w-0">
-            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Tipo" : "Task type"}
-            </dt>
-            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
-              {item.continuation.flowLabel}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Estado" : "Status"}
-            </dt>
-            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
-              {item.continuation.stateLabel}
-            </dd>
-          </div>
-        </dl>
         <p className="mt-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-          {item.continuation.helperText}
+          {copy(item.continuation.helperText)}
         </p>
       </section>
 
@@ -722,26 +717,22 @@ function TaskDetail({
           <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-[#2F66D0]" data-testid="concierge-task-waiting-message">
             {isSpanish ? "Te avisaremos cuando llegue una respuesta." : "We will let you know when a reply arrives."}
           </p>
-        ) : (
+        ) : !item.continuation.stale || item.completedTemplate || item.draftId || item.actionPayload?.local_canvas_resume === true ? (
           <button
             type="button"
             onClick={onPrimaryAction}
             className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
             data-testid="button-concierge-task-primary-action"
           >
-            {item.primaryActionLabel}
+            {item.source === "draft" && !item.continuation.stale ? reminder.action : copy(item.primaryActionLabel)}
             <ChevronRight size={19} aria-hidden="true" />
           </button>
+        ) : (
+          <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-vyva-text-2" data-testid="concierge-task-status-message">
+            {isSpanish ? "Esta solicitud permanece aqui hasta que haya una nueva respuesta o accion disponible." : "This request stays here until a new reply or action is available."}
+          </p>
         )
       ) : null}
-      <button
-        type="button"
-        onClick={onBack}
-        className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-lg border border-vyva-border bg-white px-5 font-body text-[15px] font-black text-vyva-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vyva-purple focus-visible:ring-offset-2"
-        data-testid="button-concierge-task-exit"
-      >
-        {isSpanish ? "Volver a tareas" : "Back to tasks"}
-      </button>
     </div>
   );
 }
@@ -750,6 +741,7 @@ export default function ConciergeTaskInboxPage() {
   const navigate = useNavigate();
   const { taskKey } = useParams<{ taskKey: string }>();
   const { language } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const isSpanish = language.split("-")[0].toLowerCase() === "es";
   const draftsQuery = useQuery({
     queryKey: ["/api/concierge/tasks"],
@@ -758,12 +750,14 @@ export default function ConciergeTaskInboxPage() {
   });
   const pendingQuery = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
-    queryFn: fetchConciergeTaskPendingItems,
+    queryFn: () => fetchConciergeActionEnvelope<ConciergeTaskPendingItem>("/api/concierge/actions/pending", "pending tasks"),
+    select: normalizeConciergeActionItems<ConciergeTaskPendingItem>,
     refetchInterval: 8_000,
   });
   const completedQuery = useQuery({
     queryKey: ["/api/concierge/actions/sessions"],
-    queryFn: fetchConciergeTaskCompletedSessions,
+    queryFn: () => fetchConciergeActionEnvelope<ConciergeTaskCompletedSession>("/api/concierge/actions/sessions", "completed tasks"),
+    select: normalizeConciergeActionItems<ConciergeTaskCompletedSession>,
     staleTime: 30_000,
   });
   const inbox = useMemo(() => buildConciergeTaskInbox({
@@ -772,18 +766,9 @@ export default function ConciergeTaskInboxPage() {
     completed: completedQuery.data ?? [],
     isSpanish,
   }), [completedQuery.data, draftsQuery.data, isSpanish, pendingQuery.data]);
-  const localCanvasItems = useMemo(() => readLocalConciergeCanvasTaskItems(isSpanish), [isSpanish]);
-  const combinedInbox = useMemo(() => {
-    if (localCanvasItems.length === 0) return inbox;
-    return {
-      needs_you: [...localCanvasItems.filter((item) => item.group === "needs_you"), ...inbox.needs_you],
-      waiting: [...localCanvasItems.filter((item) => item.group === "waiting"), ...inbox.waiting],
-      completed: [...localCanvasItems.filter((item) => item.group === "completed"), ...inbox.completed],
-    };
-  }, [inbox, localCanvasItems]);
   const parsedKey = useMemo(() => parseConciergeTaskInboxKey(taskKey), [taskKey]);
   const selectedItem = parsedKey
-    ? findConciergeTaskInboxItem(combinedInbox, parsedKey.source, parsedKey.id)
+    ? findConciergeTaskInboxItem(inbox, parsedKey.source, parsedKey.id)
     : null;
   const isLoading = draftsQuery.isLoading || pendingQuery.isLoading || completedQuery.isLoading;
   const hasError = draftsQuery.isError || pendingQuery.isError || completedQuery.isError;
@@ -794,7 +779,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-5 pt-10" data-testid="concierge-task-inbox-loading">
+      <div className="concierge-task-page mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-5 pt-10" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox-loading">
         <div className="h-8 w-48 animate-pulse rounded-lg bg-vyva-border" />
         <div className="mt-8 space-y-3">
           {[1, 2, 3].map((value) => <div key={value} className="h-24 animate-pulse rounded-lg bg-white" />)}
@@ -805,7 +790,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (hasError) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-testid="concierge-task-inbox-error">
+      <div className="concierge-task-page mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-inbox-error">
         <CircleAlert size={30} className="text-[#B45309]" aria-hidden="true" />
         <h1 className="mt-3 font-body text-[21px] font-black text-vyva-text-1">
           {isSpanish ? "No se pudieron cargar tus tareas" : "Your tasks could not load"}
@@ -824,7 +809,7 @@ export default function ConciergeTaskInboxPage() {
 
   if (taskKey && !selectedItem) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-testid="concierge-task-not-found">
+      <div className="concierge-task-page mx-auto flex min-h-[70vh] w-full max-w-[520px] flex-col items-center justify-center px-5 text-center" data-home-master-theme={isDark ? "dark" : "light"} data-testid="concierge-task-not-found">
         <Inbox size={30} className="text-vyva-text-3" aria-hidden="true" />
         <h1 className="mt-3 font-body text-[21px] font-black text-vyva-text-1">
           {isSpanish ? "Esta tarea ya no esta disponible" : "This task is no longer available"}
@@ -846,6 +831,7 @@ export default function ConciergeTaskInboxPage() {
         item={selectedItem}
         language={language}
         isSpanish={isSpanish}
+        isDark={isDark}
         onBack={() => navigate(conciergeTaskInboxPath())}
         onPrimaryAction={() => {
           if (selectedItem.completedTemplate) {
@@ -873,11 +859,18 @@ export default function ConciergeTaskInboxPage() {
 
   return (
     <InboxList
-      inbox={combinedInbox}
+      inbox={inbox}
       language={language}
       isSpanish={isSpanish}
-      onBack={() => navigate("/concierge")}
-      onOpen={(item) => navigate(item.detailPath)}
+      isDark={isDark}
+      onBack={() => navigate("/concierge/get-help")}
+      onOpen={(item) => {
+        if (item.source === "draft") {
+          navigate(item.resumePath);
+          return;
+        }
+        navigate(item.detailPath);
+      }}
     />
   );
 }

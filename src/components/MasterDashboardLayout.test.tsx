@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import { Brain, Heart, Mic, ShieldCheck, Users } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MasterDashboardLayout, { type MasterFastHelpAction } from "./MasterDashboardLayout";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 vi.mock("@/components/VyvaSessionCta", () => ({
   default: ({ testId }: { testId?: string }) => (
@@ -48,6 +49,14 @@ describe("MasterDashboardLayout Fast help rotation", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("inherits the persisted theme when a caller does not override it", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderLayout([]);
+
+    expect(screen.getByTestId("fast-help").closest("[data-home-master-theme]"))
+      .toHaveAttribute("data-home-master-theme", "dark");
   });
 
   it("shows three actions and keeps urgent pinned while rotating", () => {
@@ -249,9 +258,9 @@ describe("MasterDashboardLayout Home card presentation", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Ready" }).closest("section")).toHaveAttribute("data-hero-layout", "canonical-menu");
+    expect(screen.getByRole("heading", { name: "Today" }).closest("header")).toBeInTheDocument();
     expect(screen.getByTestId("cards").querySelector('[data-card-layout="canonical-action-grid"]')).toBeInTheDocument();
-    expect(screen.getByTestId("card-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("card-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
     expect(screen.getByTestId("card-memory-detail")).toHaveTextContent("Matching and recall");
     expect(screen.getByTestId("card-memory")).toHaveAccessibleName("Strengthen Memory. Practice recall, matching, and daily routines.");
     expect(screen.getByTestId("card-memory").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();

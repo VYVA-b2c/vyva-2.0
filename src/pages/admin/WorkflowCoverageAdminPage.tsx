@@ -873,8 +873,8 @@ export default function WorkflowCoverageAdminPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-4 py-6 text-[#2f2135] sm:px-6 lg:px-8">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#f7f2eb] px-4 py-6 text-[#2f2135] sm:px-6 lg:px-8">
+      <section className="mx-auto min-w-0 max-w-7xl">
         <AdminPageHeader
           title="Workflow coverage"
           subtitle="Track every user-facing action, the workflow it belongs to, and what remains before it feels complete."

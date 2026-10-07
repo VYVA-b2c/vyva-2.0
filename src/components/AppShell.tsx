@@ -364,13 +364,22 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     isVitalsRoute ||
     isSymptomCheckRoute ||
     isDevSymptomAssessmentRoute;
-  const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const isConciergeExperienceRoute =
+    location.pathname === "/concierge" ||
+    location.pathname.startsWith("/concierge/") ||
+    location.pathname === "/dev/concierge-canonical-preview" ||
+    location.pathname.startsWith("/dev/concierge-canonical-preview/") ||
+    location.pathname.startsWith("/dev/provider-task-preview/");
+  const isFocusedConciergeTaskRoute =
+    /^\/concierge\/task\/[^/]+$/.test(location.pathname) ||
+    /^\/dev\/provider-task-preview\/[^/]+$/.test(location.pathname);
   const isBenefitsRoute = location.pathname === "/benefits" || location.pathname === "/dev/benefits";
   const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute || location.pathname === "/health";
   const ownsPrototypeTopbar = isBrainCoachRoute || isHomeNavPrototypeTopbarRoute(location.pathname);
   const ownsBrainCoachTopbar = ownsPrototypeTopbar && isBrainCoachRoute;
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
+  const usesDevBrainPrototypeSurface = location.pathname.startsWith("/dev/brain");
   const usesDevHomeMasterCompactShell =
     usesHomeMasterShell ||
     location.pathname === "/dev/home-master/profile";
@@ -380,21 +389,33 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname === "/dev/home-master/community" ||
     location.pathname === "/dev/home-master/concierge" ||
     location.pathname === "/dev/home-master/reports";
-  const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
-  const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
+  const usesDevHomeMasterPrototypeSurface =
+    location.pathname.startsWith("/dev/home-master") ||
+    usesDevBrainPrototypeSurface;
+  const usesCompactVoiceSurface =
+    usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute || isBenefitsRoute || usesDevBrainPrototypeSurface;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
-  const usesDarkCompactSurface = usesCompactVoiceSurface && isHomeMasterDark && !isBenefitsRoute;
+  const usesDarkCompactSurface = usesCompactVoiceSurface && isHomeMasterDark;
   const { size: readableTextSize } = useReadableTextSize();
   const homeMasterPrototypeSurfaceClass = isHomeMasterDark
     ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
-  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
+  const usesHomePickerSurface = /\/(?:concierge|concierge-canonical-preview)\/(?:get-help|order-in|book-appointments|discover)$/.test(location.pathname);
+  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface || usesHomePickerSurface
     ? homeMasterPrototypeSurfaceClass
+    : isConciergeExperienceRoute
+      ? isHomeMasterDark
+        ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)]"
+        : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"
     : usesDarkCompactSurface
       ? "bg-[#080715]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
-  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
+  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface || usesHomePickerSurface
     ? homeMasterPrototypeSurfaceClass
+    : isConciergeExperienceRoute
+      ? isHomeMasterDark
+        ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)]"
+        : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"
     : usesDarkCompactSurface
       ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
@@ -788,14 +809,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-vyva-text-size={readableTextSize}
         className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
-        {!isFullScreen && !ownsPrototypeTopbar && (
+        {!isFullScreen && !ownsPrototypeTopbar && !isConciergeExperienceRoute && (
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
             variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : isFocusedConciergeTaskRoute ? "pt-0 pb-0" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : isConciergeExperienceRoute ? "pt-0 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -807,7 +828,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && (
+        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && !isFocusedConciergeTaskRoute && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
             <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);

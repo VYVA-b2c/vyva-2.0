@@ -15,12 +15,6 @@ import {
   validatePrivateCheckinAnswers,
   WHATSAPP_CHECKIN_LANGUAGES,
 } from "../lib/whatsappPrivateCheckin.js";
-import {
-  HIP_24H_QUESTIONS_EN,
-  hip24hTemplateSid,
-  initialHip24hConversationState,
-  isHip24hDirectPilot,
-} from "../lib/whatsapp24hConversation.js";
 
 const questionSchema = z.object({
   id: z.string().trim().min(1).max(100),
@@ -94,7 +88,6 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
   }
 
   const input = parsed.data;
-  const directPilot = isHip24hDirectPilot(input.stepId, input.language);
   const requestKey = req.header("idempotency-key")?.trim();
   if (!requestKey || requestKey.length > 200) {
     return res.status(400).json({ error: "A valid idempotency key is required" });
@@ -120,15 +113,6 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
   const token = createPrivateCheckinToken();
   const tokenHash = hashPrivateCheckinToken(token);
   const expiresAt = new Date(Date.now() + input.expiresInHours * 60 * 60 * 1_000);
-  let initialResponse: ReturnType<typeof encryptPrivateCheckinResponse> | undefined;
-  if (directPilot) {
-    try {
-      initialResponse = encryptPrivateCheckinResponse(initialHip24hConversationState());
-    } catch (error) {
-      console.error("[whatsapp-24h] conversation encryption unavailable", error);
-      return res.status(503).json({ error: "Secure response storage is not configured" });
-    }
-  }
 
   const created = await db.transaction(async (tx) => {
     const [checkin] = await tx.insert(whatsappPrivateCheckins).values({
@@ -140,8 +124,7 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
       workflow_name: input.workflowName,
       step_id: input.stepId,
       step_name: input.stepName,
-      questions: directPilot ? HIP_24H_QUESTIONS_EN : input.questions,
-      response_payload: initialResponse,
+      questions: input.questions,
       status: "queued",
       whatsapp_opt_in_confirmed_at: input.whatsappOptInConfirmedAt,
       whatsapp_opt_in_source: input.whatsappOptInSource,
@@ -152,22 +135,10 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
     const [communication] = await tx.insert(communicationsLog).values({
       channel: "whatsapp",
       recipient: input.recipient,
-      purpose: directPilot ? "hip_24h_whatsapp_checkin" : "private_health_checkin_notice",
+      purpose: "private_health_checkin_notice",
       status: "queued",
-      body: directPilot
-        ? "VYVA: We’re completing your 24-hour follow-up. Do you have your hospital discharge plan and medicines list? This is not an emergency service. Reply STOP to stop WhatsApp messages."
-        : "VYVA private check-in notice. Open the secure link; do not send medical information in WhatsApp.",
-      metadata: directPilot ? {
-        content_sid: hip24hTemplateSid(1),
-        private_checkin_id: checkin.id,
-        workflow_id: input.workflowId,
-        step_id: input.stepId,
-        language: input.language,
-        conversation_mode: "whatsapp_24h_direct",
-        health_data_in_message: false,
-        whatsapp_opt_in_confirmed_at: input.whatsappOptInConfirmedAt.toISOString(),
-        whatsapp_opt_in_source: input.whatsappOptInSource,
-      } : {
+      body: "VYVA private check-in notice. Open the secure link; do not send medical information in WhatsApp.",
+      metadata: {
         content_sid: privateCheckinTemplateSid(input.language),
         content_variables: { "1": token },
         private_checkin_id: checkin.id,
@@ -200,7 +171,7 @@ careOperationsWhatsappRouter.post("/", async (req, res) => {
     status,
     communicationId: created.communication.id,
     providerMessageId: result?.provider_message_id ?? null,
-    ...(directPilot ? { mode: "whatsapp_conversation" } : { secureUrl: privateCheckinUrl(token) }),
+    secureUrl: privateCheckinUrl(token),
     expiresAt: expiresAt.toISOString(),
     ...(result?.error ? { error: result.error } : {}),
   });

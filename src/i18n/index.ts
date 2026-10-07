@@ -16,6 +16,9 @@ import customDe from "./de";
 import customIt from "./it";
 import customPt from "./pt";
 import { healthDeviceTranslations } from "./healthDevices";
+import { medicationUiDictionary } from "./medicationUi";
+import { serviceGateTranslations } from "./serviceGate";
+import { sharedControls } from "./sharedControls";
 
 type TranslationValue = string | number | boolean | null | undefined | TranslationTree;
 type TranslationTree = { [key: string]: TranslationValue };
@@ -86,6 +89,14 @@ const dictionaries: DictionaryMap = {
 };
 
 const supportedCodes = LANGUAGES.map((language) => language.code);
+for (const language of supportedCodes) {
+  dictionaries[language] = deepMerge(dictionaries[language], medicationUiDictionary(language));
+  dictionaries[language] = deepMerge(dictionaries[language], { serviceGate: serviceGateTranslations[language] });
+  dictionaries[language] = deepMerge(dictionaries[language], {
+    canonicalControls: sharedControls[language],
+    meds: { refillAlert: sharedControls[language], master: { heroAction: sharedControls[language].talk } },
+  });
+}
 const listeners = new Set<() => void>();
 
 function isLanguageCode(value: string | null | undefined): value is LanguageCode {

@@ -1,0 +1,192 @@
+/* Care Finder tokens. Scoped so contrast is controlled here rather than
+   inherited from screens that were not designed for reduced vision.
+   All text pairs meet WCAG 2.2 AA (most exceed AAA). */
+.care-finder[data-care-finder-theme="light"] {
+  --cf-bg: #fbf7f2;
+  --cf-surface: #ffffff;
+  --cf-surface-2: #f4edf8;
+  --cf-text: #1f1726;
+  --cf-text-2: #463b51;
+  --cf-border: #8e7f9b;
+  --cf-border-soft: #ddd2e6;
+  --cf-accent: #5b1f9e;
+  --cf-on-accent: #ffffff;
+  --cf-accent-soft: #efe4fa;
+  --cf-selected: #5b1f9e;
+  --cf-focus: #1d4ed8;
+  --cf-urgent: #b42318;
+  --cf-on-urgent: #ffffff;
+  --cf-urgent-soft: #fef3f2;
+  --cf-ok: #067647;
+  --cf-ok-soft: #ecfdf3;
+  --cf-info: #175cd3;
+  --cf-info-soft: #eff8ff;
+  --cf-warn: #93370d;
+  --cf-warn-soft: #fffaeb;
+}
+
+.care-finder[data-care-finder-theme="dark"] {
+  --cf-bg: #120b17;
+  --cf-surface: #1e1426;
+  --cf-surface-2: #2a1d35;
+  --cf-text: #f7f1fb;
+  --cf-text-2: #d6cbe0;
+  --cf-border: #9a88aa;
+  --cf-border-soft: #4a3b57;
+  --cf-accent: #dcc2ff;
+  --cf-on-accent: #1f1029;
+  --cf-accent-soft: #3a2850;
+  --cf-selected: #dcc2ff;
+  --cf-focus: #93c5fd;
+  --cf-urgent: #ffb4a9;
+  --cf-on-urgent: #3b0a05;
+  --cf-urgent-soft: #3d1512;
+  --cf-ok: #75e0a7;
+  --cf-ok-soft: #0f2e20;
+  --cf-info: #9ecbff;
+  --cf-info-soft: #13253f;
+  --cf-warn: #fec84b;
+  --cf-warn-soft: #33240b;
+}
+
+.care-finder {
+  background: var(--cf-bg);
+  color: var(--cf-text);
+  font-size: 19px;
+  line-height: 1.55;
+}
+
+.care-finder :is(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--cf-focus);
+  outline-offset: 3px;
+}
+
+.care-finder [data-step-heading]:focus {
+  outline: none;
+}
+
+.care-finder [data-step-heading]:focus-visible {
+  outline: 3px solid var(--cf-focus);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.care-finder .cf-choice[aria-pressed="true"],
+.care-finder .cf-choice[aria-checked="true"] {
+  border-color: var(--cf-selected);
+  box-shadow: inset 0 0 0 2px var(--cf-selected);
+  background: var(--cf-accent-soft);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .care-finder .cf-step-enter {
+    animation: cf-step-in 180ms ease-out;
+  }
+}
+
+@keyframes cf-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Layout follows the space Care Finder is given, not the browser window:
+   inside the app shell it often sits in a phone-width column on a desktop
+   screen, where viewport breakpoints would squeeze it into two columns. */
+.care-finder {
+  container-type: inline-size;
+  container-name: care-finder;
+}
+
+.care-finder .cf-page {
+  padding: 16px 16px 0;
+}
+
+.care-finder .cf-title {
+  font-size: 22px;
+}
+
+.care-finder .cf-h2 {
+  font-size: 28px;
+}
+
+.care-finder .cf-tools {
+  width: 100%;
+}
+
+.care-finder .cf-btn {
+  width: 100%;
+}
+
+.care-finder .cf-layout {
+  display: grid;
+  gap: 24px;
+}
+
+.care-finder .cf-summary-list[data-expanded="false"] {
+  display: none;
+}
+
+@container care-finder (min-width: 560px) {
+  .care-finder .cf-page {
+    padding: 24px 24px 0;
+  }
+
+  .care-finder .cf-title {
+    font-size: 26px;
+  }
+
+  .care-finder .cf-h2 {
+    font-size: 32px;
+  }
+
+  .care-finder .cf-tools {
+    width: auto;
+  }
+
+  .care-finder .cf-btn {
+    width: auto;
+  }
+
+  .care-finder .cf-btn.cf-btn-block {
+    width: 100%;
+  }
+
+  .care-finder .cf-row {
+    flex-direction: row;
+  }
+
+  .care-finder .cf-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .care-finder .cf-fact-row {
+    grid-template-columns: minmax(0, 11rem) 1fr;
+  }
+}
+
+/* Two columns only when there is genuinely room for both. */
+@container care-finder (min-width: 960px) {
+  .care-finder .cf-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+
+  .care-finder .cf-aside {
+    position: sticky;
+    top: 16px;
+  }
+
+  .care-finder .cf-summary-toggle {
+    display: none;
+  }
+
+  .care-finder .cf-summary-list[data-expanded="false"] {
+    display: block;
+  }
+}

@@ -7,6 +7,117 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+for (const theme of ["light", "dark"]) {
+  for (const width of [390, 1280]) {
+    test(`home service picker matches canonical layout ${theme} ${width}px`, async ({ page }, testInfo) => {
+      test.setTimeout(60_000);
+      await page.setViewportSize({ width, height: 900 });
+      await mockApi(page, true);
+      await page.addInitScript(value => localStorage.setItem("vyva:home-master-theme:v1", value), theme);
+      const draft = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", user_id: "user-smoke", kind: "home_service",
+        entry_payload: { kind: "home_service" }, progress_payload: {}, stage: "details", status: "active",
+        linked_pending_id: null, language: "en", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      await page.route(`**/api/concierge/tasks/${draft.id}`, route => fulfillJson(route, 200, { task: draft }));
+      await page.goto(`/concierge/task/${draft.id}`);
+      const panel = page.getByTestId("panel-appointment-assistant");
+      await expect(panel).toHaveAttribute("data-header-contract", "detail.voice-touch");
+      await expect(panel.getByRole("heading", { name: "Choose a service" })).toBeVisible();
+      await expect(panel.getByTestId("panel-home-service-service-picker").getByRole("button")).toHaveCount(6);
+      await expect(panel.getByTestId("button-canonical-voice")).toBeVisible();
+      await expect(page.locator("#vyva-launch")).toBeHidden();
+      await expectNoHorizontalOverflow(page);
+      await page.screenshot({ path: testInfo.outputPath("canonical-service-picker.png"), fullPage: true, animations: "disabled" });
+      await panel.getByRole("button", { name: "Plumber", exact: true }).click();
+      await expect(panel.getByRole("heading", { name: "Plumber", exact: true })).toBeVisible();
+    });
+  }
+}
+for (const width of [390, 1280]) {
+  test(`delete request confirms and persists at ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height: 844 });
+    await mockApi(page, true);
+    let deleted = false;
+    let busy = true;
+    const draft = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", user_id: "user-smoke", kind: "home_service",
+      entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
+      stage: "details", status: "active", linked_pending_id: "delete-pending", language: "en",
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: deleted ? [] : [draft] }));
+    await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: deleted ? [] : [{ id: "delete-pending", use_case: "home_service", status: "pending", action_payload: {} }] }));
+    await page.route(`**/api/concierge/tasks/${draft.id}`, async route => {
+      expect(route.request().method()).toBe("DELETE");
+      if (busy) return fulfillJson(route, 409, { error: "Busy" });
+      deleted = true;
+      await fulfillJson(route, 200, { task: { ...draft, status: "deleted" } });
+    });
+    await page.goto("/concierge/get-help");
+    await page.getByRole("button", { name: "Delete request: Plumber" }).click();
+    await page.getByRole("button", { name: "Keep request", exact: true }).click();
+    expect(deleted).toBe(false);
+    await page.getByRole("button", { name: "Delete request: Plumber" }).click();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath("delete-confirmation.png"), fullPage: true, animations: "disabled" });
+    await page.getByRole("button", { name: "Delete request", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("being processed");
+    busy = false;
+    await page.getByRole("button", { name: "Delete request", exact: true }).click();
+    await expect(page.getByTestId("request-updates")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+    await expect(page.getByTestId("request-updates")).toHaveCount(0);
+    expect(deleted).toBe(true);
+  });
+}
+test("request updates group and dismiss together without returning on reload", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, true);
+  const dismissals: Record<string, string> = {};
+  const drafts = ["plumber", "electrician"].map((serviceType, index) => ({
+    id: `saved-${index}`, user_id: "user-smoke", kind: "home_service",
+    entry_payload: { kind: "home_service" }, progress_payload: { serviceType },
+    stage: "details", status: "active", linked_pending_id: `pending-${index}`, language: "en",
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  }));
+  await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: drafts }));
+  await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: drafts.map(draft => ({ id: draft.linked_pending_id, use_case: "home_service", status: "pending", action_payload: {} })) }));
+  await page.route("**/api/concierge/notifications/reminders/**", async route => {
+    if (route.request().method() === "POST") {
+      const input = route.request().postDataJSON();
+      dismissals[input.taskKey] = input.revision;
+    }
+    await fulfillJson(route, 200, dismissals);
+  });
+  await page.goto("/concierge/get-help");
+  await page.getByRole("button", { name: "2 requests to review" }).click();
+  await expect(page.getByRole("button", { name: "Plumber: Review request" })).toBeVisible();
+  await expect(page.locator("#vyva-launch")).toBeHidden();
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("request-updates.png"), fullPage: true });
+  await page.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
+  await expect(page.getByTestId("request-updates")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+  await expect(page.getByTestId("request-updates")).toHaveCount(0);
+  expect(Object.keys(dismissals).sort()).toEqual(["draft:saved-0", "draft:saved-1", "pending:pending-0", "pending:pending-1"]);
+});
+test("wellness compact intro shows routines beside an icon-only voice control", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 780, height: 980 });
+  await mockApi(page, true);
+  await page.route("**/api/advisors/amara/session?*", route => fulfillJson(route, 200, {
+    language: "en", introRequired: true, session: null, messages: [],
+    advisor: { slug: "amara", name: "Wellness", role: "Coach", shortRole: "Movement and calm",
+      intro: "Movement, breathing, energy, and balance.", starter: "Pick a gentle wellness routine.",
+      disclaimerText: "Stop if you feel pain, dizzy, or short of breath.", sortOrder: 5,
+      iconKey: "coach", chipBg: "#E8F7EF", iconColor: "#0A7C4E", recencyLabel: "Never talked", sessionCount: 0, lastMessageAt: null },
+  }));
+  await page.goto("/social-rooms/experts/amara");
+  await expect(page.getByTestId("movement-coach-routines")).toBeVisible();
+  await expect(page.locator("#vyva-launch")).toBeHidden();
+  await expect(page.getByTestId("button-advisor-start-voice")).toHaveText("");
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("wellness-compact.png"), fullPage: true });
+});
 type OpenedWindowRecord = { url: string; target?: string; features?: string };
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
@@ -20,9 +131,11 @@ async function fulfillJson(route: Route, status: number, body: unknown) {
 async function openConciergeTask(page: Page, taskId: string) {
   test.info().setTimeout(Math.max(test.info().timeout, 60_000));
   await page.goto("/concierge", { waitUntil: "domcontentloaded" });
-  const continueButton = page.getByTestId("button-concierge-continue-task");
-  await expect(continueButton).toBeVisible({ timeout: 20_000 });
-  await continueButton.click();
+  const taskNudge = page.getByTestId(/^button-concierge-task-nudge-/);
+  await expect(taskNudge).toBeVisible({ timeout: 20_000 });
+  await expect(taskNudge).toContainText(/Review|Add information/);
+  await expect(page.locator('[data-highlighted="true"]')).toHaveCount(0);
+  await taskNudge.click();
   await expect(page).toHaveURL(new RegExp(`/concierge/tasks/pending%3A${taskId}$`));
   await expect(page.getByTestId("concierge-task-detail")).toBeVisible({ timeout: 20_000 });
   const primaryAction = page.getByTestId("button-concierge-task-primary-action");
@@ -150,6 +263,16 @@ async function mockApi(
     }
 
     if (signedIn && url.pathname === "/api/concierge/tasks") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+
+    if (signedIn && url.pathname === "/api/concierge/notifications/reminders/dismissed") {
+      await fulfillJson(route, 200, {});
+      return;
+    }
+
+    if (signedIn && ["/api/concierge/actions/pending", "/api/concierge/actions/sessions"].includes(url.pathname)) {
       await fulfillJson(route, 200, { items: [] });
       return;
     }
@@ -374,6 +497,51 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
   await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+for (const width of [390, 1280]) {
+  test(`concierge reminder dismissal persists and keeps service navigation separate at ${width}px`, async ({ page }, testInfo) => {
+    await mockApi(page, true);
+    await page.setViewportSize({ width, height: 900 });
+    const dismissals: Record<string, string> = {};
+    const draft = {
+      id: "saved-plumber", user_id: "user-1", kind: "home_service",
+      entry_payload: { kind: "home_service" }, progress_payload: { serviceType: "plumber" },
+      stage: "details", status: "active", linked_pending_id: "pending-plumber", language: "en",
+      created_at: "2026-10-02T10:00:00Z", updated_at: "2026-10-02T10:00:00Z",
+    };
+    await page.route("**/api/concierge/tasks", route => fulfillJson(route, 200, { items: [draft] }));
+    await page.route("**/api/concierge/actions/pending", route => fulfillJson(route, 200, { items: [{ id: "pending-plumber", use_case: "home_service", status: "pending", action_payload: {}, action_summary: "Review the plumbing request.", provider_name: "Saved plumber", requested_tool: "email", active_tool: "email", language: "en" }] }));
+    await page.route("**/api/concierge/notifications/reminders/**", async route => {
+      if (route.request().method() === "POST") {
+        const input = route.request().postDataJSON();
+        dismissals[input.taskKey] = input.revision;
+      }
+      await fulfillJson(route, 200, dismissals);
+    });
+    await page.goto("/concierge");
+    const reminder = page.getByTestId("button-concierge-task-nudge-get-help");
+    await expect(reminder).toContainText("Plumber");
+    await expect(reminder).toContainText("Review request");
+    await expect(page.getByTestId("button-concierge-card-service")).not.toContainText("Review request");
+    await reminder.click({ trial: true });
+    await expect(page.locator("#vyva-launch")).toBeHidden();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath(`reminder-${width}.png`), fullPage: true });
+    await page.getByTestId("button-concierge-card-service").click();
+    await expect(page).toHaveURL(/\/concierge\/get-help$/);
+    await expect(page.getByTestId("get-help-nudge")).toContainText("Plumber: Review request");
+    await page.goto("/concierge");
+    await page.getByRole("button", { name: "Dismiss reminder", exact: true }).click();
+    await expect(reminder).toHaveCount(0);
+    expect(Object.keys(dismissals).sort()).toEqual(["draft:saved-plumber", "pending:pending-plumber"]);
+    await page.reload();
+    await expect(page.getByTestId("button-concierge-card-service")).toBeVisible();
+    await expect(reminder).toHaveCount(0);
+    await page.getByTestId("button-concierge-card-service").click();
+    await expect(page.getByTestId("concierge-picker-options")).toBeVisible();
+    await expect(page.getByTestId("get-help-nudge")).toHaveCount(0);
+  });
+}
 
 test("concierge prepared email task requires review, final confirmation, and saved outcome", async ({ page }) => {
   await mockApi(page, true);
@@ -1116,7 +1284,7 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
   await page.goto("/settings", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
-  const frameBox = await page.getByTestId("phone-frame").boundingBox();
+  const frameBox = await page.getByTestId("settings-canonical-screen-frame").boundingBox();
   expect(frameBox).not.toBeNull();
   expect(frameBox!.width).toBeGreaterThan(700);
   expect(frameBox!.width).toBeLessThanOrEqual(922);
@@ -1125,13 +1293,13 @@ test("settings home uses a wider responsive shell on tablet and desktop", async 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
-  const mobileFrameBox = await page.getByTestId("phone-frame").boundingBox();
+  const mobileFrameBox = await page.getByTestId("settings-canonical-screen-frame").boundingBox();
   expect(mobileFrameBox).not.toBeNull();
   expect(mobileFrameBox!.width).toBeLessThanOrEqual(390);
   await expectNoHorizontalOverflow(page);
 });
 
-test("service setup guidance is visible and responsive", async ({ page }) => {
+test("dependent medication tools show responsive setup guidance", async ({ page }) => {
   await mockApi(page, true, {
     medications: {
       ready: false,
@@ -1149,7 +1317,8 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
     { width: 320, height: 568 },
   ]) {
     await page.setViewportSize(viewport);
-    await page.goto("/meds", { waitUntil: "domcontentloaded" });
+    // The medicine hub stays accessible so users can add their first medicine.
+    await page.goto("/meds/refills", { waitUntil: "domcontentloaded" });
 
     const guidanceToast = page.getByTestId("toast-guidance");
     await expect(guidanceToast).toBeVisible();
@@ -1438,27 +1607,34 @@ test("symptom check prepares a direct doctor share link when a doctor contact is
   await expectNoHorizontalOverflow(page);
 });
 
-test("profile overview follows the canonical desktop width and switches section rows into cards", async ({ page }) => {
+test("profile overview follows the canonical seven-group responsive layout", async ({ page }) => {
   await mockApi(page, true);
 
   await page.setViewportSize({ width: 1920, height: 900 });
   await page.goto("/onboarding/profile", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
 
-  const sectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
-  expect(sectionListBox).not.toBeNull();
-  expect(sectionListBox!.width).toBeGreaterThan(800);
-  expect(sectionListBox!.width).toBeLessThanOrEqual(920);
-  await expect(page.getByTestId("list-profile-sections")).toHaveCSS(
-    "grid-template-columns",
-    /[0-9.]+px [0-9.]+px/,
-  );
+  const groupList = page.getByTestId("list-profile-groups");
+  const groupListBox = await groupList.boundingBox();
+  expect(groupListBox).not.toBeNull();
+  expect(groupListBox!.width).toBeGreaterThan(800);
+  expect(groupListBox!.width).toBeLessThanOrEqual(920);
+  await expect(groupList.locator('[data-testid^="button-profile-group-"]')).toHaveCount(7);
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
-  const mobileSectionListBox = await page.getByTestId("list-profile-sections").boundingBox();
-  expect(mobileSectionListBox).not.toBeNull();
-  expect(mobileSectionListBox!.width).toBeLessThanOrEqual(350);
+  const mobileGroupListBox = await page.getByTestId("list-profile-groups").boundingBox();
+  expect(mobileGroupListBox).not.toBeNull();
+  expect(mobileGroupListBox!.width).toBeLessThanOrEqual(370);
   await expectNoHorizontalOverflow(page);
+
+  await page.goto("/dev/profile-overview?theme=light", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".home-master-profile-page")).toHaveAttribute("data-home-master-theme", "light");
+
+  await page.goto("/dev/profile-overview?theme=dark", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".home-master-profile-page")).toHaveAttribute("data-home-master-theme", "dark");
+  await page.getByTestId("button-profile-group-account").click();
+  await expect(page).toHaveURL(/\/dev\/profile-overview\/group\/account\?theme=dark$/);
+  await expect(page.locator(".home-master-profile-page").first()).toHaveAttribute("data-home-master-theme", "dark");
 });

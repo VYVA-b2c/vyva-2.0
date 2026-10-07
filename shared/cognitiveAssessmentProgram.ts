@@ -26,9 +26,18 @@ export type CognitiveAssessmentProgramSessionSummary = {
   totalTasks: number;
 };
 
+export type CognitiveAssessmentProgramReminderState = "not_scheduled" | "upcoming" | "due";
+
+export type CognitiveAssessmentProgramReminderStatus = {
+  state: CognitiveAssessmentProgramReminderState;
+  nextRunAt: string | null;
+  dueSince: string | null;
+};
+
 export type CognitiveAssessmentProgramStatusResponse = {
   joined: boolean;
   enrollment: CognitiveAssessmentProgramEnrollment | null;
+  reminderStatus: CognitiveAssessmentProgramReminderStatus;
   latestUnfinishedSession: CognitiveAssessmentProgramSessionSummary | null;
   latestReport: CognitiveAssessmentProgramSessionSummary | null;
   completedReportCount: number;

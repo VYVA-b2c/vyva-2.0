@@ -46,6 +46,7 @@ import { adminRouter } from "./routes/admin.js";
 import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminTrustedHelpPartnersRouter from "./routes/adminTrustedHelpPartners.js";
+import adminVettedPartnersRouter from "./routes/adminVettedPartners.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
 import adminCrossPillarToolReadinessRouter from "./routes/adminCrossPillarToolReadiness.js";
@@ -61,6 +62,7 @@ import adminLearningRouter from "./routes/adminLearning.js";
 import adminContentIndexRouter from "./routes/adminContentIndex.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import { adminMarketingRouter } from "./routes/adminMarketing.js";
+import websiteLeadIntegrationRouter from "./routes/websiteLeadIntegration.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import {
@@ -115,6 +117,7 @@ import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import advisorsRouter from "./routes/advisors.js";
+import { advisorLiveSearchToolHandler } from "./routes/advisorSearchTools.js";
 import benefitsRouter from "./routes/benefits.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import medicationRefillsRouter from "./routes/medicationRefills.js";
@@ -129,9 +132,12 @@ import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
+import careFinderRouter from "./routes/careFinder.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
+import { readDocumentHelpHandler } from "./routes/documentHelpReader.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
+import { createSeniorHomeFinderShareHandler, sharedSeniorHomeFinderReportHandler } from "./routes/seniorHomeFinderShare.js";
 import gamesRouter from "./routes/games.js";
 import cognitiveAssessmentRouter from "./routes/cognitiveAssessment.js";
 import learningRouter from "./routes/learning.js";
@@ -149,6 +155,7 @@ import { startCommunicationDispatcher } from "./services/communicationDispatcher
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
 import { startMedicationRefillMonitor } from "./services/medicationRefillMonitor.js";
+import { startProactiveOutreachMonitor } from "./engagement/proactiveOutreachSweep.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -200,6 +207,7 @@ app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, re
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
+app.post("/api/document-help/read", express.json({ limit: "20mb" }), authMiddleware, readDocumentHelpHandler);
 
 app.use(
   "/api/webhooks/sendgrid",
@@ -233,6 +241,7 @@ app.get("/api/config/features/dr-ai-voice", authMiddleware, requireUser, require
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
 app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.post("/api/elevenlabs/tools/search-advisor-sources", advisorLiveSearchToolHandler);
 app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
 app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/voice-triage/session/:conversation_id/end", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionEndHandler);
@@ -260,6 +269,7 @@ app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
 app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioWebhooksRouter);
 app.use("/api/public/whatsapp-private-checkins", publicWhatsappCheckinRouter);
 app.use("/api/integrations/care-operations/whatsapp-private-checkins", careOperationsWhatsappRouter);
+app.use("/api/integrations/website-leads", websiteLeadIntegrationRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/vyva-demo", vyvaDemoRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
@@ -268,6 +278,7 @@ app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycle
 app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsRouter);
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/trusted-help-partners", authMiddleware, requireAdminUser, adminTrustedHelpPartnersRouter);
+app.use("/api/admin/concierge/vetted-partners", authMiddleware, requireAdminUser, adminVettedPartnersRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
 app.use("/api/admin/cross-pillar/tool-readiness", authMiddleware, requireAdminUser, adminCrossPillarToolReadinessRouter);
@@ -305,6 +316,8 @@ app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_
 app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
+app.get("/api/senior-home-finder/shared/:token", sharedSeniorHomeFinderReportHandler);
+app.post("/api/advisors/sabio/share", authMiddleware, requireUser, createSeniorHomeFinderShareHandler);
 app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
 app.use("/api/benefits", authMiddleware, requireUser, benefitsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
@@ -324,6 +337,7 @@ app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
+app.use("/api/care-finder", authMiddleware, requireUser, careFinderRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
 app.use("/api/games", authMiddleware, requireUser, gamesRouter);
@@ -581,6 +595,9 @@ configureFrontend().then(() => {
     }
     if (startMedicationRefillMonitor()) {
       console.log("[medication-refill-monitor] proactive refill alerts enabled");
+    }
+    if (startProactiveOutreachMonitor()) {
+      console.log("[proactive-outreach] silence/signal detector sweep enabled");
     }
   });
 }).catch((err) => {

@@ -485,6 +485,7 @@ async function updatePendingAssignment(row: PendingQueueRow, req: Request): Prom
       update concierge_pending
       set action_payload = $2::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [row.id, JSON.stringify(payload)],
   );
@@ -492,14 +493,16 @@ async function updatePendingAssignment(row: PendingQueueRow, req: Request): Prom
 
 async function updatePendingInProgress(row: PendingQueueRow, note: string | null, req: Request): Promise<void> {
   const payload = buildUpdatedPendingPayload(row, "in_progress", note, req);
-  await pool.query(
+  const result = await pool.query(
     `
       update concierge_pending
       set status = 'calling', action_payload = $2::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [row.id, JSON.stringify(payload)],
   );
+  if (!result.rowCount) throw new Error("This request is no longer available.");
 }
 
 async function closePending(row: PendingQueueRow, action: "done" | "failed", note: string | null, req: Request): Promise<void> {
@@ -568,14 +571,16 @@ async function closePending(row: PendingQueueRow, action: "done" | "failed", not
       );
     }
 
-    await client.query(
+    const updated = await client.query(
       `
         update concierge_pending
         set status = $2, action_payload = $3::jsonb, updated_at = now()
         where id = $1::uuid
+          and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
       `,
       [row.id, pendingStatus, JSON.stringify(payload)],
     );
+    if (!updated.rowCount) throw new Error("This request is no longer available.");
     await client.query("commit");
   } catch (err) {
     await client.query("rollback");
@@ -689,6 +694,7 @@ async function retryPendingAdapter(row: PendingQueueRow, note: string | null, re
       update concierge_pending
       set status = 'pending', action_payload = $2::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [row.id, JSON.stringify(retryPayload)],
   );
@@ -767,6 +773,7 @@ async function requestUserReconfirmation(row: PendingQueueRow, note: string | nu
       update concierge_pending
       set status = 'pending', action_payload = $2::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [row.id, JSON.stringify(nextPayload)],
   );
@@ -817,6 +824,7 @@ async function queueManualFollowUp(row: PendingQueueRow, note: string | null, re
       update concierge_pending
       set status = 'pending', action_payload = $2::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [row.id, JSON.stringify(payload)],
   );
@@ -915,7 +923,7 @@ router.get("/", async (req: Request, res: Response) => {
             p.phone_number
           from concierge_pending cp
           left join profiles p on p.id = cp.user_id
-          where cp.status in ('pending', 'calling')
+          where cp.action_payload ->> 'request_deleted_at' is null and (cp.status in ('pending', 'calling')
              or (
                cp.status = 'failed'
                and not exists (
@@ -925,7 +933,7 @@ router.get("/", async (req: Request, res: Response) => {
                    and cs.outcome = 'failed'
                )
              )
-          order by cp.updated_at desc nulls last, cp.confirmed_at desc nulls last
+          ) order by cp.updated_at desc nulls last, cp.confirmed_at desc nulls last
           limit 120
         `,
       ),
@@ -992,7 +1000,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const row = await loadPendingQueueRow(req.params.id);
     if (!row) return res.status(404).json({ error: "Concierge task not found." });
 
-    if (row.status === "completed" || row.status === "cancelled") {
+    if (row.action_payload?.request_deleted_at || row.status === "completed" || row.status === "cancelled") {
       return res.status(409).json({ error: "This Concierge task is already closed." });
     }
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -29,6 +30,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Settings,
   Stethoscope,
   Sun,
   Type,
@@ -44,6 +46,10 @@ import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
 import { useLanguage } from "@/i18n";
 import { CanonicalDetailFlowShell } from "@/components/CanonicalDetailFlowShell";
+import {
+  CANONICAL_MENU_HEADER_CLASS,
+  CANONICAL_MENU_ITEM_TITLE_CLASS,
+} from "@/design/canonicalMenuTypography";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -69,6 +75,60 @@ type PrototypeSection = {
   eyebrow?: string;
   items: RowItem[];
 };
+
+type HealthHubPreventionFocus = {
+  focus?: string | null;
+};
+
+type HealthHubVitalReading = {
+  signal_type: string;
+  value: string | number;
+  recorded_at?: string | null;
+};
+
+type HealthHubLatestVitals = {
+  recent_readings?: HealthHubVitalReading[];
+};
+
+type HealthHubMedicationReport = {
+  nextDue?: { scheduled_time?: string | null } | null;
+  todaySummary?: { scheduled?: number; remaining?: number } | null;
+};
+
+function compactHealthHubVital(readings: HealthHubVitalReading[] | undefined): string {
+  if (!readings?.length) return "Add";
+  const systolic = readings.find((reading) => reading.signal_type === "bp_systolic");
+  const diastolic = readings.find((reading) => reading.signal_type === "bp_diastolic");
+  if (systolic && diastolic) return `${systolic.value}/${diastolic.value}`;
+
+  const reading = ["resting_hr_bpm", "oxygen_saturation", "respiratory_rate", "glucose_mgdl", "weight_kg"]
+    .map((signal) => readings.find((candidate) => candidate.signal_type === signal))
+    .find(Boolean) ?? readings[0];
+  if (!reading) return "Add";
+  const units: Record<string, string> = {
+    resting_hr_bpm: " bpm",
+    oxygen_saturation: "%",
+    respiratory_rate: "/min",
+    glucose_mgdl: " mg/dL",
+    weight_kg: " kg",
+  };
+  return `${reading.value}${units[reading.signal_type] ?? ""}`;
+}
+
+function compactHealthHubMedication(report: HealthHubMedicationReport | undefined): string {
+  const scheduledTime = report?.nextDue?.scheduled_time?.trim();
+  if (scheduledTime) {
+    const match = scheduledTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return scheduledTime;
+    const date = new Date();
+    date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  const remaining = report?.todaySummary?.remaining ?? 0;
+  if (remaining > 0) return `${remaining} due`;
+  if ((report?.todaySummary?.scheduled ?? 0) > 0) return "Done";
+  return "Set up";
+}
 
 const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string; darkIcon: string }> = {
   health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)", darkIcon: "#FF5C52" },
@@ -275,7 +335,7 @@ function RoundControl({
 function VyvaProfileControl({
   onClick,
   testId = "button-home-profile",
-  label = "Open profile and settings",
+  label = "Open my profile",
 }: {
   onClick: () => void;
   testId?: string;
@@ -367,10 +427,10 @@ function PrototypeTopbar({
       <div>{left}</div>
       <div className="min-w-0 text-center">
         {title ? (
-          <h1 className={`truncate text-[24px] leading-tight text-inherit ${
+          <h1 className={`truncate text-inherit ${
             titleTypography === "body"
               ? "font-body font-extrabold tracking-[-0.025em]"
-              : "font-display font-semibold tracking-[-0.03em]"
+              : CANONICAL_MENU_HEADER_CLASS
           }`}>{title}</h1>
         ) : null}
       </div>
@@ -499,7 +559,6 @@ function RowCard({ item }: { item: RowItem }) {
   const Icon = item.icon;
   const palette = rowTonePalettes[item.tone ?? "neutral"];
   const isAlert = item.emphasis === "alert";
-  const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
   const subtitleSize = isLarge ? 15 : 13.5;
   const metaSize = isLarge ? 12 : 11;
 
@@ -532,7 +591,7 @@ function RowCard({ item }: { item: RowItem }) {
         <VyvaIcon icon={Icon} glyph={item.brandIcon} accent={item.iconAccent} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone="brand" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-display font-semibold leading-[1.03] tracking-[-0.025em]" style={{ fontSize: titleSize }}>
+        <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS}`}>
           {item.title}
         </span>
         <span
@@ -570,84 +629,15 @@ function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem
   );
 }
 
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+
 function HealthHubActionCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
-  const { isLarge } = useReadableTextSize();
-  const Icon = item.icon;
-  const palette = rowTonePalettes[item.tone ?? "neutral"];
-  const titleSize = item.compactTitle
-    ? isLarge
-      ? "text-[20px] md:text-[22px]"
-      : "text-[18px] md:text-[22px]"
-    : isLarge
-      ? "text-[22px] md:text-[25px]"
-      : "text-[20px] md:text-[24px]";
-  const subtitleSize = isLarge ? "text-[15px] md:text-[16px]" : "text-[13.5px] md:text-[14px]";
-  const metaSize = isLarge ? "text-[12px] md:text-[13px]" : "text-[11px] md:text-[12px]";
-
-  return (
-    <button
-      type="button"
-      data-testid={item.testId}
-      onClick={() => {
-        item.onClick?.();
-        if (item.path) navigate(item.path);
-      }}
-      className={[
-        "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
-        isDark
-          ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
-          : item.solidSurface
-            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
-            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
-          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
-        ].join(" ")}
-        data-testid={item.testId ? `${item.testId}-icon` : undefined}
-        data-vyva-icon-tile={item.brandIcon ?? item.iconAccent ?? "utility"}
-        aria-hidden="true"
-      >
-        <VyvaIcon
-          icon={Icon}
-          glyph={item.brandIcon}
-          accent={item.iconAccent}
-          size={item.brandIcon ? 44 : 29}
-          strokeWidth={2.55}
-          tone="brand"
-        />
-      </span>
-      <span className="min-w-0 self-center md:self-start">
-        <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
-          {item.title}
-        </span>
-        <span
-          className="sr-only"
-        >
-          {item.subtitle}
-        </span>
-      </span>
-      {item.meta ? (
-        <span
-          className={["self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start", metaSize].join(" ")}
-          style={{
-            background: isDark ? palette.darkChip : palette.chip,
-            color: isDark ? palette.darkIcon : palette.icon,
-          }}
-          data-testid={item.testId ? `${item.testId}-status` : undefined}
-        >
-          {item.meta}
-        </span>
-      ) : null}
-      <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
-        <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
-      </span>
-    </button>
-  );
+  return <CanonicalMenuTile title={item.title} detail={item.subtitle} icon={item.icon}
+    glyph={item.brandIcon} accent={item.iconAccent} isDark={isDark} testId={item.testId}
+    onClick={() => { item.onClick?.(); if (item.path) navigate(item.path); }}
+    status={item.meta ? <span className="sr-only" data-testid={item.testId ? `${item.testId}-status` : undefined}>{item.meta}</span> : undefined} />;
 }
 
 function HealthHubActionGrid({
@@ -749,7 +739,7 @@ export function PrototypeHomeScreen() {
     },
     {
       text: <>Elena replied in your <b>Book Club room</b>.</>,
-      path: "/dev/home-master/community",
+      path: "/dev/home-master/community-team",
     },
   ], []);
   const [momentIndex, setMomentIndex] = useState(0);
@@ -847,8 +837,8 @@ export function PrototypeMenuScreen({
   const items: RowItem[] = [
     { icon: Heart, iconAccent: "pulse", title: "My Health", subtitle: "Check-ins & medicines", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
     { icon: Brain, iconAccent: "bridge", title: t("home.master.cards.mindMemoryShortTitle", "Brain Power"), subtitle: "Memory, focus & calm", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
-    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms & support", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
-    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
+    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Experts & support", tone: "community", path: "/dev/home-master/community-team", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/concierge-canonical-preview", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (
@@ -880,11 +870,29 @@ export function PrototypeHealthScreen({
   contained?: boolean;
 }) {
   const { t } = useLanguage();
+  const { data: preventionFocus } = useQuery<HealthHubPreventionFocus>({
+    queryKey: ["/api/health/prevention"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: latestVitals } = useQuery<HealthHubLatestVitals>({
+    queryKey: ["/api/vitals-engine/latest"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: medicationReport } = useQuery<HealthHubMedicationReport>({
+    queryKey: ["/api/meds/adherence-report"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const preventionBadge = preventionFocus?.focus?.trim() || "Plan";
+  const vitalsBadge = compactHealthHubVital(latestVitals?.recent_readings);
+  const medicationBadge = compactHealthHubMedication(medicationReport);
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: t("healthHub.start", "Start"), tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: t("healthHub.today", "Today"), tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: "Telehealth", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: preventionBadge, tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: vitalsBadge, tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: medicationBadge, tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
@@ -1081,6 +1089,7 @@ export function PrototypeReportsScreen({
 }
 
 export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { returnPath?: string } = {}) {
+  const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
   const profileSections: PrototypeSection[] = [
     {
@@ -1129,12 +1138,36 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
               {screenCopy.location}
             </p>
             <p className={["mt-2 font-body text-[13px] font-black uppercase tracking-[0.12em]", isDark ? "text-[#BDAED4]" : "text-[#9E92AA]"].join(" ")}>
-              Profile & settings
+              My profile
             </p>
           </div>
         </div>
       </section>
       <SectionedRows sections={profileSections} />
+      <button
+        type="button"
+        data-testid="button-profile-settings"
+        onClick={() => navigate("/dev/home-master/settings")}
+        className={[
+          "mt-6 flex min-h-[82px] w-full items-center gap-4 rounded-[24px] border px-4 py-4 text-left transition-colors",
+          isDark ? "border-white/[0.12] bg-white/[0.07] text-[#F7F0FF]" : "border-[#E9DEF2] bg-white/86 text-[#342B3F] shadow-[0_12px_30px_rgba(80,52,109,0.06)]",
+        ].join(" ")}
+      >
+        <span className={[
+          "grid h-12 w-12 shrink-0 place-items-center rounded-[16px]",
+          isDark ? "bg-white/[0.09] text-[#E9DFFF]" : "bg-[#F1E8FF] text-vyva-purple",
+        ].join(" ")}>
+          <VyvaIcon icon={Settings} size={22} strokeWidth={2.4} tone={isDark ? "inverse" : "brand"} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <strong className="block font-body text-[18px] font-black">Settings</strong>
+          <span className={[
+            "mt-1 block font-body text-[14px] font-semibold leading-snug",
+            isDark ? "text-[#D8CFE6]" : "text-[#8A8095]",
+          ].join(" ")}>Plan & billing, privacy, notifications and account access</span>
+        </span>
+        <ChevronRight size={20} className={isDark ? "text-[#BDAED4]" : "text-[#A899B5]"} aria-hidden="true" />
+      </button>
       <button
         type="button"
         data-testid="button-profile-call-support"
@@ -1145,7 +1178,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
         ].join(" ")}
       >
         <VyvaIcon icon={Phone} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
-        Call support
+        Get support
       </button>
     </PrototypeShell>
   );

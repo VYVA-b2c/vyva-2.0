@@ -3,6 +3,8 @@ import {
   getRecommendedLevelForGame,
   getRepeatLevelForResult,
   getVisualMemoryLevelProgress,
+  applyStoryDifficultyChoice,
+  pickStoryVariantForTheme,
   MEMORY_LEVEL_UP_ACCURACY,
   pickVariantForGame,
   pickNextVariantForSameGame,
@@ -147,5 +149,39 @@ describe("memory game progression", () => {
     );
 
     expect((nextVariant.content.en ?? nextVariant.content.es).payload.themeId).not.toBe(previousTheme);
+  });
+
+  it("keeps story challenge choices within one level and the 20-level bounds", () => {
+    expect(applyStoryDifficultyChoice(1, "gentle")).toBe(1);
+    expect(applyStoryDifficultyChoice(8, "gentle")).toBe(7);
+    expect(applyStoryDifficultyChoice(8, "recommended")).toBe(8);
+    expect(applyStoryDifficultyChoice(8, "stretch")).toBe(9);
+    expect(applyStoryDifficultyChoice(20, "stretch")).toBe(20);
+  });
+
+  it("filters story variants by theme and avoids a recently played story id", () => {
+    const first = pickStoryVariantForTheme([], 6, "nature");
+    const storyId = first.content.en!.payload.storyId as string;
+    const history: GameResult[] = [{
+      ...visualResult(6, 90, 0),
+      gameType: "story_recall",
+      cognitiveDomain: "language",
+      variantId: first.id,
+      metadata: { storyId, themeId: "nature", scoringMode: "composite", adaptiveBaseline: 6 },
+    }];
+    const next = pickStoryVariantForTheme(history, 6, "nature");
+
+    expect(next.content.en!.payload.themeId).toBe("nature");
+    expect(next.content.en!.payload.storyId).not.toBe(storyId);
+  });
+
+  it("does not lower the adaptive story baseline after fallback scoring", () => {
+    const fallback: GameResult = {
+      ...visualResult(8, 0, 0),
+      gameType: "story_recall",
+      cognitiveDomain: "language",
+      metadata: { adaptiveBaseline: 8, scoringMode: "quiz_fallback" },
+    };
+    expect(getRecommendedLevelForGame([fallback], "story_recall")).toBe(8);
   });
 });

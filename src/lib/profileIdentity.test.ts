@@ -116,8 +116,14 @@ describe("profileIdentity", () => {
       phone: "+34 233 245",
       email: "karim@example.com",
       language: "en",
-      country: "ES",
     });
+  });
+
+  it("does not treat the phone prefix country as the home country", () => {
+    const payload = buildProfileIdentityPayload({ ...baseIdentityForm, phoneCountry: "FR", language: "fr" });
+    expect(payload).not.toHaveProperty("country");
+    expect(payload).not.toHaveProperty("street");
+    expect(payload).not.toHaveProperty("cityState");
   });
 
   it("builds the existing onboarding basics endpoint payload", () => {

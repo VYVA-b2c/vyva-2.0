@@ -20,6 +20,21 @@ function build(overrides: Partial<BuildConciergeHomeServiceCanvasInput> = {}) {
 }
 
 describe("concierge Home Service Canvas", () => {
+  it.each(["es", "fr", "de", "it", "pt"])("provides a complete %s catalogue", language => {
+    const reference = homeServiceCanvasCopy("en");
+    const translated = homeServiceCanvasCopy(language);
+    expect(Object.keys(translated).sort()).toEqual(Object.keys(reference).sort());
+    for (const value of Object.values(translated)) expect(value).toBeTruthy();
+    const model = build({ step: "location_custom", copy: translated, location: "11380 Tarifa, Spain" });
+    expect(model.textEntry?.value).toBe("11380 Tarifa, Spain");
+    expect(model.title).not.toBe(build({ step: "location_custom" }).title);
+  });
+  it("switches to French without replacing the saved visit address", () => {
+    const model = build({ step: "location_custom", copy: homeServiceCanvasCopy("fr-FR"), location: "11380 Tarifa, Spain" });
+    expect(model.title).toBe("Où aura lieu l’intervention ?");
+    expect(model.textEntry?.value).toBe("11380 Tarifa, Spain");
+    expect(model.primaryAction?.label).toBe("Continuer");
+  });
   it("starts with the five supported service choices", () => {
     const scene = build();
     expect(scene.sceneId).toBe("home-service-type");
@@ -71,6 +86,7 @@ describe("concierge Home Service Canvas", () => {
       photoName: "sink.jpg",
       photoAvailable: true,
       selectedOption: { id: "provider-1", label: "Trusted Plumber", description: "Available tomorrow" },
+      selectedContactChannel: "email" as const,
       contactChannelLabel: "VYVA sends email",
     };
     const attached = build({ ...base, photoWillBeSent: true });
@@ -78,6 +94,34 @@ describe("concierge Home Service Canvas", () => {
     expect(attached.summaryRows?.find((row) => row.id === "photo")?.value).toBe("Attached to the provider email");
     expect(keptPrivate.summaryRows?.find((row) => row.id === "photo")?.value).toContain("not sent");
     expect(attached.primaryAction?.disabled).toBe(false);
+  });
+
+  it("requires permission and a contact-method choice before final review", () => {
+    const consent = build({ step: "contact_consent", selectedOption: { id: "provider-1", label: "Trusted Plumber", description: "Nearby" } });
+    expect(consent.choices?.map((choice) => choice.id)).toEqual([
+      "contact_yes",
+      "contact_not_now",
+      "contact_change_provider",
+    ]);
+    expect(consent.helperText).toContain("does not give permission");
+
+    const methods = build({
+      step: "contact_method",
+      contactChannels: [
+        { id: "phone", label: "VYVA calls", recommended: true },
+        { id: "email", label: "VYVA sends email" },
+      ],
+    });
+    expect(methods.choices?.map((choice) => choice.id)).toEqual(["phone", "email"]);
+    expect(methods.choices?.[0].description).toBe("Recommended");
+
+    const review = build({
+      step: "review",
+      selectedOption: { id: "provider-1", label: "Trusted Plumber", description: "Nearby" },
+      selectedContactChannel: null,
+    });
+    expect(review.primaryAction?.disabled).toBe(true);
+    expect(review.primaryAction?.label).toBe("Confirm and contact provider");
   });
 
   it("asks for a resumed photo to be added again before sharing", () => {

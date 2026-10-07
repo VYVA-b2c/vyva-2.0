@@ -1,4 +1,5 @@
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
+import { careEmergencyLines, detectCareRedFlags, type CareEmergencyLine, type CareRedFlagId } from "../../shared/careFinder/redFlags.js";
 
 export type SpecialistUrgency = "routine" | "soon" | "urgent";
 
@@ -46,6 +47,10 @@ export interface SpecialistRecommendationResult {
   providers: SpecialistProvider[];
   mapsSearchUrl?: string;
   nextStep: string;
+  // Present when the description mentions an urgent warning sign. Providers
+  // are withheld so a clinic list never stands in for emergency help.
+  urgentWarning?: { flags: CareRedFlagId[]; callLines: CareEmergencyLine[]; message: string };
+  locationRequired?: boolean;
 }
 
 const SAFETY_NOTE =
@@ -200,8 +205,8 @@ export function matchSpecialties(condition: string): string[] {
 }
 
 function resolveSearchLocation(location?: string): string {
-  const trimmed = location?.trim();
-  return trimmed || "Marbella, Malaga, Spain";
+  // Never substitute a default town: results for the wrong place look real.
+  return location?.trim() ?? "";
 }
 
 function buildMapsSearchUrl(query: string): string {
@@ -435,7 +440,8 @@ async function searchGooglePlaces(
       clinicName: place.name ?? undefined,
       phone,
       address: place.formatted_address ?? location,
-      bookingUrl: detail?.website ?? detail?.url ?? mapsUrl,
+      // A clinic website is not a booking link; only report a real one.
+      bookingUrl: null,
       mapsUrl,
       sourceName: "Google Places",
       sourceUrl: "https://maps.google.com/",
@@ -445,8 +451,8 @@ async function searchGooglePlaces(
       availabilityText: openingTimes,
       openingTimes,
       rationale: language.startsWith("es")
-        ? "Resultado verificado en Google Places; conviene revisar disponibilidad antes de contactar."
-        : "Verified Google Places result; check availability before contacting.",
+        ? "Encontrado en Google Maps. No es una valoración de calidad; confirme disponibilidad y cobertura al llamar."
+        : "Found on Google Maps. This is not a quality rating; confirm availability and coverage when you call.",
       score: 70 - index * 5 + Math.round((place.rating ?? 0) * 3),
     };
   });
@@ -458,18 +464,50 @@ export async function recommendSpecialists(input: SpecialistSearchInput): Promis
   const location = resolveSearchLocation(input.location);
   const language = input.language?.trim() || "es";
   const firstSpecialty = specialties[0] ?? "General Practice";
-  const mapsSearchUrl = buildMapsSearchUrl(`${specialtyLabel(firstSpecialty, language)} ${location}`);
+  const mapsSearchUrl = buildMapsSearchUrl(`${specialtyLabel(firstSpecialty, language)} ${location}`.trim());
+  const base = {
+    condition,
+    matchedSpecialties: specialties.map((specialty) => specialtyLabel(specialty, language)),
+    safetyNote: SAFETY_NOTE,
+    mapsSearchUrl,
+  };
+
+  const flags = detectCareRedFlags(condition);
+  if (flags.length > 0) {
+    const callLines = careEmergencyLines(flags);
+    return {
+      ...base,
+      sourcesChecked: [],
+      providers: [],
+      urgentWarning: {
+        flags,
+        callLines,
+        message: language.startsWith("es")
+          ? `Esto puede necesitar ayuda ahora mismo. Si está pasando ahora, llame al ${callLines.join(" o al ")}.`
+          : `This may need help right now. If it is happening now, call ${callLines.join(" or ")}.`,
+      },
+      nextStep: "Tell the user to call emergency services now if this is happening now. Do not offer clinics.",
+    };
+  }
+
+  if (!location) {
+    return {
+      ...base,
+      sourcesChecked: [],
+      providers: [],
+      locationRequired: true,
+      nextStep: "Ask the user which town or postcode to search near before searching.",
+    };
+  }
 
   const liveProviders = await searchGooglePlaces(specialties, location, language).catch(() => []);
   const ranked = liveProviders.sort((a, b) => b.score - a.score).slice(0, 3);
 
   return {
-    condition,
-    matchedSpecialties: specialties.map((specialty) => specialtyLabel(specialty, language)),
-    safetyNote: SAFETY_NOTE,
-    sourcesChecked: SPECIALIST_SOURCES,
+    ...base,
+    // Only list sources that were actually queried.
+    sourcesChecked: SPECIALIST_SOURCES.filter((source) => source.name === "Google Places"),
     providers: ranked,
-    mapsSearchUrl,
     nextStep: "Ask the user which option they prefer, then hand off to Concierge to book the appointment.",
   };
 }

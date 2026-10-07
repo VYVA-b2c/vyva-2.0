@@ -3,6 +3,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MindMemoryScreen from "./MindMemoryScreen";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { BrainCoachProgress } from "@/lib/brainCoachReport";
 
 const guardPathMock = vi.hoisted(() => vi.fn());
 
@@ -29,14 +31,26 @@ function LocationProbe() {
   return <div data-testid="current-route">{location.pathname}</div>;
 }
 
-function renderMindMemory() {
+function renderMindMemory(progress?: BrainCoachProgress) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Infinity,
+        queryFn: async () => progress ?? {},
+      },
+    },
+  });
+  if (progress) queryClient.setQueryData(["/api/games/progress"], progress);
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
-      <Routes>
-        <Route path="/mind-memory" element={<MindMemoryScreen />} />
-        <Route path="*" element={<LocationProbe />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
+        <Routes>
+          <Route path="/mind-memory" element={<MindMemoryScreen />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -65,10 +79,11 @@ describe("MindMemoryScreen", () => {
     ] as const;
 
     for (const [testId, title, count, iconAccent] of expectedCards) {
-      expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-health-hub-action");
+      expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
       expect(screen.getByTestId(testId)).toHaveTextContent(title);
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
       expect(screen.getByTestId(testId).querySelector(`[data-vyva-icon-tile="${iconAccent}"]`)).toBeInTheDocument();
+      expect(screen.getByText(title)).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
     }
 
     expect(screen.queryByText("Memory and recall")).not.toBeInTheDocument();
@@ -82,7 +97,22 @@ describe("MindMemoryScreen", () => {
     renderMindMemory();
 
     expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-home-master-theme", "dark");
-    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-white/[0.08]");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-[#2A2034]");
+  });
+
+  it("replaces activity counts with the latest score and achieved level after play", () => {
+    renderMindMemory({
+      history: [
+        { activityType: "word_recall", domain: "memory", completed: true, score: 840, difficulty: 6, playedAt: "2026-09-24T10:00:00.000Z" },
+        { activityType: "sequence_memory", domain: "attention", completed: true, score: 610, difficulty: 3, playedAt: "2026-09-24T09:00:00.000Z" },
+      ],
+    });
+
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory-status")).toHaveTextContent("Score 840 · L6");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory-status")).toHaveAccessibleName("Last score 840. Level 6 achieved.");
+    expect(screen.getByTestId("card-mind-memory-train-reflexes-status")).toHaveTextContent("Score 610 · L3");
+    expect(screen.getByTestId("card-mind-memory-boost-focus-status")).toHaveTextContent("3 activities");
+    expect(screen.getByTestId("card-mind-memory-sharpen-senses-status")).toHaveTextContent("2 activities");
   });
 
   it.each([

@@ -179,6 +179,68 @@
     @apply vyva-tap inline-flex items-center justify-center gap-2 rounded-full border border-vyva-border bg-white px-5 py-3 font-body text-[16px] font-semibold text-vyva-text-1;
   }
 
+  .movement-guide-portrait-image {
+    transform-origin: 50% 50%;
+  }
+
+  .movement-guide-portrait-live .movement-guide-step-image {
+    animation: movement-guide-breathe 8s ease-in-out infinite;
+    will-change: transform, filter;
+  }
+
+  .movement-guide-portrait-live.motion-shoulder-roll .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-back .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-shoulders-drop .movement-guide-step-image {
+    animation-name: movement-guide-shoulders;
+  }
+
+  .movement-guide-portrait-live.motion-overhead-reach .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-arms-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-breathe-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hands-return .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hand-flow .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hand-open .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-finger-up .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-finger-down .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-next-finger .movement-guide-step-image {
+    animation-name: movement-guide-reach;
+  }
+
+  .movement-guide-portrait-live.motion-side-change .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-weight-shift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-side-support .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-side-step .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-feet-together .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-step-return .movement-guide-step-image {
+    animation-name: movement-guide-side;
+  }
+
+  .movement-guide-portrait-live.motion-chair-front .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-chair-hold .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-knee-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-leg-lower .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-sit-ready .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-feet-under .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-stand-up .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-sit-down .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-ready .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-hands-wall .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-lean .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-wall-press .movement-guide-step-image {
+    animation-name: movement-guide-strength;
+  }
+
+  .movement-guide-portrait-live.motion-ankle-seat .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-foot-lift .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-toe-flex .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-foot-change .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-chair-behind .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-toe-rise .movement-guide-step-image,
+  .movement-guide-portrait-live.motion-heel-lower .movement-guide-step-image {
+    animation-name: movement-guide-feet;
+  }
+
   .vyva-severity-range {
     height: 10px;
     appearance: none;
@@ -385,6 +447,84 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@keyframes movement-guide-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.018);
+    filter: saturate(1.04) brightness(1.025);
+  }
+}
+
+@keyframes movement-guide-shoulders {
+  0%,
+  100% {
+    transform: scale(1.012) translateY(0);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.032) translateY(-10px);
+    filter: saturate(1.04) brightness(1.025);
+  }
+}
+
+@keyframes movement-guide-reach {
+  0%,
+  100% {
+    transform: scale(1.01) translateY(0);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.04) translateY(-16px);
+    filter: saturate(1.05) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-side {
+  0%,
+  100% {
+    transform: scale(1.025) translateX(-12px);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.025) translateX(12px);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-strength {
+  0%,
+  100% {
+    transform: scale(1.015) translateY(7px);
+    filter: saturate(1) brightness(1);
+  }
+  48% {
+    transform: scale(1.038) translateY(-9px);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@keyframes movement-guide-feet {
+  0%,
+  100% {
+    transform: scale(1.025) translateY(8px) rotate(-0.2deg);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.04) translateY(-4px) rotate(0.2deg);
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .movement-guide-portrait-live .movement-guide-step-image {
+    animation: none;
   }
 }
 
@@ -722,8 +862,8 @@
   background: linear-gradient(180deg, rgba(103, 70, 190, 0.34) 0%, rgba(255, 202, 75, 0.06) 42%, rgba(18, 11, 35, 0) 100%);
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame .bg-white,
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-white"],
+[data-home-master-theme="dark"].home-master-profile-frame .bg-white,
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-white"],
 [data-home-master-theme="dark"] .home-master-profile-page .bg-white,
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-white"] {
   background-color: var(--hm-profile-surface) !important;
@@ -744,26 +884,26 @@
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-vyva-cream"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-vyva-cream"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-vyva-cream"] {
   background-color: var(--hm-profile-bg) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-1"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-1"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-1"] {
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-2"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-2"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-3"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-text-3"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-3"] {
   color: var(--hm-profile-muted) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame input,
-[data-home-master-theme="dark"] .home-master-profile-frame select,
-[data-home-master-theme="dark"] .home-master-profile-frame textarea,
+[data-home-master-theme="dark"].home-master-profile-frame input,
+[data-home-master-theme="dark"].home-master-profile-frame select,
+[data-home-master-theme="dark"].home-master-profile-frame textarea,
 [data-home-master-theme="dark"] .home-master-profile-page input,
 [data-home-master-theme="dark"] .home-master-profile-page select,
 [data-home-master-theme="dark"] .home-master-profile-page textarea {
@@ -777,7 +917,8 @@
 }
 
 [data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-reminder,
-[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-avatar-card {
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-avatar-card,
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-section {
   background: var(--hm-profile-surface) !important;
   border-color: var(--hm-profile-border) !important;
   color: var(--hm-profile-text);
@@ -801,25 +942,25 @@
 
 /* Dark profile previews also contain legacy onboarding utility classes. Keep
    those controls readable without changing their light-theme presentation. */
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-gray-"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-gray-"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-gray-"] {
   color: var(--hm-profile-muted) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-purple"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-vyva-purple"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-purple"] {
   color: #e9d5ff !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#21152F]"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-[#21152F]"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#21152F]"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#22152F]"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="text-[#22152F]"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#22152F]"] {
   color: var(--hm-profile-text) !important;
 }
 
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-50"],
-[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-100"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-gray-50"],
+[data-home-master-theme="dark"].home-master-profile-frame [class*="bg-gray-100"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-50"],
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-100"] {
   background-color: var(--hm-profile-surface-subtle) !important;
@@ -840,6 +981,96 @@
   color: #fecdd3 !important;
 }
 
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-action {
+  background: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(110, 231, 183, 0.42) !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-title {
+  color: #a7f3d0 !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-copy {
+  color: #6ee7b7 !important;
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-emergency-summary {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(252, 165, 165, 0.28) !important;
+}
+
+/* Canonical medication hub: keep the calm hierarchy legible in both modes. */
+[data-home-master-theme="dark"] .medication-refill-card {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2);
+}
+
+[data-home-master-theme="dark"] .medication-refill-header {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+[data-home-master-theme="dark"] .medication-refill-title {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .medication-refill-muted {
+  color: #cfc2d8;
+}
+
+[data-home-master-theme="dark"] .medication-refill-kicker {
+  color: #e9c878;
+}
+
+[data-home-master-theme="dark"] .medication-secondary-action {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: #e4caff;
+}
+
+[data-home-master-theme="dark"] .medication-hub-status {
+  border-color: rgba(233, 200, 120, 0.3);
+  background: rgba(180, 130, 30, 0.15);
+  color: #f4d993;
+}
+
+[data-home-master-theme="dark"] .medication-hub-success {
+  border-color: rgba(110, 231, 183, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-home-master-theme="dark"] .medication-hub-success p {
+  color: #a7f3d0;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-card {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-title {
+  color: #fff8ff !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-muted {
+  color: #cfc2d8 !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-hub-kicker {
+  color: #d7b8ff !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-summary-card {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+[data-home-master-theme="dark"] .medication-canonical-page .medication-timeline-row {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
 @media (max-width: 639px) {
   .home-master-profile-frame {
     border-radius: 28px;
@@ -850,6 +1081,16 @@
 
 .prototype-shell {
   color: #21152f;
+}
+
+/* Brain activities use light instructional and game cards on both shell themes.
+   Keep inherited copy readable when those cards sit on the dark Brain surface. */
+[data-home-master-theme="dark"].brain-coach-activity-shell :is(
+  .bg-white,
+  [class*="bg-[#F"],
+  [class*="bg-[#E"]
+) {
+  color: #2b2233;
 }
 
 .prototype-checkin-card {
@@ -941,6 +1182,123 @@
     radial-gradient(circle at 50% -10%, rgba(88, 52, 112, 0.28), transparent 38%),
     linear-gradient(180deg, #180f20 0%, #140c18 52%, #100812 100%);
   color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].prototype-shell:has(> .concierge-picker-frame) {
+  background: radial-gradient(circle at 50% -10%, #21162a 0%, #160d1c 46%, #110914 100%);
+}
+
+[data-home-master-theme="dark"] > .concierge-picker-frame > header {
+  background: rgba(33, 22, 42, 0.95);
+}
+
+[data-home-master-theme="dark"] .concierge-picker-frame [data-testid="concierge-picker-options"] > button {
+  background: linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, var(--picker-accent-tint) 100%);
+}
+
+.home-repair-results > div:first-child { align-items: flex-start; }
+.home-repair-results h3 { font-size: 24px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.home-repair-results > div:first-child p { font-size: 15px; line-height: 1.6; font-weight: 400; }
+.home-repair-results > div:first-child p:first-child { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-bottom: 8px; }
+.home-repair-results details { border-color: rgba(120, 100, 140, 0.22); }
+.home-repair-results summary svg { transition: transform 150ms ease; }
+.home-repair-results details[open] > summary svg { transform: rotate(180deg); }
+.home-repair-alternatives button > span:first-child { font-size: 16px; font-weight: 600; }
+.home-repair-alternatives button > span:not(:first-child) { font-size: 14px; line-height: 1.5; font-weight: 400; }
+.home-repair-page details[data-testid="panel-home-service-service-picker"] > div {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-repair-page details[data-testid="panel-home-service-service-picker"] button {
+  text-align: left;
+  justify-content: flex-start;
+  padding: 20px;
+  border-width: 1px;
+}
+.home-repair-page[data-home-master-theme="dark"] :is([class*="bg-white"], [class*="bg-[#FBF8FF]"], [class*="bg-[#F5F3FF]"]) {
+  background-color: #291e33;
+  border-color: rgba(255,255,255,0.14);
+}
+.home-repair-page[data-home-master-theme="dark"] :is([class*="text-vyva-text"], [class*="text-[#6D28D9]"]) { color: #fff8ff; }
+.home-repair-page[data-home-master-theme="dark"] [class*="text-vyva-purple"] { color: #d7b8ff; }
+
+[data-home-master-theme="dark"].advisor-chat-theme {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(88, 52, 112, 0.34), transparent 42%),
+    linear-gradient(180deg, #180f20 0%, #140c18 52%, #100812 100%);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].concierge-task-page {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(88, 52, 112, 0.3), transparent 40%),
+    linear-gradient(180deg, #180f20 0%, #140c18 52%, #100812 100%);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .provider-wizard-card {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-home-master-theme="dark"] .provider-task-wizard :is([class*="text-vyva-text-1"], [class*="text-vyva-text-2"], [class*="text-vyva-text-3"]) {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .provider-task-wizard :is([class*="bg-white"], [class*="bg-[#F8F5FF]"], [class*="bg-[#F5F3FF]"]) {
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-home-master-theme="dark"].concierge-task-page :is(
+  [class*="text-vyva-text-1"],
+  [class*="text-vyva-text-2"],
+  [class*="text-vyva-text-3"]
+) {
+  color: rgba(247, 240, 255, 0.9);
+}
+
+[data-home-master-theme="dark"].concierge-task-page [class*="text-vyva-purple"] {
+  color: #d7b8ff;
+}
+
+[data-home-master-theme="dark"].concierge-task-page .concierge-task-state-badge {
+  background-color: #4b2b73;
+  border: 1px solid rgba(215, 184, 255, 0.32);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].concierge-task-page :is(
+  [class*="bg-white"],
+  [class*="bg-vyva-background"]
+) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-home-master-theme="dark"].concierge-task-page [class*="border-vyva-border"] {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+[data-home-master-theme="dark"].concierge-task-page [class*="hover:bg-[#FCFAF7]"]:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-home-master-theme="dark"].advisor-chat-theme :is(
+  [class*="bg-white"],
+  [class*="bg-[#FBF7F0]"],
+  [class*="bg-[#F3EEFA]"]
+) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"].advisor-chat-theme :is(
+  [class*="text-vyva-text-1"],
+  [class*="text-vyva-text-2"],
+  [class*="text-vyva-text-3"]
+) {
+  color: rgba(247, 240, 255, 0.88);
 }
 
 [data-home-master-theme="dark"] .prototype-section-title {
@@ -1198,4 +1556,33 @@
 
 .vyva-avatar-evening {
   filter: brightness(0.92) saturate(0.9) sepia(0.08);
+}
+
+/* Menu and submenu page types share the root Menu's frame and rhythm. */
+[data-menu-canon="submenu"],
+.canonical-submenu-frame {
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  padding: 32px 24px calc(11rem + env(safe-area-inset-bottom)) !important;
+}
+[data-menu-canon="submenu"] > [data-testid="concierge-master-hero"] { margin-top: 0; }
+[data-menu-canon="submenu"] > section:has([data-card-layout="canonical-action-grid"]) { margin-top: 28px; }
+[data-menu-canon="submenu"] h1,
+.canonical-submenu-frame h1 { letter-spacing: 0; white-space: normal; overflow-wrap: anywhere; }
+[data-menu-canon="submenu"][data-home-master-theme="dark"] {
+  background: radial-gradient(circle at 50% -10%, #21162A 0%, #160D1C 46%, #110914 100%);
+  color: #F7F0FF;
+}
+[data-menu-canon="submenu"][data-home-master-theme="light"] {
+  background: radial-gradient(circle at 50% 0%, #F4EAFB 0%, #FFF9F3 72%);
+  color: #241C30;
+}
+[data-menu-canon="submenu"] header button[data-testid*="talk"],
+.canonical-submenu-frame header button[data-testid*="voice"] { box-shadow: none; --tw-ring-shadow: 0 0 #0000; }
+@media (min-width: 640px) {
+  [data-menu-canon="submenu"], .canonical-submenu-frame { max-width: 680px; padding-inline: 28px !important; }
+}
+@media (min-width: 1024px) {
+  [data-menu-canon="submenu"], .canonical-submenu-frame { max-width: 880px; }
 }

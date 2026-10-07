@@ -189,13 +189,15 @@ async function publicHttpUrl(value: string): Promise<URL | null> {
   }
 }
 
-export async function safeFetchProviderPage(value: string): Promise<ProviderSourcePage | null> {
+export async function safeFetchProviderPage(value: string, signal?: AbortSignal): Promise<ProviderSourcePage | null> {
+  if (signal?.aborted) return null;
   let url = await publicHttpUrl(value);
   if (!url) return null;
   for (let redirect = 0; redirect <= 3; redirect += 1) {
+    if (signal?.aborted) return null;
     const response = await fetch(url, {
       redirect: "manual",
-      signal: AbortSignal.timeout(5000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000),
       headers: { "user-agent": "VYVA-Provider-Evidence/1.0" },
     }).catch(() => null);
     if (!response) return null;
@@ -209,9 +211,25 @@ export async function safeFetchProviderPage(value: string): Promise<ProviderSour
     if (!response.ok) return null;
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) return null;
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > 1_000_000) return null;
-    return { url: response.url || url.toString(), html: new TextDecoder().decode(buffer) };
+    if (!response.body) return null;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let size = 0;
+    let html = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 1_000_000 || signal?.aborted) { await reader.cancel(); return null; }
+        html += decoder.decode(value, { stream: true });
+      }
+      return { url: response.url || url.toString(), html: html + decoder.decode() };
+    } catch {
+      return null;
+    } finally {
+      reader.releaseLock();
+    }
   }
   return null;
 }
@@ -250,7 +268,7 @@ function structuredPageText(html: string): string {
   return values.join(" ");
 }
 
-function pageText(html: string): string {
+export function pageText(html: string): string {
   const visible = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")

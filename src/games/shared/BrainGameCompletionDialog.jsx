@@ -41,11 +41,13 @@ export default function BrainGameCompletionDialog({
   onAssessmentReturn,
   onClose,
   closeLabel = "Close",
+  appearance = "theme",
   disabled = false,
   className = "",
   embedded = false,
 }) {
   const { isDark } = useHomeMasterTheme();
+  const usesDarkSurface = appearance === "theme" && isDark;
   const visibleMetrics = metrics.filter(Boolean);
   const hasNextLevel = Boolean(onNextLevel && nextLevelLabel);
   const primaryLabel = hasNextLevel ? nextLevelDisplayLabel ?? nextLevelLabel : continueLabel;
@@ -70,7 +72,7 @@ export default function BrainGameCompletionDialog({
           id: "stay",
           label: stayLabel,
           onClick: onStay,
-          className: isDark
+          className: usesDarkSurface
             ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
             : "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
         }
@@ -80,7 +82,7 @@ export default function BrainGameCompletionDialog({
           id: "replay",
           label: replayLabel,
           onClick: onReplay,
-          className: isDark
+          className: usesDarkSurface
             ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
             : "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
         }
@@ -90,7 +92,7 @@ export default function BrainGameCompletionDialog({
           id: "another",
           label: anotherLabel,
           onClick: onAnother,
-          className: isDark
+          className: usesDarkSurface
             ? "border border-white/[0.16] bg-white/[0.08] text-[#F7F0FF]"
             : "border-2 border-vyva-border bg-white text-vyva-text-1 shadow-vyva-card",
         }
@@ -101,7 +103,7 @@ export default function BrainGameCompletionDialog({
     <div
       className={cn(
         embedded ? "w-full pb-28 pt-2" : "fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-[3px]",
-        !embedded && (isDark ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]"),
+        !embedded && (usesDarkSurface ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]"),
         className,
       )}
       role={embedded ? "region" : "dialog"}
@@ -120,7 +122,7 @@ export default function BrainGameCompletionDialog({
     >
       <div className={cn(
         embedded ? "relative mx-auto w-full max-w-[680px] text-center" : "relative w-full max-w-[680px] rounded-[30px] border px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7",
-        embedded ? (isDark ? "text-[#F7F0FF]" : "text-[#241C30]") : isDark ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
+        embedded ? (usesDarkSurface ? "text-[#F7F0FF]" : "text-[#241C30]") : usesDarkSurface ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
       )}>
         {onClose && (
           <button
@@ -129,13 +131,11 @@ export default function BrainGameCompletionDialog({
             disabled={disabled}
             aria-label={closeLabel}
             className={cn(
-              "absolute right-3 top-3 grid h-12 w-12 place-items-center rounded-full transition-colors disabled:opacity-60 sm:right-5 sm:top-5",
-              isDark
-                ? "bg-white/[0.08] text-[#F7F0FF] hover:bg-white/[0.14]"
-                : "bg-[#F7F1FC] text-vyva-purple hover:bg-[#EFE4FA]",
+              "absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full transition-colors disabled:opacity-60",
+              usesDarkSurface ? "bg-white/[0.08] text-[#F7F0FF] hover:bg-white/[0.14]" : "bg-[#F5F0F8] text-vyva-text-2 hover:bg-[#ECE3F2]",
             )}
           >
-            <X size={24} strokeWidth={2.5} aria-hidden="true" />
+            <X size={22} strokeWidth={2.5} />
           </button>
         )}
 
@@ -147,16 +147,16 @@ export default function BrainGameCompletionDialog({
           {title}
         </h2>
         {summary && (
-          <p id={summaryId} className={cn("mx-auto mt-2 max-w-[42ch] text-[16px] font-medium leading-[1.45] sm:text-[17px]", isDark ? "text-[#D8CDE4]" : "text-vyva-text-2")}>
+          <p id={summaryId} className={cn("mx-auto mt-2 max-w-[42ch] text-[16px] font-medium leading-[1.45] sm:text-[17px]", usesDarkSurface ? "text-[#D8CDE4]" : "text-vyva-text-2")}>
             {summary}
           </p>
         )}
 
         {visibleMetrics.length > 0 && (
-          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), isDark ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
+          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), usesDarkSurface ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
             {visibleMetrics.map((item, index) => (
-              <div key={item.label} className={cn("px-3 py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", isDark ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
-                <dt className={cn("text-[12px] font-semibold uppercase", isDark ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
+              <div key={item.label} className={cn("px-3 py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
+                <dt className={cn("text-[12px] font-semibold uppercase", usesDarkSurface ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
                 <dd className="mt-1 text-[24px] font-extrabold leading-none text-inherit">{item.value}</dd>
               </div>
             ))}

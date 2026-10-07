@@ -13,6 +13,7 @@ import type {
   CognitiveAssessmentProgramEnrollment,
   CognitiveAssessmentProgramFrequency,
   CognitiveAssessmentProgramJoinResponse,
+  CognitiveAssessmentProgramReminderStatus,
   CognitiveAssessmentProgramSessionSummary,
   CognitiveAssessmentProgramStatusResponse,
 } from "../../shared/cognitiveAssessmentProgram.js";
@@ -25,6 +26,7 @@ import {
   scheduledInteractionDaysOfWeek,
   scheduledInteractionFrequencyType,
 } from "../lib/cognitiveAssessmentProgram.js";
+import { markCognitiveAssessmentReminderCompleted } from "../services/cognitiveAssessmentReminders.js";
 import {
   cognitiveReadinessBlockersForLanguage,
   loadCognitiveAssessmentReadiness,
@@ -39,6 +41,11 @@ import {
   type CognitiveAssessmentSaveResponseResponse,
   type CognitiveAssessmentStartSessionResponse,
 } from "../../shared/cognitiveAssessmentRunner.js";
+import {
+  buildScoredResponseData,
+  scoreCognitiveTask,
+  type CognitiveScoringContext,
+} from "../../shared/cognitiveAssessmentScoring.js";
 
 type SessionRow = {
   id: string;
@@ -66,6 +73,7 @@ type TaskDefinitionRow = {
   content_source: "item_bank" | "rotation" | "static";
   expected_duration_sec: number;
   content_static: unknown;
+  scoring_config: unknown;
 };
 
 type ItemBankRow = {
@@ -95,6 +103,7 @@ type ProgramEnrollmentRow = {
   joined_at: Date | string | null;
   updated_at: Date | string | null;
   next_run_at: Date | string | null;
+  latest_reminder_at: Date | string | null;
 };
 type ProgramSessionRow = {
   id: string;
@@ -413,7 +422,8 @@ async function loadTaskDefinitions() {
       task_type,
       content_source,
       expected_duration_sec,
-      content_static
+      content_static,
+      scoring_config
     from public.cc_task_definitions
     where is_active = true
       and supports_wizard = true
@@ -598,6 +608,99 @@ function buildRunnerTask(
   };
 }
 
+async function loadScoringProfile(userId: string): Promise<{ timezone: string; profile: CognitiveScoringContext["profile"] }> {
+  try {
+    const { rows } = await pool.query<{
+      country_code: string | null;
+      city: string | null;
+      region: string | null;
+      timezone: string | null;
+    }>(`
+      select country_code, city, region, timezone
+      from public.profiles
+      where id = $1
+      limit 1
+    `, [userId]);
+    const row = rows[0];
+    return {
+      timezone: row?.timezone || "Europe/Madrid",
+      profile: { countryCode: row?.country_code ?? null, city: row?.city ?? null, region: row?.region ?? null },
+    };
+  } catch (error) {
+    console.warn("[cognitive-assessment] Profile unavailable for scoring:", error);
+    return { timezone: "Europe/Madrid", profile: {} };
+  }
+}
+
+// Rebuilds the step exactly as it was served, so scoring uses server-side content
+// (idea units, answer examples, clock target) rather than anything the client sends.
+async function buildServedTask(session: SessionRow, definition: TaskDefinitionRow) {
+  const language = normalizeAssessmentLanguage(session.language);
+  const [itemBankRows, rotationFormRows, responseRefsByTask] = await Promise.all([
+    loadRunnerItemBank(language),
+    loadRunnerRotationForms(language),
+    loadResponseRefs(session.id),
+  ]);
+  return buildRunnerTask(
+    definition,
+    session.id,
+    language,
+    groupByTask(itemBankRows),
+    groupByTask(rotationFormRows),
+    responseRefsByTask,
+  );
+}
+
+async function scoreSavedResponse(
+  userId: string,
+  session: SessionRow,
+  taskDefinitionId: string,
+  responseData: Record<string, unknown>,
+  submittedRefs: { itemBankId: string | null; rotationFormId: string | null },
+) {
+  try {
+    return await scoreWithServedContent(userId, session, taskDefinitionId, responseData, submittedRefs);
+  } catch (error) {
+    // A scoring failure must never lose the member's answer: save it unscored.
+    console.error("[cognitive-assessment] Scoring failed; saving unscored:", error);
+    return { ...responseData, score: null, max_score: null, needs_review: true, scoring_flags: ["scoring_error"] };
+  }
+}
+
+async function scoreWithServedContent(
+  userId: string,
+  session: SessionRow,
+  taskDefinitionId: string,
+  responseData: Record<string, unknown>,
+  submittedRefs: { itemBankId: string | null; rotationFormId: string | null },
+) {
+  const definition = (await loadTaskDefinitions()).find((row) => row.id === taskDefinitionId);
+  if (!definition) return responseData;
+  const [task, scoringProfile] = await Promise.all([
+    buildServedTask(session, definition),
+    loadScoringProfile(userId),
+  ]);
+  const scoring = scoreCognitiveTask({
+    taskId: taskDefinitionId,
+    scoringConfig: objectData(definition.scoring_config),
+    content: objectData(task.content),
+    response: responseData,
+    context: {
+      now: new Date(),
+      timezone: scoringProfile.timezone,
+      language: normalizeAssessmentLanguage(session.language),
+      profile: scoringProfile.profile,
+    },
+  });
+  const contentMismatch = (task.itemBankId && submittedRefs.itemBankId && task.itemBankId !== submittedRefs.itemBankId)
+    || (task.rotationFormId && submittedRefs.rotationFormId && task.rotationFormId !== submittedRefs.rotationFormId);
+  if (contentMismatch) {
+    scoring.needs_review = true;
+    scoring.flags.push("served_content_mismatch");
+  }
+  return buildScoredResponseData(responseData, scoring);
+}
+
 async function buildRunnerSession(session: SessionRow): Promise<CognitiveAssessmentRunnerSession> {
   const language = normalizeAssessmentLanguage(session.language);
   const [definitions, itemBankRows, rotationFormRows, completedTaskIds, responseRefsByTask] = await Promise.all([
@@ -767,6 +870,51 @@ function programSessionSummary(
   };
 }
 
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function programReminderStatus(
+  enrollment: CognitiveAssessmentProgramEnrollment | null,
+  enrollmentRow: ProgramEnrollmentRow | null,
+  latestReport: CognitiveAssessmentProgramSessionSummary | null,
+): CognitiveAssessmentProgramReminderStatus {
+  if (!enrollment) {
+    return {
+      state: "not_scheduled",
+      nextRunAt: null,
+      dueSince: null,
+    };
+  }
+
+  const nextRunAt = enrollment?.nextRunAt ?? null;
+  const latestReminderAt = iso(enrollmentRow?.latest_reminder_at);
+  const latestReportCompletedAt = latestReport?.completedAt ?? null;
+  const latestReminderDate = parseIsoDate(latestReminderAt);
+  const latestReportDate = parseIsoDate(latestReportCompletedAt);
+  const hasPendingReminder = Boolean(
+    latestReminderDate && (!latestReportDate || latestReportDate.getTime() < latestReminderDate.getTime()),
+  );
+  const nextRunDate = parseIsoDate(nextRunAt);
+  const dueBySchedule = Boolean(nextRunDate && nextRunDate.getTime() <= Date.now());
+
+  if (hasPendingReminder || dueBySchedule) {
+    return {
+      state: "due",
+      nextRunAt,
+      dueSince: latestReminderAt ?? nextRunAt,
+    };
+  }
+
+  return {
+    state: nextRunAt ? "upcoming" : "not_scheduled",
+    nextRunAt,
+    dueSince: null,
+  };
+}
+
 async function loadProgramStatus(
   userId: string,
   database: Queryable = pool,
@@ -783,7 +931,17 @@ async function loadProgramStatus(
         e.scheduled_interaction_id::text,
         e.joined_at,
         e.updated_at,
-        si.next_run_at
+        si.next_run_at,
+        (
+          select il.scheduled_for
+          from public.interaction_logs il
+          where il.user_id = e.user_id::text
+            and il.scheduled_interaction_id = e.scheduled_interaction_id
+            and il.interaction_type = 'BRAIN_COACH'
+            and il.outcome in ('REMINDER_QUEUED', 'REMINDER_SKIPPED')
+          order by il.scheduled_for desc nulls last, il.created_at desc
+          limit 1
+        ) as latest_reminder_at
       from public.cc_program_enrollments e
       left join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
       where e.user_id = $1::uuid
@@ -828,12 +986,15 @@ async function loadProgramStatus(
     `, [userId]),
   ]);
 
-  const enrollment = programEnrollmentFromRow(enrollmentResult.rows[0] ?? null);
+  const enrollmentRow = enrollmentResult.rows[0] ?? null;
+  const enrollment = programEnrollmentFromRow(enrollmentRow);
+  const latestReport = programSessionSummary(latestReportResult.rows[0] ?? null, false);
   return {
     joined: Boolean(enrollment),
     enrollment,
+    reminderStatus: programReminderStatus(enrollment, enrollmentRow, latestReport),
     latestUnfinishedSession: programSessionSummary(unfinishedResult.rows[0] ?? null, true),
-    latestReport: programSessionSummary(latestReportResult.rows[0] ?? null, false),
+    latestReport,
     completedReportCount: countNumber(countResult.rows[0]?.count),
     totalTasks: ASSESSMENT_TASK_TOTAL,
   };
@@ -1192,6 +1353,11 @@ router.post("/sessions/:sessionId/responses", async (req: Request, res: Response
       }
     }
 
+    const scoredResponseData = await scoreSavedResponse(userId, session, taskDefinitionId, responseData, {
+      itemBankId,
+      rotationFormId,
+    });
+
     await client.query(`
       delete from public.cc_task_responses
       where session_id = $1::uuid
@@ -1208,7 +1374,7 @@ router.post("/sessions/:sessionId/responses", async (req: Request, res: Response
       taskDefinitionId,
       itemBankId,
       rotationFormId,
-      JSON.stringify(responseData),
+      JSON.stringify(scoredResponseData),
     ]);
 
     await client.query("commit");
@@ -1243,6 +1409,10 @@ router.post("/sessions/:sessionId/complete", async (req: Request, res: Response)
       returning id::text
     `, [sessionId, userId]);
     if (!rows[0]) return res.status(404).json({ error: "Assessment session not found." });
+
+    await markCognitiveAssessmentReminderCompleted({ userId }).catch((error) => {
+      console.error("[cognitive-assessment] Schedule completion update failed:", error);
+    });
 
     const response: CognitiveAssessmentCompleteSessionResponse = {
       sessionId: rows[0].id,

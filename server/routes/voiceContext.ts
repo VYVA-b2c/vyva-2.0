@@ -7,6 +7,8 @@ import {
 } from "../lib/jwt.js";
 import { recordShownVoiceRecommendation } from "../lib/voiceRecommendationFeedback.js";
 import { resolveHealthMemoryPolicyFlag } from "../memory/healthMemoryPolicy.js";
+import { advisorVoiceDomain, advisorUsesLiveSearch } from "../lib/advisorVoice.js";
+import { signAdvisorSearchToolToken } from "../lib/jwt.js";
 
 const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "safety",
@@ -14,6 +16,8 @@ const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "health",
   "concierge",
   "brain_coach",
+  "wellness",
+  "breathing_meditation",
   "onboarding_profile",
   "companion",
   "doctor",
@@ -32,10 +36,21 @@ export function resolveVoiceContextDomain(body: Record<string, unknown>): VoiceC
 
   const agentSlug = typeof body.agent_slug === "string" ? normalizeSlug(body.agent_slug) : "";
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
+  const advisorDomain = advisorVoiceDomain(agentSlug);
+  if (advisorDomain) return advisorDomain;
+  if (agentSlug === "wellness" || agentSlug === "wellness-coach" || agentSlug === "wellness_coach") return "wellness";
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (
+    agentSlug === "breathing-meditation" ||
+    agentSlug === "breathing_meditation" ||
+    agentSlug === "meditation" ||
+    agentSlug === "breathing"
+  ) {
+    return "breathing_meditation";
+  }
   if (
     agentSlug === "onboarding-profile" ||
     agentSlug === "profile-onboarding" ||
@@ -91,6 +106,7 @@ export async function voiceContextHandler(req: Request, res: Response) {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const domain = resolveVoiceContextDomain(body);
     const memoryQuery = typeof body.memory_query === "string" ? body.memory_query : "";
+    const memoryRefresh = body.memory_refresh === true;
     const appEntrypoint = typeof body.app_entrypoint === "string" ? body.app_entrypoint : "";
     const conversationId =
       (typeof body.conversation_id === "string" && body.conversation_id.trim()) ||
@@ -115,9 +131,22 @@ export async function voiceContextHandler(req: Request, res: Response) {
           }
         : {}),
     });
+    if (memoryRefresh) {
+      return res.json({
+        domain,
+        dynamic_variables: {
+          memory_block: dynamicVariables.memory_block,
+        },
+      });
+    }
     const feedbackToken = await signVoiceRecommendationFeedbackToolToken(userId, conversationId);
     dynamicVariables.conversation_id = conversationId;
     dynamicVariables.voice_recommendation_feedback_token = feedbackToken;
+    const advisorSlug = typeof body.agent_slug === "string" ? normalizeSlug(body.agent_slug) : "";
+    if (advisorUsesLiveSearch(advisorSlug)) {
+      dynamicVariables.advisor_search_tool_token = await signAdvisorSearchToolToken(userId, conversationId, advisorSlug);
+      dynamicVariables.advisor_search_tool = "Use search_advisor_sources for current results. Name the source and its date aloud, and frame findings as worth checking.";
+    }
     void recordShownVoiceRecommendation({
       userId,
       sessionId: conversationId,

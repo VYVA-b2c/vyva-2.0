@@ -38,9 +38,33 @@ interface Medication {
   prescribed_by: string;
 }
 
+type SavedMedication = Partial<Omit<Medication, "id">> & {
+  medication_name?: unknown;
+  scheduled_times?: unknown;
+};
+
 const emptyMed = (id: string): Medication => ({
   id, name: "", dosage: "", frequency: "", times: "", with_food: "", prescribed_by: "",
 });
+
+function savedMedicationValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function normalizeSavedMedication(medication: SavedMedication, id: string): Medication {
+  const scheduledTimes = Array.isArray(medication.scheduled_times)
+    ? medication.scheduled_times.filter((value): value is string => typeof value === "string").join(", ")
+    : "";
+  return {
+    id,
+    name: savedMedicationValue(medication.name) || savedMedicationValue(medication.medication_name),
+    dosage: savedMedicationValue(medication.dosage),
+    frequency: savedMedicationValue(medication.frequency),
+    times: savedMedicationValue(medication.times) || scheduledTimes,
+    with_food: savedMedicationValue(medication.with_food),
+    prescribed_by: savedMedicationValue(medication.prescribed_by),
+  };
+}
 
 const STANDARD_FREQUENCIES = ["once_daily", "twice_daily", "three_daily", "as_needed"];
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -260,11 +284,11 @@ export default function MedicationsSection() {
 
   useEffect(() => {
     if (loadedRef.current) return;
-    const saved = (data?.profile as { medications?: Omit<Medication, "id">[] } | null)?.medications;
+    const saved = (data?.profile as { medications?: SavedMedication[] } | null)?.medications;
     if (saved && saved.length > 0) {
       loadedRef.current = true;
       counterRef.current = saved.length;
-      const withIds = saved.map((m, i) => ({ ...m, id: `med-${i + 1}` }));
+      const withIds = saved.map((medication, index) => normalizeSavedMedication(medication, `med-${index + 1}`));
       setMeds(withIds);
       setSavedMeds(withIds);
       setNoKnownMedications(false);
@@ -620,7 +644,7 @@ export default function MedicationsSection() {
       className="!rounded-none"
       subtitle={t("onboarding.medications.title", "Medications")}
       showBack
-      onBack={() => confirmNavigation("/onboarding/profile")}
+      onBack={() => confirmNavigation("/onboarding/profile/group/medication")}
       homeMasterBackPath="/dev/home-master/profile"
       showCompanionMode={false}
       rightAction={(
@@ -751,16 +775,13 @@ export default function MedicationsSection() {
                         </button>
                         <button
                           type="button"
-                          data-testid={`button-meds-remove-${med.id}`}
-                          onClick={() => removeMed(med.id)}
+                          data-testid={`button-meds-voice-${med.id}`}
+                          aria-label={`Add ${med.name || `medication ${idx + 1}`} by voice`}
+                          onClick={startVoiceMedicationCapture}
                           disabled={busy}
-                          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] transition hover:bg-[#5b1a8f] disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {removingId === med.id ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={18} />
-                          )}
+                          <Mic size={18} />
                         </button>
                       </div>
                     </div>
@@ -801,16 +822,13 @@ export default function MedicationsSection() {
                       )}
                       <button
                         type="button"
-                        data-testid={`button-meds-remove-${med.id}`}
-                        onClick={() => removeMed(med.id)}
+                        data-testid={`button-meds-voice-${med.id}`}
+                        aria-label={`Add medication ${idx + 1} by voice`}
+                        onClick={startVoiceMedicationCapture}
                         disabled={busy}
-                        className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] transition hover:bg-[#5b1a8f] disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {removingId === med.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={18} />
-                        )}
+                        <Mic size={18} />
                       </button>
                     </div>
                   </div>
@@ -928,6 +946,16 @@ export default function MedicationsSection() {
                         <FormField label={<FieldLabel icon={<Stethoscope size={16} />}>Prescribed by</FieldLabel>} hint="Optional, but helpful for future reports.">
                           <Input data-testid={`input-med-prescribed-${idx}`} placeholder="GP, specialist, or clinic name" value={med.prescribed_by} onChange={(e) => updateMed(med.id, "prescribed_by", e.target.value)} className={inputClassName} />
                         </FormField>
+                        <button
+                          type="button"
+                          data-testid={`button-meds-remove-${med.id}`}
+                          onClick={() => removeMed(med.id)}
+                          disabled={busy}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full px-4 text-[14px] font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {removingId === med.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                          Remove medication
+                        </button>
                       </div>
                     ) : null}
                   </div>
@@ -982,11 +1010,9 @@ export default function MedicationsSection() {
             saving={saving || autoSaving}
             onSave={handleSave}
             disabled={adding || !!removingId || isLoading || !hasMedicationSectionContent}
-            saveLabel={t("onboarding.medications.saveContinue", "Save and continue")}
+            saveLabel="Save changes"
             savingLabel={t("onboarding.medications.saving", "Saving...")}
             helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-            skipLabel={t("onboarding.medications.skip", "Skip for now")}
-            onSkip={() => confirmNavigation("/onboarding/profile")}
             testId="button-meds-save"
           />
         </OnboardingCompanionTarget>

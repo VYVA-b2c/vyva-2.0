@@ -1,6 +1,8 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { deleteConciergeRequest } from "../services/conciergeRequestDeletion.js";
+import { ConciergeRequestBusyError } from "../services/conciergeRequestLock.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 import { requireEntitlement } from "../middleware/entitlements.js";
 import {
@@ -27,6 +29,7 @@ function userId(req: Request): string {
 }
 
 function taskError(res: Response, error: unknown) {
+  if (error instanceof ConciergeRequestBusyError) return res.status(409).json({ error: error.message });
   if (error instanceof ConciergeTaskUnavailableError) {
     return res.status(410).json({ error: "Task is no longer active", status: error.status });
   }
@@ -107,6 +110,15 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     return taskError(res, error);
   }
+});
+
+router.delete("/pending/:id", async (req, res) => {
+  const parsedId = idSchema.safeParse(req.params.id);
+  if (!parsedId.success) return res.status(400).json({ error: "Invalid task ID" });
+  try {
+    await deleteConciergeRequest("pending", parsedId.data, userId(req));
+    return res.json({ ok: true });
+  } catch (error) { return taskError(res, error); }
 });
 
 export default router;

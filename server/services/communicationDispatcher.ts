@@ -6,6 +6,7 @@ import { explainEmailProviderError, requireEmailFromAddress } from "../lib/email
 import { buildCareTeamInviteEmail } from "../lib/careTeamInviteEmail.js";
 import { buildSignupInviteEmail, signupInviteRecipientNameFromMetadata } from "../lib/signupInviteEmail.js";
 import { queueDueCallbackOnboardingCalls } from "./callbackOnboarding.js";
+import { queueDueCognitiveAssessmentReminders } from "./cognitiveAssessmentReminders.js";
 import { queueDueConsentCalls } from "./lifecycle.js";
 
 type Communication = typeof communicationsLog.$inferSelect;
@@ -260,7 +261,7 @@ async function sendSms(item: Communication) {
   return postTwilioForm("Messages", params);
 }
 
-export function buildWhatsappMessageParams(item: Communication) {
+export function buildWhatsappMessageParams(item: Pick<Communication, "recipient" | "body" | "metadata">) {
   const metadata = metadataRecord(item.metadata);
   const contentSid = metadataString(metadata, "content_sid");
   const contentVariables = metadata.content_variables;
@@ -280,8 +281,10 @@ export function buildWhatsappMessageParams(item: Communication) {
   return params;
 }
 
-async function sendWhatsapp(item: Communication) {
-  const from = process.env.TWILIO_WHATSAPP_FROM ?? process.env.TWILIO_WHATSAPP_FROM_NUMBER;
+export async function sendWhatsapp(item: Pick<Communication, "recipient" | "body" | "metadata">) {
+  const from = process.env.TWILIO_WHATSAPP_FROM?.trim()
+    || process.env.TWILIO_WHATSAPP_FROM_NUMBER?.trim()
+    || process.env.TWILIO_FROM_NUMBER?.trim();
   const messagingServiceSid = process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID;
   if (!messagingServiceSid && !from) throw new Error("WhatsApp sender is not configured");
 
@@ -517,6 +520,9 @@ export async function dispatchCommunicationsByIds(ids: string[]): Promise<{ proc
 export async function dispatchQueuedCommunications(limit = 25): Promise<{ processed: number; results: DispatchResult[] }> {
   await queueDueConsentCalls(limit);
   await queueDueCallbackOnboardingCalls(limit);
+  await queueDueCognitiveAssessmentReminders({ limit }).catch((error) => {
+    console.error("[communications] cognitive assessment reminder queue failed", error);
+  });
 
   const queued = await db
     .select()

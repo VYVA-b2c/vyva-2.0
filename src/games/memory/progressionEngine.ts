@@ -3,7 +3,16 @@ import { BRAIN_COACH_MAX_LEVEL, clampBrainCoachLevel } from "../shared/brainCoac
 import type { LanguageCode } from "@/i18n/languages";
 import { getGameHistory, getRecentGameHistory } from "./gameStorage";
 import { getGameDefinition, getGameLevel, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
-import type { CognitiveDomain, GameResult, MemoryGameType, Recommendation } from "./types";
+import type {
+  CognitiveDomain,
+  GameResult,
+  MemoryGameType,
+  MemoryGameVariant,
+  Recommendation,
+  StoryDifficultyChoice,
+  StoryThemeChoice,
+  StoryThemeId,
+} from "./types";
 import { clampVisualMemoryLevel, VISUAL_MEMORY_MAX_LEVEL } from "./visualMemoryJourney";
 
 const DOMAIN_ROTATION: CognitiveDomain[] = [
@@ -15,6 +24,51 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
 
 export const MEMORY_LEVEL_UP_ACCURACY = 80;
 export const VISUAL_MEMORY_ROUNDS_TO_ADVANCE = 1;
+
+export function applyStoryDifficultyChoice(adaptiveLevel: number, choice: StoryDifficultyChoice) {
+  const offset = choice === "gentle" ? -1 : choice === "stretch" ? 1 : 0;
+  return clampGameLevel(adaptiveLevel + offset, "story_recall");
+}
+
+function storyMetadata(result: GameResult) {
+  const metadata = result.metadata ?? {};
+  return {
+    storyId: typeof metadata.storyId === "string" ? metadata.storyId : null,
+    themeId: typeof metadata.themeId === "string" ? metadata.themeId as StoryThemeId : null,
+    adaptiveBaseline: Number(metadata.adaptiveBaseline),
+    scoringMode: typeof metadata.scoringMode === "string" ? metadata.scoringMode : "composite",
+  };
+}
+
+function storyVariantMetadata(variant: MemoryGameVariant) {
+  const payload = (variant.content.en ?? variant.content.es).payload;
+  return {
+    storyId: typeof payload.storyId === "string" ? payload.storyId : variant.id,
+    themeId: typeof payload.themeId === "string" ? payload.themeId as StoryThemeId : null,
+  };
+}
+
+export function pickStoryVariantForTheme(
+  history: GameResult[],
+  level: number,
+  themeChoice: StoryThemeChoice,
+  excludeStoryId?: string,
+) {
+  const variants = getGameLevel("story_recall", level).variants;
+  const eligible = themeChoice === "surprise"
+    ? variants
+    : variants.filter((variant) => storyVariantMetadata(variant).themeId === themeChoice);
+  const recentStoryIds = new Set(
+    sortNewestFirst(history)
+      .filter((result) => result.gameType === "story_recall")
+      .map((result) => storyMetadata(result).storyId ?? result.variantId),
+  );
+  const candidates = eligible.filter((variant) => storyVariantMetadata(variant).storyId !== excludeStoryId);
+  return candidates.find((variant) => !recentStoryIds.has(storyVariantMetadata(variant).storyId))
+    ?? candidates[0]
+    ?? eligible[0]
+    ?? variants[0];
+}
 
 export type VisualMemoryLevelProgress = {
   completedRounds: number;
@@ -94,6 +148,22 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
       1,
     );
     return clampVisualMemoryLevel(highestCompletedLevel + 1);
+  }
+
+  if (gameType === "story_recall") {
+    const latest = gameHistory[0];
+    const latestMetadata = storyMetadata(latest);
+    const adaptiveBaseline = Number.isFinite(latestMetadata.adaptiveBaseline)
+      ? clampGameLevel(latestMetadata.adaptiveBaseline, gameType)
+      : clampGameLevel(latest.level, gameType);
+    const eligible = gameHistory
+      .filter((entry) => storyMetadata(entry).scoringMode !== "quiz_fallback")
+      .slice(0, 3);
+    if (eligible.length === 0) return adaptiveBaseline;
+    const averageAccuracy = eligible.reduce((sum, entry) => sum + entry.accuracy, 0) / eligible.length;
+    if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampGameLevel(adaptiveBaseline + 1, gameType);
+    if (averageAccuracy < 50) return clampGameLevel(adaptiveBaseline - 1, gameType);
+    return adaptiveBaseline;
   }
 
   const recent = gameHistory.slice(0, 3);

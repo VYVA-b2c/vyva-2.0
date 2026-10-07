@@ -4,8 +4,6 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeTaskInboxPage from "./ConciergeTaskInboxPage";
 import { apiFetch } from "@/lib/queryClient";
-import { emptyRefillDraft } from "@/components/voice-canvas/refillCanvasMachine";
-import { emptyShoppingDraft } from "@/components/voice-canvas/shoppingCanvasMachine";
 import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution";
 
 vi.mock("@/i18n", () => ({
@@ -54,6 +52,7 @@ function renderPage(initialEntry = "/concierge/tasks") {
 describe("ConciergeTaskInboxPage", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -125,13 +124,14 @@ describe("ConciergeTaskInboxPage", () => {
   it("keeps active work focused and completed history searchable", async () => {
     renderPage();
 
+    expect(await screen.findByTestId("concierge-task-inbox")).toHaveAttribute("data-home-master-theme", "dark");
     expect(await screen.findByTestId("concierge-inbox-group-needs_you")).toHaveTextContent("Needs you1");
     expect(screen.getByTestId("concierge-inbox-group-waiting")).toHaveTextContent("Waiting1");
     expect(screen.queryByTestId("concierge-inbox-group-completed")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Prepare an appointment")).toHaveLength(1);
+    expect(screen.queryByText("Prepare an appointment")).not.toBeInTheDocument();
     expect(screen.getByText("Harbour Clinic needs your insurance plan.")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-inbox-task-state-pending:reply-1")).toHaveTextContent("Needs information");
-    expect(screen.getByTestId("concierge-inbox-task-scene-pending:reply-1")).toHaveTextContent("Reply");
+    expect(screen.queryByText("Needs information")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reply")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("concierge-task-view-completed"));
     expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("Completed1");
@@ -150,11 +150,10 @@ describe("ConciergeTaskInboxPage", () => {
     expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
   });
 
-  it("shows a local shopping Canvas draft and resumes it on the Shopping screen", async () => {
+  it("does not promote local wizard progress into the task inbox", async () => {
     sessionStorage.setItem("vyva.shoppingDelivery.v1", JSON.stringify({
       step: "review",
       draft: {
-        ...emptyShoppingDraft,
         items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
         fulfillment: "delivery",
         location: "Home",
@@ -166,47 +165,10 @@ describe("ConciergeTaskInboxPage", () => {
       revision: 3,
     }));
 
-    renderPage("/concierge/tasks/draft%3Alocal-canvas-shopping");
+    renderPage();
 
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
-    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review and confirm");
-
-    apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
-    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"shopping"');
-    expect(apiFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("shows a legacy local refill draft and routes it into the inventory tracker", async () => {
-    sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
-      step: "quantity",
-      draft: {
-        ...emptyRefillDraft,
-        medicationName: "Metformin",
-        strength: "500 mg",
-        providerName: "Saved pharmacy",
-      },
-      requestId: 0,
-    }));
-
-    renderPage("/concierge/tasks/draft%3Alocal-canvas-refill-active");
-
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Refill Canvas");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Draft");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
-
-    apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/refills");
-    expect(screen.getByTestId("location-state")).toHaveTextContent("{}");
-    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("concierge-inbox-group-needs_you")).not.toHaveTextContent("Shopping or delivery");
+    expect(screen.queryByText("1 item saved. Review before preparing any request.")).not.toBeInTheDocument();
   });
 
   it("opens a focused detail, keeps More details closed, and resumes the exact saved task", async () => {
@@ -214,10 +176,8 @@ describe("ConciergeTaskInboxPage", () => {
     fireEvent.click(await screen.findByTestId("concierge-inbox-task-pending:reply-1"));
 
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Provider reply");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Needs information");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Respond");
+    expect(screen.getByTestId("concierge-task-continuation")).not.toHaveTextContent("Task type");
     expect(screen.getByTestId("concierge-task-provider-reply")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getByTestId("concierge-task-decision")).toHaveTextContent("Prepared an answer for the clinic.");
     expect(screen.getByTestId("concierge-task-more-details")).not.toHaveAttribute("open");
@@ -255,16 +215,15 @@ describe("ConciergeTaskInboxPage", () => {
     renderPage();
     const task = await screen.findByTestId("concierge-inbox-task-pending:long-shopping-1");
     expect(task).toHaveAccessibleName(/Waiting/);
-    expect(screen.getByTestId("concierge-inbox-task-state-pending:long-shopping-1")).toHaveTextContent("Waiting");
-    expect(screen.getByTestId("concierge-inbox-task-scene-pending:long-shopping-1")).toHaveTextContent("Waiting");
+    expect(within(task).queryByText("Waiting")).not.toBeInTheDocument();
 
     task.focus();
     expect(task).toHaveFocus();
     fireEvent.click(task);
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("View status");
   });
 
-  it("surfaces stale blocked tasks and resumes through the safe Concierge path", async () => {
+  it("keeps stale provider work in the focused request view instead of opening the legacy workspace", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
       if (target === "/api/concierge/tasks" || target === "/api/concierge/actions/sessions") {
@@ -289,13 +248,11 @@ describe("ConciergeTaskInboxPage", () => {
     });
 
     renderPage("/concierge/tasks/pending%3Aexpired-ride");
-    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Needs refresh");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("View request");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Nothing happens without a fresh confirmation.");
-    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review safely");
-
-    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/expired-ride");
-    expect(screen.getByTestId("location-state")).toHaveTextContent('"conciergePendingId":"expired-ride"');
+    expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("concierge-task-status-message")).toHaveTextContent("stays here");
+    expect(screen.getByTestId("location-path")).not.toHaveTextContent("/concierge/task/expired-ride");
   });
 
   it("lets users exit a detail card without writing or losing the task", async () => {
@@ -303,7 +260,7 @@ describe("ConciergeTaskInboxPage", () => {
 
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
     apiFetchMock.mockClear();
-    fireEvent.click(screen.getByTestId("button-concierge-task-exit"));
+    fireEvent.click(screen.getByRole("button", { name: "All tasks" }));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
     expect(await screen.findByTestId("concierge-task-inbox")).toBeInTheDocument();
@@ -505,7 +462,7 @@ describe("ConciergeTaskInboxPage", () => {
 
     renderPage("/concierge/tasks/pending%3Aconfirmed-reply-1");
     expect(await screen.findByTestId("button-concierge-task-complete-reply")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Review reply");
     expect(completionBody).toBeNull();
 
     fireEvent.click(screen.getByTestId("button-concierge-task-complete-reply"));
