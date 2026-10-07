@@ -90,6 +90,16 @@ function linkedInScopes() {
     .filter(Boolean);
 }
 
+function grantedScopeSet(scope: string | null) {
+  const scopes = scope?.trim() ? scope.split(/[,\s]+/) : linkedInScopes();
+  return new Set(scopes.map((item) => item.trim()).filter(Boolean));
+}
+
+function hasOrganizationSocialScopes(scope: string | null) {
+  const scopes = grantedScopeSet(scope);
+  return scopes.has("r_organization_social") || scopes.has("w_organization_social");
+}
+
 export function linkedInOAuthRedirectUri() {
   const configured = process.env.LINKEDIN_OAUTH_REDIRECT_URI?.trim();
   if (configured) return configured;
@@ -187,6 +197,13 @@ function preferredOrganizationName(organizationUrn: string) {
     || `LinkedIn organization ${organizationUrn.replace("urn:li:organization:", "")}`;
 }
 
+function preferredMemberAccountName(userInfo: LinkedInUserInfo | null) {
+  return stringValue(userInfo?.name)
+    || stringValue(userInfo?.email)
+    || process.env.LINKEDIN_ORGANIZATION_NAME?.trim()
+    || "LinkedIn member";
+}
+
 function publishRoles() {
   return new Set(["ADMINISTRATOR", "CONTENT_ADMIN", "DIRECT_SPONSORED_CONTENT_POSTER"]);
 }
@@ -211,12 +228,62 @@ async function authorizedOrganizations(accessToken: string) {
 
 export async function connectLinkedInFromAuthorizationCode(input: { code: string; connectedBy: string }) {
   const exchanged = await exchangeLinkedInCode(input.code);
-  const [userInfo, organizations] = await Promise.all([
-    linkedInUserInfo(exchanged.accessToken),
-    authorizedOrganizations(exchanged.accessToken),
-  ]);
+  const userInfo = await linkedInUserInfo(exchanged.accessToken);
+  const organizations = hasOrganizationSocialScopes(exchanged.scope)
+    ? await authorizedOrganizations(exchanged.accessToken)
+    : [];
   if (!organizations.length) {
-    throw new Error("LinkedIn connected, but no approved VYVA company-page publishing role was found. Confirm the LinkedIn app has organization social scopes and the signed-in member can post for the VYVA Page.");
+    if (hasOrganizationSocialScopes(exchanged.scope)) {
+      throw new Error("LinkedIn connected, but no approved VYVA company-page publishing role was found. Confirm the LinkedIn app has organization social scopes and the signed-in member can post for the VYVA Page.");
+    }
+    const now = new Date();
+    const memberName = stringValue(userInfo?.name);
+    const memberEmail = stringValue(userInfo?.email);
+    const memberSub = stringValue(userInfo?.sub) || input.connectedBy;
+    const accountId = `linkedin-member:${memberSub}`;
+    const [row] = await db.insert(marketingSocialConnections).values({
+      provider: LINKEDIN_PROVIDER,
+      external_account_id: accountId,
+      external_account_name: preferredMemberAccountName(userInfo),
+      access_token_encrypted: encryptMarketingAccessToken(exchanged.accessToken),
+      token_expires_at: exchanged.expiresAt,
+      status: "connected",
+      metadata: {
+        apiVersion: linkedInApiVersion(),
+        scope: exchanged.scope,
+        connectionLevel: "member_share_only",
+        organizationUrn: null,
+        organizationRole: null,
+        memberUrn: null,
+        memberSub,
+        memberName,
+        memberEmail,
+      },
+      connected_by: input.connectedBy,
+      updated_at: now,
+    }).onConflictDoUpdate({
+      target: [marketingSocialConnections.provider, marketingSocialConnections.external_account_id],
+      set: {
+        external_account_name: preferredMemberAccountName(userInfo),
+        access_token_encrypted: encryptMarketingAccessToken(exchanged.accessToken),
+        token_expires_at: exchanged.expiresAt,
+        status: "connected",
+        metadata: {
+          apiVersion: linkedInApiVersion(),
+          scope: exchanged.scope,
+          connectionLevel: "member_share_only",
+          organizationUrn: null,
+          organizationRole: null,
+          memberUrn: null,
+          memberSub,
+          memberName,
+          memberEmail,
+        },
+        connected_by: input.connectedBy,
+        updated_at: now,
+      },
+    }).returning();
+    return row ? [serializeLinkedInConnection(row)] : [];
   }
 
   const now = new Date();
@@ -281,7 +348,7 @@ export function serializeLinkedInConnection(row: MarketingSocialConnectionRow): 
     provider: row.provider,
     accountId: row.external_account_id,
     accountName: row.external_account_name,
-    organizationUrn: stringValue(metadata.organizationUrn) || row.external_account_id,
+    organizationUrn: stringValue(metadata.organizationUrn),
     organizationRole: stringValue(metadata.organizationRole),
     memberUrn: stringValue(metadata.memberUrn),
     memberName: stringValue(metadata.memberName),
@@ -319,8 +386,20 @@ export async function verifyLinkedInConnection(connectionId?: string) {
   const row = rows[0];
   if (!row) throw new Error("No connected LinkedIn organization was found.");
   const accessToken = decryptMarketingAccessToken(row.access_token_encrypted);
-  const organizations = await authorizedOrganizations(accessToken);
   const connection = serializeLinkedInConnection(row);
+  if (!connection.organizationUrn) {
+    const userInfo = await linkedInUserInfo(accessToken);
+    if (!stringValue(userInfo?.sub)) {
+      throw new Error("LinkedIn token is invalid or no longer has approved member access.");
+    }
+    return {
+      connection,
+      verifiedOrganizationUrn: null,
+      verifiedOrganizationName: connection.accountName,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+  const organizations = await authorizedOrganizations(accessToken);
   const verified = organizations.some((item) => item.organizationUrn === connection.organizationUrn);
   if (!verified) {
     throw new Error("LinkedIn token is valid, but it no longer has an approved publishing role for this organization.");
