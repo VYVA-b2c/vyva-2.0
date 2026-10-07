@@ -1046,6 +1046,8 @@ export default function FaceNameMatch({ userId, onExit }) {
         anotherLabel={text.playAnotherGame}
         onContinue={canContinue ? handleContinue : handleReplay}
         onAnother={handleExit}
+        onClose={handleExit}
+        closeLabel={t("common.close", "Close")}
         details={
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

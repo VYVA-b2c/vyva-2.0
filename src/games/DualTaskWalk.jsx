@@ -146,6 +146,10 @@ export function isGreatDualTaskResult(result) {
   return combinedAccuracy >= 80;
 }
 
+export function isDualTaskRoundComplete(mathStepsCompleted, expectedMathSteps, symbolsComplete) {
+  return symbolsComplete && mathStepsCompleted >= expectedMathSteps;
+}
+
 function shuffle(items) {
   const copy = [...items];
   for (let index = copy.length - 1; index > 0; index -= 1) {
@@ -652,8 +656,7 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
   const checkRoundCompletion = useCallback(() => {
     const seq = sequenceRef.current;
     if (!seq || finalizingRef.current) return;
-    const allMathDone = serial7sStepRef.current >= seq.expected_answers.length;
-    if (symbolsCompleteRef.current && allMathDone) {
+    if (isDualTaskRoundComplete(serial7sStepRef.current, seq.expected_answers.length, symbolsCompleteRef.current)) {
       void finishRound(false);
       return;
     }
@@ -676,7 +679,7 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
       setSymbolsComplete(true);
       if (symbolIntervalRef.current) window.clearInterval(symbolIntervalRef.current);
       symbolIntervalRef.current = null;
-      void finishRound(false);
+      checkRoundCompletion();
       return;
     }
 
@@ -685,7 +688,7 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
     tapWindowRef.current = false;
     setLastTapResult(null);
     setSymbolIndex(nextIndex);
-  }, [evaluateTapWindow, finishRound]);
+  }, [checkRoundCompletion, evaluateTapWindow]);
 
   const startRound = useCallback((overrideSequence = null) => {
     const seq = overrideSequence ?? sequenceRef.current ?? FALLBACK_SEQUENCE;

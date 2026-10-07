@@ -626,6 +626,8 @@ export default function ScentMemory({ userId, onExit }) {
             anotherLabel={t("games.scentMemory.doAnother", "Do another")}
             onContinue={() => void handleFinishSession()}
             onAnother={() => void handleAnotherMemory()}
+            onClose={onExit}
+            closeLabel={t("common.close", "Close")}
             disabled={saving}
           />
         ) : null}

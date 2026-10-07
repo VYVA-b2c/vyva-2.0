@@ -950,6 +950,8 @@ export default function SpatialNavigator({ userId, onExit }) {
           anotherLabel={text.playAnotherGame}
           onContinue={primaryResultAction}
           onAnother={handleExit}
+          onClose={handleExit}
+          closeLabel={t("common.close", "Close")}
           details={
             <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
               <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">

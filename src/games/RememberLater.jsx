@@ -1900,6 +1900,8 @@ export default function RememberLater({
             onContinue={continueToNextRound}
             onAnother={onExit}
             onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+            onClose={onExit}
+            closeLabel={t("common.close", "Close")}
             disabled={saving}
           />
         ) : null}

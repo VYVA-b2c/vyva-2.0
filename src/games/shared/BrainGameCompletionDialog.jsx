@@ -102,7 +102,7 @@ export default function BrainGameCompletionDialog({
   return (
     <div
       className={cn(
-        embedded ? "w-full pb-28 pt-2" : "fixed inset-0 z-50 flex items-center justify-center px-4 py-6 backdrop-blur-[3px]",
+        embedded ? "w-full pb-28 pt-2" : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 py-3 backdrop-blur-[3px] sm:items-center sm:px-4 sm:py-6",
         !embedded && (usesDarkSurface ? "bg-black/60" : "bg-[rgba(43,34,51,0.42)]"),
         className,
       )}
@@ -121,7 +121,7 @@ export default function BrainGameCompletionDialog({
       })}
     >
       <div className={cn(
-        embedded ? "relative mx-auto w-full max-w-[680px] text-center" : "relative w-full max-w-[680px] rounded-[30px] border px-5 py-6 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:px-7 sm:py-7",
+        embedded ? "relative mx-auto w-full max-w-[680px] text-center" : "relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[680px] overflow-y-auto overscroll-contain rounded-[24px] border px-4 py-4 text-center shadow-[0_28px_80px_rgba(43,34,51,0.28)] sm:max-h-[calc(100dvh-3rem)] sm:rounded-[30px] sm:px-7 sm:py-7",
         embedded ? (usesDarkSurface ? "text-[#F7F0FF]" : "text-[#241C30]") : usesDarkSurface ? "border-white/[0.14] bg-[#21162D] text-[#F7F0FF]" : "border-white/80 bg-white text-[#241C30]",
       )}>
         {onClose && (
@@ -139,25 +139,25 @@ export default function BrainGameCompletionDialog({
           </button>
         )}
 
-        <div className="mx-auto flex h-[78px] w-[78px] items-center justify-center rounded-[26px] bg-[#ECFDF5] text-[#0A7C4E] shadow-[0_12px_30px_rgba(10,124,78,0.18)]">
-          <CheckCircle2 size={38} />
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#ECFDF5] text-[#0A7C4E] shadow-[0_12px_30px_rgba(10,124,78,0.18)] sm:h-[78px] sm:w-[78px] sm:rounded-[26px]">
+          <CheckCircle2 className="h-8 w-8 sm:h-[38px] sm:w-[38px]" />
         </div>
 
-        <h2 id={titleId} className={embedded ? "mt-4 font-display text-[26px] font-semibold leading-tight text-inherit" : "mt-4 font-display text-[34px] leading-tight text-inherit sm:text-[38px]"}>
+        <h2 id={titleId} className={embedded ? "mt-4 font-display text-[26px] font-semibold leading-tight text-inherit" : "mt-3 font-display text-[28px] leading-tight text-inherit sm:mt-4 sm:text-[38px]"}>
           {title}
         </h2>
         {summary && (
-          <p id={summaryId} className={cn("mx-auto mt-2 max-w-[42ch] text-[16px] font-medium leading-[1.45] sm:text-[17px]", usesDarkSurface ? "text-[#D8CDE4]" : "text-vyva-text-2")}>
+          <p id={summaryId} className={cn("mx-auto mt-1.5 max-w-[42ch] text-[15px] font-medium leading-[1.4] sm:mt-2 sm:text-[17px] sm:leading-[1.45]", usesDarkSurface ? "text-[#D8CDE4]" : "text-vyva-text-2")}>
             {summary}
           </p>
         )}
 
         {visibleMetrics.length > 0 && (
-          <dl className={cn("mt-5 grid overflow-hidden rounded-[22px] border", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), usesDarkSurface ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
+          <dl className={cn("mt-4 grid overflow-hidden rounded-[20px] border sm:mt-5 sm:rounded-[22px]", embedded ? "grid-cols-2" : metricGridClass(visibleMetrics.length), usesDarkSurface ? "border-white/[0.12] bg-white/[0.10]" : "border-[#EADFF8] bg-[#EADFF8]")}>
             {visibleMetrics.map((item, index) => (
-              <div key={item.label} className={cn("px-3 py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
+              <div key={item.label} className={cn("px-3 py-3 sm:py-4", embedded && visibleMetrics.length % 2 === 1 && index === visibleMetrics.length - 1 && "col-span-2", usesDarkSurface ? "bg-white/[0.06]" : "bg-[#FFF9F1]")}>
                 <dt className={cn("text-[12px] font-semibold uppercase", usesDarkSurface ? "text-[#CFC1DB]" : "text-vyva-text-2")}>{item.label}</dt>
-                <dd className="mt-1 text-[24px] font-extrabold leading-none text-inherit">{item.value}</dd>
+                <dd className="mt-1 text-[22px] font-extrabold leading-none text-inherit sm:text-[24px]">{item.value}</dd>
               </div>
             ))}
           </dl>
@@ -183,7 +183,7 @@ export default function BrainGameCompletionDialog({
         )}
 
         {actions.length > 0 && (
-          <div className={`mt-6 grid gap-3 ${actionGridClass(actions.length)}`}>
+          <div className={`mt-4 grid gap-2.5 sm:mt-6 sm:gap-3 ${actionGridClass(actions.length)}`}>
             {actions.map((action) => (
               <button
                 key={action.id}
@@ -191,7 +191,7 @@ export default function BrainGameCompletionDialog({
                 onClick={action.onClick}
                 disabled={disabled}
                 aria-label={action.ariaLabel}
-                className={`flex min-h-[64px] flex-col items-center justify-center rounded-full px-4 py-3 text-center text-[20px] font-extrabold leading-[1.08] disabled:opacity-60 ${action.hint ? "gap-1" : ""} ${action.className}`}
+                className={`flex min-h-14 flex-col items-center justify-center rounded-full px-4 py-2.5 text-center text-[18px] font-extrabold leading-[1.08] disabled:opacity-60 sm:min-h-[64px] sm:py-3 sm:text-[20px] ${action.hint ? "gap-1" : ""} ${action.className}`}
               >
                 <span>{action.label}</span>
                 {action.hint && (
@@ -203,7 +203,7 @@ export default function BrainGameCompletionDialog({
         )}
 
         {details && (
-          <div className={embedded ? "mt-6 text-left" : "mt-5 max-h-[28dvh] overflow-y-auto pr-1 text-left"}>
+          <div className={embedded ? "mt-6 text-left" : "mt-4 text-left sm:mt-5"}>
             {details}
           </div>
         )}

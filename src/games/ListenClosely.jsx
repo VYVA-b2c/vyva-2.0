@@ -886,6 +886,8 @@ export default function ListenClosely({ userId, onExit }) {
           anotherLabel={t("games.listenClosely.finish", "Finish")}
           onContinue={() => void loadGame(resultState)}
           onAnother={handleExit}
+          onClose={handleExit}
+          closeLabel={t("common.close", "Close")}
           disabled={saving}
         />
       </div>

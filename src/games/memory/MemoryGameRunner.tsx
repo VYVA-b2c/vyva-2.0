@@ -1909,6 +1909,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
           onReplay={!isWordRecallResult && !canOpenNextLevel ? () => void openSameGame() : undefined}
           onAnother={backToList}
           onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
+          onClose={backToList}
+          closeLabel={t("common.close", "Close")}
           disabled={actionLoading !== null}
           details={completionDetails && (
             <div className="grid gap-2">
@@ -2567,6 +2569,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
             onReplay={replayCurrentBoard}
             onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
+            onClose={backToList}
+            closeLabel={t("common.close", "Close")}
             disabled={actionLoading !== null}
             details={
               <div className={`rounded-[20px] border px-4 py-4 ${visualLevelCompleted ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#EADFF8] bg-[#FAF7FF]"}`}>
