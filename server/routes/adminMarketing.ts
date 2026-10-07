@@ -48,7 +48,20 @@ import {
   metaOAuthUrl,
   verifyMetaConnection,
 } from "../services/metaMarketingConnection.js";
-import { signMarketingMetaConnectState, verifyMarketingMetaConnectState } from "../lib/jwt.js";
+import {
+  connectLinkedInFromAuthorizationCode,
+  linkedInOAuthConfigured,
+  linkedInOAuthRedirectUri,
+  linkedInOAuthUrl,
+  listLinkedInConnections,
+  verifyLinkedInConnection,
+} from "../services/linkedinMarketingConnection.js";
+import {
+  signMarketingLinkedInConnectState,
+  signMarketingMetaConnectState,
+  verifyMarketingLinkedInConnectState,
+  verifyMarketingMetaConnectState,
+} from "../lib/jwt.js";
 
 export const adminMarketingRouter = Router();
 
@@ -2684,6 +2697,7 @@ function hasMarketingEnvValue(name: string) {
 
 async function socialPublishingStatus() {
   const metaConnections = await listMetaConnections();
+  const linkedInConnections = await listLinkedInConnections();
   return {
     manualPublishingEnabled: true,
     directPublishingEnabled: false,
@@ -2707,7 +2721,10 @@ async function socialPublishingStatus() {
         channels: ["linkedin"],
         manualPublishingEnabled: true,
         directPublishingEnabled: false,
-        connectionReady: hasMarketingEnvValue("LINKEDIN_MARKETING_ACCESS_TOKEN"),
+        connectionReady: linkedInConnections.length > 0 ||
+          hasMarketingEnvValue("LINKEDIN_MARKETING_ACCESS_TOKEN"),
+        connectionConfigured: linkedInOAuthConfigured(),
+        connections: linkedInConnections,
       },
       {
         id: "tiktok",
@@ -3198,6 +3215,87 @@ adminMarketingRouter.delete("/social-publishing/meta/connections/:connectionId",
   } catch (error) {
     console.error("[admin/marketing] Meta connection removal failed", error);
     return res.status(500).json({ error: "Meta connection could not be removed." });
+  }
+});
+
+adminMarketingRouter.get("/social-publishing/linkedin/connect", async (req, res) => {
+  if (!linkedInOAuthConfigured()) {
+    return res.redirect("/admin/marketing/settings?linkedin_connection=missing_config");
+  }
+
+  try {
+    const state = await signMarketingLinkedInConnectState(req.user?.id ?? "");
+    return res.redirect(linkedInOAuthUrl(state));
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn OAuth start failed", error);
+    return res.redirect("/admin/marketing/settings?linkedin_connection=failed");
+  }
+});
+
+adminMarketingRouter.get("/social-publishing/linkedin/callback", async (req, res) => {
+  const redirect = (status: string) => res.redirect(`/admin/marketing/settings?linkedin_connection=${encodeURIComponent(status)}`);
+  const code = typeof req.query.code === "string" ? req.query.code.trim() : "";
+  const stateToken = typeof req.query.state === "string" ? req.query.state.trim() : "";
+  if (!code || !stateToken) return redirect("failed");
+
+  const state = await verifyMarketingLinkedInConnectState(stateToken);
+  if (!state || state.userId !== req.user?.id) return redirect("failed");
+
+  try {
+    const connections = await connectLinkedInFromAuthorizationCode({
+      code,
+      connectedBy: actor(req),
+    });
+    console.info(`[admin/marketing] LinkedIn connected ${connections.length} organization account(s).`);
+    return redirect("connected");
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn OAuth callback failed", error);
+    return redirect("failed");
+  }
+});
+
+adminMarketingRouter.get("/social-publishing/linkedin/status", async (_req, res) => {
+  try {
+    const connections = await listLinkedInConnections();
+    return res.json({
+      ok: true,
+      provider: "linkedin",
+      configured: linkedInOAuthConfigured(),
+      redirectUri: linkedInOAuthRedirectUri(),
+      directPublishingEnabled: false,
+      connections,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn connection status failed", error);
+    return res.status(500).json({ error: "LinkedIn connection status could not be loaded." });
+  }
+});
+
+adminMarketingRouter.post("/social-publishing/linkedin/verify", async (req, res) => {
+  try {
+    const result = await verifyLinkedInConnection(
+      typeof req.body?.connectionId === "string" ? req.body.connectionId : undefined,
+    );
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn connection verification failed", error);
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : "LinkedIn connection could not be verified.",
+    });
+  }
+});
+
+adminMarketingRouter.delete("/social-publishing/linkedin/connections/:connectionId", async (req, res) => {
+  try {
+    const deleted = await db.delete(marketingSocialConnections)
+      .where(and(
+        eq(marketingSocialConnections.id, req.params.connectionId),
+        eq(marketingSocialConnections.provider, "linkedin"),
+      ));
+    return res.json({ ok: true, connectionId: req.params.connectionId, deleted: Boolean(deleted) });
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn connection removal failed", error);
+    return res.status(500).json({ error: "LinkedIn connection could not be removed." });
   }
 });
 
