@@ -1844,7 +1844,34 @@ const de = {
     },
   },
   concierge: {
-    master: { picker: { getHelp: {
+    master: {
+      heroEyebrow: "Concierge",
+      heroTitle: "Ihr Concierge ist bereit",
+      heroAction: "Mit VYVA sprechen",
+      voiceSupport: "Sprechen Sie jederzeit",
+      cards: {
+        getHelp: "Hilfe erhalten",
+        getHelpDetail: "Reparaturen, Gesundheit, Behörden, Betreuung",
+        getHelpChipHomeRepair: "Reparaturen",
+        getHelpChipHealthcare: "Gesundheit",
+        getHelpChipAdminService: "Behördenhilfe",
+        orderIn: "Bestellen",
+        orderInDetail: "Fahrt, Essen, Einkäufe",
+        orderInChipRide: "Fahrt",
+        orderInChipFood: "Essen",
+        orderInChipShopping: "Einkäufe",
+        bookAppointments: "Termine vereinbaren",
+        bookAppointmentsDetail: "Medizin, Behörden, Körperpflege",
+        bookAppointmentsChipMedical: "Medizin",
+        bookAppointmentsChipAdmin: "Behörden",
+        bookAppointmentsChipPersonalCare: "Körperpflege",
+        discover: "Entdecken",
+        discoverDetail: "Dienste und Angebote in der Nähe",
+        discoverChipSafeHome: "Sicheres Zuhause",
+        discoverChipCheckScam: "Betrug prüfen",
+        discoverChipOtcPharmacy: "Apotheke",
+      },
+      picker: { getHelp: {
       title: "Hilfe erhalten",
       voiceContext: "Fragen Sie, welche Hilfe benötigt wird. Kontaktieren oder buchen Sie niemanden ohne Bestätigung.",
       options: {
@@ -1853,7 +1880,8 @@ const de = {
         adminService: "Verwaltungshilfe", adminServiceDetail: "Formulare, Briefe und Behördenangelegenheiten",
         homeCare: "Häusliche Betreuung", homeCareDetail: "Betreuungskräfte oder Pflegeheime vergleichen",
       },
-    } } },
+      } },
+    },
     fastHelp: {
       ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen zu finden. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestatigung.",
       actions: {
