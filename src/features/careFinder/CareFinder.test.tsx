@@ -207,7 +207,7 @@ describe("contact safeguards", () => {
     fireEvent.click(screen.getByTestId("button-show-options"));
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
     expect(await screen.findByTestId("link-care-email")).toHaveAttribute("href", "mailto:cita@fisiocerca.es");
-    expect(screen.getByTestId("link-care-email")).toHaveTextContent("Email them");
+    expect(screen.getByTestId("link-care-email")).toHaveTextContent("Email");
     fireEvent.click(screen.getByTestId("button-care-share-preview"));
     expect(screen.getByTestId("care-share-preview").textContent).toContain("Email: cita@fisiocerca.es");
   });

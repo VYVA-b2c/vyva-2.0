@@ -161,19 +161,24 @@ export function ContactStep({
         ) : (
           <Notice tone="warn">{c.noPhone}</Notice>
         )}
-        {option.booking_url ? (
-          <a href={option.booking_url} target="_blank" rel="noreferrer" className={actionClass("secondary")}>
-            <ExternalLink size={20} aria-hidden="true" /><span>{c.bookingLink}</span>
-          </a>
-        ) : option.website ? (
-          <a href={option.website} target="_blank" rel="noreferrer" className={actionClass("secondary")}>
-            <ExternalLink size={20} aria-hidden="true" /><span>{c.website}</span>
-          </a>
-        ) : null}
-        {option.email ? (
-          <a href={`mailto:${option.email}`} className={actionClass("secondary")} data-testid="link-care-email">
-            <Mail size={20} aria-hidden="true" className="shrink-0" /><span>{c.email}</span>
-          </a>
+        {/* Other ways to get in touch: quiet links on one line, not more big buttons. */}
+        {option.booking_url || option.website || option.email ? (
+          <div className="flex flex-wrap justify-center gap-x-2">
+            {option.booking_url ? (
+              <a href={option.booking_url} target="_blank" rel="noreferrer" className={actionClass("quiet", "cf-btn-inline px-4")}>
+                <ExternalLink size={20} aria-hidden="true" className="shrink-0" /><span>{c.bookingLink}</span>
+              </a>
+            ) : option.website ? (
+              <a href={option.website} target="_blank" rel="noreferrer" className={actionClass("quiet", "cf-btn-inline px-4")}>
+                <ExternalLink size={20} aria-hidden="true" className="shrink-0" /><span>{c.website}</span>
+              </a>
+            ) : null}
+            {option.email ? (
+              <a href={`mailto:${option.email}`} className={actionClass("quiet", "cf-btn-inline px-4")} data-testid="link-care-email">
+                <Mail size={20} aria-hidden="true" className="shrink-0" /><span>{c.email}</span>
+              </a>
+            ) : null}
+          </div>
         ) : null}
         {onArrangeRide ? (
           <div>
