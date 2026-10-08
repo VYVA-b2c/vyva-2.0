@@ -1069,7 +1069,7 @@ function serializeScentMemoryPrompt(row: Record<string, unknown>) {
 async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLanguage: string) {
   const { db, scentMemoryPrompts, and, eq } = ctx;
   const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
-  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "en"]));
 
   for (const language of languageCandidates) {
     const rows = await db
@@ -1084,14 +1084,7 @@ async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLangu
     if (rows.length > 0) return rows;
   }
 
-  return db
-    .select()
-    .from(scentMemoryPrompts)
-    .where(and(
-      eq(scentMemoryPrompts.isActive, true),
-      eq(scentMemoryPrompts.rejected, false),
-    ))
-    .limit(500);
+  return [];
 }
 
 export async function scentMemoryContentHandler(req: Request, res: Response) {
