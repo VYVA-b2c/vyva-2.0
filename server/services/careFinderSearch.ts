@@ -29,6 +29,8 @@ import {
 import { findHealthMapCentres, findRegisterPlaces, type HealthMapCentres, type RegisterMatch } from "./careRegister.js";
 import { chooseAssignedCentre, type CareAssignedBasis, type CareFinderPublicCare } from "../../shared/careFinder/publicCare.js";
 import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
+import { geocodeFrenchLocation } from "./banGeocoder.js";
+import { FR_FINESS_SOURCE_LABEL, FR_FINESS_SOURCE_URL, FR_RPPS_SOURCE_LABEL, FR_RPPS_SOURCE_URL } from "../../shared/careFinder/registerFr.js";
 import {
   DEFAULT_CARE_FINDER_COUNTRY,
   careFinderCountry,
@@ -196,7 +198,9 @@ function text(lang: CareFinderLang, copy: Localized): string {
   return copy[lang];
 }
 
-function publicCentreAssumptions(request: CareFinderSearchRequest, lang: CareFinderLang): string[] {
+function publicCentreAssumptions(request: CareFinderSearchRequest, lang: CareFinderLang, country: CareFinderCountry): string[] {
+  // Spain's public health centres; France's route is the médecin traitant (shown by the client).
+  if (country !== "ES") return [];
   if (request.access !== "public" || (request.careType !== "primary_care" && request.careType !== "same_day")) return [];
   return [text(lang, {
     en: "Health centres are part of the public system. You are normally registered at one by your address, so check your health card for yours.",
@@ -235,6 +239,44 @@ function aboutKm(km: number, lang: CareFinderLang): string {
   });
 }
 
+/** Which register a place comes from, and how a result names it. */
+function registerSource(place: RegisterMatch["place"]): { label: string; url: string; matched: (updatedOn: string) => Localized } {
+  if (place.country === "FR" && place.listing === "FINESS") {
+    return {
+      label: FR_FINESS_SOURCE_LABEL,
+      url: FR_FINESS_SOURCE_URL,
+      matched: (updatedOn) => ({
+        en: `Registered in France's official register of health establishments (FINESS, updated ${updatedOn})`,
+        es: `Registrado en el registro oficial francés de establecimientos sanitarios (FINESS, actualizado el ${updatedOn})`,
+        fr: `Enregistré dans le répertoire officiel des établissements de santé (FINESS, mis à jour le ${updatedOn})`,
+        de: `Im offiziellen französischen Register der Gesundheitseinrichtungen eingetragen (FINESS, Stand ${updatedOn})`,
+      }),
+    };
+  }
+  if (place.country === "FR") {
+    return {
+      label: FR_RPPS_SOURCE_LABEL,
+      url: FR_RPPS_SOURCE_URL,
+      matched: (updatedOn) => ({
+        en: `Registered for this care in France's official directory of health professionals (RPPS, updated ${updatedOn})`,
+        es: `Registrado para esta atención en el directorio oficial francés de profesionales sanitarios (RPPS, actualizado el ${updatedOn})`,
+        fr: `Enregistré pour ces soins dans l'annuaire officiel des professionnels de santé (RPPS, mis à jour le ${updatedOn})`,
+        de: `Im offiziellen französischen Verzeichnis der Gesundheitsberufe für diese Versorgung eingetragen (RPPS, Stand ${updatedOn})`,
+      }),
+    };
+  }
+  return {
+    label: REGISTER_SOURCE_LABEL,
+    url: REGISTER_SEARCH_URL,
+    matched: (updatedOn) => ({
+      en: `Authorised for this care in Spain's official register of health centres (updated ${updatedOn})`,
+      es: `Autorizado para esta atención en el registro oficial de centros sanitarios (actualizado el ${updatedOn})`,
+      fr: `Autorisé pour ces soins dans le registre officiel espagnol des centres de santé (mis à jour le ${updatedOn})`,
+      de: `Im offiziellen spanischen Register der Gesundheitseinrichtungen für diese Versorgung zugelassen (Stand ${updatedOn})`,
+    }),
+  };
+}
+
 /** An option from the official register. Everything in it may be stored. */
 async function registerOption(
   match: RegisterMatch,
@@ -246,6 +288,8 @@ async function registerOption(
   refresh: (candidate: ProviderSourceCandidate, locale: string) => Promise<ProviderEvidenceRefreshResult | null>,
 ): Promise<CareFinderResultOption> {
   const { place, km } = match;
+  const country = place.country ?? "ES";
+  const source = registerSource(place);
   const name = registerDisplayName(place);
   const address = registerDisplayAddress(place);
   const registerDate = place.sourceUpdatedOn ? `${place.sourceUpdatedOn}T00:00:00.000Z` : checkedAt;
@@ -271,7 +315,7 @@ async function registerOption(
   const homeCare = place.careCodes.includes(HOME_CARE_CODE);
 
   const registerFact = (value: string): ProviderComparisonEvidence => ({
-    value, status: "verified", source: REGISTER_SOURCE_LABEL, sourceType: "official", sourceUrl: REGISTER_SEARCH_URL, checkedAt: registerDate,
+    value, status: "verified", source: source.label, sourceType: "official", sourceUrl: source.url, checkedAt: registerDate,
   });
   const comparison: Record<ProviderComparisonCriterion, ProviderComparisonFact> = {
     // Worked out by VYVA from the register address, so it is reported, not verified.
@@ -287,12 +331,7 @@ async function registerOption(
     reputation: mergeFact("reputation", undefined, []),
   };
 
-  const matched = [text(lang, {
-    en: `Authorised for this care in Spain's official register of health centres (updated ${updatedOn})`,
-    es: `Autorizado para esta atención en el registro oficial de centros sanitarios (actualizado el ${updatedOn})`,
-    fr: `Autorisé pour ces soins dans le registre officiel espagnol des centres de santé (mis à jour le ${updatedOn})`,
-    de: `Im offiziellen spanischen Register der Gesundheitseinrichtungen für diese Versorgung zugelassen (Stand ${updatedOn})`,
-  })];
+  const matched = [text(lang, source.matched(updatedOn))];
   if (role.assigned?.basis === "health_map") {
     const municipality = titleCaseMunicipality(place.municipalityName);
     const source = role.assigned.mapSource ?? "";
@@ -323,7 +362,7 @@ async function registerOption(
   }
 
   return {
-    id: `regcess:${place.ccn}`,
+    id: country === "ES" ? `regcess:${place.ccn}` : place.ccn.toLowerCase(),
     origin: "official_register",
     name,
     category: careLabel,
@@ -335,17 +374,17 @@ async function registerOption(
     website: place.website,
     booking_url: evidence?.discoveredBookingUrl ?? null,
     maps_url: mapsUrl,
-    source_label: REGISTER_SOURCE_LABEL,
+    source_label: source.label,
     source_status: "verified",
     source_type: "official",
-    source_url: REGISTER_SEARCH_URL,
+    source_url: source.url,
     checked_at: registerDate,
     comparison,
     travel_text: distance,
     travel_minutes: null,
     wheelchair_entrance: null,
     matched,
-    assumptions: publicCentreAssumptions(request, lang),
+    assumptions: publicCentreAssumptions(request, lang, country),
   };
 }
 
@@ -382,8 +421,11 @@ export async function searchCareProviders(
   // Spain's for now; elsewhere the map search below is used.
   const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
   if (findRegister && hasOfficialRegister(country)) {
-    const origin = await (dependencies.geocode ?? geocodeMemberLocation)(request.location).catch(() => null);
-    const publicPrimary = isPublicPrimaryCare(request);
+    // Each country's own national geocoder: CartoCiudad in Spain, BAN in France.
+    const geocode = dependencies.geocode ?? (country === "FR" ? geocodeFrenchLocation : geocodeMemberLocation);
+    const origin = await geocode(request.location).catch(() => null);
+    // Spain names the member's own public health centre; France has none to name.
+    const publicPrimary = isPublicPrimaryCare(request) && country === "ES";
     const matches = origin
       ? await findRegister({
         country,
@@ -539,7 +581,7 @@ export async function searchCareProviders(
       }));
     }
 
-    const assumptions = publicCentreAssumptions(request, lang);
+    const assumptions = publicCentreAssumptions(request, lang, country);
 
     return {
       id: place.place_id ?? `care-${index + 1}`,

@@ -203,23 +203,66 @@ describe("searchCareProviders", () => {
       expect(result.country).toBe("ES");
     });
 
-    it("skips Spain's register and geocoder for another country, and biases the map search there", async () => {
+    it("skips the register and geocoder for a country without one, and biases the map search there", async () => {
       const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
-        ? { status: "OK", results: [{ place_id: "g1", name: "Kiné Lyon", types: ["physiotherapist"] }] }
+        ? { status: "OK", results: [{ place_id: "g1", name: "Physio Berlin", types: ["physiotherapist"] }] }
         : { status: "OK", result: {} }));
       const geocode = vi.fn(async () => zamora);
       const findRegisterPlaces = vi.fn(async () => matches);
-      const result = await searchCareProviders({ ...request, location: "69003 Lyon", country: "fr" }, {
+      const result = await searchCareProviders({ ...request, location: "10115 Berlin", country: "de" }, {
         apiKey: "key", fetch: fetcher, refreshEvidence: async () => null, geocode, findRegisterPlaces,
       });
       expect(geocode).not.toHaveBeenCalled();
       expect(findRegisterPlaces).not.toHaveBeenCalled();
-      expect(result).toMatchObject({ country: "FR", publicCare: null });
+      expect(result).toMatchObject({ country: "DE", publicCare: null });
       expect(result.options[0]).toMatchObject({ origin: "google_places", id: "g1" });
       const textSearch = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls
         .map(([input]) => new URL(String(input)))
         .find((url) => url.pathname.endsWith("/textsearch/json"));
-      expect(textSearch?.searchParams.get("region")).toBe("fr");
+      expect(textSearch?.searchParams.get("region")).toBe("de");
+    });
+
+    describe("France", () => {
+      const lyon = { lat: 45.7597, lng: 4.8422, postcode: "69003", regionCode: null, provinceCode: "69", municipalityCode: "69383", precision: "housenumber" };
+      const frenchPlace = (ccn: string, name: string, extra: Partial<RegisterPlaceWithPosition> = {}): RegisterPlaceWithPosition => ({
+        country: "FR", ccn, regionalCode: "10001234567", listing: "RPPS", centreClass: "10", centreClassName: "Médecin",
+        name, regionCode: null, regionName: null, provinceCode: "69", provinceName: "Rhône", municipalityCode: "69383",
+        municipalityName: "Lyon 3e Arrondissement", street: "12 Rue Paul Bert", postcode: "69003", phone: "04 78 00 00 01",
+        email: null, website: null, ownership: null, dependency: null, careCodes: ["fr:primary_care", "fr:same_day"],
+        lat: 45.7601, lng: 4.8431, sourceUpdatedOn: "2026-10-08", ...extra,
+      });
+
+      it("reads France's register with France's geocoder, naming RPPS and FINESS as sources", async () => {
+        const findRegisterPlaces = vi.fn(async () => [
+          { place: frenchPlace("FR-RPPS:10001234567:abc", "Dr Claire Martin"), km: 0.1 },
+          { place: frenchPlace("FR-FINESS:690000001", "Centre de Santé Paul Bert", { listing: "FINESS", centreClass: "124", sourceUpdatedOn: "2026-10-01" }), km: 0.4 },
+        ]);
+        const geocode = vi.fn(async () => lyon);
+        const result = await searchCareProviders({ ...request, careType: "primary_care", access: "public", location: "12 rue Paul Bert, Lyon", country: "FR" }, {
+          apiKey: null, refreshEvidence: async () => null, geocode, findRegisterPlaces,
+        });
+        expect(geocode).toHaveBeenCalledWith("12 rue Paul Bert, Lyon");
+        expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ country: "FR", careType: "primary_care", limit: 3 }));
+        // No Spanish health-centre panel: France has no assigned public centre.
+        expect(result).toMatchObject({ status: "ok", country: "FR", orderedBy: "distance", publicCare: null });
+        const [doctor, centre] = result.options;
+        expect(doctor).toMatchObject({
+          id: "fr-rpps:10001234567:abc", name: "Dr Claire Martin", address: "12 Rue Paul Bert, 69003 Lyon 3e Arrondissement",
+          source_label: "Annuaire Santé (RPPS), Agence du Numérique en Santé", source_status: "verified", assumptions: [],
+        });
+        expect(doctor.matched[0]).toBe("Registered for this care in France's official directory of health professionals (RPPS, updated 8 October 2026)");
+        expect(centre).toMatchObject({ id: "fr-finess:690000001", source_label: "FINESS, Ministère de la Santé" });
+        expect(centre.matched[0]).toBe("Registered in France's official register of health establishments (FINESS, updated 1 October 2026)");
+        expect(storableCareFinderResults(result)).toBe(result);
+      });
+
+      it("says the town for a French place not yet on the map", async () => {
+        const result = await searchCareProviders({ ...request, country: "FR", location: "Lyon" }, {
+          apiKey: null, refreshEvidence: async () => null, geocode: async () => lyon,
+          findRegisterPlaces: async () => [{ place: frenchPlace("FR-RPPS:1:x", "Paul Roux", { lat: null, lng: null, careCodes: ["fr:physiotherapy"] }), km: null }],
+        });
+        expect(result.options[0].travel_text).toBe("In Lyon 3e Arrondissement, your town. Distance not known yet");
+      });
     });
 
     it("falls back to Google when the address can't be placed or the register fails", async () => {

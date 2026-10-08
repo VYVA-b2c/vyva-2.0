@@ -4,9 +4,10 @@ import {
   distanceKm,
   registerCandidateFilter,
   registerPlaceOffers,
-  type RegisterListing,
+  type RegisterSourceListing,
   type RegisterPlaceWithPosition,
 } from "../../shared/careFinder/register.js";
+import { DISTRICT_CITIES } from "../../shared/careFinder/registerFr.js";
 
 // How far to look. Rural Zamora needs the wider radius; cities fill up first.
 const SEARCH_RADIUS_KM = 40;
@@ -31,9 +32,10 @@ const day = (value: unknown) => (value instanceof Date ? value.toISOString().sli
 
 export function registerPlaceFromDb(row: Row): RegisterPlaceWithPosition {
   return {
+    country: str(row.country) ?? "ES",
     ccn: String(row.ccn),
     regionalCode: str(row.regional_code),
-    listing: String(row.listing) as RegisterListing,
+    listing: String(row.listing) as RegisterSourceListing,
     centreClass: str(row.centre_class),
     centreClassName: str(row.centre_class_name),
     name: String(row.name),
@@ -73,7 +75,7 @@ export async function findRegisterPlaces(params: {
   limit: number;
 }): Promise<RegisterMatch[]> {
   const { db } = await import("../db.js");
-  const { codes, classes } = registerCandidateFilter(params.careType, params.access);
+  const { codes, classes } = registerCandidateFilter(params.careType, params.access, params.country);
   if (codes.length === 0 && classes.length === 0) return [];
   const offersCare = sql`(
     care_codes && array(select jsonb_array_elements_text(${JSON.stringify(codes)}::jsonb))
@@ -91,14 +93,17 @@ export async function findRegisterPlaces(params: {
     LIMIT ${CANDIDATE_LIMIT}`);
   const placed = rankRegisterPlaces(rows(nearby).map(registerPlaceFromDb), params);
   const town = params.origin.municipalityCode?.slice(0, 5);
-  if (placed.length >= params.limit || !town || !/^\d{5}$/.test(town)) return placed;
+  // Spain: INE codes. France: INSEE codes, Corsica's with a letter ("2A004").
+  if (placed.length >= params.limit || !town || !/^\d[\dAB]\d{3}$/.test(town)) return placed;
   // REGCESS town codes are the INE code plus a check digit.
+  // Paris, Lyon and Marseille: a city-wide search covers every district's code.
+  const district = params.country === "FR" ? DISTRICT_CITIES[town] ?? null : null;
   const inTown = await db.execute(sql`
     SELECT * FROM care_register_places
     WHERE withdrawn_at IS NULL
       AND country = ${params.country}
       AND lat IS NULL
-      AND left(municipality_code, 5) = ${town}
+      AND (left(municipality_code, 5) = ${town} OR (${district}::text IS NOT NULL AND municipality_code LIKE ${district} || '%'))
       AND ${offersCare}
     LIMIT ${CANDIDATE_LIMIT}`);
   return [...placed, ...townRegisterPlaces(rows(inTown).map(registerPlaceFromDb), params, params.limit - placed.length)];

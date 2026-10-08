@@ -170,6 +170,26 @@ function OptionCard({
   );
 }
 
+/**
+ * A quiet line on what public cover means for this care. Spain: public cover
+ * reaches it by referral, so the places listed are private. France: the
+ * médecin traitant comes first; dentists, eye doctors and psychologists
+ * (Mon soutien psy) can be seen directly.
+ */
+function publicCoverNote(results: CareFinderSearchResponse, r: CareFinderCopy["results"]): string | null {
+  if (results.access !== "public" || results.publicCare) return null;
+  if (results.country !== "FR") return r.publicReferral;
+  switch (results.careType) {
+    case "primary_care": return r.publicDoctorFr;
+    case "same_day": return r.publicSameDayFr;
+    case "dentist":
+    case "urgent_dentist":
+    case "ophthalmology":
+    case "psychology": return null;
+    default: return r.publicReferralFr;
+  }
+}
+
 function PublicCarePanel({
   publicCare,
   options,
@@ -315,6 +335,7 @@ export function ResultsStep({
     );
   }
 
+  const publicNote = publicCoverNote(results, r);
   return (
     <div>
       {heading(r.heading(results.options.length, careLabel, location))}
@@ -325,9 +346,8 @@ export function ResultsStep({
             : results.orderedBy === "assigned_first" ? r.orderAssigned
               : r.orderRelevance
       }</p>
-      {/* Public cover reaches this care by referral; what's listed is private. */}
-      {results.access === "public" && !results.publicCare ? (
-        <p className="-mt-2 mb-4 text-[17px] text-[var(--cf-text-2)]" data-testid="care-public-referral">{r.publicReferral}</p>
+      {publicNote ? (
+        <p className="-mt-2 mb-4 text-[17px] text-[var(--cf-text-2)]" data-testid="care-public-referral">{publicNote}</p>
       ) : null}
 
       {results.publicCare ? <PublicCarePanel publicCare={results.publicCare} options={results.options} copy={copy} lang={lang} /> : null}

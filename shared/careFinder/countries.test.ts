@@ -12,8 +12,8 @@ describe("care finder countries", () => {
   });
 
   it("searches an official register only where one is imported", () => {
-    expect(hasOfficialRegister("ES")).toBe(true);
-    for (const country of ["FR", "DE", "GB", "IT"]) expect(hasOfficialRegister(country)).toBe(false);
+    for (const country of ["ES", "FR"]) expect(hasOfficialRegister(country)).toBe(true);
+    for (const country of ["DE", "GB", "IT"]) expect(hasOfficialRegister(country)).toBe(false);
   });
 
   it("biases the map search with the country's ccTLD", () => {
