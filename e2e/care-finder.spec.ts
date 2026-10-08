@@ -138,6 +138,7 @@ for (const locale of ["fr", "de"] as const) {
     await page.getByTestId("button-show-options").click();
     await page.getByTestId("button-prepare-a").click();
     await expect(page.getByTestId("button-care-call")).toBeVisible();
+    await expect(page.getByTestId("link-care-email")).toBeVisible();
     // Long German compounds must wrap inside the column, never spill out of it.
     const spill = await page.evaluate(() => {
       const frame = document.querySelector("[data-testid='harness-frame']")!.getBoundingClientRect();
@@ -160,6 +161,8 @@ test("contact preparation requires confirmation before calling", async ({ page }
   await page.getByTestId("button-prepare-a").click();
   await expect(page.getByRole("heading", { name: "Before you contact Fisioterapia Estrecho" })).toBeVisible();
   await expect(page.locator('a[href^="tel:+34"]')).toHaveCount(0);
+  await expect(page.getByTestId("link-care-email")).toHaveAttribute("href", "mailto:citas.fisioterapia@fisioterapiaestrecho-tarifa.es");
+  await expectNoHorizontalScroll(page);
   await page.getByTestId("button-care-call").click();
   const dialog = page.getByRole("dialog", { name: "Call Fisioterapia Estrecho?" });
   await expect(dialog.getByTestId("link-confirm-call")).toHaveAttribute("href", "tel:+34956680000");

@@ -172,7 +172,7 @@ export function ContactStep({
         ) : null}
         {option.email ? (
           <a href={`mailto:${option.email}`} className={actionClass("secondary")} data-testid="link-care-email">
-            <Mail size={20} aria-hidden="true" /><span className="break-all">{c.email(option.email)}</span>
+            <Mail size={20} aria-hidden="true" className="shrink-0" /><span>{c.email}</span>
           </a>
         ) : null}
         {onArrangeRide ? (
