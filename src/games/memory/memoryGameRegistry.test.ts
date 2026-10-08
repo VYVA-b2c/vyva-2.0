@@ -184,7 +184,8 @@ describe("memory game registry", () => {
         expect(payload.words).toHaveLength(expectedCounts[index]);
         expect(["home", "garden", "food", "travel", "community"]).toContain(payload.themeId);
         expect(payload.wordIcons).toHaveLength(expectedCounts[index]);
-        expect(payload.showWordCues).toBe(level.level <= 8);
+        expect(payload.showWordCues).toBe(true);
+        expect(new Set(payload.wordIcons as string[]).size).toBeGreaterThan(1);
       });
     });
 
