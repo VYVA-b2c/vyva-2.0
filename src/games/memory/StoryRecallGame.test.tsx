@@ -7,10 +7,8 @@ import StoryRecallGame from "./StoryRecallGame";
 
 const mocks = vi.hoisted(() => ({
   scoreRetell: vi.fn(),
-  speak: vi.fn(),
-  stop: vi.fn(),
-  pause: vi.fn(),
-  resume: vi.fn(),
+  speakText: vi.fn(() => true),
+  stopTts: vi.fn(),
 }));
 
 vi.mock("@/games/shared/useAIScoring", () => ({
@@ -19,15 +17,13 @@ vi.mock("@/games/shared/useAIScoring", () => ({
   }),
 }));
 
-vi.mock("@/games/shared/useTTS", () => ({
-  useTTS: () => ({
-    speak: mocks.speak,
-    stop: mocks.stop,
-    pause: mocks.pause,
-    resume: mocks.resume,
-    isSpeaking: false,
-    isLoading: false,
-    error: null,
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useTtsReadout: () => ({
+    speakText: mocks.speakText,
+    stopTts: mocks.stopTts,
+    playbackStatus: "idle",
+    isTtsSpeaking: false,
+    isTtsSupported: true,
   }),
 }));
 
@@ -115,6 +111,10 @@ describe("StoryRecallGame", () => {
     expect(await screen.findByText(/Build 1\/5/)).toBeInTheDocument();
     expect(screen.getByText("Read, then hide the story.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Listen" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Listen" }));
+    expect(mocks.speakText).toHaveBeenCalledWith(expect.any(String), "en");
 
     fireEvent.click(screen.getByRole("button", { name: "Answer questions" }));
     expect(await screen.findByText("Answer from memory.")).toBeInTheDocument();
@@ -127,7 +127,9 @@ describe("StoryRecallGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit retell" }));
 
     expect(await screen.findByRole("dialog", { name: "Well done" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Another in this theme" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "More games" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose a new theme" })).not.toBeInTheDocument();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "story_recall",
