@@ -1125,7 +1125,7 @@ const de = {
       cardDescription: "Sanfte Klaenge hoeren und ruhigen Fokus aufbauen.",
       instructionFind: "Tippen Sie jedes Mal, wenn Sie den Zielklang hoeren.",
       instructionOddball: "Tippen Sie, wenn der besondere Zielklang zwischen den anderen Klaengen erscheint.",
-      instructionCompare: "Hoeren Sie beide Klaenge. Waehlen Sie am Ende, welcher haeufiger war.",
+      instructionCompare: "Hoeren Sie jeden Klang unten an. Zaehlen Sie beide im Spiel und waehlen Sie den haeufigeren.",
       instructions: "Anleitung",
       tutorialSubtitle: "Hoeren Sie den Klang. Reagieren Sie dann.",
       tutorialListen: "Hoeren",

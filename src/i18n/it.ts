@@ -1093,7 +1093,7 @@ const it = {
       cardDescription: "Ascolta suoni delicati e costruisci calma attenzione.",
       instructionFind: "Tocca ogni volta che senti il suono obiettivo.",
       instructionOddball: "Tocca quando il suono speciale compare tra gli altri suoni.",
-      instructionCompare: "Ascolta entrambi i suoni. Alla fine scegli quale e comparso di piu.",
+      instructionCompare: "Prova ogni suono qui sotto. Durante il gioco contali e scegli quello che senti piu spesso.",
       instructions: "Istruzioni",
       tutorialSubtitle: "Ascolta il suono. Poi rispondi.",
       tutorialListen: "Ascolta",

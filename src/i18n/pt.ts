@@ -1093,7 +1093,7 @@ const pt = {
       cardDescription: "Ouca sons suaves e construa foco calmo.",
       instructionFind: "Toque sempre que ouvir o som alvo.",
       instructionOddball: "Toque quando o som especial aparecer entre os outros sons.",
-      instructionCompare: "Ouca os dois sons. No fim, escolha qual apareceu mais vezes.",
+      instructionCompare: "Experimente cada som abaixo. Durante o jogo, conte-os e escolha o que ouvir mais vezes.",
       instructions: "Instrucoes",
       tutorialSubtitle: "Ouca o som. Depois responda.",
       tutorialListen: "Ouvir",
