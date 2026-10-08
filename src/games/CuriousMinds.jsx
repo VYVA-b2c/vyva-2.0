@@ -197,6 +197,15 @@ export default function CuriousMinds({
       throw new Error(payload?.error ?? t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
     }
 
+    const contentLanguages = [payload?.hook?.language, payload?.prompt?.language].filter(Boolean);
+    const contentMatchesLanguage = contentLanguages.every((contentLanguage) => (
+      normalizeGameLanguage(contentLanguage) === gameLanguage
+      || (gameLanguage !== "en" && normalizeGameLanguage(contentLanguage) === "en")
+    ));
+    if (!contentMatchesLanguage) {
+      throw new Error(t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
+    }
+
     setHook(payload.hook);
     setPrompt(payload.prompt);
     setUserState(payload.state ?? getDefaultCuriousMindsUserState(userId));
