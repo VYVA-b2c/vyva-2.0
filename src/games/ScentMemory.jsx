@@ -293,10 +293,15 @@ export default function ScentMemory({ userId, onExit }) {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload?.error ?? t("games.scentMemory.contentUnavailable", "There is no reviewed Scent Memory content available yet."));
+      console.warn("Scent Memory is using localized fallback content.", payload?.error);
+      setPrompt(fallbackPromptFor(gameLanguage, excludedPrompt?.id ?? null));
+      setUserState(fallbackState);
+      return;
     }
 
-    setPrompt(payload.prompt);
+    const promptLanguage = normalizeGameLanguage(payload?.prompt?.language);
+    const promptMatchesLanguage = promptLanguage === gameLanguage || (gameLanguage !== "en" && promptLanguage === "en");
+    setPrompt(promptMatchesLanguage ? payload.prompt : fallbackPromptFor(gameLanguage, excludedPrompt?.id ?? null));
     setUserState(payload.state ?? getDefaultScentMemoryUserState(userId));
   }, [fallbackState, gameLanguage, t, userId]);
 
@@ -353,7 +358,7 @@ export default function ScentMemory({ userId, onExit }) {
     const apiResponse = await apiFetch("/api/games/scent-memory/sessions", {
       method: "POST",
       body: JSON.stringify({
-        promptId: currentPrompt?.id ?? null,
+        promptId: String(currentPrompt?.id ?? "").startsWith("local-") ? null : currentPrompt?.id ?? null,
         responseText: response || null,
         responseInputMethod: method ?? null,
         completed,

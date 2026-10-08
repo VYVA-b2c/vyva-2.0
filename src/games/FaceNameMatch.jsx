@@ -323,6 +323,86 @@ const PRACTICE_PERSONAS = [
       bgColor: "#D5F5F5",
     },
   },
+  {
+    id: "practice-aisha",
+    name_es: "Aisha",
+    name_de: "Aisha",
+    name_en: "Aisha",
+    avatar_config: {
+      skinTone: "deep",
+      hairColor: "black",
+      hairStyle: "bun",
+      eyeColor: "brown",
+      eyeShape: "almond",
+      hasGlasses: true,
+      glassStyle: "round",
+      facialHair: "none",
+      faceShape: "oval",
+      wrinkles: "light",
+      accessory: "earrings",
+      bgColor: "#E8D5F5",
+    },
+  },
+  {
+    id: "practice-pedro",
+    name_es: "Pedro",
+    name_de: "Peter",
+    name_en: "Peter",
+    avatar_config: {
+      skinTone: "tan",
+      hairColor: "brown",
+      hairStyle: "short_straight",
+      eyeColor: "green",
+      eyeShape: "hooded",
+      hasGlasses: false,
+      glassStyle: "none",
+      facialHair: "moustache",
+      faceShape: "square",
+      wrinkles: "moderate",
+      accessory: "none",
+      bgColor: "#F5E8D5",
+    },
+  },
+  {
+    id: "practice-sofia",
+    name_es: "Sofía",
+    name_de: "Sofia",
+    name_en: "Sophia",
+    avatar_config: {
+      skinTone: "light",
+      hairColor: "blonde",
+      hairStyle: "medium_wavy",
+      eyeColor: "blue",
+      eyeShape: "round",
+      hasGlasses: false,
+      glassStyle: "none",
+      facialHair: "none",
+      faceShape: "round",
+      wrinkles: "none",
+      accessory: "necklace",
+      bgColor: "#D5F5E0",
+    },
+  },
+  {
+    id: "practice-kenji",
+    name_es: "Kenji",
+    name_de: "Kenji",
+    name_en: "Kenji",
+    avatar_config: {
+      skinTone: "medium",
+      hairColor: "black",
+      hairStyle: "short_textured",
+      eyeColor: "brown",
+      eyeShape: "almond",
+      hasGlasses: true,
+      glassStyle: "rectangle",
+      facialHair: "none",
+      faceShape: "oval",
+      wrinkles: "light",
+      accessory: "none",
+      bgColor: "#D5E8F5",
+    },
+  },
 ];
 
 function practiceSet(language, tier = 1) {
@@ -432,6 +512,9 @@ export default function FaceNameMatch({ userId, onExit }) {
   const questionNumber = recallModeIndex * Math.max(1, faceCount) + recallIndex + 1;
 
   const loadUserState = useCallback(async () => {
+    // Keep the state advanced in this session even when the database read is
+    // delayed or the current round uses fallback practice content.
+    if (practiceStateRef.current) return practiceStateRef.current;
     if (!userId) return practiceStateRef.current ?? defaultUserState(userId);
 
     const { data, error } = await gameData
@@ -537,14 +620,14 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   const loadGame = useCallback(async (skipIntro = false) => {
     const freshRound = (data) => {
-      const selected = previousPeopleRef.current.length ? selectFreshFaceNameGroup(
+      const selected = selectFreshFaceNameGroup(
         shuffle([...data.selectedPersonas, ...data.distractorPersonas]),
         data.selectedPersonas.length,
         previousPeopleRef.current,
-      ) : data.selectedPersonas;
+      );
       const ids = new Set(selected.map((person) => person.id));
       const changed = data.selectedPersonas.some((person) => !ids.has(person.id));
-      previousPeopleRef.current = [...ids];
+      previousPeopleRef.current = [...previousPeopleRef.current, ...ids].slice(-(data.selectedPersonas.length * 2));
       return {
         ...data,
         selectedSet: { ...data.selectedSet, id: changed ? null : data.selectedSet.id, isPractice: data.note === "practice", persona_ids: [...ids] },
@@ -734,11 +817,13 @@ export default function FaceNameMatch({ userId, onExit }) {
 
     setUserState(next);
     practiceStateRef.current = next;
-    if (userId && !selectedSet?.isPractice) {
+    // Practice sets are fallback content, not throwaway sessions. A signed-in
+    // player's level progress must survive loading the next round.
+    if (userId) {
       await gameData.table("face_name_user_state").upsert(next, { onConflict: "user_id" });
     }
     return next;
-  }, [selectedSet?.isPractice, userId, userState]);
+  }, [userId, userState]);
 
   const completeSession = useCallback(async (nextLog) => {
     const result = computeFaceNameScore(nextLog, faceCount, recallModes);
@@ -1019,6 +1104,7 @@ export default function FaceNameMatch({ userId, onExit }) {
   const resultTier = result.currentTier ?? currentTier;
   const resultBand = getBrainCoachLevelBand(resultTier);
   const progressWidth = Math.min(100, Math.max(0, ((userState?.consecutive_wins ?? 0) / 3) * 100));
+  const completedProgressRounds = Math.min(3, Math.max(0, Number(userState?.consecutive_wins ?? 0)));
   const promoted = Boolean(result.currentTier && result.currentTier > currentTier);
   const canContinue = result.overallAccuracyPct >= FACE_NAME_ADVANCE_ACCURACY;
   const continueLabel = promoted
@@ -1069,7 +1155,7 @@ export default function FaceNameMatch({ userId, onExit }) {
             <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
               <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
                 <span>{result.currentTier && result.currentTier > currentTier ? text.newLevel : `${text.progressNext} ${nextTier}`}</span>
-                <span>{Math.round(progressWidth)}%</span>
+                <span>{completedProgressRounds}/3</span>
               </div>
               <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
                 {text.level} {resultTier} - {resultBand.label}

@@ -222,4 +222,18 @@ describe("ScentMemory component", () => {
     expect(screen.getByText("earth after rain")).toBeInTheDocument();
     expect(screen.queryByText("fresh bread")).not.toBeInTheDocument();
   });
+
+  it("uses localized fallback content when reviewed content is unavailable", async () => {
+    apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      error: "There is no reviewed Scent Memory content available yet.",
+    }), { status: 404 }));
+    window.localStorage.setItem("scentMemory:tutorialSeen:v1:user-1", "true");
+
+    render(<ScentMemory userId="user-1" onExit={vi.fn()} />);
+    await flushPromises();
+
+    expect(screen.getByText("fresh bread")).toBeInTheDocument();
+    expect(screen.queryByText("This memory could not open")).not.toBeInTheDocument();
+  });
 });

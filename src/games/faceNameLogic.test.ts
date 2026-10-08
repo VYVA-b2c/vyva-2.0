@@ -25,6 +25,16 @@ describe("face-name match logic", () => {
     expect(next[0]).toBe(pool[4]);
     expect(selectFreshFaceNameGroup(pool, 4, next.map((p) => p.id)).map((p) => p.id)).not.toEqual(next.map((p) => p.id));
   });
+
+  it("can serve three distinct rounds before repeating people", () => {
+    const pool = Array.from({ length: 12 }, (_, i) => ({ id: String(i), name: `Name ${i}` }));
+    const first = selectFreshFaceNameGroup(pool, 4, []);
+    const second = selectFreshFaceNameGroup(pool, 4, first.map((person) => person.id));
+    const recentIds = [...first, ...second].map((person) => person.id);
+    const third = selectFreshFaceNameGroup(pool, 4, recentIds);
+
+    expect(new Set([...first, ...second, ...third].map((person) => person.id)).size).toBe(12);
+  });
   it("scales difficulty by tier", () => {
     expect(getFaceNameFaceCount(1)).toBe(4);
     expect(getFaceNameFaceCount(5)).toBe(5);

@@ -942,7 +942,9 @@ function serializeCuriousMindsPrompt(row: Record<string, unknown>) {
 async function loadCuriousMindsActiveRows(ctx: CognitiveSessionDb, tableName: "hooks" | "prompts", requestedLanguage: string) {
   const { db, curiousMindsHooks, curiousMindsPrompts, and, eq } = ctx;
   const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
-  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+  // Never fall back to Spanish (or any unrelated language). English is the
+  // shared fallback for non-English locales; English requests stay English.
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "en"]));
   const table = tableName === "hooks" ? curiousMindsHooks : curiousMindsPrompts;
 
   for (const language of languageCandidates) {
@@ -954,11 +956,7 @@ async function loadCuriousMindsActiveRows(ctx: CognitiveSessionDb, tableName: "h
     if (rows.length > 0) return rows;
   }
 
-  return db
-    .select()
-    .from(table)
-    .where(eq(table.isActive, true))
-    .limit(500);
+  return [];
 }
 
 function normalizeScentMemoryState(row: unknown, userId: string) {
@@ -1071,7 +1069,7 @@ function serializeScentMemoryPrompt(row: Record<string, unknown>) {
 async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLanguage: string) {
   const { db, scentMemoryPrompts, and, eq } = ctx;
   const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
-  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "en"]));
 
   for (const language of languageCandidates) {
     const rows = await db
@@ -1086,14 +1084,7 @@ async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLangu
     if (rows.length > 0) return rows;
   }
 
-  return db
-    .select()
-    .from(scentMemoryPrompts)
-    .where(and(
-      eq(scentMemoryPrompts.isActive, true),
-      eq(scentMemoryPrompts.rejected, false),
-    ))
-    .limit(500);
+  return [];
 }
 
 export async function scentMemoryContentHandler(req: Request, res: Response) {
