@@ -163,6 +163,28 @@ describe("searchCareProviders", () => {
       expect(storableCareFinderResults(result)).toBe(result);
     });
 
+    it("adds places in the member's town that are not on the map yet, after the placed ones", async () => {
+      const unplaced = registerPlace("0749000003", "FISIO BENAVENTE", { lat: null, lng: null, municipalityName: "BENAVENTE" });
+      const result = await searchCareProviders(request, {
+        apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora,
+        findRegisterPlaces: async () => [matches[0], { place: unplaced, km: null }],
+      });
+      expect(result).toMatchObject({ status: "ok", orderedBy: "distance_then_town" });
+      expect(result.options[1]).toMatchObject({ id: "regcess:0749000003", travel_text: "In Benavente, your town. Distance not known yet" });
+      expect(result.options[0].matched).toContain("The closest of the options found");
+      expect(result.options[1].matched).not.toContain("The closest of the options found");
+    });
+
+    it("never calls a town-only place the closest", async () => {
+      const unplaced = registerPlace("0749000003", "FISIO BENAVENTE", { lat: null, lng: null });
+      const result = await searchCareProviders(request, {
+        apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora,
+        findRegisterPlaces: async () => [{ place: unplaced, km: null }],
+      });
+      expect(result).toMatchObject({ status: "ok", orderedBy: "search_relevance" });
+      expect(result.options[0].matched).not.toContain("The closest of the options found");
+    });
+
     it("falls back to Google when the register has nothing nearby", async () => {
       const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
         ? { status: "OK", results: [{ place_id: "g1", name: "Fisio Google", types: ["physiotherapist"] }] }

@@ -59,6 +59,8 @@ const okResults: CareFinderSearchResponse = {
   mapsSearchUrl: "https://www.google.com/maps/search/?api=1&query=fisioterapia%2011380%20Tarifa",
   options: [
     option("a", "Fisioterapia Estrecho", 4, "1,2 km", {
+      // Long on purpose: it must wrap inside the button on a phone.
+      email: "citas.fisioterapia@fisioterapiaestrecho-tarifa.es",
       comparison: {
         distance: fact("1,2 km · 4 min", "reported"),
         price: fact(lang === "es" ? "Sesión desde 35 €" : "Session from €35", "verified", "Official provider website: fisioestrecho.es"),

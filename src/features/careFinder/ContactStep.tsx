@@ -1,33 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, Copy, ExternalLink, Phone, Share2 } from "lucide-react";
-import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
-import {
-  CARE_OUTCOME_IDS,
-  type CareFinderState,
-  type CareOutcomeId,
-  type CareShareItemId,
-} from "../../../shared/careFinder/flow";
+import { Car, ExternalLink, Mail, MapPin, Phone } from "lucide-react";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
-import { careContactScript, careQuestionsToAsk, careShareMessage, type ScriptLine } from "./contactScript";
-import { ActionButton, ChoiceButton, Notice, actionClass } from "./parts";
-import { formatCheckedAt } from "./ResultsStep";
+import { ActionButton, Notice, actionClass } from "./parts";
 
 function telHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
-}
-
-function ScriptList({ lines, lang }: { lines: ScriptLine[]; lang: CareFinderLang }) {
-  return (
-    <ul className="space-y-3">
-      {lines.map((line) => (
-        <li key={line.key} className="rounded-[16px] bg-[var(--cf-surface-2)] px-4 py-3">
-          <span lang="es" className="block text-[21px] font-semibold leading-snug text-[var(--cf-text)]">{line.es}</span>
-          {lang !== "es" ? <span className="mt-1 block text-[17px] text-[var(--cf-text-2)]">{line[lang]}</span> : null}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function ConfirmCallDialog({ name, phone, copy, onClose }: { name: string; phone: string; copy: CareFinderCopy; onClose: () => void }) {
@@ -71,88 +49,31 @@ function ConfirmCallDialog({ name, phone, copy, onClose }: { name: string; phone
 export function ContactStep({
   heading,
   option,
-  state,
-  lang,
   copy,
-  onShareItemsChange,
-  onOutcome,
   onBackToOptions,
   onArrangeRide,
 }: {
   heading: (children: ReactNode) => ReactNode;
   option: CareFinderResultOption;
-  state: CareFinderState;
-  lang: CareFinderLang;
   copy: CareFinderCopy;
-  onShareItemsChange: (items: CareShareItemId[]) => void;
-  onOutcome: (outcome: CareOutcomeId) => void;
   onBackToOptions: () => void;
   onArrangeRide?: () => void;
 }) {
   const c = copy.contact;
   const [confirming, setConfirming] = useState(false);
-  const [sharePreview, setSharePreview] = useState(false);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
-  const script = careContactScript(state, lang);
-  const questions = careQuestionsToAsk(option, state);
-  const shareMessage = careShareMessage(option, state, lang, formatCheckedAt(option.checked_at ?? new Date().toISOString(), lang));
-
-  const shareChoices: Array<{ id: CareShareItemId; label: string; available: boolean }> = [
-    { id: "reason", label: c.shareReason, available: Boolean(state.description || state.need) },
-    { id: "coverage", label: c.shareCoverage, available: Boolean(state.coverage && state.coverage !== "unknown") },
-    { id: "access", label: c.shareAccess, available: state.accessNeeds.some((need) => need === "step_free" || need === "home_visit" || need === "english") },
-    { id: "companion", label: c.shareCompanion, available: state.accessNeeds.includes("companion") },
-  ];
-
-  const toggleShare = (id: CareShareItemId) => {
-    const next = state.shareItems.includes(id) ? state.shareItems.filter((item) => item !== id) : [...state.shareItems, id];
-    onShareItemsChange(next);
-  };
-
-  const shareNow = async () => {
-    setShareNotice(null);
-    try {
-      if (navigator.share) {
-        await navigator.share({ text: shareMessage });
-        return;
-      }
-      await navigator.clipboard?.writeText(shareMessage);
-      setShareNotice(c.copied);
-    } catch {
-      // The person closed the share sheet; nothing was sent.
-    }
-  };
-
   return (
     <div className="space-y-6">
       {heading(c.heading(option.name))}
-      <Notice tone="info">{c.intro}</Notice>
-
-      <section aria-labelledby="care-script-title" className="space-y-3">
-        <h3 id="care-script-title" className="text-[23px] font-semibold">{c.scriptTitle}</h3>
-        {lang !== "es" ? <p className="text-[17px] text-[var(--cf-text-2)]">{c.scriptTranslated}</p> : null}
-        <ScriptList lines={script} lang={lang} />
-      </section>
-
-      <section aria-labelledby="care-ask-title" className="space-y-3">
-        <h3 id="care-ask-title" className="text-[23px] font-semibold">{c.askTitle}</h3>
-        <ScriptList lines={questions} lang={lang} />
-      </section>
-
-      {shareChoices.some((choice) => choice.available) ? (
-        <fieldset className="space-y-3">
-          <legend className="text-[23px] font-semibold">{c.shareTitle}</legend>
-          <p className="text-[18px] text-[var(--cf-text-2)]">{c.shareHelp}</p>
-          {shareChoices.filter((choice) => choice.available).map((choice) => (
-            <ChoiceButton
-              key={choice.id}
-              label={choice.label}
-              pressed={state.shareItems.includes(choice.id)}
-              onClick={() => toggleShare(choice.id)}
-              testId={`toggle-share-${choice.id}`}
-            />
-          ))}
-        </fieldset>
+      {option.address || option.travel_text || option.phone ? (
+        <div className="space-y-2 text-[19px] text-[var(--cf-text)]">
+          {option.address ? (
+            <p className="flex items-start gap-2"><MapPin size={20} className="mt-1 shrink-0" aria-hidden="true" />{option.address}</p>
+          ) : null}
+          {option.travel_text ? <p className="pl-7 text-[17px] text-[var(--cf-text-2)]">{option.travel_text}</p> : null}
+          {option.phone ? (
+            <p className="flex items-center gap-2"><Phone size={20} className="shrink-0" aria-hidden="true" />{option.phone}</p>
+          ) : null}
+        </div>
       ) : null}
 
       <section className="space-y-3">
@@ -161,14 +82,24 @@ export function ContactStep({
         ) : (
           <Notice tone="warn">{c.noPhone}</Notice>
         )}
-        {option.booking_url ? (
-          <a href={option.booking_url} target="_blank" rel="noreferrer" className={actionClass("secondary")}>
-            <ExternalLink size={20} aria-hidden="true" /><span>{c.bookingLink}</span>
-          </a>
-        ) : option.website ? (
-          <a href={option.website} target="_blank" rel="noreferrer" className={actionClass("secondary")}>
-            <ExternalLink size={20} aria-hidden="true" /><span>{c.website}</span>
-          </a>
+        {/* Other ways to get in touch: quiet links on one line, not more big buttons. */}
+        {option.booking_url || option.website || option.email ? (
+          <div className="flex flex-wrap justify-center gap-x-2">
+            {option.booking_url ? (
+              <a href={option.booking_url} target="_blank" rel="noreferrer" className={actionClass("quiet", "cf-btn-inline px-4")}>
+                <ExternalLink size={20} aria-hidden="true" className="shrink-0" /><span>{c.bookingLink}</span>
+              </a>
+            ) : option.website ? (
+              <a href={option.website} target="_blank" rel="noreferrer" className={actionClass("quiet", "cf-btn-inline px-4")}>
+                <ExternalLink size={20} aria-hidden="true" className="shrink-0" /><span>{c.website}</span>
+              </a>
+            ) : null}
+            {option.email ? (
+              <a href={`mailto:${option.email}`} className={actionClass("quiet", "cf-btn-inline px-4")} data-testid="link-care-email">
+                <Mail size={20} aria-hidden="true" className="shrink-0" /><span>{c.email}</span>
+              </a>
+            ) : null}
+          </div>
         ) : null}
         {onArrangeRide ? (
           <div>
@@ -178,30 +109,6 @@ export function ContactStep({
         ) : null}
       </section>
 
-      <section aria-labelledby="care-share-title" className="space-y-3 rounded-[22px] border-2 border-[var(--cf-border-soft)] bg-[var(--cf-surface)] p-5">
-        <h3 id="care-share-title" className="text-[23px] font-semibold">{c.shareTitleHelper}</h3>
-        {sharePreview ? (
-          <>
-            <p className="text-[18px] text-[var(--cf-text-2)]">{c.shareIntro}</p>
-            <pre className="whitespace-pre-wrap break-words rounded-[16px] bg-[var(--cf-surface-2)] p-4 font-body text-[18px] text-[var(--cf-text)]" data-testid="care-share-preview">{shareMessage}</pre>
-            <div className="cf-row flex flex-col gap-3">
-              <ActionButton onClick={() => void shareNow()} icon={typeof navigator !== "undefined" && "share" in navigator ? <Share2 size={22} /> : <Copy size={22} />}>
-                {typeof navigator !== "undefined" && "share" in navigator ? c.shareButton : c.copyButton}
-              </ActionButton>
-            </div>
-            {shareNotice ? <p role="status" className="text-[18px] font-semibold text-[var(--cf-ok)]">{shareNotice}</p> : null}
-          </>
-        ) : (
-          <ActionButton variant="secondary" onClick={() => setSharePreview(true)} icon={<Share2 size={22} />} testId="button-care-share-preview">{c.sharePreviewButton}</ActionButton>
-        )}
-      </section>
-
-      <fieldset className="space-y-3">
-        <legend className="text-[23px] font-semibold">{c.outcomeTitle}</legend>
-        {CARE_OUTCOME_IDS.map((outcome) => (
-          <ChoiceButton key={outcome} label={c.outcomes[outcome]} onClick={() => onOutcome(outcome)} testId={`button-outcome-${outcome}`} />
-        ))}
-      </fieldset>
 
       <ActionButton variant="quiet" onClick={onBackToOptions}>{c.otherOptions}</ActionButton>
 

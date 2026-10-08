@@ -50,8 +50,9 @@ export interface CareFinderSearchResponse {
   access: CareAccessRoute;
   location: string;
   // distance: straight line from the member's address, register results only.
+  // distance_then_town: as distance, then places in their town not yet on the map.
   // assigned_first: their own public health centre, then the closest others.
-  orderedBy: "travel_time" | "distance" | "assigned_first" | "search_relevance";
+  orderedBy: "travel_time" | "distance" | "distance_then_town" | "assigned_first" | "search_relevance";
   checkedAt: string;
   options: CareFinderResultOption[];
   // A self-service fallback, always labelled as not checked by VYVA.

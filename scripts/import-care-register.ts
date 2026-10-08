@@ -29,6 +29,8 @@
 //   4. Loads the Castilla y León health map (which centre serves each
 //      municipality, CC BY 4.0) for naming a person's own public centre.
 //   5. Geocodes places Care Finder can show that still have no coordinates,
+//      taking the first CartoCiudad candidate in the right town (address as
+//      registered, then without floors and doors, then the street alone),
 //      with CartoCiudad (IGN). Re-geocodes only when an address changed.
 //
 // Sources and terms: REGCESS reuse is allowed with the source cited and the
@@ -44,6 +46,7 @@ import {
   positionForImport,
   registerColumnIndex,
   registerGeocodeAddress,
+  registerGeocodeQueries,
   registerPlaceFromRow,
   registerPlaceIsRelevant,
   splitDelimitedLine,
@@ -51,7 +54,7 @@ import {
   type RegisterPlace,
   type StoredPosition,
 } from "../shared/careFinder/register.js";
-import { geocodeSpanishAddress } from "../server/services/cartoCiudad.js";
+import { geocodeFirstFitting } from "../server/services/cartoCiudad.js";
 import { forEachXlsxRow } from "./xlsx-rows.js";
 import {
   CASTILLA_LEON_HEALTH_MAP_SOURCE,
@@ -238,8 +241,10 @@ async function replaceHealthMaps(client: pg.Client, places: RegisterPlace[]) {
 
 async function geocodeMissing(client: pg.Client) {
   if (GEOCODE_LIMIT === 0) return;
-  const { rows } = await client.query<{ ccn: string; geocoded_address: string; province_code: string | null; municipality_code: string | null }>(
-    `select ccn, geocoded_address, province_code, municipality_code from care_register_places
+  const { rows } = await client.query<{
+    ccn: string; geocoded_address: string; street: string | null; municipality_name: string | null; province_code: string | null; municipality_code: string | null;
+  }>(
+    `select ccn, geocoded_address, street, municipality_name, province_code, municipality_code from care_register_places
      where withdrawn_at is null and lat is null and geocoded_address is not null
        and ($1::text[] is null or province_code = any($1::text[]))
      order by province_code, ccn`,
@@ -262,9 +267,12 @@ async function geocodeMissing(client: pg.Client) {
     while (next < queue.length) {
       const row = queue[next];
       next += 1;
-      const point = await geocodeSpanishAddress(row.geocoded_address, { timeoutMs: 10_000 });
-      // Never trust a point in another province or town: the geocoder snaps to the nearest match.
-      if (point && geocodeFitsPlace(point, row)) {
+      // The address as registered, then cleaned of floors and doors, then the
+      // street alone. Never a point in another town: the geocoder's best match
+      // is often a same-named street elsewhere.
+      const queries = registerGeocodeQueries({ street: row.street, municipalityName: row.municipality_name });
+      const point = await geocodeFirstFitting(queries, (candidate) => geocodeFitsPlace(candidate, row), { timeoutMs: 10_000 });
+      if (point) {
         await client.query(
           `update care_register_places set lat = $2, lng = $3, geocode_source = 'cartociudad', geocoded_at = now()
            where ccn = $1 and geocoded_address = $4`,

@@ -123,6 +123,11 @@
   width: 100%;
 }
 
+/* Small links that sit side by side (website, email) even on a phone. */
+.care-finder .cf-btn.cf-btn-inline {
+  width: auto;
+}
+
 .care-finder .cf-layout {
   display: grid;
   gap: 24px;

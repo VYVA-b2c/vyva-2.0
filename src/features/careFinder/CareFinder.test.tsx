@@ -186,7 +186,7 @@ describe("contact safeguards", () => {
     fireEvent.click(screen.getByTestId("toggle-access-companion"));
     fireEvent.click(screen.getByTestId("button-show-options"));
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
-    await screen.findByRole("heading", { name: "Before you contact Fisio Cerca" });
+    await screen.findByRole("heading", { name: "Fisio Cerca" });
   }
 
   it("never dials without an explicit second confirmation", async () => {
@@ -200,25 +200,27 @@ describe("contact safeguards", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("shows exactly what will be shared and respects unticked items", async () => {
-    await openContact();
-    // The reason is private by default.
-    expect(screen.getByTestId("toggle-share-reason")).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByText(/The reason is/)).not.toBeInTheDocument();
-    expect(screen.getByText("Stairs are hard for me. Is the entrance step-free, or is there a lift?")).toBeInTheDocument();
-    expect(screen.getByText("Someone will come with me.")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-care-share-preview"));
-    expect(screen.getByTestId("care-share-preview").textContent).not.toContain("knee");
-    fireEvent.click(screen.getByTestId("toggle-share-reason"));
-    expect(screen.getByTestId("care-share-preview").textContent).toContain("My knee has been hurting");
-    expect(screen.getByText(/The reason is: "My knee has been hurting/)).toBeInTheDocument();
+  it("offers the register email", async () => {
+    const withEmail = { ...okResults, options: [{ ...okResults.options[0], email: "cita@fisiocerca.es" }, ...okResults.options.slice(1)] };
+    renderFinder({ services: { search: vi.fn(async () => withEmail) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    fireEvent.click(await screen.findByTestId("button-prepare-a"));
+    expect(await screen.findByTestId("link-care-email")).toHaveAttribute("href", "mailto:cita@fisiocerca.es");
+    expect(screen.getByTestId("link-care-email")).toHaveTextContent("Email");
   });
 
-  it("lists every unknown as a question to ask", async () => {
+  it("shows no email link when the place has none", async () => {
     await openContact();
-    expect(screen.getByText("Can I be seen with my public health card, or is it paid?")).toBeInTheDocument();
-    expect(screen.getByText("How much is the first visit?")).toBeInTheDocument();
+    expect(screen.queryByTestId("link-care-email")).not.toBeInTheDocument();
+  });
+
+  it("shows the place's details and ways to reach it, with no call script", async () => {
+    await openContact();
+    expect(screen.getByText("Fisio Cerca street, Tarifa")).toBeInTheDocument();
+    expect(screen.queryByText("What you could say")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stairs are hard for me/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-care-share-preview")).not.toBeInTheDocument();
   });
 });
 
@@ -288,7 +290,7 @@ describe("profile reuse and resume", () => {
 });
 
 describe("French and German", () => {
-  it("runs the knee journey in French, with the call script translated", async () => {
+  it("runs the knee journey in French", async () => {
     renderFinder({ lang: "fr" });
     expect(screen.getByRole("heading", { name: "Pour qui sont les soins ?" })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("choice-who-self"));
@@ -305,10 +307,8 @@ describe("French and German", () => {
     fireEvent.click(screen.getByTestId("toggle-access-english"));
     fireEvent.click(screen.getByTestId("button-show-options"));
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
-    expect(await screen.findByRole("heading", { name: "Avant de contacter Fisio Cerca" })).toBeInTheDocument();
-    expect(screen.getByText("Hola, llamo para pedir una cita.")).toBeInTheDocument();
-    expect(screen.getByText("Bonjour, j'appelle pour demander un rendez-vous.")).toBeInTheDocument();
-    expect(screen.getByText("¿Hay alguien que hable francés?")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Fisio Cerca" })).toBeInTheDocument();
+    expect(screen.getByTestId("button-care-call")).toHaveTextContent("Appeler Fisio Cerca");
   });
 
   it("shows the emergency screen for French and German warning signs", async () => {
@@ -417,6 +417,19 @@ describe("public cover: your own health centre", () => {
     },
   });
 
+  it("says quietly that public cover goes through a referral when the places shown are private", async () => {
+    renderFinder({ services: { search: vi.fn(async () => ({ ...okResults, access: "public" as const })) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("your family doctor refers you for this");
+  });
+
+  it("doesn't add the referral note to the family-doctor results", async () => {
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("nearest", "07")) } });
+    await screen.findByTestId("care-public-care");
+    expect(screen.queryByTestId("care-public-referral")).toBeNull();
+  });
+
   it("names their centre from the health map and links to the region's official booking", async () => {
     renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("health_map", "07")) } });
     const panel = await screen.findByTestId("care-public-care");
@@ -441,7 +454,7 @@ describe("public cover: your own health centre", () => {
   });
 
   it("suggests calling when the region's booking page isn't listed", async () => {
-    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults(null, "10")) } });
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults(null, "99")) } });
     const panel = await screen.findByTestId("care-public-care");
     expect(within(panel).getByText("Your own health centre is printed on your health card.")).toBeInTheDocument();
     expect(within(panel).getByText(/call your health centre to book/)).toBeInTheDocument();

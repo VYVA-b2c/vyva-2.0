@@ -42,9 +42,13 @@ const HEALTH_CARD: Localized = {
 
 /**
  * Official booking entry pages, by INE community code. Each was opened on
- * 7 Oct 2026. Regions whose page could not be opened (Asturias 03,
- * Valencia 10, Navarra 15, Basque Country 16) are left out until checked;
- * Care Finder then suggests calling the centre. No region offers a link to
+ * 7 Oct 2026, except two opened on 8 Oct 2026: the Basque Country's, from the
+ * link on Osakidetza's own booking FAQ page, and Valencia's patient-portal page
+ * that carries the Conselleria's primary-care booking button (the button's own
+ * address needs a session, so it isn't linked directly). The Asturias and
+ * Navarra sites can't be reached from our build machines; their addresses were
+ * opened and confirmed by hand on 8 Oct 2026. For a region missing from this
+ * list, Care Finder suggests calling the centre. No region offers a link to
  * a specific centre: every service asks for the health card first.
  */
 export const REGION_BOOKING: Record<string, RegionBooking> = {
@@ -69,6 +73,11 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
       fr: "Vous aurez besoin du code de votre carte de santé (il commence par AR).",
       de: "Sie brauchen den Code Ihrer Gesundheitskarte (beginnt mit AR).",
     },
+  },
+  "03": {
+    name: { en: "Asturias Health Service", es: "Servicio de Salud del Principado de Asturias (SESPA)", fr: "Service de santé des Asturies", de: "Gesundheitsdienst Asturien" },
+    url: "https://www.astursalud.es/astursalud",
+    app: "Mi AsturSalud",
   },
   "04": {
     name: { en: "Balearic Health Service", es: "IB-Salut", fr: "Service de santé des Baléares", de: "Gesundheitsdienst der Balearen" },
@@ -112,6 +121,11 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
     url: "https://citasalut.gencat.cat/",
     app: "La Meva Salut",
   },
+  "10": {
+    name: { en: "Valencian Health Service", es: "Conselleria de Sanidad, Generalitat Valenciana", fr: "Service de santé valencien", de: "Valencianischer Gesundheitsdienst" },
+    url: "https://www.san.gva.es/es/web/portal-del-paciente/informacion-centros",
+    app: "GVA +Salut",
+  },
   "11": {
     name: { en: "Extremadura Health Service", es: "Servicio Extremeño de Salud", fr: "Service de santé d'Estrémadure", de: "Gesundheitsdienst Extremadura" },
     url: "https://saludextremadura.ses.es/csonline/login/login.xhtml?accion=backToCitaPrevia",
@@ -154,6 +168,22 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
       es: "Necesitará el número de su tarjeta sanitaria (CIP) y su fecha de nacimiento.",
       fr: "Vous aurez besoin du numéro de votre carte de santé (CIP) et de votre date de naissance.",
       de: "Sie brauchen die Nummer Ihrer Gesundheitskarte (CIP) und Ihr Geburtsdatum.",
+    },
+  },
+  "15": {
+    name: { en: "Navarre Health Service", es: "Servicio Navarro de Salud-Osasunbidea", fr: "Service de santé de Navarre", de: "Gesundheitsdienst Navarra" },
+    url: "https://www.navarra.es/es/tramites/on/-/line/Cita-previa-en-el-centro-de-salud",
+    app: "Carpeta Personal de Salud",
+  },
+  "16": {
+    name: { en: "Basque Health Service", es: "Osakidetza", fr: "Service basque de santé", de: "Baskischer Gesundheitsdienst" },
+    url: "https://zitaberria.osakidetza.eus/o22PlamWar/iniciologin.do?idioma=es",
+    app: "Osakidetza",
+    needs: {
+      en: "You'll need your health card number, your first surname and your date of birth.",
+      es: "Necesitará el número de su tarjeta sanitaria, su primer apellido y su fecha de nacimiento.",
+      fr: "Vous aurez besoin du numéro de votre carte de santé, de votre premier nom de famille et de votre date de naissance.",
+      de: "Sie brauchen die Nummer Ihrer Gesundheitskarte, Ihren ersten Nachnamen und Ihr Geburtsdatum.",
     },
   },
   "17": {
@@ -228,7 +258,8 @@ export function normaliseCentreName(name: string): string {
 export interface PublicCentreCandidate {
   id: string;
   name: string;
-  km: number;
+  // null: in the member's town but not yet placed on the map.
+  km: number | null;
 }
 
 /**
@@ -245,7 +276,8 @@ export function chooseAssignedCentre(
     const match = candidates.find((candidate) => wanted.has(normaliseCentreName(candidate.name)));
     if (match) return { id: match.id, basis: "health_map" };
   }
-  return { id: candidates[0].id, basis: "nearest" };
+  // "Nearest" is a claim about distance; never make it for an unplaced centre.
+  return candidates[0].km === null ? null : { id: candidates[0].id, basis: "nearest" };
 }
 
 // ── Regional health maps ────────────────────────────────────────────────────

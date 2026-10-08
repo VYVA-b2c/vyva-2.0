@@ -75,9 +75,6 @@ function CareFinderSession({
       onArrangeRide={(option, state) => navigate("/concierge", {
         state: { conciergePrefill: { kind: "ride", source: "specialist_finder", message: rideMessage(option, state, lang === "es") } },
       })}
-      onFinished={(outcome) => {
-        if (outcome === "booked") void persistence.complete();
-      }}
       onStartNew={onStartNew}
       onHealthHome={() => navigate("/health")}
     />

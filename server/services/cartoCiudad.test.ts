@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { geocodeMemberLocation, geocodeSpanishAddress } from "./cartoCiudad.js";
+import { geocodeCandidates, geocodeFirstFitting, geocodeMemberLocation, geocodeSpanishAddress } from "./cartoCiudad.js";
 
 const respond = (body: string, status = 200) => vi.fn(async () => new Response(body, { status })) as unknown as typeof fetch;
 
@@ -47,5 +47,40 @@ describe("geocodeSpanishAddress", () => {
       expect(await geocodeMemberLocation("Benavente", { fetch: fetcher })).toMatchObject({ municipalityCode: "49021" });
       expect(fetcher).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("geocodeCandidates and geocodeFirstFitting", () => {
+  // Recorded from CartoCiudad /candidates on 7 Oct 2026: the best match for a
+  // Mutxamel street is in València; the Mutxamel one comes second.
+  const valencia = { provinceCode: "46", comunidadAutonomaCode: "10", muniCode: "46250", type: "portal", postalCode: "46017", lat: 39.4535, lng: -0.3893 };
+  const mutxamel = { provinceCode: "03", comunidadAutonomaCode: "10", muniCode: "03090", type: "portal", postalCode: "03110", lat: 38.4206, lng: -0.4699 };
+  const inMutxamel = (point: { municipalityCode: string | null }) => point.municipalityCode === "03090";
+
+  it("reads every candidate and skips ones without a position", async () => {
+    const fetcher = respond(JSON.stringify([valencia, { ...mutxamel, lat: null }, mutxamel]));
+    const points = await geocodeCandidates("CALLE PONENT 15, Mutxamel", { fetch: fetcher });
+    expect(points.map((point) => point.municipalityCode)).toEqual(["46250", "03090"]);
+    const url = new URL(String((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]));
+    expect(url.pathname).toBe("/geocoder/api/geocoder/candidates");
+    expect(url.searchParams.get("limit")).toBe("10");
+  });
+
+  it("returns no candidates for no match or errors", async () => {
+    expect(await geocodeCandidates("x", { fetch: respond("") })).toEqual([]);
+    expect(await geocodeCandidates("x", { fetch: respond("{}") })).toEqual([]);
+    expect(await geocodeCandidates("x", { fetch: respond("oops", 500) })).toEqual([]);
+  });
+
+  it("takes the first candidate in the right town, trying queries in order", async () => {
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const query = new URL(String(input)).searchParams.get("q");
+      const body = query === "CALLE PONENT 15 2º, Mutxamel" ? [valencia] : [valencia, mutxamel];
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+    const point = await geocodeFirstFitting(["CALLE PONENT 15 2º, Mutxamel", "CALLE PONENT 15, Mutxamel", "CALLE PONENT, Mutxamel"], inMutxamel, { fetch: fetcher });
+    expect(point).toMatchObject({ lat: 38.4206, municipalityCode: "03090" });
+    expect((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    expect(await geocodeFirstFitting(["x"], inMutxamel, { fetch: respond(JSON.stringify([valencia])) })).toBeNull();
   });
 });

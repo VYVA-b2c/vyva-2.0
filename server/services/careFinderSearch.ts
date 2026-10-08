@@ -209,6 +209,15 @@ function formatDay(isoDay: string, lang: CareFinderLang): string {
   return new Intl.DateTimeFormat(CARE_FINDER_LOCALE[lang], { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
+function inTown(municipality: string, lang: CareFinderLang): string {
+  return text(lang, {
+    en: `In ${municipality}, your town. Distance not known yet`,
+    es: `En ${municipality}, su municipio. Distancia aún no disponible`,
+    fr: `À ${municipality}, votre commune. Distance pas encore connue`,
+    de: `In ${municipality}, Ihrem Ort. Entfernung noch nicht bekannt`,
+  });
+}
+
 function aboutKm(km: number, lang: CareFinderLang): string {
   const value = new Intl.NumberFormat(CARE_FINDER_LOCALE[lang], { maximumFractionDigits: km < 10 ? 1 : 0 }).format(Math.max(0.1, km));
   return text(lang, {
@@ -251,7 +260,7 @@ async function registerOption(
     }, lang).catch(() => null)
     : null;
   const facts = evidence?.facts;
-  const distance = aboutKm(km, lang);
+  const distance = km === null ? inTown(titleCaseMunicipality(place.municipalityName), lang) : aboutKm(km, lang);
   const homeCare = place.careCodes.includes(HOME_CARE_CODE);
 
   const registerFact = (value: string): ProviderComparisonEvidence => ({
@@ -398,12 +407,17 @@ export async function searchCareProviders(
           mapUpdatedOn: assigned?.basis === "health_map" ? healthMap?.updatedOn ?? null : null,
         };
       }
-      const closest = chosen.reduce((best, match) => (match.km < best.km ? match : best), chosen[0]);
+      const placed = chosen.filter((match) => match.km !== null);
+      const closest = placed.reduce<RegisterMatch | null>((best, match) => (best === null || match.km! < best.km! ? match : best), null);
       const options = await Promise.all(chosen.map((match) => registerOption(match, {
         closest: match === closest,
         assigned: assigned && match.place.ccn === assigned.ccn ? assigned : null,
       }, request, lang, careLabel, checkedAt, refresh)));
-      return { ...base, status: "ok", orderedBy: assigned ? "assigned_first" : "distance", options, publicCare };
+      const orderedBy = assigned ? "assigned_first"
+        : placed.length === chosen.length ? "distance"
+          : placed.length > 0 ? "distance_then_town"
+            : "search_relevance";
+      return { ...base, status: "ok", orderedBy, options, publicCare };
     }
     if (publicPrimary) publicCareFallback = { regionCode: origin?.regionCode ?? null, assignedOptionId: null, basis: null, mapSource: null, mapUpdatedOn: null };
   }
