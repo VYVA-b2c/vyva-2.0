@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, Copy, ExternalLink, Phone, Share2 } from "lucide-react";
+import { Car, Copy, ExternalLink, Mail, Phone, Share2 } from "lucide-react";
 import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
 import {
   CARE_OUTCOME_IDS,
@@ -168,6 +168,11 @@ export function ContactStep({
         ) : option.website ? (
           <a href={option.website} target="_blank" rel="noreferrer" className={actionClass("secondary")}>
             <ExternalLink size={20} aria-hidden="true" /><span>{c.website}</span>
+          </a>
+        ) : null}
+        {option.email ? (
+          <a href={`mailto:${option.email}`} className={actionClass("secondary")} data-testid="link-care-email">
+            <Mail size={20} aria-hidden="true" /><span className="break-all">{c.email(option.email)}</span>
           </a>
         ) : null}
         {onArrangeRide ? (

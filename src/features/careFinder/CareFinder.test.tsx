@@ -200,6 +200,23 @@ describe("contact safeguards", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("offers the register email, and includes it in what is shared", async () => {
+    const withEmail = { ...okResults, options: [{ ...okResults.options[0], email: "cita@fisiocerca.es" }, ...okResults.options.slice(1)] };
+    renderFinder({ services: { search: vi.fn(async () => withEmail) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    fireEvent.click(await screen.findByTestId("button-prepare-a"));
+    expect(await screen.findByTestId("link-care-email")).toHaveAttribute("href", "mailto:cita@fisiocerca.es");
+    expect(screen.getByTestId("link-care-email")).toHaveTextContent("Email them: cita@fisiocerca.es");
+    fireEvent.click(screen.getByTestId("button-care-share-preview"));
+    expect(screen.getByTestId("care-share-preview").textContent).toContain("Email: cita@fisiocerca.es");
+  });
+
+  it("shows no email link when the place has none", async () => {
+    await openContact();
+    expect(screen.queryByTestId("link-care-email")).not.toBeInTheDocument();
+  });
+
   it("shows exactly what will be shared and respects unticked items", async () => {
     await openContact();
     // The reason is private by default.

@@ -42,8 +42,9 @@ const HEALTH_CARD: Localized = {
 
 /**
  * Official booking entry pages, by INE community code. Each was opened on
- * 7 Oct 2026. Regions whose page could not be opened (Asturias 03,
- * Valencia 10, Navarra 15, Basque Country 16) are left out until checked;
+ * 7 Oct 2026, except the Basque Country's, taken on 8 Oct 2026 from the link
+ * on Osakidetza's own booking FAQ page. Regions whose page could not be
+ * opened (Asturias 03, Valencia 10, Navarra 15) are left out until checked;
  * Care Finder then suggests calling the centre. No region offers a link to
  * a specific centre: every service asks for the health card first.
  */
@@ -154,6 +155,17 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
       es: "Necesitará el número de su tarjeta sanitaria (CIP) y su fecha de nacimiento.",
       fr: "Vous aurez besoin du numéro de votre carte de santé (CIP) et de votre date de naissance.",
       de: "Sie brauchen die Nummer Ihrer Gesundheitskarte (CIP) und Ihr Geburtsdatum.",
+    },
+  },
+  "16": {
+    name: { en: "Basque Health Service", es: "Osakidetza", fr: "Service basque de santé", de: "Baskischer Gesundheitsdienst" },
+    url: "https://zitaberria.osakidetza.eus/o22PlamWar/iniciologin.do?idioma=es",
+    app: "Osakidetza",
+    needs: {
+      en: "You'll need your health card number, your first surname and your date of birth.",
+      es: "Necesitará el número de su tarjeta sanitaria, su primer apellido y su fecha de nacimiento.",
+      fr: "Vous aurez besoin du numéro de votre carte de santé, de votre premier nom de famille et de votre date de naissance.",
+      de: "Sie brauchen die Nummer Ihrer Gesundheitskarte, Ihren ersten Nachnamen und Ihr Geburtsdatum.",
     },
   },
   "17": {
