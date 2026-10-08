@@ -200,6 +200,15 @@ describe("contact safeguards", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("sends the profile's country with the search, and nothing when there is none", async () => {
+    const search = vi.fn(async () => okResults);
+    renderFinder({ services: { search }, profile: { ...profile, country: "FR" } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    await screen.findByTestId("button-prepare-a");
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({ country: "FR" }));
+  });
+
   it("offers the register email", async () => {
     const withEmail = { ...okResults, options: [{ ...okResults.options[0], email: "cita@fisiocerca.es" }, ...okResults.options.slice(1)] };
     renderFinder({ services: { search: vi.fn(async () => withEmail) } });

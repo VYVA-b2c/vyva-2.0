@@ -65,6 +65,8 @@ export type CareFinderSaveStatus = "idle" | "saving" | "saved" | "offline";
 
 export interface CareFinderProfile extends CareFinderProfileFacts {
   usualDoctor?: { name: string; phone?: string | null; address?: string | null } | null;
+  // ISO country from the profile; decides which official sources are searched.
+  country?: string | null;
 }
 
 export interface CareFinderServices {
@@ -176,6 +178,7 @@ export function CareFinder({
         location: state.location,
         accessNeeds: state.accessNeeds,
         language: lang,
+        ...(profileRef.current?.country ? { country: profileRef.current.country } : {}),
       });
       dispatch({ type: "resultsLoaded", results });
       setSearchStatus("ready");

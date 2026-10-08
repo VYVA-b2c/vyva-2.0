@@ -13,6 +13,7 @@ export async function searchCareFinder(request: CareFinderSearchRequest): Promis
 type ProfileSummary = {
   cityState?: string | null;
   postalCode?: string | null;
+  country?: string | null;
   coverage?: { coverageType?: string | null } | null;
   savedProviders?: Array<Record<string, unknown> & { name?: string | null; phone?: string | null; address?: string | null }>;
 };
@@ -24,6 +25,7 @@ export function careFinderProfileFromSummary(summary: ProfileSummary | null | un
   return {
     coverage: normalizeCareCoverage(summary.coverage?.coverageType ?? null),
     location,
+    country: summary.country?.trim() || null,
     usualDoctorName: doctor?.name?.trim() || null,
     usualDoctor: doctor?.name?.trim()
       ? { name: doctor.name.trim(), phone: doctor.phone ?? null, address: typeof doctor.address === "string" ? doctor.address : null }

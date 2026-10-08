@@ -28,6 +28,7 @@ const migrationPaths = [
   "0108_vetted_partner_providers.sql",
   "0109_care_register_places.sql",
   "0110_care_health_zone_municipalities.sql",
+  "0111_care_register_country.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
@@ -62,6 +63,8 @@ const requiredColumns = [
     "possible_patterns", "uncertainty", "reassessment_window", "change_plan_triggers",
     "clinical_handoff", "bpm", "respiratory_rate", "duration_seconds", "created_at",
   ].map((column) => `triage_reports.${column}`),
+  "care_register_places.country",
+  "care_health_zone_municipalities.country",
   "cc_program_enrollments.user_id",
   "cc_program_enrollments.status",
   "cc_program_enrollments.start_date",
