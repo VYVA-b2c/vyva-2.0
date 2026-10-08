@@ -658,12 +658,6 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
     if (!seq || finalizingRef.current) return;
     if (isDualTaskRoundComplete(serial7sStepRef.current, seq.expected_answers.length, symbolsCompleteRef.current)) {
       void finishRound(false);
-      return;
-    }
-
-    const elapsed = roundStartedAtRef.current ? Date.now() - roundStartedAtRef.current : 0;
-    if (elapsed >= seq.round_duration_ms + 10000) {
-      void finishRound(false);
     }
   }, [finishRound]);
 
@@ -725,9 +719,6 @@ export default function DualTaskWalk({ userId, onExit, previewResult = false }) 
     roundTimerRef.current = window.setInterval(() => {
       const elapsed = Date.now() - roundStartedAtRef.current;
       setRoundProgress(clamp(1 - elapsed / seq.round_duration_ms, 0, 1));
-      if (elapsed >= seq.round_duration_ms + 10000) {
-        void finishRound(false);
-      }
     }, 100);
   }, [advanceSymbol, clearRoundTimers, finishRound]);
 
