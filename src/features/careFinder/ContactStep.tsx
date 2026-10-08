@@ -1,28 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, Copy, ExternalLink, Mail, Phone, Share2 } from "lucide-react";
+import { Car, Copy, ExternalLink, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
 import { CARE_OUTCOME_IDS, type CareFinderState, type CareOutcomeId } from "../../../shared/careFinder/flow";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
-import { careContactScript, careShareMessage, type ScriptLine } from "./contactScript";
+import { careShareMessage } from "./shareMessage";
 import { ActionButton, ChoiceButton, Notice, actionClass } from "./parts";
 import { formatCheckedAt } from "./ResultsStep";
 
 function telHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
-}
-
-function ScriptList({ lines, lang }: { lines: ScriptLine[]; lang: CareFinderLang }) {
-  return (
-    <ul className="space-y-3">
-      {lines.map((line) => (
-        <li key={line.key} className="rounded-[16px] bg-[var(--cf-surface-2)] px-4 py-3">
-          <span lang="es" className="block text-[21px] font-semibold leading-snug text-[var(--cf-text)]">{line.es}</span>
-          {lang !== "es" ? <span className="mt-1 block text-[17px] text-[var(--cf-text-2)]">{line[lang]}</span> : null}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function ConfirmCallDialog({ name, phone, copy, onClose }: { name: string; phone: string; copy: CareFinderCopy; onClose: () => void }) {
@@ -86,7 +73,6 @@ export function ContactStep({
   const [confirming, setConfirming] = useState(false);
   const [sharePreview, setSharePreview] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
-  const script = careContactScript(state, lang);
   const shareMessage = careShareMessage(option, state, lang, formatCheckedAt(option.checked_at ?? new Date().toISOString(), lang));
 
   const shareNow = async () => {
@@ -106,13 +92,17 @@ export function ContactStep({
   return (
     <div className="space-y-6">
       {heading(c.heading(option.name))}
-      <Notice tone="info">{c.intro}</Notice>
-
-      <section aria-labelledby="care-script-title" className="space-y-3">
-        <h3 id="care-script-title" className="text-[23px] font-semibold">{c.scriptTitle}</h3>
-        {lang !== "es" ? <p className="text-[17px] text-[var(--cf-text-2)]">{c.scriptTranslated}</p> : null}
-        <ScriptList lines={script} lang={lang} />
-      </section>
+      {option.address || option.travel_text || option.phone ? (
+        <div className="space-y-2 text-[19px] text-[var(--cf-text)]">
+          {option.address ? (
+            <p className="flex items-start gap-2"><MapPin size={20} className="mt-1 shrink-0" aria-hidden="true" />{option.address}</p>
+          ) : null}
+          {option.travel_text ? <p className="pl-7 text-[17px] text-[var(--cf-text-2)]">{option.travel_text}</p> : null}
+          {option.phone ? (
+            <p className="flex items-center gap-2"><Phone size={20} className="shrink-0" aria-hidden="true" />{option.phone}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="space-y-3">
         {option.phone ? (

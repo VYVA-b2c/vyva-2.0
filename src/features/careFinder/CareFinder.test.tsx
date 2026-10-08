@@ -186,7 +186,7 @@ describe("contact safeguards", () => {
     fireEvent.click(screen.getByTestId("toggle-access-companion"));
     fireEvent.click(screen.getByTestId("button-show-options"));
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
-    await screen.findByRole("heading", { name: "Before you contact Fisio Cerca" });
+    await screen.findByRole("heading", { name: "Fisio Cerca" });
   }
 
   it("never dials without an explicit second confirmation", async () => {
@@ -217,13 +217,11 @@ describe("contact safeguards", () => {
     expect(screen.queryByTestId("link-care-email")).not.toBeInTheDocument();
   });
 
-  it("keeps the reason private and the practical lines in the script, with no extra sections", async () => {
+  it("shows the place's details and ways to reach it, with no call script", async () => {
     await openContact();
-    expect(screen.queryByText(/The reason is/)).not.toBeInTheDocument();
-    expect(screen.getByText("Stairs are hard for me. Is the entrance step-free, or is there a lift?")).toBeInTheDocument();
-    expect(screen.getByText("Someone will come with me.")).toBeInTheDocument();
-    expect(screen.queryByText("Questions worth asking")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("toggle-share-reason")).not.toBeInTheDocument();
+    expect(screen.getByText("Fisio Cerca street, Tarifa")).toBeInTheDocument();
+    expect(screen.queryByText("What you could say")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stairs are hard for me/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-care-share-preview"));
     expect(screen.getByTestId("care-share-preview").textContent).not.toContain("knee");
   });
@@ -295,7 +293,7 @@ describe("profile reuse and resume", () => {
 });
 
 describe("French and German", () => {
-  it("runs the knee journey in French, with the call script translated", async () => {
+  it("runs the knee journey in French", async () => {
     renderFinder({ lang: "fr" });
     expect(screen.getByRole("heading", { name: "Pour qui sont les soins ?" })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("choice-who-self"));
@@ -312,10 +310,8 @@ describe("French and German", () => {
     fireEvent.click(screen.getByTestId("toggle-access-english"));
     fireEvent.click(screen.getByTestId("button-show-options"));
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
-    expect(await screen.findByRole("heading", { name: "Avant de contacter Fisio Cerca" })).toBeInTheDocument();
-    expect(screen.getByText("Hola, llamo para pedir una cita.")).toBeInTheDocument();
-    expect(screen.getByText("Bonjour, j'appelle pour demander un rendez-vous.")).toBeInTheDocument();
-    expect(screen.getByText("¿Hay alguien que hable francés?")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Fisio Cerca" })).toBeInTheDocument();
+    expect(screen.getByTestId("button-care-call")).toHaveTextContent("Appeler Fisio Cerca");
   });
 
   it("shows the emergency screen for French and German warning signs", async () => {

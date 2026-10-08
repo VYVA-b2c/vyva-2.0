@@ -159,7 +159,7 @@ test("contact preparation requires confirmation before calling", async ({ page }
   await open(page, "theme=light");
   await walkToResults(page);
   await page.getByTestId("button-prepare-a").click();
-  await expect(page.getByRole("heading", { name: "Before you contact Fisioterapia Estrecho" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Fisioterapia Estrecho", level: 2 })).toBeVisible();
   await expect(page.locator('a[href^="tel:+34"]')).toHaveCount(0);
   await expect(page.getByTestId("link-care-email")).toHaveAttribute("href", "mailto:citas.fisioterapia@fisioterapiaestrecho-tarifa.es");
   await expectNoHorizontalScroll(page);
