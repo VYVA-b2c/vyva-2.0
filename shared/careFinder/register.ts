@@ -64,10 +64,15 @@ export const REGISTER_CARE_RULES: Record<CareTypeId, RegisterCareRule> = {
   urgent_dentist: { codes: ["U.44"] },
 };
 
+// French rows (registerFr.ts): a practitioner or shop from RPPS, a centre from FINESS.
+export type RegisterSourceListing = RegisterListing | "RPPS" | "FINESS";
+
 export interface RegisterPlace {
+  // ISO country; absent means Spain (REGCESS).
+  country?: string;
   ccn: string;
   regionalCode: string | null;
-  listing: RegisterListing;
+  listing: RegisterSourceListing;
   centreClass: string | null;
   centreClassName: string | null;
   name: string;
@@ -312,21 +317,28 @@ export function geocodeFitsPlace(
   return Boolean(point.provinceCode || point.municipalityCode);
 }
 
-export function registerDisplayName(place: Pick<RegisterPlace, "name">): string {
-  return titleCase(place.name) ?? place.name;
+// French rows are stored ready to show (registerFr.ts formats them on import).
+const isSpanish = (place: Pick<RegisterPlace, "country">) => !place.country || place.country === "ES";
+
+export function registerDisplayName(place: Pick<RegisterPlace, "name" | "country">): string {
+  return isSpanish(place) ? titleCase(place.name) ?? place.name : place.name;
 }
 
-export function registerDisplayAddress(place: Pick<RegisterPlace, "street" | "postcode" | "municipalityName">): string | null {
-  const parts = [titleCase(place.street), [place.postcode, titleCase(uninvertPlaceName(place.municipalityName))].filter(Boolean).join(" ")].filter(Boolean);
+export function registerDisplayAddress(place: Pick<RegisterPlace, "street" | "postcode" | "municipalityName" | "country">): string | null {
+  const town = isSpanish(place) ? titleCase(uninvertPlaceName(place.municipalityName)) : place.municipalityName;
+  const parts = [isSpanish(place) ? titleCase(place.street) : place.street, [place.postcode, town].filter(Boolean).join(" ")].filter(Boolean);
   return parts.length ? parts.join(", ") : null;
 }
 
 /** Whether a place is authorised for this care, by this access route. */
 export function registerPlaceOffers(
-  place: Pick<RegisterPlace, "centreClass" | "careCodes" | "ownership" | "name">,
+  place: Pick<RegisterPlace, "centreClass" | "careCodes" | "ownership" | "name" | "country">,
   careType: CareTypeId,
   access: CareAccessRoute,
 ): boolean {
+  // France: the importer already worked out the care types. Public cover
+  // reaches the same practitioners, so the route doesn't narrow the list.
+  if (!isSpanish(place)) return place.careCodes.includes(`${place.country!.toLowerCase()}:${careType}`);
   if (place.centreClass && NOT_OPEN_TO_PUBLIC.has(place.centreClass)) return false;
   const rule = REGISTER_CARE_RULES[careType];
   if (access === "public" && rule.publicClasses) {
@@ -344,7 +356,8 @@ export function registerPlaceOffers(
 }
 
 /** Codes or classes to pre-filter in SQL before registerPlaceOffers decides. */
-export function registerCandidateFilter(careType: CareTypeId, access: CareAccessRoute): { codes: string[]; classes: string[] } {
+export function registerCandidateFilter(careType: CareTypeId, access: CareAccessRoute, country = "ES"): { codes: string[]; classes: string[] } {
+  if (country !== "ES") return { codes: [`${country.toLowerCase()}:${careType}`], classes: [] };
   const rule = REGISTER_CARE_RULES[careType];
   if (access === "public" && rule.publicClasses) return { codes: [], classes: rule.publicClasses };
   return { codes: rule.codes ?? [], classes: rule.classes ?? [] };
@@ -371,7 +384,8 @@ export function registerPlaceIsRelevant(place: Pick<RegisterPlace, "centreClass"
 export interface StoredPosition {
   lat: number | null;
   lng: number | null;
-  geocodeSource: "regional_register" | "cartociudad" | null;
+  // register: published by the register itself (FINESS); ban: France's geocoder.
+  geocodeSource: "regional_register" | "cartociudad" | "register" | "ban" | null;
   geocodedAddress: string | null;
 }
 
@@ -385,7 +399,8 @@ export function positionForImport(
   regional: { lat: number; lng: number } | undefined,
 ): StoredPosition {
   if (regional) return { lat: regional.lat, lng: regional.lng, geocodeSource: "regional_register", geocodedAddress: address };
-  if (previous?.lat != null && previous.lng != null && previous.geocodeSource === "cartociudad" && previous.geocodedAddress === address) {
+  const geocoded = previous?.geocodeSource === "cartociudad" || previous?.geocodeSource === "ban";
+  if (previous?.lat != null && previous.lng != null && geocoded && previous.geocodedAddress === address) {
     return previous;
   }
   return { lat: null, lng: null, geocodeSource: null, geocodedAddress: address };

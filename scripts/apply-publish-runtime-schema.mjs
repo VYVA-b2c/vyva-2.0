@@ -29,6 +29,7 @@ const migrationPaths = [
   "0109_care_register_places.sql",
   "0110_care_health_zone_municipalities.sql",
   "0111_care_register_country.sql",
+  "0112_care_register_france.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))

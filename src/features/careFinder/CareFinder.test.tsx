@@ -433,6 +433,29 @@ describe("public cover: your own health centre", () => {
     expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("your family doctor refers you for this");
   });
 
+  it("in France, points to the médecin traitant instead of calling the places private", async () => {
+    renderFinder({ services: { search: vi.fn(async () => ({ ...okResults, access: "public" as const, country: "FR" })) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    const note = await screen.findByTestId("care-public-referral");
+    expect(note).toHaveTextContent("your médecin traitant is the usual first step");
+    expect(note).not.toHaveTextContent("private");
+  });
+
+  it("in France, adds no note where people go directly, and points same-day needs to 15", async () => {
+    const search = vi.fn(async () => ({ ...okResults, access: "public" as const, country: "FR", careType: "dentist" as const }));
+    const { unmount } = renderFinder({ services: { search } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    await screen.findByText("Fisio Cerca");
+    expect(screen.queryByTestId("care-public-referral")).toBeNull();
+    unmount();
+    renderFinder({ services: { search: vi.fn(async () => ({ ...okResults, access: "public" as const, country: "FR", careType: "same_day" as const })) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("call 15");
+  });
+
   it("doesn't add the referral note to the family-doctor results", async () => {
     renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("nearest", "07")) } });
     await screen.findByTestId("care-public-care");
