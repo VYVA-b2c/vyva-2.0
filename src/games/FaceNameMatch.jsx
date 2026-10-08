@@ -512,6 +512,9 @@ export default function FaceNameMatch({ userId, onExit }) {
   const questionNumber = recallModeIndex * Math.max(1, faceCount) + recallIndex + 1;
 
   const loadUserState = useCallback(async () => {
+    // Keep the state advanced in this session even when the database read is
+    // delayed or the current round uses fallback practice content.
+    if (practiceStateRef.current) return practiceStateRef.current;
     if (!userId) return practiceStateRef.current ?? defaultUserState(userId);
 
     const { data, error } = await gameData
@@ -814,11 +817,13 @@ export default function FaceNameMatch({ userId, onExit }) {
 
     setUserState(next);
     practiceStateRef.current = next;
-    if (userId && !selectedSet?.isPractice) {
+    // Practice sets are fallback content, not throwaway sessions. A signed-in
+    // player's level progress must survive loading the next round.
+    if (userId) {
       await gameData.table("face_name_user_state").upsert(next, { onConflict: "user_id" });
     }
     return next;
-  }, [selectedSet?.isPractice, userId, userState]);
+  }, [userId, userState]);
 
   const completeSession = useCallback(async (nextLog) => {
     const result = computeFaceNameScore(nextLog, faceCount, recallModes);
