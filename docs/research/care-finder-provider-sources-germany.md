@@ -182,6 +182,144 @@ DRK cannot waive third-party rights. Every feed needs explicit storage, display,
 6. Request Heilmittel/Präqualifizierung data from GKV-SV and commercial § 7 terms from AOK/vdek.
 7. When the pilot Land is known, audit its portal and negotiate its KV/KZV sources.
 
+## 13. Free sources (zero-cost route)
+
+### Clear verdict
+
+**Yes, VYVA can launch a legally reusable, zero-licence-cost German MVP, but it cannot call every result officially licensed.** The strongest combination is:
+
+1. **Berlin's official open care WFS** for ambulante Pflege, Tagespflege, short-term and residential care: authoritative administrative planning data, commercially reusable under DL-DE-Zero-2.0.
+2. **OpenStreetMap** for doctors, dentists, physiotherapy, psychotherapy, opticians and hearing-aid shops: commercially reusable under ODbL and reasonably populated, but crowd-maintained, incomplete and not proof of Kassenzulassung or professional licence.
+3. **Official open hospital export**, only after its ambiguous reuse notice is clarified; until then use OSM/Wikidata as a semi-verified hospital discovery layer.
+4. **Official open house coordinates** in Länder that publish them, including Berlin/Brandenburg and Sachsen, or self-hosted Nominatim/Photon.
+5. Official 116117/KZV/GKV search links as the verification hand-off; do not copy those directories.
+
+This gives a useful free product in Berlin today. Uckermark demonstrates that the same OSM approach works in a rural district, but sparse specialties and missing contact fields require a “reported provider” label and a phone/search fallback.
+
+### 13.1 OpenStreetMap: measured coverage
+
+On 8 October 2026 the Overpass API was queried for every node, way and relation inside Berlin relation `62422` and Landkreis Uckermark relation `62537` with `healthcare=*`, relevant `amenity=*`, or `shop=optician|hearing_aids`. The response included tags, geometry centres and element timestamps. Temporary JSON was analysed outside the repository and was not committed. **[verified 2026-10-08]**
+
+Classification used `healthcare`, `amenity`, `shop`, `social_facility`, `healthcare:speciality` and, for ambulatory care, provider names containing `Pflegedienst`, `Sozialstation` or `ambulant`. Phone means `phone` or `contact:phone`; website means `website` or `contact:website`; “fresh ≤2y” means the OSM element was edited on or after 8 October 2024. Counts are OSM elements, not deduplicated legal organisations; a node and building may occasionally describe the same provider.
+
+| Type | Berlin count | Phone | Specialty tag | Fresh ≤2y | Uckermark count | Phone | Specialty tag | Fresh ≤2y |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Hausarzt | 441 | 65.3% | 100% | 51.2% | 14 | 78.6% | 100% | 50.0% |
+| Target specialists (combined) | 264 | 61.4% | 100% | 53.4% | 5 | 80.0% | 100% | 60.0% |
+| Other/unspecified doctors | 725 | 54.9% | 83.7% | 51.0% | 25 | 64.0% | 44.0% | 48.0% |
+| Zahnarzt | 830 | 58.0% | 14.3% | 49.0% | 18 | 77.8% | 16.7% | 55.6% |
+| Physiotherapie | 606 | 51.2% | 13.2% | 46.4% | 8 | 62.5% | 12.5% | 50.0% |
+| Psychotherapie/psychology | 532 | 40.6% | 39.5% | 39.7% | 3 | 100% | 33.3% | 33.3% |
+| Optiker | 353 | 49.6% | n/a | 66.9% | 13 | 38.5% | n/a | 53.8% |
+| Hörakustiker | 134 | 38.8% | n/a | 64.9% | 5 | 40.0% | n/a | 60.0% |
+| Ambulante Pflege (conservative rule) | 256 | 48.8% | n/a | 47.3% | 9 | 66.7% | n/a | 77.8% |
+| Tagespflege | 28 | 50.0% | n/a | 50.0% | 1 | 100% | n/a | 0% |
+
+Across the full extracts there were **6,485 Berlin elements** (97.2% named, 49.8% phone, 54.4% website, 50.9% edited within two years) and **168 Uckermark elements** (96.4% named, 63.1% phone, 47.6% website, 50.0% edited within two years). **[verified 2026-10-08]** No object with `Hausnotruf` in its name was found in either extract; OSM is not adequate for that category.
+
+Specialist tag matches (categories can overlap for multi-specialty practices): Berlin had ophthalmology **96** (63.5% phone), HNO/otolaryngology **77** (62.3%), neurology **56** (53.6%) and orthopaedics **112** (57.1%); Uckermark had 2, 1, 0 and 2 respectively. **[verified 2026-10-08]**
+
+#### Official-count comparison
+
+The KBV 2025 Bundesarztregister table reports Berlin planning weights of **2,347** for primary care, **302** ophthalmology, **241** HNO and **514** combined surgery/orthopaedics. **[verified 2026-10-08]** Against those denominators, OSM's tagged elements are about 18.8%, 31.8%, 32.0% and 21.8%. These are warning indicators, **not formal completeness rates**: KBV counts clinician planning weights, while OSM counts mapped places; group practices can contain several clinicians and OSM duplicates can occur. The direction is nevertheless clear—OSM is materially incomplete as an official-doctor register.
+
+#### ODbL implementation obligations
+
+The OSM copyright page states: “You are free to copy, distribute, transmit and adapt our data, as long as you credit OpenStreetMap and its contributors. If you alter or build upon our data, you may distribute the result only under the same license.” It also requires an attribution notice and a clear statement/link that data is under ODbL. **[verified 2026-10-08]**
+
+For VYVA:
+
+- Show `© OpenStreetMap contributors` with a link to `openstreetmap.org/copyright` wherever OSM results/maps are displayed.
+- Keep provenance per record and make clear that OSM records are community-reported, not official authorisation.
+- If VYVA publicly offers a database derived from OSM or a substantial extracted/modified database, offer that derived OSM database under ODbL. A rendered result/map can be a Produced Work, but attribution and access to the underlying OSM/derived database required by ODbL still apply.
+- Keep proprietary booking and user data in separate tables/layers. The OSMF guidance permits distinct layers in a collective database, but do not merge incompatible licensed data into one inseparable derived database without legal review.
+- Do not rely on public Overpass, tiles or Nominatim as a production SLA. Download a Germany/region extract and run the import/geocoder, or pay infrastructure costs; “zero-cost source licence” does not mean zero hosting cost.
+
+### 13.2 Official Berlin care data: the strongest free source
+
+Berlin's [“Ausgewählte Pflege- und pflegeflankierende Angebote” WFS](https://gdi.berlin.de/services/wfs/pflegeeinrichtungen?request=GetCapabilities&service=WFS) was opened and all four feature types were downloaded as GeoJSON. **[verified 2026-10-08]**
+
+| WFS feature type | Rows | Use in Care Finder |
+|---|---:|---|
+| `a_pflegeeinrichtungen_voll` | 263 | Residential care |
+| `b_pflegeeinrichtungen_tages` | **112** | Tagespflege |
+| `c_pflegeeinrichtungen_kurz` | 17 | Short-term care |
+| `d_pflegeeinrichtungen_ambulant` | **723** | Ambulante Pflege/Pflegedienste |
+
+Actual fields: `ik_nummer`, `einrichtung_name`, `gc_strasse`, `gc_plz`, `gc_ort`, `platzzahl` (not ambulatory), `traegername`, `traegerverband`, `x_25833`, `y_25833`, `geo_id`, `bez`, `einrichtung_typ`, `einrichtung_typ_kurz`, plus point geometry. It has official type, provider association, address and coordinates, but **no phone, website or service-area field**. The metadata says the snapshot covers facilities present in TOPqw on 15 January 2024 and is updated “as needed”; freshness is its main weakness. **[verified 2026-10-08]**
+
+The dataset licence is DL-DE-Zero-2.0. Exact text: **“Jede Nutzung ist ohne Einschränkungen oder Bedingungen zulässig.”** It expressly permits commercial and non-commercial copying, presentation, alteration, transmission, combination with other data and integration into products/apps. **Commercial storage and display: yes, zero licence cost. [verified 2026-10-08]**
+
+This corrects the earlier report: the AOK/vdek national files remain non-commercial, but Berlin independently publishes a useful official open subset. Use Berlin WFS as the authoritative care spine, then enrich phone/site from OSM only with separate provenance.
+
+### 13.3 Wikidata hospitals and clinics
+
+The live Wikidata Query Service was queried for hospital/clinic subclasses located in Berlin and Uckermark. Berlin returned **102 unique entities**: 91 with coordinates, 48 with a website and only 3 with a phone. Uckermark returned **5**, of which 4 had coordinates and none had phone/site. Fields queried were item URI, label, `P625` coordinate, `P1329` phone and `P856` website. **[verified 2026-10-08]**
+
+Wikidata is CC0 and permits free commercial storage/reuse, but it is crowd-maintained and very poor for contact data. Use it only to cross-link hospital identities (QIDs/Wikipedia), not as the primary provider feed. The Klinik-Atlas export remains much fuller; its commercial licence ambiguity should be resolved separately.
+
+### 13.4 Open-data portal audit
+
+GovData and the larger Land/city portals were searched for `Ärzte`, `Pflegedienste`, `Pflegeeinrichtungen`, `Pflegestützpunkte`, `Gesundheitsamt` and `Beratungsstellen`. **[verified 2026-10-08]** Results were fragmented; the reusable provider-level wins were care/social facilities, not doctor registers.
+
+- **Berlin:** the official care WFS above, DL-DE-Zero-2.0, is production-usable. This is the best finding.
+- **Hamburg:** official full-stationary care locations are downloadable as CSV/GeoJSON/WFS/OAF under DL-DE-BY-2.0; district datasets such as “Wohnen und Pflege Eimsbüttel” include residential, partial-stationary and Tagespflege under DL-DE-Zero-2.0. **[verified 2026-10-08]** The former requires the provider/source, licence link, dataset URI and a note when modified; commercial use is explicitly allowed.
+- **NRW:** searches mostly returned aggregate statistics or municipal hospital locations, not a Land-wide provider register.
+- **Bayern, Baden-Württemberg, Sachsen, Niedersachsen and other portals:** no open, provider-level doctor/KV dataset was found in this pass. Local social/care/advice datasets occur, so each pilot city still deserves a targeted audit.
+- **Pflegestützpunkte/Beratungsstellen:** some municipal lists are open, but no consistently licensed national file was found. Treat portal records dataset-by-dataset.
+
+Destatis/Land statistical-office care tables are primarily aggregates, not named establishments. Heimaufsicht/WTG authorities may publish facility lists locally; only import when the specific distribution has DL-DE/CC terms. Publication on a webpage alone is not an open licence.
+
+### 13.5 KVs, chambers, associations and the DNG
+
+No regional KV, Landesärztekammer or KZV open provider dataset/free documented API with commercial reuse was found. Their directories remain link-only unless they grant written permission. Likewise, professional association searches are not open data:
+
+- The biha Hörakustiker search says participation is voluntary and entries are self-maintained. Its terms expressly forbid partial/full database extraction for commercial address use, competing directories or other commercial use, and prohibit agents/robots/scripts/spiders. **[verified 2026-10-08]** Do not scrape.
+- No open commercial data grant was found for ZVA/optician, physiotherapy-association or BPtK/member directories. A free public search is not a free data source.
+
+The Datennutzungsgesetz is useful leverage but **not a magic access right**. § 2 applies when data is already supplied under an access right/duty or otherwise publicly supplied; it excludes restricted/personal/third-party-IP data. § 4 then permits commercial/non-commercial use, § 7 requires available formats and says agencies need not create/adapt data beyond simple processing, and § 10 says use is generally free subject to marginal-cost and listed exceptions. **[verified 2026-10-08]** Therefore VYVA can ask a KV/public chamber to provide an existing export under the relevant access law and invoke DNG reuse/free-use principles, but DNG alone does not compel disclosure of the Arztregister or override privacy.
+
+### 13.6 DRK's own public data
+
+Multiple DRK Kreisverband “Angebotsfinder” pages were opened. They expose category and postcode/place searches and cover services such as ambulante Pflege, Tagespflege and Hausnotruf, but no documented public export/API or open-data licence was found. **[verified 2026-10-08]** The pages are distributed across association sites. Public visibility is not permission to copy.
+
+The zero-cost legal route is **explicit written permission**, which the brief accepts: DRK supplies an internal CMS export/feed and grants VYVA commercial storage/display rights at no licence fee. Ask for stable organisation/service IDs, category, name, address, phone, email, URL, coordinates, service area and last-updated timestamp. This is the only credible free source for Hausnotruf found in this pass.
+
+### 13.7 Free geocoding
+
+- **Self-host Nominatim or Photon** on OSM extracts: no per-query licence charge; obey ODbL/attribution/share-alike for derived databases. Public Nominatim is limited to 1 request/second, requires caching/identification and forbids bulk geocoding, so it is not the importer.
+- **Berlin/Brandenburg official addresses:** the Brandenburg/Berlin Gazetteer OGC API includes house coordinates. Brandenburg says its digital geodata are free Open Data under DL-DE-BY-2.0; the January 2026 update reports 866,316 Brandenburg and 394,303 Berlin house coordinates. Formats include ASCII, Shape, GeoJSON, GeoPackage and FileGDB; updates are half-yearly. **[verified 2026-10-08]** Uckermark is therefore covered.
+- **Sachsen:** GeoSN states downloads are free and licensed DL-DE-BY-2.0, with attribution `Quelle: GeoSN, dl-de/by-2-0`. **[verified 2026-10-08]**
+- Other Länder, including NRW, publish substantial geobasis Open Data, but confirm the exact address product and distribution licence before import; do not infer it from the portal-wide brand.
+
+### 13.8 Ranked free source by provider type
+
+| Provider type | Best zero-cost source | Coverage tested | Authority | Licence / commercial use | Import effort |
+|---|---|---|---|---|---|
+| Hausarzt | OSM + 116117 verification link | Berlin 441; Uckermark 14 | Community; not GKV proof | ODbL, yes | Medium |
+| Augen/HNO/Neurologie/Orthopädie | OSM specialty tags + 116117 link | Berlin 96/77/56/112; rural 2/1/0/2 | Community | ODbL, yes | Medium; sparse rural |
+| Zahnarzt | OSM + regional KZV link | Berlin 830; rural 18 | Community + official hand-off | ODbL, yes | Low |
+| Physiotherapie | OSM + GKV list link | Berlin 606; rural 8 | Community + official hand-off | ODbL, yes | Low |
+| Psychotherapie | OSM + 116117 link | Berlin 532; rural 3 | Community + official hand-off | ODbL, yes | Medium |
+| Optiker | OSM | Berlin 353; rural 13 | Community/business mapping | ODbL, yes | Low |
+| Hörakustiker | OSM; never scrape biha | Berlin 134; rural 5 | Community; not Präqualifizierung | ODbL, yes | Low |
+| Ambulante Pflege | **Berlin care WFS**; OSM elsewhere | Berlin official 723 | **Official Land planning data** | **DL-DE-Zero-2.0, yes** | Low |
+| Tagespflege | **Berlin care WFS**; Hamburg/local portals | Berlin official 112 | **Official Land planning data** | **DL-DE-Zero-2.0, yes** | Low |
+| Hausnotruf | DRK feed with written permission; OSM inadequate | 0 OSM name matches | Partner-owned if DRK feed | Explicit grant, yes if signed | Medium |
+| Hospitals/clinics | OSM/Wikidata pending Klinik-Atlas clearance | Wikidata Berlin 102, rural 5 | Community/semi-verified | ODbL / CC0, yes | Medium |
+
+### 13.9 Free MVP stack
+
+1. Import Berlin's four care WFS layers nightly/weekly; display dataset date and “official Berlin planning data”.
+2. Import a Berlin+Brandenburg OSM extract; normalise and deduplicate healthcare POIs, preserve OSM IDs/timestamps/tags and display “community-reported”.
+3. Enrich Berlin care rows from OSM only in a separate provenance layer; never overwrite official type/IK number.
+4. Obtain DRK's no-fee written feed permission for its own ambulante Pflege, Tagespflege and Hausnotruf.
+5. Use Berlin/Brandenburg official open house coordinates for unmatched addresses; self-host Nominatim/Photon for search.
+6. Add official link-outs to 116117, KZV and GKV therapy lookup for authorisation checking/booking.
+7. Run monthly quality reports: duplicates, missing phone/site, OSM age, failed official links and category disagreement. Do not label an OSM-only result “licensed” or “accepts GKV”.
+
+The free MVP is therefore **strong for Berlin care, workable but semi-verified for urban doctors/dentists/therapists/retail providers, weak for rural specialists, and dependent on DRK permission for Hausnotruf.**
+
 ## Primary sources opened
 
 - [KBV Bundesarztregister](https://www.kbv.de/praxis/abrechnung-und-honorar/bedarfsplanung/bundesarztregister)
@@ -194,3 +332,10 @@ DRK cannot waive third-party rights. Every feed needs explicit storage, display,
 - [Stiftung Gesundheit partner/API](https://www.stiftung-gesundheit.de/arzt-auskunft/kooperationen/)
 - [BKG geocoder](https://gdz.bkg.bund.de/index.php/default/geokodierungsdienst-opensearch-der-adv-fur-adressen-und-geonamen-gdz-geokodierung.html)
 - [Doctena partners](https://www.doctena.com/partners/), [samedi API](https://booking-api.samedi.de/), [Doctolib partners](https://info.doctolib.de/), [Jameda example](https://presse.jameda.de/395188-dmea-2025-jameda-und-medatixx-prasentieren-partnerschaft-fur-nahtloses-terminmanagement)
+- [OpenStreetMap copyright/licence](https://www.openstreetmap.org/copyright) and [OSMF Produced Work guideline](https://osmfoundation.org/wiki/Licence/Community_Guidelines/Produced_Work_-_Guideline)
+- [Berlin care dataset](https://www.govdata.de/suche/daten/ausgewahlte-pflege-und-pflegeflankierende-angebote-in-berlin) and [WFS](https://gdi.berlin.de/services/wfs/pflegeeinrichtungen?request=GetCapabilities&service=WFS)
+- [DL-DE-Zero-2.0](https://www.govdata.de/dl-de/zero-2-0) and [DL-DE-BY-2.0](https://www.govdata.de/dl-de/by-2-0)
+- [Hamburg full-stationary care](https://suche.transparenz.hamburg.de/dataset/vollstationaere-pflegeeinrichtungen-hamburg7)
+- [Datennutzungsgesetz §§ 2, 4, 7 and 10](https://www.gesetze-im-internet.de/dng/)
+- [biha Hörakustiker-search terms](https://www.hoerakustiker-suche.de/nutzung.php)
+- [Brandenburg georeferenced addresses](https://geobasis-bb.de/lgb/de/geodaten/liegenschaftskataster/georeferenzierte-adresse/) and [Sachsen reuse terms](https://www.geodaten.sachsen.de/rechtsgrundlagen-und-nutzungsbedingungen-4509.html)
