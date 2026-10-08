@@ -45,8 +45,9 @@ const HEALTH_CARD: Localized = {
  * 7 Oct 2026, except two opened on 8 Oct 2026: the Basque Country's, from the
  * link on Osakidetza's own booking FAQ page, and Valencia's patient-portal page
  * that carries the Conselleria's primary-care booking button (the button's own
- * address needs a session, so it isn't linked directly). Regions whose page
- * could not be opened (Asturias 03, Navarra 15) are left out until checked;
+ * address needs a session, so it isn't linked directly). Asturias's portal
+ * can't be reached from our build machines; its address was opened and
+ * confirmed by hand on 8 Oct 2026. Navarra 15 is left out until checked;
  * Care Finder then suggests calling the centre. No region offers a link to
  * a specific centre: every service asks for the health card first.
  */
@@ -72,6 +73,11 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
       fr: "Vous aurez besoin du code de votre carte de santé (il commence par AR).",
       de: "Sie brauchen den Code Ihrer Gesundheitskarte (beginnt mit AR).",
     },
+  },
+  "03": {
+    name: { en: "Asturias Health Service", es: "Servicio de Salud del Principado de Asturias (SESPA)", fr: "Service de santé des Asturies", de: "Gesundheitsdienst Asturien" },
+    url: "https://www.astursalud.es/astursalud",
+    app: "Mi AsturSalud",
   },
   "04": {
     name: { en: "Balearic Health Service", es: "IB-Salut", fr: "Service de santé des Baléares", de: "Gesundheitsdienst der Balearen" },

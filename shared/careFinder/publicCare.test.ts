@@ -112,7 +112,7 @@ describe("regional booking pages", () => {
   it("lists only official https pages, with what each asks for in every language", () => {
     for (const [code, booking] of Object.entries(REGION_BOOKING)) {
       expect(code).toMatch(/^(0[1-9]|1[0-9])$/);
-      expect(booking.url).toMatch(/^https:\/\/[^/]*(gob\.es|juntadeandalucia\.es|saludinforma\.es|ibsalut\.es|gobiernodecanarias\.org|scsalud\.es|saludcastillayleon\.es|castillalamancha\.es|gencat\.cat|ses\.es|sergas\.gal|comunidad\.madrid|carm\.es|riojasalud\.es|osakidetza\.eus|san\.gva\.es)\//);
+      expect(booking.url).toMatch(/^https:\/\/[^/]*(gob\.es|juntadeandalucia\.es|saludinforma\.es|ibsalut\.es|gobiernodecanarias\.org|scsalud\.es|saludcastillayleon\.es|castillalamancha\.es|gencat\.cat|ses\.es|sergas\.gal|comunidad\.madrid|carm\.es|riojasalud\.es|osakidetza\.eus|san\.gva\.es|astursalud\.es)\//);
       for (const lang of ["en", "es", "fr", "de"] as const) {
         expect(booking.name[lang]).toBeTruthy();
         if (booking.needs) expect(booking.needs[lang]).toBeTruthy();
@@ -122,7 +122,8 @@ describe("regional booking pages", () => {
 
   it("leaves out regions whose page couldn't be opened", () => {
     expect(regionBooking("07")?.app).toBe("Sacyl Conecta");
-    for (const code of ["03", "15"]) expect(regionBooking(code)).toBeNull();
+    expect(regionBooking("15")).toBeNull();
+    expect(regionBooking("03")?.url).toBe("https://www.astursalud.es/astursalud");
     expect(regionBooking("10")?.app).toBe("GVA +Salut");
     expect(regionBooking("16")?.url).toMatch(/^https:\/\/zitaberria\.osakidetza\.eus\//);
     expect(regionBooking(null)).toBeNull();
