@@ -48,7 +48,6 @@ import {
   type CareFinderProfileFacts,
   type CareFinderState,
   type CareFinderStep,
-  type CareOutcomeId,
 } from "../../../shared/careFinder/flow";
 import type {
   CareFinderResultOption,
@@ -84,7 +83,6 @@ export interface CareFinderProps {
   onStateChange?: (state: CareFinderState) => void;
   onExit: () => void;
   onArrangeRide?: (option: CareFinderResultOption, state: CareFinderState) => void;
-  onFinished?: (outcome: CareOutcomeId, state: CareFinderState) => void;
   onStartNew?: () => void;
   onHealthHome?: () => void;
 }
@@ -118,7 +116,6 @@ export function CareFinder({
   onStateChange,
   onExit,
   onArrangeRide,
-  onFinished,
   onStartNew,
   onHealthHome,
 }: CareFinderProps) {
@@ -492,14 +489,6 @@ export function CareFinder({
             state={state}
             lang={lang}
             copy={copy}
-            onOutcome={(outcome) => {
-              if (outcome === "not_suitable") {
-                dispatch({ type: "change", step: "results" });
-                return;
-              }
-              dispatch({ type: "recordOutcome", outcome });
-              onFinished?.(outcome, { ...state, outcome });
-            }}
             onBackToOptions={() => change("results")}
             onArrangeRide={state.accessNeeds.includes("transport") && onArrangeRide ? () => onArrangeRide(selectedOption, state) : undefined}
           />
@@ -562,7 +551,7 @@ export function CareFinder({
               {renderStep()}
             </div>
           </div>
-          {careFinderSummaryRows(state, lang, copy).length > 0 ? (
+          {state.step === "contact" ? null : careFinderSummaryRows(state, lang, copy).length > 0 ? (
             <aside className="cf-aside" aria-label={copy.summary.title}>
               <SummaryPanel state={state} lang={lang} copy={copy} onChange={change} disabled={state.step === "urgent"} />
             </aside>

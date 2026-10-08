@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Car, Copy, ExternalLink, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
-import { CARE_OUTCOME_IDS, type CareFinderState, type CareOutcomeId } from "../../../shared/careFinder/flow";
+import type { CareFinderState } from "../../../shared/careFinder/flow";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
 import { careShareMessage } from "./shareMessage";
-import { ActionButton, ChoiceButton, Notice, actionClass } from "./parts";
+import { ActionButton, Notice, actionClass } from "./parts";
 import { formatCheckedAt } from "./ResultsStep";
 
 function telHref(phone: string): string {
@@ -56,7 +56,6 @@ export function ContactStep({
   state,
   lang,
   copy,
-  onOutcome,
   onBackToOptions,
   onArrangeRide,
 }: {
@@ -65,7 +64,6 @@ export function ContactStep({
   state: CareFinderState;
   lang: CareFinderLang;
   copy: CareFinderCopy;
-  onOutcome: (outcome: CareOutcomeId) => void;
   onBackToOptions: () => void;
   onArrangeRide?: () => void;
 }) {
@@ -154,13 +152,6 @@ export function ContactStep({
           <ActionButton variant="secondary" onClick={() => setSharePreview(true)} icon={<Share2 size={22} />} testId="button-care-share-preview">{c.sharePreviewButton}</ActionButton>
         )}
       </section>
-
-      <fieldset className="space-y-3">
-        <legend className="text-[23px] font-semibold">{c.outcomeTitle}</legend>
-        {CARE_OUTCOME_IDS.map((outcome) => (
-          <ChoiceButton key={outcome} label={c.outcomes[outcome]} onClick={() => onOutcome(outcome)} testId={`button-outcome-${outcome}`} />
-        ))}
-      </fieldset>
 
       <ActionButton variant="quiet" onClick={onBackToOptions}>{c.otherOptions}</ActionButton>
 
