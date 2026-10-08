@@ -1266,6 +1266,8 @@ const es = {
       instructions: "Instrucciones",
       tutorialSubtitle: "Oye el sonido. Luego responde.",
       tutorialListen: "Escucha",
+      previewTarget: "Escucha el sonido objetivo",
+      stepCount: "Cuenta",
       tutorialTap: "Toca al oirlo",
       tutorialChoose: "Elige mas",
       tutorialResult: "Resultado",

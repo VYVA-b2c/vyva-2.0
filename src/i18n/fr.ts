@@ -1304,6 +1304,8 @@ const fr = {
       instructions: "Instructions",
       tutorialSubtitle: "Ecoutez le son. Puis repondez.",
       tutorialListen: "Ecouter",
+      previewTarget: "Ecoutez le son cible",
+      stepCount: "Compter",
       tutorialTap: "Touchez au son",
       tutorialChoose: "Choisir plus",
       tutorialResult: "Resultat",

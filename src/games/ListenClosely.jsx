@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Headphones, Info, Play, Volume2, Waves } from "lucide-react";
+import { Check, Ear, Headphones, Info, MousePointerClick, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
@@ -521,11 +521,6 @@ export default function ListenClosely({ userId, onExit }) {
 
   const resultState = sessionResult?.userState ?? userState ?? getDefaultListenCloselyUserState(userId ?? "");
   const resultIsGood = Number(sessionResult?.score ?? 0) >= 650;
-  const modeLabel = normalizedSoundscape?.mode === "count_compare"
-    ? t("games.listenClosely.modeCompare", "Compare sounds")
-    : normalizedSoundscape?.mode === "oddball"
-      ? t("games.listenClosely.modeOddball", "Odd sound")
-      : t("games.listenClosely.modeFind", "Find it");
   const introInstruction = normalizedSoundscape?.mode === "oddball"
     ? t("games.listenClosely.tapSpecialShort", "Tap only for this sound.")
     : t("games.listenClosely.tapTargetShort", "Tap when you hear it.");
@@ -567,44 +562,37 @@ export default function ListenClosely({ userId, onExit }) {
         sceneLayout="instruction_panel"
       >
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-6" style={{ borderColor: "#EEE8F1" }}>
-            <div className="mb-4 flex justify-end">
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-7" style={{ borderColor: "#EEE8F1" }}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+                {t("common.level", "Level")} {currentTier}
+              </span>
               <button
                 type="button"
                 onClick={openInstructions}
-                className="inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-4 text-[14px] font-extrabold"
+                className="inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-[14px] font-extrabold"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
                 <Info size={18} aria-hidden="true" />
                 {t("games.listenClosely.instructions", "Instructions")}
               </button>
             </div>
-            <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">
-              {t("games.listenClosely.introShort", "Listen, then choose.")}
-            </h1>
 
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-                {t("common.level", "Level")} {currentTier}
-              </span>
-              <span className="rounded-full px-4 py-2 text-[14px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                {modeLabel}
-              </span>
+            <div className="mx-auto mt-3 flex size-20 items-center justify-center rounded-full" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
+              <Headphones size={42} strokeWidth={2.2} aria-hidden="true" />
             </div>
+            <h1 className="mt-3 font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[34px]">
+              {isCompareMode
+                ? t("games.listenClosely.whichMore", "Which sound happened more?")
+                : t("games.listenClosely.previewTarget", "Hear your target sound")}
+            </h1>
+            <p className="mx-auto mt-2 max-w-[560px] text-[16px] font-semibold leading-relaxed" style={{ color: BRAND.muted }}>
+              {isCompareMode ? compareInstruction : introInstruction}
+            </p>
 
-            <div className="mt-4 rounded-[20px] border p-4" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
+            <div className="mt-4">
               {isCompareMode ? (
-                <>
-                  <p className="text-[13px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
-                    {t("games.listenClosely.taskLabel", "Your task")}
-                  </p>
-                  <p className="mt-1.5 font-display text-[24px] font-semibold leading-tight" style={{ color: BRAND.teal }}>
-                    {t("games.listenClosely.whichMore", "Which sound happened more?")}
-                  </p>
-                  <p className="mx-auto mt-2 max-w-[560px] text-[16px] font-semibold leading-relaxed" style={{ color: BRAND.muted }}>
-                    {compareInstruction}
-                  </p>
-                  <div className="mx-auto mt-4 grid max-w-[560px] gap-3 sm:grid-cols-2">
+                  <div className="mx-auto grid max-w-[560px] gap-3 sm:grid-cols-2">
                     {[
                       [targetLabel, normalizedSoundscape.target_sound_character],
                       [secondTargetLabel, normalizedSoundscape.second_target_sound_character],
@@ -614,28 +602,43 @@ export default function ListenClosely({ userId, onExit }) {
                         key={soundCharacter}
                         onClick={() => void playSoundSample(soundCharacter)}
                         disabled={!canUseListenCloselyAudio()}
-                        className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border bg-white px-4 py-3 text-[18px] font-extrabold leading-tight shadow-sm disabled:opacity-60"
+                        className="flex min-h-[72px] items-center justify-center gap-3 rounded-[20px] border-2 bg-white px-4 py-3 text-[19px] font-extrabold leading-tight shadow-sm active:scale-[0.99] disabled:opacity-60"
                         style={{ borderColor: BRAND.border, color: BRAND.purple }}
                       >
-                        <Volume2 size={20} aria-hidden="true" />
+                        <Volume2 size={25} aria-hidden="true" />
                         {label}
                       </button>
                     ))}
                   </div>
-                </>
               ) : (
-                <>
-                  <p className="text-[13px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
-                    {t("games.listenClosely.listenFor", "Listen for")}
-                  </p>
-                  <p className="mt-1.5 font-display text-[24px] font-semibold leading-tight" style={{ color: BRAND.purple }}>
+                  <button
+                    type="button"
+                    onClick={() => void playSoundSample(normalizedSoundscape.target_sound_character)}
+                    disabled={!canUseListenCloselyAudio()}
+                    className="mx-auto flex min-h-[88px] w-full max-w-[560px] items-center justify-center gap-4 rounded-[22px] border-2 px-5 text-left shadow-sm active:scale-[0.99] disabled:opacity-60"
+                    style={{ borderColor: BRAND.purple, background: BRAND.softPurple, color: BRAND.purple }}
+                  >
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white"><Volume2 size={27} aria-hidden="true" /></span>
+                    <span className="font-display text-[25px] font-semibold leading-tight">
                     {targetLabel}
-                  </p>
-                  <p className="mx-auto mt-2 max-w-[560px] text-[16px] font-semibold leading-relaxed" style={{ color: BRAND.muted }}>
-                    {introInstruction}
-                  </p>
-                </>
+                    </span>
+                  </button>
               )}
+            </div>
+
+            <div className={`mx-auto mt-5 grid max-w-[560px] gap-2 ${isCompareMode ? "grid-cols-3" : "grid-cols-2"}`}>
+              {[
+                [Ear, t("games.listenClosely.tutorialListen", "Listen")],
+                ...(isCompareMode ? [[Check, t("games.listenClosely.stepCount", "Count")]] : []),
+                [MousePointerClick, isCompareMode ? t("games.listenClosely.tutorialChoose", "Choose more") : t("games.listenClosely.tutorialTap", "Tap when heard")],
+              ].map(([Icon, label], index) => (
+                <div key={label} className="flex min-w-0 flex-col items-center gap-2 rounded-[18px] bg-[#FAF7FC] px-2 py-3">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-white font-black shadow-sm" style={{ color: BRAND.purple }}>
+                    <Icon size={21} aria-hidden="true" />
+                  </span>
+                  <span className="text-[13px] font-extrabold leading-tight" style={{ color: BRAND.muted }}>{index + 1}. {label}</span>
+                </div>
+              ))}
             </div>
 
             {loadNote && (
@@ -645,23 +648,11 @@ export default function ListenClosely({ userId, onExit }) {
             )}
             {audioWarning && <p className="mt-4 text-[20px] font-semibold" style={{ color: "#92400E" }}>{audioWarning}</p>}
 
-            <div className={`mt-5 grid gap-3 ${isCompareMode ? "" : "sm:grid-cols-[0.8fr_1.2fr]"}`}>
-              {!isCompareMode && (
-                <button
-                  type="button"
-                  onClick={() => void playSoundSample(normalizedSoundscape.target_sound_character)}
-                  disabled={!canUseListenCloselyAudio()}
-                  className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border bg-white px-6 text-[16px] font-extrabold disabled:opacity-60"
-                  style={{ borderColor: BRAND.border, color: BRAND.purple }}
-                >
-                  <Volume2 size={20} aria-hidden="true" />
-                  {t("games.listenClosely.sampleTarget", "Hear target")}
-                </button>
-              )}
+            <div className="mt-5">
               <button
                 type="button"
                 onClick={() => void startSession()}
-                className="flex min-h-[52px] items-center justify-center gap-2 rounded-full px-6 text-[17px] font-extrabold text-white shadow-vyva-hero active:scale-[0.99]"
+                className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-6 text-[19px] font-extrabold text-white shadow-vyva-hero active:scale-[0.99]"
                 style={{ background: BRAND.purple }}
               >
                 <Play size={20} fill="currentColor" />

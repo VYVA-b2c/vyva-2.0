@@ -1542,6 +1542,8 @@ const en = {
       instructions: "Instructions",
       tutorialSubtitle: "Hear the sound. Then respond.",
       tutorialListen: "Listen",
+      previewTarget: "Hear your target sound",
+      stepCount: "Count",
       tutorialTap: "Tap when heard",
       tutorialChoose: "Choose more",
       tutorialResult: "Result",

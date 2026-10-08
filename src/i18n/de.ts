@@ -1129,6 +1129,8 @@ const de = {
       instructions: "Anleitung",
       tutorialSubtitle: "Hoeren Sie den Klang. Reagieren Sie dann.",
       tutorialListen: "Hoeren",
+      previewTarget: "Zielklang anhoeren",
+      stepCount: "Zaehlen",
       tutorialTap: "Beim Klang tippen",
       tutorialChoose: "Mehr waehlen",
       tutorialResult: "Ergebnis",
