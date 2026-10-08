@@ -62,7 +62,7 @@ export const STORY_THEMES: StoryThemeDefinition[] = [
   { id: "hobbies", label: localized("Aficiones", "Hobbies", "Loisirs", "Hobbys", "Passatempi", "Passatempos"), emoji: "🎨", accent: "#7E22CE", surface: "#FAF5FF", border: "#E9D5FF", motif: "spark" },
   { id: "community", label: localized("Comunidad", "Community", "Communauté", "Gemeinschaft", "Comunità", "Comunidade"), emoji: "🤝", accent: "#0F766E", surface: "#F0FDFA", border: "#99F6E4", motif: "circle" },
   { id: "celebrations", label: localized("Celebraciones", "Celebrations", "Fêtes", "Feste", "Feste", "Celebrações"), emoji: "🎉", accent: "#BE185D", surface: "#FDF2F8", border: "#FBCFE8", motif: "confetti" },
-  { id: "mystery", label: localized("Misterio", "Mystery", "Mystère", "Rätsel", "Mistero", "Mistério"), emoji: "🔎", accent: "#4338CA", surface: "#EEF2FF", border: "#C7D2FE", motif: "clue" },
+  { id: "mystery", label: localized("Misterio amable", "Gentle mystery", "Mystère doux", "Sanftes Rätsel", "Mistero gentile", "Mistério leve"), emoji: "🔎", accent: "#4338CA", surface: "#EEF2FF", border: "#C7D2FE", motif: "clue" },
 ];
 
 const scenes: StoryScene[] = [
