@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, Copy, ExternalLink, Mail, MapPin, Phone, Share2 } from "lucide-react";
-import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
-import type { CareFinderState } from "../../../shared/careFinder/flow";
+import { Car, ExternalLink, Mail, MapPin, Phone } from "lucide-react";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
-import { careShareMessage } from "./shareMessage";
 import { ActionButton, Notice, actionClass } from "./parts";
-import { formatCheckedAt } from "./ResultsStep";
 
 function telHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, "")}`;
@@ -53,40 +49,18 @@ function ConfirmCallDialog({ name, phone, copy, onClose }: { name: string; phone
 export function ContactStep({
   heading,
   option,
-  state,
-  lang,
   copy,
   onBackToOptions,
   onArrangeRide,
 }: {
   heading: (children: ReactNode) => ReactNode;
   option: CareFinderResultOption;
-  state: CareFinderState;
-  lang: CareFinderLang;
   copy: CareFinderCopy;
   onBackToOptions: () => void;
   onArrangeRide?: () => void;
 }) {
   const c = copy.contact;
   const [confirming, setConfirming] = useState(false);
-  const [sharePreview, setSharePreview] = useState(false);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
-  const shareMessage = careShareMessage(option, state, lang, formatCheckedAt(option.checked_at ?? new Date().toISOString(), lang));
-
-  const shareNow = async () => {
-    setShareNotice(null);
-    try {
-      if (navigator.share) {
-        await navigator.share({ text: shareMessage });
-        return;
-      }
-      await navigator.clipboard?.writeText(shareMessage);
-      setShareNotice(c.copied);
-    } catch {
-      // The person closed the share sheet; nothing was sent.
-    }
-  };
-
   return (
     <div className="space-y-6">
       {heading(c.heading(option.name))}
@@ -135,23 +109,6 @@ export function ContactStep({
         ) : null}
       </section>
 
-      <section aria-labelledby="care-share-title" className="space-y-3 rounded-[22px] border-2 border-[var(--cf-border-soft)] bg-[var(--cf-surface)] p-5">
-        <h3 id="care-share-title" className="text-[23px] font-semibold">{c.shareTitleHelper}</h3>
-        {sharePreview ? (
-          <>
-            <p className="text-[18px] text-[var(--cf-text-2)]">{c.shareIntro}</p>
-            <pre className="whitespace-pre-wrap break-words rounded-[16px] bg-[var(--cf-surface-2)] p-4 font-body text-[18px] text-[var(--cf-text)]" data-testid="care-share-preview">{shareMessage}</pre>
-            <div className="cf-row flex flex-col gap-3">
-              <ActionButton onClick={() => void shareNow()} icon={typeof navigator !== "undefined" && "share" in navigator ? <Share2 size={22} /> : <Copy size={22} />}>
-                {typeof navigator !== "undefined" && "share" in navigator ? c.shareButton : c.copyButton}
-              </ActionButton>
-            </div>
-            {shareNotice ? <p role="status" className="text-[18px] font-semibold text-[var(--cf-ok)]">{shareNotice}</p> : null}
-          </>
-        ) : (
-          <ActionButton variant="secondary" onClick={() => setSharePreview(true)} icon={<Share2 size={22} />} testId="button-care-share-preview">{c.sharePreviewButton}</ActionButton>
-        )}
-      </section>
 
       <ActionButton variant="quiet" onClick={onBackToOptions}>{c.otherOptions}</ActionButton>
 

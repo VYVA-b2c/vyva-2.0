@@ -486,8 +486,6 @@ export function CareFinder({
           <ContactStep
             heading={(children) => heading(children)}
             option={selectedOption}
-            state={state}
-            lang={lang}
             copy={copy}
             onBackToOptions={() => change("results")}
             onArrangeRide={state.accessNeeds.includes("transport") && onArrangeRide ? () => onArrangeRide(selectedOption, state) : undefined}

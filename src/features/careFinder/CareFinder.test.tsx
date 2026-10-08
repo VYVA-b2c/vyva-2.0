@@ -200,7 +200,7 @@ describe("contact safeguards", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("offers the register email, and includes it in what is shared", async () => {
+  it("offers the register email", async () => {
     const withEmail = { ...okResults, options: [{ ...okResults.options[0], email: "cita@fisiocerca.es" }, ...okResults.options.slice(1)] };
     renderFinder({ services: { search: vi.fn(async () => withEmail) } });
     await walkKneeJourneyToResults();
@@ -208,8 +208,6 @@ describe("contact safeguards", () => {
     fireEvent.click(await screen.findByTestId("button-prepare-a"));
     expect(await screen.findByTestId("link-care-email")).toHaveAttribute("href", "mailto:cita@fisiocerca.es");
     expect(screen.getByTestId("link-care-email")).toHaveTextContent("Email");
-    fireEvent.click(screen.getByTestId("button-care-share-preview"));
-    expect(screen.getByTestId("care-share-preview").textContent).toContain("Email: cita@fisiocerca.es");
   });
 
   it("shows no email link when the place has none", async () => {
@@ -222,8 +220,7 @@ describe("contact safeguards", () => {
     expect(screen.getByText("Fisio Cerca street, Tarifa")).toBeInTheDocument();
     expect(screen.queryByText("What you could say")).not.toBeInTheDocument();
     expect(screen.queryByText(/Stairs are hard for me/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-care-share-preview"));
-    expect(screen.getByTestId("care-share-preview").textContent).not.toContain("knee");
+    expect(screen.queryByTestId("button-care-share-preview")).not.toBeInTheDocument();
   });
 });
 
