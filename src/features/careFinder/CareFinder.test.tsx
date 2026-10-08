@@ -441,7 +441,7 @@ describe("public cover: your own health centre", () => {
   });
 
   it("suggests calling when the region's booking page isn't listed", async () => {
-    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults(null, "15")) } });
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults(null, "99")) } });
     const panel = await screen.findByTestId("care-public-care");
     expect(within(panel).getByText("Your own health centre is printed on your health card.")).toBeInTheDocument();
     expect(within(panel).getByText(/call your health centre to book/)).toBeInTheDocument();

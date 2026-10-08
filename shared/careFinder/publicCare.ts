@@ -45,10 +45,10 @@ const HEALTH_CARD: Localized = {
  * 7 Oct 2026, except two opened on 8 Oct 2026: the Basque Country's, from the
  * link on Osakidetza's own booking FAQ page, and Valencia's patient-portal page
  * that carries the Conselleria's primary-care booking button (the button's own
- * address needs a session, so it isn't linked directly). Asturias's portal
- * can't be reached from our build machines; its address was opened and
- * confirmed by hand on 8 Oct 2026. Navarra 15 is left out until checked;
- * Care Finder then suggests calling the centre. No region offers a link to
+ * address needs a session, so it isn't linked directly). The Asturias and
+ * Navarra sites can't be reached from our build machines; their addresses were
+ * opened and confirmed by hand on 8 Oct 2026. For a region missing from this
+ * list, Care Finder suggests calling the centre. No region offers a link to
  * a specific centre: every service asks for the health card first.
  */
 export const REGION_BOOKING: Record<string, RegionBooking> = {
@@ -169,6 +169,11 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
       fr: "Vous aurez besoin du numéro de votre carte de santé (CIP) et de votre date de naissance.",
       de: "Sie brauchen die Nummer Ihrer Gesundheitskarte (CIP) und Ihr Geburtsdatum.",
     },
+  },
+  "15": {
+    name: { en: "Navarre Health Service", es: "Servicio Navarro de Salud-Osasunbidea", fr: "Service de santé de Navarre", de: "Gesundheitsdienst Navarra" },
+    url: "https://www.navarra.es/es/tramites/on/-/line/Cita-previa-en-el-centro-de-salud",
+    app: "Carpeta Personal de Salud",
   },
   "16": {
     name: { en: "Basque Health Service", es: "Osakidetza", fr: "Service basque de santé", de: "Baskischer Gesundheitsdienst" },
