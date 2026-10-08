@@ -42,9 +42,11 @@ const HEALTH_CARD: Localized = {
 
 /**
  * Official booking entry pages, by INE community code. Each was opened on
- * 7 Oct 2026, except the Basque Country's, taken on 8 Oct 2026 from the link
- * on Osakidetza's own booking FAQ page. Regions whose page could not be
- * opened (Asturias 03, Valencia 10, Navarra 15) are left out until checked;
+ * 7 Oct 2026, except two opened on 8 Oct 2026: the Basque Country's, from the
+ * link on Osakidetza's own booking FAQ page, and Valencia's patient-portal page
+ * that carries the Conselleria's primary-care booking button (the button's own
+ * address needs a session, so it isn't linked directly). Regions whose page
+ * could not be opened (Asturias 03, Navarra 15) are left out until checked;
  * Care Finder then suggests calling the centre. No region offers a link to
  * a specific centre: every service asks for the health card first.
  */
@@ -112,6 +114,11 @@ export const REGION_BOOKING: Record<string, RegionBooking> = {
     name: { en: "Catalan Health Service", es: "CatSalut", fr: "Service catalan de santé", de: "Katalanischer Gesundheitsdienst" },
     url: "https://citasalut.gencat.cat/",
     app: "La Meva Salut",
+  },
+  "10": {
+    name: { en: "Valencian Health Service", es: "Conselleria de Sanidad, Generalitat Valenciana", fr: "Service de santé valencien", de: "Valencianischer Gesundheitsdienst" },
+    url: "https://www.san.gva.es/es/web/portal-del-paciente/informacion-centros",
+    app: "GVA +Salut",
   },
   "11": {
     name: { en: "Extremadura Health Service", es: "Servicio Extremeño de Salud", fr: "Service de santé d'Estrémadure", de: "Gesundheitsdienst Extremadura" },
