@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankRegisterPlaces, registerPlaceFromDb } from "./careRegister.js";
+import { rankRegisterPlaces, registerPlaceFromDb, townRegisterPlaces } from "./careRegister.js";
 
 const row = (ccn: string, lat: number | null, lng: number | null, extra: Record<string, unknown> = {}) => registerPlaceFromDb({
   ccn, regional_code: null, listing: "C2", centre_class: "C22", centre_class_name: null, name: `PLACE ${ccn}`,
@@ -33,5 +33,23 @@ describe("rankRegisterPlaces", () => {
   it("respects the limit", () => {
     const places = Array.from({ length: 5 }, (_, index) => row(String(index), 41.5035 + index * 0.001, -5.7446));
     expect(rankRegisterPlaces(places, { ...params, limit: 2 })).toHaveLength(2);
+  });
+});
+
+describe("townRegisterPlaces", () => {
+  it("lists unplaced places in the town authorised for the care, in register order, with no distance", () => {
+    const town = townRegisterPlaces([
+      row("b", null, null),
+      row("a", null, null),
+      row("placed", 41.5, -5.7),
+      row("dental", null, null, { care_codes: ["U.44"] }),
+      row("carehome", null, null, { centre_class: "C3" }),
+    ], params, 5);
+    expect(town).toEqual([
+      expect.objectContaining({ km: null, place: expect.objectContaining({ ccn: "a" }) }),
+      expect.objectContaining({ km: null, place: expect.objectContaining({ ccn: "b" }) }),
+    ]);
+    expect(townRegisterPlaces([row("a", null, null), row("b", null, null)], params, 1)).toHaveLength(1);
+    expect(townRegisterPlaces([row("a", null, null)], params, 0)).toEqual([]);
   });
 });

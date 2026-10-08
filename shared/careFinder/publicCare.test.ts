@@ -42,6 +42,12 @@ describe("chooseAssignedCentre", () => {
   it("returns nothing without candidates", () => {
     expect(chooseAssignedCentre([], ["C.S. Puerta Nueva"])).toBeNull();
   });
+
+  it("names a town-only centre from the health map, but never calls one the nearest", () => {
+    const unplaced = [{ id: "c", name: "CENTRO DE SALUD PUERTA NUEVA", km: null }];
+    expect(chooseAssignedCentre(unplaced, ["C.S. Puerta Nueva"])).toEqual({ id: "c", basis: "health_map" });
+    expect(chooseAssignedCentre(unplaced, null)).toBeNull();
+  });
 });
 
 describe("centre names as the health map and the register write them", () => {

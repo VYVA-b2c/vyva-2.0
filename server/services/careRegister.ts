@@ -14,7 +14,10 @@ const CANDIDATE_LIMIT = 400;
 
 export interface RegisterMatch {
   place: RegisterPlaceWithPosition;
-  km: number;
+  // Straight-line distance; null for a place in the member's own town that
+  // has no position yet (the town is known from the register, the street
+  // is not on the map).
+  km: number | null;
 }
 
 type Row = Record<string, unknown>;
@@ -55,38 +58,67 @@ export function registerPlaceFromDb(row: Row): RegisterPlaceWithPosition {
 }
 
 /**
- * Authorised places for this care near a point, closest first. Reads only
- * places with coordinates; the importer geocodes the rest.
+ * Authorised places for this care near a point, closest first, then places
+ * in the member's own town that have no position yet. The register gives
+ * every place's town, so a town match needs no geocoding; it just can't be
+ * ranked by distance.
  */
 export async function findRegisterPlaces(params: {
   careType: CareTypeId;
   access: CareAccessRoute;
-  origin: { lat: number; lng: number };
+  // municipalityCode: the member's INE town code (5 digits), from geocoding.
+  origin: { lat: number; lng: number; municipalityCode?: string | null };
   limit: number;
 }): Promise<RegisterMatch[]> {
   const { db } = await import("../db.js");
   const { codes, classes } = registerCandidateFilter(params.careType, params.access);
   if (codes.length === 0 && classes.length === 0) return [];
+  const offersCare = sql`(
+    care_codes && array(select jsonb_array_elements_text(${JSON.stringify(codes)}::jsonb))
+    OR centre_class IN (select jsonb_array_elements_text(${JSON.stringify(classes)}::jsonb))
+  )`;
   const latDelta = SEARCH_RADIUS_KM / 111;
   const lngDelta = SEARCH_RADIUS_KM / (111 * Math.max(0.2, Math.cos((params.origin.lat * Math.PI) / 180)));
-  const result = await db.execute(sql`
+  const nearby = await db.execute(sql`
     SELECT * FROM care_register_places
     WHERE withdrawn_at IS NULL
       AND lat BETWEEN ${params.origin.lat - latDelta} AND ${params.origin.lat + latDelta}
       AND lng BETWEEN ${params.origin.lng - lngDelta} AND ${params.origin.lng + lngDelta}
-      AND (
-        care_codes && array(select jsonb_array_elements_text(${JSON.stringify(codes)}::jsonb))
-        OR centre_class IN (select jsonb_array_elements_text(${JSON.stringify(classes)}::jsonb))
-      )
+      AND ${offersCare}
     LIMIT ${CANDIDATE_LIMIT}`);
-  return rankRegisterPlaces(rows(result).map(registerPlaceFromDb), params);
+  const placed = rankRegisterPlaces(rows(nearby).map(registerPlaceFromDb), params);
+  const town = params.origin.municipalityCode?.slice(0, 5);
+  if (placed.length >= params.limit || !town || !/^\d{5}$/.test(town)) return placed;
+  // REGCESS town codes are the INE code plus a check digit.
+  const inTown = await db.execute(sql`
+    SELECT * FROM care_register_places
+    WHERE withdrawn_at IS NULL
+      AND lat IS NULL
+      AND left(municipality_code, 5) = ${town}
+      AND ${offersCare}
+    LIMIT ${CANDIDATE_LIMIT}`);
+  return [...placed, ...townRegisterPlaces(rows(inTown).map(registerPlaceFromDb), params, params.limit - placed.length)];
+}
+
+/** Places in the member's town without a position, authorised for the care, in register order. */
+export function townRegisterPlaces(
+  places: RegisterPlaceWithPosition[],
+  params: { careType: CareTypeId; access: CareAccessRoute },
+  limit: number,
+): RegisterMatch[] {
+  return places
+    .filter((place) => place.lat === null || place.lng === null)
+    .filter((place) => registerPlaceOffers(place, params.careType, params.access))
+    .sort((left, right) => left.ccn.localeCompare(right.ccn))
+    .slice(0, Math.max(0, limit))
+    .map((place) => ({ place, km: null }));
 }
 
 /** Filters to places authorised for the care, within range, closest first. */
 export function rankRegisterPlaces(
   places: RegisterPlaceWithPosition[],
   params: { careType: CareTypeId; access: CareAccessRoute; origin: { lat: number; lng: number }; limit: number },
-): RegisterMatch[] {
+): Array<RegisterMatch & { km: number }> {
   return places
     .filter((place) => place.lat !== null && place.lng !== null)
     .filter((place) => registerPlaceOffers(place, params.careType, params.access))

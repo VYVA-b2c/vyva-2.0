@@ -228,7 +228,8 @@ export function normaliseCentreName(name: string): string {
 export interface PublicCentreCandidate {
   id: string;
   name: string;
-  km: number;
+  // null: in the member's town but not yet placed on the map.
+  km: number | null;
 }
 
 /**
@@ -245,7 +246,8 @@ export function chooseAssignedCentre(
     const match = candidates.find((candidate) => wanted.has(normaliseCentreName(candidate.name)));
     if (match) return { id: match.id, basis: "health_map" };
   }
-  return { id: candidates[0].id, basis: "nearest" };
+  // "Nearest" is a claim about distance; never make it for an unplaced centre.
+  return candidates[0].km === null ? null : { id: candidates[0].id, basis: "nearest" };
 }
 
 // ── Regional health maps ────────────────────────────────────────────────────

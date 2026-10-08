@@ -321,6 +321,7 @@ export function ResultsStep({
       <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{
         results.orderedBy === "travel_time" ? r.orderTravel
           : results.orderedBy === "distance" ? r.orderDistance
+          : results.orderedBy === "distance_then_town" ? r.orderDistanceTown
             : results.orderedBy === "assigned_first" ? r.orderAssigned
               : r.orderRelevance
       }</p>
