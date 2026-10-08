@@ -325,6 +325,10 @@ export function ResultsStep({
             : results.orderedBy === "assigned_first" ? r.orderAssigned
               : r.orderRelevance
       }</p>
+      {/* Public cover reaches this care by referral; what's listed is private. */}
+      {results.access === "public" && !results.publicCare ? (
+        <p className="-mt-2 mb-4 text-[17px] text-[var(--cf-text-2)]" data-testid="care-public-referral">{r.publicReferral}</p>
+      ) : null}
 
       {results.publicCare ? <PublicCarePanel publicCare={results.publicCare} options={results.options} copy={copy} lang={lang} /> : null}
 

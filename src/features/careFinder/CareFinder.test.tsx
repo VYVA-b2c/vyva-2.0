@@ -417,6 +417,19 @@ describe("public cover: your own health centre", () => {
     },
   });
 
+  it("says quietly that public cover goes through a referral when the places shown are private", async () => {
+    renderFinder({ services: { search: vi.fn(async () => ({ ...okResults, access: "public" as const })) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("your family doctor refers you for this");
+  });
+
+  it("doesn't add the referral note to the family-doctor results", async () => {
+    renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("nearest", "07")) } });
+    await screen.findByTestId("care-public-care");
+    expect(screen.queryByTestId("care-public-referral")).toBeNull();
+  });
+
   it("names their centre from the health map and links to the region's official booking", async () => {
     renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("health_map", "07")) } });
     const panel = await screen.findByTestId("care-public-care");
