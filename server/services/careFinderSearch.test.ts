@@ -196,6 +196,32 @@ describe("searchCareProviders", () => {
       expect(storableCareFinderResults(result)).toBeNull();
     });
 
+    it("reads Spain's register when no country is given, and says so in the response", async () => {
+      const findRegisterPlaces = vi.fn(async () => matches);
+      const result = await searchCareProviders(request, { apiKey: null, refreshEvidence: async () => null, geocode: async () => zamora, findRegisterPlaces });
+      expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ country: "ES" }));
+      expect(result.country).toBe("ES");
+    });
+
+    it("skips Spain's register and geocoder for another country, and biases the map search there", async () => {
+      const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
+        ? { status: "OK", results: [{ place_id: "g1", name: "Kiné Lyon", types: ["physiotherapist"] }] }
+        : { status: "OK", result: {} }));
+      const geocode = vi.fn(async () => zamora);
+      const findRegisterPlaces = vi.fn(async () => matches);
+      const result = await searchCareProviders({ ...request, location: "69003 Lyon", country: "fr" }, {
+        apiKey: "key", fetch: fetcher, refreshEvidence: async () => null, geocode, findRegisterPlaces,
+      });
+      expect(geocode).not.toHaveBeenCalled();
+      expect(findRegisterPlaces).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ country: "FR", publicCare: null });
+      expect(result.options[0]).toMatchObject({ origin: "google_places", id: "g1" });
+      const textSearch = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls
+        .map(([input]) => new URL(String(input)))
+        .find((url) => url.pathname.endsWith("/textsearch/json"));
+      expect(textSearch?.searchParams.get("region")).toBe("fr");
+    });
+
     it("falls back to Google when the address can't be placed or the register fails", async () => {
       const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
         ? { status: "OK", results: [{ place_id: "g1", name: "Fisio Google", types: ["physiotherapist"] }] }

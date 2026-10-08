@@ -30,6 +30,13 @@ import { findHealthMapCentres, findRegisterPlaces, type HealthMapCentres, type R
 import { chooseAssignedCentre, type CareAssignedBasis, type CareFinderPublicCare } from "../../shared/careFinder/publicCare.js";
 import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
 import {
+  DEFAULT_CARE_FINDER_COUNTRY,
+  careFinderCountry,
+  hasOfficialRegister,
+  mapsRegionCode,
+  type CareFinderCountry,
+} from "../../shared/careFinder/countries.js";
+import {
   careFinderMapsSearchUrl,
   type CareFinderResultOption,
   type CareFinderSearchRequest,
@@ -71,7 +78,7 @@ export interface CareFinderSearchDependencies {
   geocode?: (address: string) => Promise<GeocodedPoint | null>;
   // null switches the official register off (Google only).
   findRegisterPlaces?: typeof findRegisterPlaces | null;
-  findHealthMapCentres?: (municipalityCode: string) => Promise<HealthMapCentres | null>;
+  findHealthMapCentres?: (municipalityCode: string, country: string) => Promise<HealthMapCentres | null>;
 }
 
 // Enough public centres to find the one on the health map, even when it
@@ -103,11 +110,11 @@ function isHealthPlace(place: TextSearchPlace): boolean {
   return types.length === 0 || types.some((type) => HEALTH_PLACE_TYPES.has(type));
 }
 
-async function textSearch(fetcher: typeof fetch, key: string, term: string, location: string, lang: CareFinderLang) {
+async function textSearch(fetcher: typeof fetch, key: string, term: string, location: string, lang: CareFinderLang, country: CareFinderCountry) {
   const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
   url.searchParams.set("query", `${term} ${location}`);
   url.searchParams.set("language", lang);
-  url.searchParams.set("region", "es");
+  url.searchParams.set("region", mapsRegionCode(country));
   url.searchParams.set("key", key);
   const data = await getJson<{ status?: string; results?: TextSearchPlace[] }>(fetcher, url);
   if (!data || (data.status && !["OK", "ZERO_RESULTS"].includes(data.status))) return [];
@@ -353,7 +360,9 @@ export async function searchCareProviders(
   const checkedAt = now.toISOString();
   const terms = careTypeSearchTerms(request.careType, request.access, request.accessNeeds, lang);
   const careLabel = pick(lang, CARE_TYPES[request.careType].label);
+  const country = careFinderCountry(request.country) ?? DEFAULT_CARE_FINDER_COUNTRY;
   const base: Omit<CareFinderSearchResponse, "status" | "options" | "orderedBy"> = {
+    country,
     careType: request.careType,
     access: request.access,
     location: request.location,
@@ -369,12 +378,15 @@ export async function searchCareProviders(
   let publicCareFallback: CareFinderPublicCare | null = null;
 
   // Official register first: every option it returns is authorised for this care.
+  // The register, its geocoder (CartoCiudad) and the public booking links are
+  // Spain's for now; elsewhere the map search below is used.
   const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
-  if (findRegister) {
+  if (findRegister && hasOfficialRegister(country)) {
     const origin = await (dependencies.geocode ?? geocodeMemberLocation)(request.location).catch(() => null);
     const publicPrimary = isPublicPrimaryCare(request);
     const matches = origin
       ? await findRegister({
+        country,
         careType: request.careType,
         access: request.access,
         origin,
@@ -390,7 +402,7 @@ export async function searchCareProviders(
       let assigned: { ccn: string; basis: CareAssignedBasis; mapSource: string | null } | null = null;
       if (publicPrimary) {
         const healthMap = origin?.municipalityCode
-          ? await (dependencies.findHealthMapCentres ?? findHealthMapCentres)(origin.municipalityCode).catch(() => null)
+          ? await (dependencies.findHealthMapCentres ?? findHealthMapCentres)(origin.municipalityCode, country).catch(() => null)
           : null;
         const pick = chooseAssignedCentre(matches.map((match) => ({ id: match.place.ccn, name: match.place.name, km: match.km })), healthMap?.centres ?? null);
         if (pick) {
@@ -427,7 +439,7 @@ export async function searchCareProviders(
   const found: Array<{ place: TextSearchPlace; term: string }> = [];
   const seen = new Set<string>();
   for (const term of terms) {
-    const places = await textSearch(fetcher, key, term, request.location, lang);
+    const places = await textSearch(fetcher, key, term, request.location, lang, country);
     for (const place of places) {
       const identity = place.place_id ?? `${place.name}|${place.formatted_address}`;
       if (seen.has(identity)) continue;

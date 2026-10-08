@@ -222,7 +222,7 @@ async function replaceHealthMaps(client: pg.Client, places: RegisterPlace[]) {
   console.log(`Castilla y León health map: ${parsed.rows.length} municipality rows, ${parsed.unmatched.length} names not matched.`);
   if (parsed.unmatched.length) console.log(`  e.g. ${parsed.unmatched.slice(0, 10).join("; ")}`);
   if (parsed.rows.length === 0) return;
-  await client.query(`delete from care_health_zone_municipalities where region_code = '07'`);
+  await client.query(`delete from care_health_zone_municipalities where country = 'ES' and region_code = '07'`);
   for (let start = 0; start < parsed.rows.length; start += BATCH_SIZE) {
     const batch = parsed.rows.slice(start, start + BATCH_SIZE);
     const values: unknown[] = [];
@@ -245,14 +245,14 @@ async function geocodeMissing(client: pg.Client) {
     ccn: string; geocoded_address: string; street: string | null; municipality_name: string | null; province_code: string | null; municipality_code: string | null;
   }>(
     `select ccn, geocoded_address, street, municipality_name, province_code, municipality_code from care_register_places
-     where withdrawn_at is null and lat is null and geocoded_address is not null
+     where country = 'ES' and withdrawn_at is null and lat is null and geocoded_address is not null
        and ($1::text[] is null or province_code = any($1::text[]))
      order by province_code, ccn`,
     [GEOCODE_PROVINCES.size ? Array.from(GEOCODE_PROVINCES) : null],
   );
   // Only places Care Finder can show are worth a geocoder call.
   const relevant = new Set((await client.query<{ ccn: string; centre_class: string | null; care_codes: string[]; ownership: "public" | "private" | null; name: string }>(
-    `select ccn, centre_class, care_codes, ownership, name from care_register_places where withdrawn_at is null and lat is null`,
+    `select ccn, centre_class, care_codes, ownership, name from care_register_places where country = 'ES' and withdrawn_at is null and lat is null`,
   )).rows.filter((row) => registerPlaceIsRelevant({ centreClass: row.centre_class, careCodes: row.care_codes, ownership: row.ownership, name: row.name }))
     .map((row) => row.ccn));
   const queue = rows.filter((row) => relevant.has(row.ccn)).slice(0, GEOCODE_LIMIT);
@@ -330,7 +330,7 @@ async function main() {
     if (!mapTable.rows[0]?.name) fail("table care_health_zone_municipalities is missing. Apply migrations/0110_care_health_zone_municipalities.sql first.");
 
     const stored = await client.query<{ ccn: string; listing: string; lat: number | null; lng: number | null; geocode_source: StoredPosition["geocodeSource"]; geocoded_address: string | null }>(
-      `select ccn, listing, lat, lng, geocode_source, geocoded_address from care_register_places where withdrawn_at is null`,
+      `select ccn, listing, lat, lng, geocode_source, geocoded_address from care_register_places where country = 'ES' and withdrawn_at is null`,
     );
     const previous = new Map(stored.rows.map((row) => [row.ccn, {
       lat: row.lat, lng: row.lng, geocodeSource: row.geocode_source, geocodedAddress: row.geocoded_address,
@@ -363,7 +363,7 @@ async function main() {
     const startedAt = (await client.query<{ now: Date }>("select now()")).rows[0].now;
     await upsert(client, rows, sourceDate);
     const withdrawn = await client.query(
-      `update care_register_places set withdrawn_at = now() where withdrawn_at is null and last_seen_at < $1`,
+      `update care_register_places set withdrawn_at = now() where country = 'ES' and withdrawn_at is null and last_seen_at < $1`,
       [startedAt],
     );
     console.log(`Upserted ${rows.length}. Newly withdrawn (no longer in the register): ${withdrawn.rowCount}.`);

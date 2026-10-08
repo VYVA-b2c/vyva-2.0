@@ -16,6 +16,8 @@ export const careFinderSearchRequestSchema = z.object({
   location: z.string().trim().max(200),
   accessNeeds: z.array(z.enum(CARE_ACCESS_NEED_IDS)).max(5).default([]),
   language: z.string().trim().max(12).optional(),
+  // ISO country of the person's profile ("ES", "FR"…). Missing means Spain.
+  country: z.string().trim().max(3).optional(),
 }).strict();
 
 export type CareFinderSearchRequest = z.infer<typeof careFinderSearchRequestSchema>;
@@ -46,6 +48,8 @@ export type CareFinderSearchStatus = "ok" | "no_results" | "unavailable";
 
 export interface CareFinderSearchResponse {
   status: CareFinderSearchStatus;
+  // ISO country searched. Absent on results saved before countries existed (all Spain).
+  country?: string;
   careType: CareTypeId;
   access: CareAccessRoute;
   location: string;

@@ -64,6 +64,8 @@ export function registerPlaceFromDb(row: Row): RegisterPlaceWithPosition {
  * ranked by distance.
  */
 export async function findRegisterPlaces(params: {
+  // ISO country whose register to read; rows are never mixed across countries.
+  country: string;
   careType: CareTypeId;
   access: CareAccessRoute;
   // municipalityCode: the member's INE town code (5 digits), from geocoding.
@@ -82,6 +84,7 @@ export async function findRegisterPlaces(params: {
   const nearby = await db.execute(sql`
     SELECT * FROM care_register_places
     WHERE withdrawn_at IS NULL
+      AND country = ${params.country}
       AND lat BETWEEN ${params.origin.lat - latDelta} AND ${params.origin.lat + latDelta}
       AND lng BETWEEN ${params.origin.lng - lngDelta} AND ${params.origin.lng + lngDelta}
       AND ${offersCare}
@@ -93,6 +96,7 @@ export async function findRegisterPlaces(params: {
   const inTown = await db.execute(sql`
     SELECT * FROM care_register_places
     WHERE withdrawn_at IS NULL
+      AND country = ${params.country}
       AND lat IS NULL
       AND left(municipality_code, 5) = ${town}
       AND ${offersCare}
@@ -141,12 +145,12 @@ export interface HealthMapCentres {
  * the municipality is split between zones (cities): the address decides
  * there, and we don't have zone boundaries.
  */
-export async function findHealthMapCentres(municipalityCode: string): Promise<HealthMapCentres | null> {
+export async function findHealthMapCentres(municipalityCode: string, country = "ES"): Promise<HealthMapCentres | null> {
   const { db } = await import("../db.js");
   const result = await db.execute(sql`
     SELECT zone_name, centre_name, source, source_updated_on
     FROM care_health_zone_municipalities
-    WHERE municipality_code = ${municipalityCode.slice(0, 5)}`);
+    WHERE country = ${country} AND municipality_code = ${municipalityCode.slice(0, 5)}`);
   const found = rows(result);
   const zones = new Set(found.map((row) => String(row.zone_name)));
   if (found.length === 0 || zones.size !== 1) return null;
