@@ -492,7 +492,6 @@ export function CareFinder({
             state={state}
             lang={lang}
             copy={copy}
-            onShareItemsChange={(items) => dispatch({ type: "setShareItems", items })}
             onOutcome={(outcome) => {
               if (outcome === "not_suitable") {
                 dispatch({ type: "change", step: "results" });

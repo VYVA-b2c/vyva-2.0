@@ -217,25 +217,15 @@ describe("contact safeguards", () => {
     expect(screen.queryByTestId("link-care-email")).not.toBeInTheDocument();
   });
 
-  it("shows exactly what will be shared and respects unticked items", async () => {
+  it("keeps the reason private and the practical lines in the script, with no extra sections", async () => {
     await openContact();
-    // The reason is private by default.
-    expect(screen.getByTestId("toggle-share-reason")).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText(/The reason is/)).not.toBeInTheDocument();
     expect(screen.getByText("Stairs are hard for me. Is the entrance step-free, or is there a lift?")).toBeInTheDocument();
     expect(screen.getByText("Someone will come with me.")).toBeInTheDocument();
-
+    expect(screen.queryByText("Questions worth asking")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("toggle-share-reason")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-care-share-preview"));
     expect(screen.getByTestId("care-share-preview").textContent).not.toContain("knee");
-    fireEvent.click(screen.getByTestId("toggle-share-reason"));
-    expect(screen.getByTestId("care-share-preview").textContent).toContain("My knee has been hurting");
-    expect(screen.getByText(/The reason is: "My knee has been hurting/)).toBeInTheDocument();
-  });
-
-  it("lists every unknown as a question to ask", async () => {
-    await openContact();
-    expect(screen.getByText("Can I be seen with my public health card, or is it paid?")).toBeInTheDocument();
-    expect(screen.getByText("How much is the first visit?")).toBeInTheDocument();
   });
 });
 

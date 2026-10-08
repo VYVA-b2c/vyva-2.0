@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Car, Copy, ExternalLink, Mail, Phone, Share2 } from "lucide-react";
 import type { CareFinderLang } from "../../../shared/careFinder/careRoutes";
-import {
-  CARE_OUTCOME_IDS,
-  type CareFinderState,
-  type CareOutcomeId,
-  type CareShareItemId,
-} from "../../../shared/careFinder/flow";
+import { CARE_OUTCOME_IDS, type CareFinderState, type CareOutcomeId } from "../../../shared/careFinder/flow";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
 import type { CareFinderCopy } from "./copy";
-import { careContactScript, careQuestionsToAsk, careShareMessage, type ScriptLine } from "./contactScript";
+import { careContactScript, careShareMessage, type ScriptLine } from "./contactScript";
 import { ActionButton, ChoiceButton, Notice, actionClass } from "./parts";
 import { formatCheckedAt } from "./ResultsStep";
 
@@ -74,7 +69,6 @@ export function ContactStep({
   state,
   lang,
   copy,
-  onShareItemsChange,
   onOutcome,
   onBackToOptions,
   onArrangeRide,
@@ -84,7 +78,6 @@ export function ContactStep({
   state: CareFinderState;
   lang: CareFinderLang;
   copy: CareFinderCopy;
-  onShareItemsChange: (items: CareShareItemId[]) => void;
   onOutcome: (outcome: CareOutcomeId) => void;
   onBackToOptions: () => void;
   onArrangeRide?: () => void;
@@ -94,20 +87,7 @@ export function ContactStep({
   const [sharePreview, setSharePreview] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const script = careContactScript(state, lang);
-  const questions = careQuestionsToAsk(option, state);
   const shareMessage = careShareMessage(option, state, lang, formatCheckedAt(option.checked_at ?? new Date().toISOString(), lang));
-
-  const shareChoices: Array<{ id: CareShareItemId; label: string; available: boolean }> = [
-    { id: "reason", label: c.shareReason, available: Boolean(state.description || state.need) },
-    { id: "coverage", label: c.shareCoverage, available: Boolean(state.coverage && state.coverage !== "unknown") },
-    { id: "access", label: c.shareAccess, available: state.accessNeeds.some((need) => need === "step_free" || need === "home_visit" || need === "english") },
-    { id: "companion", label: c.shareCompanion, available: state.accessNeeds.includes("companion") },
-  ];
-
-  const toggleShare = (id: CareShareItemId) => {
-    const next = state.shareItems.includes(id) ? state.shareItems.filter((item) => item !== id) : [...state.shareItems, id];
-    onShareItemsChange(next);
-  };
 
   const shareNow = async () => {
     setShareNotice(null);
@@ -133,27 +113,6 @@ export function ContactStep({
         {lang !== "es" ? <p className="text-[17px] text-[var(--cf-text-2)]">{c.scriptTranslated}</p> : null}
         <ScriptList lines={script} lang={lang} />
       </section>
-
-      <section aria-labelledby="care-ask-title" className="space-y-3">
-        <h3 id="care-ask-title" className="text-[23px] font-semibold">{c.askTitle}</h3>
-        <ScriptList lines={questions} lang={lang} />
-      </section>
-
-      {shareChoices.some((choice) => choice.available) ? (
-        <fieldset className="space-y-3">
-          <legend className="text-[23px] font-semibold">{c.shareTitle}</legend>
-          <p className="text-[18px] text-[var(--cf-text-2)]">{c.shareHelp}</p>
-          {shareChoices.filter((choice) => choice.available).map((choice) => (
-            <ChoiceButton
-              key={choice.id}
-              label={choice.label}
-              pressed={state.shareItems.includes(choice.id)}
-              onClick={() => toggleShare(choice.id)}
-              testId={`toggle-share-${choice.id}`}
-            />
-          ))}
-        </fieldset>
-      ) : null}
 
       <section className="space-y-3">
         {option.phone ? (

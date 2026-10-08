@@ -7,7 +7,6 @@ import {
 } from "../../../shared/careFinder/careRoutes";
 import type { CareFinderState } from "../../../shared/careFinder/flow";
 import type { CareFinderResultOption } from "../../../shared/careFinder/search";
-import { buildProviderComparisonOption } from "../../../shared/providerComparison";
 
 // Clinics in Spain are called in Spanish, so the script is always Spanish.
 // Anyone using another language sees the meaning underneath each line.
@@ -146,52 +145,6 @@ export function careContactScript(state: CareFinderState, lang: CareFinderLang =
     de: "Wann ist der nächste freie Termin?",
   }));
   return lines;
-}
-
-/** Turns every fact we don't know into a question worth asking on the call. */
-export function careQuestionsToAsk(option: CareFinderResultOption, state: CareFinderState): ScriptLine[] {
-  const { facts } = buildProviderComparisonOption(option);
-  const questions: ScriptLine[] = [];
-  if (facts.coverage.status !== "verified" && state.coverage && state.coverage !== "self_pay" && state.coverage !== "unknown") {
-    questions.push(state.coverage === "public"
-      ? line("q-coverage", "¿Me atienden con la tarjeta sanitaria o es de pago?", {
-          en: "Can I be seen with my public health card, or is it paid?",
-          fr: "Puis-je être reçu avec ma carte de santé publique, ou est-ce payant ?",
-          de: "Werde ich mit meiner öffentlichen Gesundheitskarte behandelt, oder ist es kostenpflichtig?",
-        })
-      : line("q-coverage", "¿Trabajan con mi seguro?", {
-          en: "Do you work with my insurance?",
-          fr: "Travaillez-vous avec mon assurance ?",
-          de: "Arbeiten Sie mit meiner Versicherung zusammen?",
-        }));
-  }
-  if (facts.price.status !== "verified" && state.careAccess === "private") {
-    questions.push(line("q-price", "¿Cuánto cuesta la primera consulta?", {
-      en: "How much is the first visit?",
-      fr: "Combien coûte la première consultation ?",
-      de: "Was kostet der erste Termin?",
-    }));
-  }
-  if (facts.accessibility.status !== "verified" && state.accessNeeds.includes("step_free") && !state.shareItems.includes("access")) {
-    questions.push(line("q-access", "¿Hay escalones para entrar?", {
-      en: "Are there steps at the entrance?",
-      fr: "Y a-t-il des marches à l'entrée ?",
-      de: "Gibt es Stufen am Eingang?",
-    }));
-  }
-  if (facts.availability.status === "unknown") {
-    questions.push(line("q-hours", "¿Qué horario tienen?", {
-      en: "What are your opening hours?",
-      fr: "Quels sont vos horaires ?",
-      de: "Wann haben Sie geöffnet?",
-    }));
-  }
-  questions.push(line("q-bring", "¿Tengo que llevar algo a la cita?", {
-    en: "Should I bring anything to the appointment?",
-    fr: "Dois-je apporter quelque chose au rendez-vous ?",
-    de: "Soll ich etwas zum Termin mitbringen?",
-  }));
-  return questions;
 }
 
 const SHARE_TEXT: Record<CareFinderLang, {
