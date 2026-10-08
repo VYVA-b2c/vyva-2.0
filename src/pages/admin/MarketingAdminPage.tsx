@@ -4230,6 +4230,8 @@ export default function MarketingAdminPage() {
   const [syncFeedback, setSyncFeedback] = useState("");
   const [metaConnectionBusy, setMetaConnectionBusy] = useState(false);
   const [linkedInConnectionBusy, setLinkedInConnectionBusy] = useState(false);
+  const [removingSocialConnectionId, setRemovingSocialConnectionId] =
+    useState<string | null>(null);
   const [exportPreview, setExportPreview] =
     useState<LovableExportPreview | null>(null);
   const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
@@ -6991,6 +6993,29 @@ export default function MarketingAdminPage() {
       setMessage(error instanceof Error ? error.message : "LinkedIn connection verification failed.");
     } finally {
       setLinkedInConnectionBusy(false);
+    }
+  }
+
+  async function removeSocialConnection(provider: "meta" | "linkedin", connectionId: string, accountName: string) {
+    const providerLabel = provider === "meta" ? "Meta" : "LinkedIn";
+    const confirmed = window.confirm(
+      `Remove ${accountName} from ${providerLabel} publishing? This only removes the saved connection in VYVA; it does not delete the social account.`,
+    );
+    if (!confirmed) return;
+
+    setRemovingSocialConnectionId(connectionId);
+    setMessage(`Removing ${accountName} from ${providerLabel} publishing...`);
+    try {
+      await api<{ ok: boolean }>(
+        `/api/admin/marketing/social-publishing/${provider}/connections/${connectionId}`,
+        { method: "DELETE" },
+      );
+      setMessage(`${accountName} removed from ${providerLabel} publishing.`);
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `${providerLabel} connection could not be removed.`);
+    } finally {
+      setRemovingSocialConnectionId(null);
     }
   }
 
@@ -13693,17 +13718,28 @@ export default function MarketingAdminPage() {
                       {metaConnections.map((connection) => (
                         <div
                           key={connection.id}
-                          className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
+                          className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
                         >
-                          <p className="font-black text-emerald-950">{connection.accountName}</p>
-                          <p className="mt-1 font-semibold text-emerald-900">
-                            Facebook Page connected
-                            {connection.instagramUsername
-                              ? ` · Instagram @${connection.instagramUsername}`
-                              : connection.instagramBusinessAccountId
-                                ? " · Instagram Business account linked"
-                                : " · No linked Instagram Business account found"}
-                          </p>
+                          <div>
+                            <p className="font-black text-emerald-950">{connection.accountName}</p>
+                            <p className="mt-1 font-semibold text-emerald-900">
+                              Facebook Page connected
+                              {connection.instagramUsername
+                                ? ` · Instagram @${connection.instagramUsername}`
+                                : connection.instagramBusinessAccountId
+                                  ? " · Instagram Business account linked"
+                                  : " · No linked Instagram Business account found"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSocialConnection("meta", connection.id, connection.accountName)}
+                            disabled={removingSocialConnectionId === connection.id}
+                            className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-black text-red-700 hover:border-red-300 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            <Trash2 size={13} />
+                            {removingSocialConnectionId === connection.id ? "Removing..." : "Remove"}
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -13758,14 +13794,25 @@ export default function MarketingAdminPage() {
                           {linkedInConnections.map((connection) => (
                             <div
                               key={connection.id}
-                              className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
+                              className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-sm"
                             >
-                              <p className="font-black text-emerald-950">{connection.accountName}</p>
-                              <p className="mt-1 font-semibold text-emerald-900">
-                                LinkedIn organization connected
-                                {connection.organizationRole ? ` · ${connection.organizationRole}` : ""}
-                                {connection.memberName ? ` · ${connection.memberName}` : ""}
-                              </p>
+                              <div>
+                                <p className="font-black text-emerald-950">{connection.accountName}</p>
+                                <p className="mt-1 font-semibold text-emerald-900">
+                                  LinkedIn organization connected
+                                  {connection.organizationRole ? ` · ${connection.organizationRole}` : ""}
+                                  {connection.memberName ? ` · ${connection.memberName}` : ""}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSocialConnection("linkedin", connection.id, connection.accountName)}
+                                disabled={removingSocialConnectionId === connection.id}
+                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-black text-red-700 hover:border-red-300 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
+                              >
+                                <Trash2 size={13} />
+                                {removingSocialConnectionId === connection.id ? "Removing..." : "Remove"}
+                              </button>
                             </div>
                           ))}
                         </div>
