@@ -3143,8 +3143,9 @@ adminMarketingRouter.get("/social-publishing/meta/connect", async (req, res) => 
   }
 
   try {
-    const state = await signMarketingMetaConnectState(req.user?.id ?? "");
-    return res.redirect(metaOAuthUrl(state));
+    const includeInstagram = req.query.instagram === "1" || req.query.instagram === "true";
+    const state = await signMarketingMetaConnectState(req.user?.id ?? "", { includeInstagram });
+    return res.redirect(metaOAuthUrl(state, { includeInstagram }));
   } catch (error) {
     console.error("[admin/marketing] Meta OAuth start failed", error);
     return res.redirect("/admin/marketing/settings?meta_connection=failed");
@@ -3164,6 +3165,7 @@ adminMarketingRouter.get("/social-publishing/meta/callback", async (req, res) =>
     const connections = await connectMetaFromAuthorizationCode({
       code,
       connectedBy: actor(req),
+      includeInstagram: state.includeInstagram,
     });
     console.info(`[admin/marketing] Meta connected ${connections.length} Page account(s).`);
     return redirect("connected");

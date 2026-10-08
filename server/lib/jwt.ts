@@ -72,10 +72,14 @@ const CALLBACK_ONBOARDING_AUDIENCE = "elevenlabs-callback-onboarding";
 const MARKETING_META_CONNECT_AUDIENCE = "vyva-marketing-meta-connect";
 const MARKETING_LINKEDIN_CONNECT_AUDIENCE = "vyva-marketing-linkedin-connect";
 
-export async function signMarketingMetaConnectState(userId: string): Promise<string> {
+export async function signMarketingMetaConnectState(
+  userId: string,
+  options: { includeInstagram?: boolean } = {},
+): Promise<string> {
   return new SignJWT({
     sub: userId,
     token_type: "marketing_meta_connect",
+    include_instagram: options.includeInstagram === true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -84,7 +88,7 @@ export async function signMarketingMetaConnectState(userId: string): Promise<str
     .sign(JWT_SECRET);
 }
 
-export async function verifyMarketingMetaConnectState(token: string): Promise<{ userId: string } | null> {
+export async function verifyMarketingMetaConnectState(token: string): Promise<{ userId: string; includeInstagram: boolean } | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET, {
       audience: MARKETING_META_CONNECT_AUDIENCE,
@@ -92,7 +96,7 @@ export async function verifyMarketingMetaConnectState(token: string): Promise<{ 
     if (payload.token_type !== "marketing_meta_connect" || typeof payload.sub !== "string") {
       return null;
     }
-    return { userId: payload.sub };
+    return { userId: payload.sub, includeInstagram: payload.include_instagram === true };
   } catch {
     return null;
   }

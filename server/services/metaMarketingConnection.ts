@@ -125,20 +125,22 @@ async function metaFetch<T>(path: string, accessToken: string, params: Record<st
   return payload;
 }
 
-export function metaOAuthUrl(state: string) {
+export function metaOAuthUrl(state: string, options: { includeInstagram?: boolean } = {}) {
   if (!metaOAuthConfigured()) throw new Error("Meta OAuth is not configured on the Admin deployment.");
   const url = new URL(`https://www.facebook.com/${metaGraphApiVersion()}/dialog/oauth`);
+  const scopes = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "pages_manage_posts",
+  ];
+  if (options.includeInstagram) {
+    scopes.push("instagram_basic", "instagram_content_publish");
+  }
   url.searchParams.set("client_id", metaAppId());
   url.searchParams.set("redirect_uri", metaOAuthRedirectUri());
   url.searchParams.set("state", state);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", [
-    "pages_show_list",
-    "pages_read_engagement",
-    "pages_manage_posts",
-    "instagram_basic",
-    "instagram_content_publish",
-  ].join(","));
+  url.searchParams.set("scope", scopes.join(","));
   return url.toString();
 }
 
@@ -161,10 +163,12 @@ async function exchangeMetaCode(code: string) {
   };
 }
 
-export async function connectMetaFromAuthorizationCode(input: { code: string; connectedBy: string }) {
+export async function connectMetaFromAuthorizationCode(input: { code: string; connectedBy: string; includeInstagram?: boolean }) {
   const exchanged = await exchangeMetaCode(input.code);
   const pagesPayload = await metaFetch<{ data?: MetaPage[] }>("/me/accounts", exchanged.accessToken, {
-    fields: "id,name,access_token,instagram_business_account{id,username}",
+    fields: input.includeInstagram
+      ? "id,name,access_token,instagram_business_account{id,username}"
+      : "id,name,access_token",
   });
   const pages = Array.isArray(pagesPayload.data) ? pagesPayload.data : [];
   const saved: MetaConnectionSummary[] = [];

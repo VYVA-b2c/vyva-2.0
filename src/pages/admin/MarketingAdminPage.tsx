@@ -6954,8 +6954,9 @@ export default function MarketingAdminPage() {
     }
   }
 
-  function connectMeta() {
-    window.location.assign("/api/admin/marketing/social-publishing/meta/connect");
+  function connectMeta(options: { includeInstagram?: boolean } = {}) {
+    const suffix = options.includeInstagram ? "?instagram=1" : "";
+    window.location.assign(`/api/admin/marketing/social-publishing/meta/connect${suffix}`);
   }
 
   function connectLinkedIn() {
@@ -13692,12 +13693,21 @@ export default function MarketingAdminPage() {
                       ) : null}
                       <button
                         type="button"
-                        onClick={connectMeta}
+                        onClick={() => connectMeta()}
                         disabled={!metaProvider?.connectionConfigured}
                         className="inline-flex items-center gap-2 rounded-lg bg-purple-700 px-3 py-2 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-stone-300"
                       >
                         <ExternalLink size={15} />
-                        {metaProvider?.connectionReady ? "Reconnect Meta" : "Connect Meta"}
+                        {metaProvider?.connectionReady ? "Reconnect Facebook" : "Connect Facebook"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => connectMeta({ includeInstagram: true })}
+                        disabled={!metaProvider?.connectionConfigured}
+                        className="inline-flex items-center gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f173d] hover:border-purple-300 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+                      >
+                        <ExternalLink size={15} />
+                        Instagram too
                       </button>
                     </div>
                   </div>
