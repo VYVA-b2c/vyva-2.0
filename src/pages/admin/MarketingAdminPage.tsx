@@ -6998,9 +6998,8 @@ export default function MarketingAdminPage() {
 
   async function removeSocialConnection(provider: "meta" | "linkedin", connectionId: string, accountName: string) {
     const providerLabel = provider === "meta" ? "Meta" : "LinkedIn";
-    const confirmed = window.confirm(
-      `Remove ${accountName} from ${providerLabel} publishing? This only removes the saved connection in VYVA; it does not delete the social account.`,
-    );
+    const confirmMessage = `Remove ${accountName} from ${providerLabel} publishing? This only removes the saved connection in VYVA; it does not delete the social account.`;
+    const confirmed = typeof window.confirm === "function" ? window.confirm(confirmMessage) : true;
     if (!confirmed) return;
 
     setRemovingSocialConnectionId(connectionId);
