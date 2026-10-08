@@ -52,9 +52,11 @@ describe("Listen Closely", () => {
     ).toBeInTheDocument();
     if (screen.queryByText("Which sound happened more?")) {
       expect(
-        screen.getByText("Listen to both sounds. At the end, choose which one you heard more often."),
+        screen.getByText("Preview each sound below. During the game, count them and choose the one you hear most."),
       ).toBeInTheDocument();
       expect(screen.getByText("Compare sounds")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Hear sounds" })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /Chime|Water drop/ })).toHaveLength(2);
     }
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[52px]");
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Headphones, Info, Play, Waves } from "lucide-react";
+import { Check, Headphones, Info, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
@@ -433,14 +433,11 @@ export default function ListenClosely({ userId, onExit }) {
     return resultWithState;
   }, [closeAudio, saveSession, soundscapeRef, stopTimers, updateUserState, userStateRef]);
 
-  const playTargetSample = useCallback(async () => {
+  const playSoundSample = useCallback(async (soundCharacter) => {
     const context = await getAudioContext();
-    if (!context || !normalizedSoundscape) return;
-    playListenCloselySound(context, normalizedSoundscape.target_sound_character, context.currentTime + 0.04, { volume: 0.28 });
-    if (normalizedSoundscape.mode === "count_compare" && normalizedSoundscape.second_target_sound_character) {
-      playListenCloselySound(context, normalizedSoundscape.second_target_sound_character, context.currentTime + 0.72, { volume: 0.28 });
-    }
-  }, [getAudioContext, normalizedSoundscape]);
+    if (!context || !soundCharacter) return;
+    playListenCloselySound(context, soundCharacter, context.currentTime + 0.04, { volume: 0.28 });
+  }, [getAudioContext]);
 
   const closeTutorial = useCallback(() => {
     writeListenCloselyTutorialSeen(userId);
@@ -608,10 +605,21 @@ export default function ListenClosely({ userId, onExit }) {
                     {compareInstruction}
                   </p>
                   <div className="mx-auto mt-4 grid max-w-[560px] gap-3 sm:grid-cols-2">
-                    {[targetLabel, secondTargetLabel].map((label) => (
-                      <div key={label} className="rounded-[16px] border bg-white px-4 py-3 text-[18px] font-extrabold leading-tight shadow-sm" style={{ borderColor: BRAND.border, color: BRAND.purple }}>
+                    {[
+                      [targetLabel, normalizedSoundscape.target_sound_character],
+                      [secondTargetLabel, normalizedSoundscape.second_target_sound_character],
+                    ].map(([label, soundCharacter]) => (
+                      <button
+                        type="button"
+                        key={soundCharacter}
+                        onClick={() => void playSoundSample(soundCharacter)}
+                        disabled={!canUseListenCloselyAudio()}
+                        className="flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border bg-white px-4 py-3 text-[18px] font-extrabold leading-tight shadow-sm disabled:opacity-60"
+                        style={{ borderColor: BRAND.border, color: BRAND.purple }}
+                      >
+                        <Volume2 size={20} aria-hidden="true" />
                         {label}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </>
@@ -637,18 +645,19 @@ export default function ListenClosely({ userId, onExit }) {
             )}
             {audioWarning && <p className="mt-4 text-[20px] font-semibold" style={{ color: "#92400E" }}>{audioWarning}</p>}
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
-              <button
-                type="button"
-                onClick={() => void playTargetSample()}
-                disabled={!canUseListenCloselyAudio()}
-                className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border bg-white px-6 text-[16px] font-extrabold disabled:opacity-60"
-                style={{ borderColor: BRAND.border, color: BRAND.purple }}
-              >
-                {isCompareMode
-                  ? t("games.listenClosely.sampleSounds", "Hear sounds")
-                  : t("games.listenClosely.sampleTarget", "Hear target")}
-              </button>
+            <div className={`mt-5 grid gap-3 ${isCompareMode ? "" : "sm:grid-cols-[0.8fr_1.2fr]"}`}>
+              {!isCompareMode && (
+                <button
+                  type="button"
+                  onClick={() => void playSoundSample(normalizedSoundscape.target_sound_character)}
+                  disabled={!canUseListenCloselyAudio()}
+                  className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border bg-white px-6 text-[16px] font-extrabold disabled:opacity-60"
+                  style={{ borderColor: BRAND.border, color: BRAND.purple }}
+                >
+                  <Volume2 size={20} aria-hidden="true" />
+                  {t("games.listenClosely.sampleTarget", "Hear target")}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void startSession()}
