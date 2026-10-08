@@ -88,7 +88,8 @@ const WORD_RECALL_THEME_SUPPLEMENTAL_WORDS: Partial<Record<(typeof WORD_RECALL_S
 };
 const WORD_RECALL_WORD_ICONS: Record<string, string> = {
   bread: "🍞", milk: "🥛", cheese: "🧀", soup: "🥣", pear: "🍐", honey: "🍯",
-  key: "🔑", table: "🪑", chair: "🪑", lamp: "💡", window: "🪟", cushion: "🛋️",
+  apple: "🍎", rice: "🍚", tomato: "🍅", tea: "🍵", yogurt: "🥣", biscuit: "🍪",
+  key: "🔑", table: "🪵", chair: "🪑", lamp: "💡", window: "🪟", cushion: "🛋️",
   cat: "🐈", dog: "🐕", bird: "🐦", fish: "🐟", horse: "🐴", rabbit: "🐇",
   shirt: "👕", shoe: "👞", coat: "🧥", sock: "🧦", glove: "🧤", scarf: "🧣",
   "wake up": "🌅", wash: "🫧", dress: "👔", breakfast: "☕", walk: "🚶", read: "📖",
@@ -96,6 +97,7 @@ const WORD_RECALL_WORD_ICONS: Record<string, string> = {
   doctor: "🩺", appointment: "📅", diary: "📔", taxi: "🚕", prescription: "📄", card: "💳",
   television: "📺", remote: "🎛️", sofa: "🛋️", blanket: "🧶",
   train: "🚆", ticket: "🎫", platform: "🚉", suitcase: "🧳", seat: "💺", map: "🗺️",
+  bus: "🚌", passport: "🛂", hotel: "🏨", beach: "🏖️", camera: "📷", bridge: "🌉",
   flower: "🌸", plant: "🪴", pot: "🪴", "watering can": "🚿", leaf: "🍃", bench: "🪑",
 };
 
@@ -329,7 +331,7 @@ function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
             themeId,
             themeEmoji: WORD_RECALL_THEME_EMOJI[themeId],
             wordIcons: selectedWords.map((item) => WORD_RECALL_WORD_ICONS[item.labels.en] ?? WORD_RECALL_THEME_EMOJI[themeId]),
-            showWordCues: spec.level <= 8,
+            showWordCues: true,
             challengeKind: spec.level >= 17 ? "order" : spec.level === 10 || spec.level === 15 ? "first" : spec.level >= 13 ? "category" : "recognition",
           },
         };
