@@ -746,6 +746,7 @@ export default function ConditionsSection() {
             eyebrow="One step at a time"
             title="What applies to you?"
             description="Search or choose a category."
+            className="conditions-profile-question"
             testId="profile-question-health-conditions"
           >
             <div className="flex items-center justify-between gap-3">
@@ -753,7 +754,7 @@ export default function ConditionsSection() {
                 <p className="font-body text-[18px] font-black text-vyva-text-1">Choose what fits</p>
               </div>
               {selected.length > 0 ? (
-                <span className="shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
+                <span className="conditions-selected-count shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
                   {selected.length} selected
                 </span>
               ) : null}
@@ -762,11 +763,11 @@ export default function ConditionsSection() {
             <div className="relative">
               <OnboardingCompanionTarget targetId="health-search">
                 <div className="relative">
-                  <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#766B66]" />
+                  <Search size={19} className="conditions-search-icon absolute left-4 top-1/2 -translate-y-1/2 text-[#766B66]" />
                   <input
                     data-testid="input-conditions-search"
                     aria-label="Search health conditions"
-                    className="h-16 w-full rounded-[20px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[18px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
+                    className="conditions-search-input h-16 w-full rounded-[20px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[18px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
                     placeholder="Search conditions"
                     value={search}
                     onFocus={() =>
@@ -822,7 +823,7 @@ export default function ConditionsSection() {
                 }
                 onClick={toggleNoKnownConditions}
                 className={cn(
-                  "flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
+                  "conditions-none-choice flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
                   noKnownConditions
                     ? "border-vyva-purple bg-[#F3E8FF] text-vyva-purple"
                     : "border-[#E4D9CF] bg-white text-vyva-text-1 hover:border-[#CBB5EC]",
@@ -842,7 +843,7 @@ export default function ConditionsSection() {
             </OnboardingCompanionTarget>
 
             {selected.length > 0 ? (
-              <div className="flex flex-wrap gap-2 rounded-[18px] bg-[#F7F2FC] px-3 py-3" aria-label="Selected health conditions">
+              <div className="conditions-selected-list flex flex-wrap gap-2 rounded-[18px] bg-[#F7F2FC] px-3 py-3" aria-label="Selected health conditions">
                 {selected.map((name) => (
                   <span key={name} className="inline-flex min-h-[38px] items-center gap-2 rounded-full bg-vyva-purple px-3 py-1.5 text-[14px] font-black text-white">
                     {name}
@@ -876,7 +877,7 @@ export default function ConditionsSection() {
                 return (
                   <div
                     key={group.cat}
-                    className="overflow-hidden rounded-[22px] shadow-[0_10px_22px_rgba(53,28,87,0.04)]"
+                    className="conditions-category-card overflow-hidden rounded-[22px] shadow-[0_10px_22px_rgba(53,28,87,0.04)]"
                     style={{
                       border: hasSelections ? "1px solid #A78BFA" : "1px solid #EDE5DB",
                       background: hasSelections ? "#FAF8FF" : "#FFFFFF",
@@ -888,10 +889,10 @@ export default function ConditionsSection() {
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
                       aria-expanded={isOpen}
-                      className="grid min-h-[72px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF] focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
+                      className="conditions-category-trigger grid min-h-[72px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF] focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                     >
                       <span className="min-w-0">
-                        <span className="block font-body text-[18px] font-black leading-snug text-gray-800">{cat.label}</span>
+                        <span className="conditions-category-title block font-body text-[18px] font-black leading-snug text-gray-800">{cat.label}</span>
                         {hasSelections && (
                           <span
                             className="mt-0.5 block text-[12px] font-bold text-vyva-purple"
@@ -904,7 +905,7 @@ export default function ConditionsSection() {
                       {!isSearching && (
                         <ChevronDown
                           size={16}
-                          className="text-gray-400 transition-transform duration-200"
+                          className="conditions-category-chevron text-gray-400 transition-transform duration-200"
                           style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
                         />
                       )}

@@ -981,6 +981,63 @@
   color: #fecdd3 !important;
 }
 
+/* Health conditions has several intentionally light surfaces in the default
+   theme. Give each of them an explicit dark counterpart so utility-color
+   overrides cannot leave pale text on pale cards. */
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-selected-count {
+  border: 1px solid rgba(216, 180, 254, 0.28);
+  background: #432763 !important;
+  color: #f3e8ff !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-search-input {
+  background: #281a3d !important;
+  border-color: rgba(216, 180, 254, 0.32) !important;
+  color: #fff8ff !important;
+  caret-color: #f5c451;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-search-input::placeholder {
+  color: #b9acc5 !important;
+  opacity: 1;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-search-icon,
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-category-chevron {
+  color: #cbbbd8 !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-none-choice {
+  background: #241735 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #fff8ff !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-none-choice[aria-pressed="true"] {
+  background: #432763 !important;
+  border-color: #c084fc !important;
+  color: #fff8ff !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-selected-list {
+  background: rgba(216, 180, 254, 0.1) !important;
+  border: 1px solid rgba(216, 180, 254, 0.16);
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-category-card {
+  background: #241735 !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-category-trigger:hover,
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-category-trigger:focus-visible {
+  background: #322047 !important;
+}
+
+[data-home-master-theme="dark"] .conditions-profile-question .conditions-category-title {
+  color: #fff8ff !important;
+}
+
 [data-home-master-theme="dark"].home-master-profile-frame .home-master-profile-location-action {
   background: rgba(16, 185, 129, 0.14) !important;
   border-color: rgba(110, 231, 183, 0.42) !important;
