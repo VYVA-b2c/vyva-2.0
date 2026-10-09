@@ -1,25 +1,35 @@
-// Copy Care Finder's place data from Development to Production.
+// Copy Care Finder's place data for one country from Development to Production.
 //
 // Only two tables are touched, both public reference data with no member
-// information: care_register_places (REGCESS register, with coordinates) and
-// care_health_zone_municipalities (Castilla y León health map). Production gets
-// an exact copy of Development's, so it needs no download or geocoding of its own.
+// information: care_register_places (official registers, with coordinates) and
+// care_health_zone_municipalities (regional health maps). Production gets an
+// exact copy of Development's rows for that country, so it needs no download or
+// geocoding of its own. Other countries' rows in Production are left as they are:
+// France stays in Development until its privacy notice is settled.
 //
 // Development (DATABASE_URL) is opened read-only. Production (PROD_DATABASE_URL
-// Secret) is written in one transaction: both tables are emptied and refilled, so
-// readers see the old data until the commit and the new data after it. Dry run by
-// default: the transaction is rolled back unless --apply is passed.
+// Secret) is written in one transaction: the country's rows are removed and
+// refilled, so readers see the old data until the commit and the new data after
+// it. Dry run by default: the transaction is rolled back unless --apply is passed.
 //
 // Run from the Replit Shell, after the tables exist in Production (publish first):
-//   node scripts/copy-care-register-dev-to-prod.mjs            # dry run, prints the plan
-//   node scripts/copy-care-register-dev-to-prod.mjs --apply    # commits to Production
+//   node scripts/copy-care-register-dev-to-prod.mjs                      # Spain, dry run
+//   node scripts/copy-care-register-dev-to-prod.mjs --apply              # Spain, commits
+//   node scripts/copy-care-register-dev-to-prod.mjs --country FR --apply # another country
 import "dotenv/config";
 import pg from "pg";
 
 const APPLY = process.argv.includes("--apply");
+const countryAt = process.argv.indexOf("--country");
+const COUNTRY = (countryAt >= 0 ? process.argv[countryAt + 1] ?? "" : "ES").trim().toUpperCase();
+// Fewer rows than this in Development means an import didn't finish there.
+const MIN_ROWS = {
+  ES: { care_register_places: 100_000, care_health_zone_municipalities: 1_000 },
+  FR: { care_register_places: 200_000, care_health_zone_municipalities: 0 },
+};
 const TABLES = [
-  { name: "care_register_places", key: "ccn", minRows: 100_000 },
-  { name: "care_health_zone_municipalities", key: "municipality_code, zone_name, centre_name", minRows: 1_000 },
+  { name: "care_register_places", key: "ccn" },
+  { name: "care_health_zone_municipalities", key: "municipality_code, zone_name, centre_name" },
 ];
 const BATCH = 2_000;
 
@@ -31,6 +41,7 @@ function fail(message) {
 const sourceUrl = process.env.DATABASE_URL;
 const targetUrl = process.env.PROD_DATABASE_URL;
 
+if (!MIN_ROWS[COUNTRY]) fail(`--country must be one of ${Object.keys(MIN_ROWS).join(", ")}.`);
 if (process.env.REPLIT_DEPLOYMENT) fail("running inside a deployment. Run from the workspace Shell.");
 if (!sourceUrl) fail("DATABASE_URL (Development) is not set.");
 if (!targetUrl) fail("PROD_DATABASE_URL is not set. Add the Production connection string as a Secret.");
@@ -57,33 +68,34 @@ async function columnsOf(client, table) {
 }
 
 async function count(client, table) {
-  return (await client.query(`select count(*)::int as n from public.${table}`)).rows[0].n;
+  return (await client.query(`select count(*)::int as n from public.${table} where country = $1`, [COUNTRY])).rows[0].n;
 }
 
 async function summary(client) {
   const { rows } = await client.query(`
-    select count(*)::int as places,
+    select country, count(*)::int as places,
            count(*) filter (where withdrawn_at is null)::int as active,
            count(*) filter (where lat is not null)::int as placed,
            max(source_updated_on)::text as register_date
-    from public.care_register_places`);
-  return rows[0];
+    from public.care_register_places group by country order by country`);
+  return rows;
 }
 
 async function copyTable(table) {
   const sourceRows = await count(source, table.name);
-  if (sourceRows < table.minRows) fail(`${table.name}: Development has only ${sourceRows} rows (expected at least ${table.minRows}). Run the import there first.`);
+  const minRows = MIN_ROWS[COUNTRY][table.name];
+  if (sourceRows < minRows) fail(`${table.name}: Development has only ${sourceRows} ${COUNTRY} rows (expected at least ${minRows}). Run the import there first.`);
   const before = await count(target, table.name);
-  await target.query(`delete from public.${table.name}`);
+  await target.query(`delete from public.${table.name} where country = $1`, [COUNTRY]);
   let copied = 0;
   // Page through Development in key order so only one batch is in memory.
   let after = null;
   const keyColumns = table.key.split(",").map((column) => column.trim());
   for (;;) {
-    const where = after ? `where (${keyColumns.join(", ")}) > (${keyColumns.map((_, index) => `$${index + 1}`).join(", ")})` : "";
+    const where = after ? `and (${keyColumns.join(", ")}) > (${keyColumns.map((_, index) => `$${index + 2}`).join(", ")})` : "";
     const { rows } = await source.query(
-      `select * from public.${table.name} ${where} order by ${table.key} limit ${BATCH}`,
-      after ?? [],
+      `select * from public.${table.name} where country = $1 ${where} order by ${table.key} limit ${BATCH}`,
+      [COUNTRY, ...(after ?? [])],
     );
     if (rows.length === 0) break;
     await target.query(
@@ -95,11 +107,11 @@ async function copyTable(table) {
     if (copied % 20_000 < BATCH) console.log(`  ${table.name}: ${copied}/${sourceRows}`);
   }
   if (copied !== sourceRows) fail(`${table.name}: copied ${copied} rows but Development has ${sourceRows}.`);
-  console.log(`${table.name}: Production ${before} → ${copied} rows.`);
+  console.log(`${table.name} (${COUNTRY}): Production ${before} → ${copied} rows.`);
 }
 
 async function main() {
-  console.log(APPLY ? "APPLY: Production will be changed." : "DRY RUN: nothing will be committed. Pass --apply to write Production.");
+  console.log(`${APPLY ? "APPLY: Production will be changed." : "DRY RUN: nothing will be committed. Pass --apply to write Production."} Country: ${COUNTRY}.`);
   await source.connect();
   await target.connect();
   try {
