@@ -19,11 +19,13 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const { t } = useLanguage();
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isDevBrainRoute = location.pathname.startsWith("/dev/brain");
-  const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname) || isDevBrainRoute;
+  const isHomeServicePreviewRoute = location.pathname === "/dev/home-service-preview";
+  const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname) || isDevBrainRoute || isHomeServicePreviewRoute;
   const isDevHomeMasterRoute =
     location.pathname === "/dev/home-master" ||
     location.pathname.startsWith("/dev/home-master/") ||
-    isDevBrainRoute;
+    isDevBrainRoute ||
+    isHomeServicePreviewRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const homeLabel = t("nav.home", "Home");
   const reportsLabel = t("nav.reports", "My Reports");
