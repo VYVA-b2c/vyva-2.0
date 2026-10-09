@@ -170,14 +170,20 @@ function OptionCard({
   );
 }
 
+// Care that Germany's 116117 appointment service books.
+const DE_116117_CARE: ReadonlySet<string> = new Set(["primary_care", "same_day", "ophthalmology", "ent", "neurology", "orthopaedics", "psychology"]);
+
 /**
  * A quiet line on what public cover means for this care. Spain: public cover
  * reaches it by referral, so the places listed are private. France: the
  * médecin traitant comes first; dentists, eye doctors and psychologists
- * (Mon soutien psy) can be seen directly.
+ * (Mon soutien psy) can be seen directly. Germany: statutory insurance's
+ * 116117 appointment service.
  */
 function publicCoverNote(results: CareFinderSearchResponse, r: CareFinderCopy["results"]): string | null {
   if (results.access !== "public" || results.publicCare) return null;
+  // 116117 books doctors and psychotherapists, not dentists, physiotherapy or shops.
+  if (results.country === "DE") return DE_116117_CARE.has(results.careType) ? r.publicDe : null;
   if (results.country !== "FR") return r.publicReferral;
   switch (results.careType) {
     case "primary_care": return r.publicDoctorFr;
@@ -341,7 +347,7 @@ export function ResultsStep({
       {heading(r.heading(results.options.length, careLabel, location))}
       <p className="-mt-3 mb-4 text-[18px] text-[var(--cf-text-2)]">{
         results.orderedBy === "travel_time" ? r.orderTravel
-          : results.orderedBy === "distance" ? r.orderDistance
+          : results.orderedBy === "distance" ? (results.country === "DE" ? r.orderDistanceMap : r.orderDistance)
           : results.orderedBy === "distance_then_town" ? r.orderDistanceTown
             : results.orderedBy === "assigned_first" ? r.orderAssigned
               : r.orderRelevance

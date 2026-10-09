@@ -65,7 +65,8 @@ export const REGISTER_CARE_RULES: Record<CareTypeId, RegisterCareRule> = {
 };
 
 // French rows (registerFr.ts): a practitioner or shop from RPPS, a centre from FINESS.
-export type RegisterSourceListing = RegisterListing | "RPPS" | "FINESS";
+// German rows (registerDe.ts): a provider mapped on OpenStreetMap.
+export type RegisterSourceListing = RegisterListing | "RPPS" | "FINESS" | "OSM";
 
 export interface RegisterPlace {
   // ISO country; absent means Spain (REGCESS).
@@ -385,7 +386,7 @@ export interface StoredPosition {
   lat: number | null;
   lng: number | null;
   // register: published by the register itself (FINESS); ban: France's geocoder.
-  geocodeSource: "regional_register" | "cartociudad" | "register" | "ban" | null;
+  geocodeSource: "regional_register" | "cartociudad" | "register" | "ban" | "osm" | null;
   geocodedAddress: string | null;
 }
 

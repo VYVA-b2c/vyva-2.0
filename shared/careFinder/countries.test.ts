@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { careFinderCountry, hasOfficialRegister, mapsRegionCode } from "./countries";
+import { careFinderCountry, hasOfficialRegister, hasRegister, mapsRegionCode } from "./countries";
 
 describe("care finder countries", () => {
   it("normalises profile country codes", () => {
@@ -14,6 +14,9 @@ describe("care finder countries", () => {
   it("searches an official register only where one is imported", () => {
     for (const country of ["ES", "FR"]) expect(hasOfficialRegister(country)).toBe(true);
     for (const country of ["DE", "GB", "IT"]) expect(hasOfficialRegister(country)).toBe(false);
+    // Germany has no open official register; its providers come from OpenStreetMap.
+    for (const country of ["ES", "FR", "DE"]) expect(hasRegister(country)).toBe(true);
+    for (const country of ["GB", "IT"]) expect(hasRegister(country)).toBe(false);
   });
 
   it("biases the map search with the country's ccTLD", () => {
