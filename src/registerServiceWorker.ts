@@ -1,6 +1,7 @@
 import { APP_VERSION } from "@/lib/appInfo";
 
 const UPDATE_RELOAD_KEY = "vyva-sw-reloaded-build";
+const DEV_CLEANUP_RELOAD_KEY = "vyva-dev-sw-cleanup-reloaded";
 
 export function getServiceWorkerBuildToken() {
   const entryScript = Array.from(document.scripts)
@@ -22,7 +23,35 @@ function askWaitingWorkerToActivate(worker: ServiceWorker | null) {
 }
 
 export function registerServiceWorker() {
-  if (!("serviceWorker" in navigator) || !import.meta.env.PROD) return;
+  if (!("serviceWorker" in navigator)) return;
+
+  if (!import.meta.env.PROD) {
+    window.addEventListener("load", () => {
+      void (async () => {
+        const wasControlled = Boolean(navigator.serviceWorker.controller);
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+
+        if ("caches" in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(
+            cacheNames
+              .filter((cacheName) => cacheName.startsWith("vyva-pwa-"))
+              .map((cacheName) => caches.delete(cacheName)),
+          );
+        }
+
+        if (wasControlled && sessionStorage.getItem(DEV_CLEANUP_RELOAD_KEY) !== "true") {
+          sessionStorage.setItem(DEV_CLEANUP_RELOAD_KEY, "true");
+          window.location.reload();
+          return;
+        }
+
+        sessionStorage.removeItem(DEV_CLEANUP_RELOAD_KEY);
+      })().catch(() => undefined);
+    });
+    return;
+  }
 
   window.addEventListener("load", () => {
     const buildToken = getServiceWorkerBuildToken();

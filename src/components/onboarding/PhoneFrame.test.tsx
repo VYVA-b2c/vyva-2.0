@@ -109,6 +109,32 @@ describe("PhoneFrame companion mode", () => {
     }
   });
 
+  it("uses the canonical profile header on the standalone health preview", () => {
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    try {
+      window.history.pushState({}, "", "/dev/profile-conditions");
+
+      render(
+        <PhoneFrame subtitle="Health conditions" showBack showAllSections>
+          <p>Profile content</p>
+        </PhoneFrame>
+      );
+
+      expect(screen.queryByTestId("onboarding-companion-mode-chip")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Return to VYVA voice mode")).toHaveAttribute(
+        "href",
+        "/dev/home-master"
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Back" }));
+      expect(window.location.pathname).toBe("/dev/profile-overview/group/health");
+    } finally {
+      window.history.pushState({}, "", originalPath || "/");
+    }
+  });
+
   it("returns profile previews to the Home Master profile from the shared back control", () => {
     const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 

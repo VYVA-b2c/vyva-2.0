@@ -39,8 +39,12 @@ export function PhoneFrame({
   const isHomeMasterProfilePreview =
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/dev/home-master/profile/");
+  const isStandaloneConditionsPreview =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/dev/profile-conditions";
   const isCanonicalProfilePage = typeof window !== "undefined" && (
     isHomeMasterProfilePreview ||
+    isStandaloneConditionsPreview ||
     window.location.pathname.startsWith("/onboarding/profile/") ||
     window.location.pathname.startsWith("/dev/profile-overview/section/")
   );
@@ -52,6 +56,11 @@ export function PhoneFrame({
   const { runPrimaryVoiceAction, primaryVoiceActionId } = useOnboardingAgent();
   const profileTheme = isCanonicalProfilePage ? (isDark ? "dark" : "light") : undefined;
   const handleBack = () => {
+    if (isStandaloneConditionsPreview) {
+      window.history.pushState({}, "", "/dev/profile-overview/group/health");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
     if (typeof window !== "undefined" && window.location.pathname.startsWith("/dev/profile-overview/section/")) {
       const sectionId = window.location.pathname.split("/").pop() ?? "";
       const previewSearch = window.location.search;
@@ -132,7 +141,7 @@ export function PhoneFrame({
             ) : isCanonicalProfilePage ? (
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
                 <a
-                  href={isHomeMasterProfilePreview ? "/dev/home-master" : "/"}
+                  href={isHomeMasterProfilePreview || isStandaloneConditionsPreview ? "/dev/home-master" : "/"}
                   aria-label="Return to VYVA voice mode"
                   data-testid="button-profile-header-voice"
                   className="home-master-profile-voice-trigger vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"
