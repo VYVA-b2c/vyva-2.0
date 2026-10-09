@@ -610,6 +610,8 @@ describe("ConciergeScreen task navigation", () => {
 
     expect(await screen.findByTestId("panel-home-service-intake")).toHaveTextContent("Plumber");
     expect(screen.getByTestId("panel-home-service-question")).toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-concierge-task-sos")).not.toBeInTheDocument();
   });
 
   it("restores a saved ride Canvas draft to the exact review scene", async () => {
