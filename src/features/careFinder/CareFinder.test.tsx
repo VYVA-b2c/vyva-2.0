@@ -456,6 +456,13 @@ describe("public cover: your own health centre", () => {
     expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("call 15");
   });
 
+  it("in Germany, points public cover to 116117 for doctors, not for dentists", async () => {
+    renderFinder({ services: { search: vi.fn(async () => ({ ...okResults, access: "public" as const, country: "DE", careType: "orthopaedics" as const })) } });
+    await walkKneeJourneyToResults();
+    fireEvent.click(screen.getByTestId("button-show-options"));
+    expect(await screen.findByTestId("care-public-referral")).toHaveTextContent("116117");
+  });
+
   it("doesn't add the referral note to the family-doctor results", async () => {
     renderFinder({ initialState: publicState(), services: { search: vi.fn(async () => publicResults("nearest", "07")) } });
     await screen.findByTestId("care-public-care");

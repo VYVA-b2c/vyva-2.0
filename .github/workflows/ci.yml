@@ -96,7 +96,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub caps unauthenticated pulls and has failed CI runs; same official image via AWS ECR Public.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -193,7 +194,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub caps unauthenticated pulls and has failed CI runs; same official image via AWS ECR Public.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -284,7 +286,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub caps unauthenticated pulls and has failed CI runs; same official image via AWS ECR Public.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -369,7 +372,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Docker Hub caps unauthenticated pulls and has failed CI runs; same official image via AWS ECR Public.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

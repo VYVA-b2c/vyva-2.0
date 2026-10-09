@@ -48,12 +48,13 @@ describe("Listen Closely", () => {
     expect(await screen.findByRole("heading", { name: /Hear your target sound|Which sound happened more\?/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Listen Closely", level: 1 })).toBeInTheDocument();
     if (screen.queryByText("Which sound happened more?")) {
-      expect(
-        screen.getByText("Preview each sound below. During the game, count them and choose the one you hear most."),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Compare sounds")).toBeInTheDocument();
+      // The compare instruction (translated copy or its fallback) and the extra counting step.
+      expect(screen.getByText(/choose (which one you heard more often|the one you hear most)/)).toBeInTheDocument();
+      expect(screen.getByText("2. Count")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Hear sounds" })).not.toBeInTheDocument();
-      expect(screen.getAllByRole("button", { name: /Chime|Water drop/ })).toHaveLength(2);
+      // One preview button per sound; which two sounds is random.
+      const soundButtons = screen.getAllByRole("button").filter((button) => button.textContent && !/^(Instructions|Start)$/.test(button.textContent));
+      expect(soundButtons).toHaveLength(2);
     }
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[60px]");
     expect(screen.getByText("1. Listen")).toBeInTheDocument();

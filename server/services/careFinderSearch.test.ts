@@ -205,21 +205,47 @@ describe("searchCareProviders", () => {
 
     it("skips the register and geocoder for a country without one, and biases the map search there", async () => {
       const fetcher = mockFetch((url) => (url.pathname.endsWith("/textsearch/json")
-        ? { status: "OK", results: [{ place_id: "g1", name: "Physio Berlin", types: ["physiotherapist"] }] }
+        ? { status: "OK", results: [{ place_id: "g1", name: "Fisioterapia Roma", types: ["physiotherapist"] }] }
         : { status: "OK", result: {} }));
       const geocode = vi.fn(async () => zamora);
       const findRegisterPlaces = vi.fn(async () => matches);
-      const result = await searchCareProviders({ ...request, location: "10115 Berlin", country: "de" }, {
+      const result = await searchCareProviders({ ...request, location: "00184 Roma", country: "it" }, {
         apiKey: "key", fetch: fetcher, refreshEvidence: async () => null, geocode, findRegisterPlaces,
       });
       expect(geocode).not.toHaveBeenCalled();
       expect(findRegisterPlaces).not.toHaveBeenCalled();
-      expect(result).toMatchObject({ country: "DE", publicCare: null });
+      expect(result).toMatchObject({ country: "IT", publicCare: null });
       expect(result.options[0]).toMatchObject({ origin: "google_places", id: "g1" });
       const textSearch = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls
         .map(([input]) => new URL(String(input)))
         .find((url) => url.pathname.endsWith("/textsearch/json"));
-      expect(textSearch?.searchParams.get("region")).toBe("de");
+      expect(textSearch?.searchParams.get("region")).toBe("it");
+    });
+
+    describe("Germany", () => {
+      const prenzlau = { lat: 53.3167, lng: 13.8601, postcode: "17291", regionCode: "DE-BB", provinceCode: null, municipalityCode: null, precision: "town" };
+      const mapped: RegisterPlaceWithPosition = {
+        country: "DE", ccn: "DE-OSM:node/123456", regionalCode: "node/123456", listing: "OSM", centreClass: "doctor", centreClassName: "general",
+        name: "Hausarztpraxis Dr. Schulz", regionCode: "DE-BB", regionName: null, provinceCode: null, provinceName: null, municipalityCode: null,
+        municipalityName: "Prenzlau", street: "Friedrichstraße 12", postcode: "17291", phone: "+49 3984 123456", email: null, website: null,
+        ownership: null, dependency: null, careCodes: ["de:primary_care", "de:same_day"], lat: 53.317, lng: 13.861, sourceUpdatedOn: "2026-10-09",
+      };
+
+      it("reads OpenStreetMap places as reported, with the ODbL credit", async () => {
+        const findRegisterPlaces = vi.fn(async () => [{ place: mapped, km: 0.2 }]);
+        const result = await searchCareProviders({ ...request, careType: "primary_care", access: "public", location: "Prenzlau", country: "DE" }, {
+          apiKey: null, refreshEvidence: async () => null, geocode: async () => prenzlau, findRegisterPlaces,
+        });
+        expect(findRegisterPlaces).toHaveBeenCalledWith(expect.objectContaining({ country: "DE", careType: "primary_care" }));
+        expect(result).toMatchObject({ status: "ok", country: "DE", orderedBy: "distance", publicCare: null });
+        expect(result.options[0]).toMatchObject({
+          id: "de-osm:node/123456", origin: "open_map", name: "Hausarztpraxis Dr. Schulz", address: "Friedrichstraße 12, 17291 Prenzlau",
+          source_label: "© OpenStreetMap contributors", source_url: "https://www.openstreetmap.org/copyright",
+          source_status: "reported", source_type: "community", assumptions: [],
+        });
+        expect(result.options[0].matched[0]).toBe("Mapped on OpenStreetMap by volunteers (data from 9 October 2026). Not an official register: confirm when you call");
+        expect(storableCareFinderResults(result)).toBe(result);
+      });
     });
 
     describe("France", () => {

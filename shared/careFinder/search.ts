@@ -25,9 +25,10 @@ export type CareFinderSearchRequest = z.infer<typeof careFinderSearchRequestSche
 // Where an option came from decides what we may keep. Official register rows
 // and the person's own profile are ours to store; Google Places content is
 // not (its terms allow keeping only the place_id).
-export const CARE_FINDER_OPTION_ORIGINS = ["official_register", "google_places", "profile"] as const;
+// open_map: a provider mapped on OpenStreetMap (Germany); ODbL allows storing it.
+export const CARE_FINDER_OPTION_ORIGINS = ["official_register", "open_map", "google_places", "profile"] as const;
 export type CareFinderOptionOrigin = typeof CARE_FINDER_OPTION_ORIGINS[number];
-const STORABLE_ORIGINS: ReadonlySet<string> = new Set<CareFinderOptionOrigin>(["official_register", "profile"]);
+const STORABLE_ORIGINS: ReadonlySet<string> = new Set<CareFinderOptionOrigin>(["official_register", "open_map", "profile"]);
 
 export interface CareFinderResultOption extends ProviderComparisonSourceOption {
   // official_register: id is the REGCESS code. google_places: id is the place_id.

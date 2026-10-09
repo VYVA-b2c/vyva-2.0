@@ -30,11 +30,13 @@ import { findHealthMapCentres, findRegisterPlaces, type HealthMapCentres, type R
 import { chooseAssignedCentre, type CareAssignedBasis, type CareFinderPublicCare } from "../../shared/careFinder/publicCare.js";
 import { geocodeMemberLocation, type GeocodedPoint } from "./cartoCiudad.js";
 import { geocodeFrenchLocation } from "./banGeocoder.js";
+import { geocodeGermanLocation } from "./nominatimGeocoder.js";
+import { OSM_SOURCE_LABEL, OSM_SOURCE_URL } from "../../shared/careFinder/registerDe.js";
 import { FR_FINESS_SOURCE_LABEL, FR_FINESS_SOURCE_URL, FR_RPPS_SOURCE_LABEL, FR_RPPS_SOURCE_URL } from "../../shared/careFinder/registerFr.js";
 import {
   DEFAULT_CARE_FINDER_COUNTRY,
   careFinderCountry,
-  hasOfficialRegister,
+  hasRegister,
   mapsRegionCode,
   type CareFinderCountry,
 } from "../../shared/careFinder/countries.js";
@@ -240,7 +242,28 @@ function aboutKm(km: number, lang: CareFinderLang): string {
 }
 
 /** Which register a place comes from, and how a result names it. */
-function registerSource(place: RegisterMatch["place"]): { label: string; url: string; matched: (updatedOn: string) => Localized } {
+type RegisterSource = {
+  label: string;
+  url: string;
+  matched: (updatedOn: string) => Localized;
+  // Official registers are verified; a community map is only reported.
+  origin?: "official_register" | "open_map";
+};
+
+function registerSource(place: RegisterMatch["place"]): RegisterSource {
+  if (place.listing === "OSM") {
+    return {
+      label: OSM_SOURCE_LABEL,
+      url: OSM_SOURCE_URL,
+      origin: "open_map",
+      matched: (updatedOn) => ({
+        en: `Mapped on OpenStreetMap by volunteers (data from ${updatedOn}). Not an official register: confirm when you call`,
+        es: `Registrado en OpenStreetMap por voluntarios (datos del ${updatedOn}). No es un registro oficial: confírmelo al llamar`,
+        fr: `Cartographié sur OpenStreetMap par des bénévoles (données du ${updatedOn}). Pas un registre officiel : à confirmer lors de l'appel`,
+        de: `Von Freiwilligen auf OpenStreetMap eingetragen (Daten vom ${updatedOn}). Kein offizielles Register: beim Anruf bestätigen`,
+      }),
+    };
+  }
   if (place.country === "FR" && place.listing === "FINESS") {
     return {
       label: FR_FINESS_SOURCE_LABEL,
@@ -363,7 +386,7 @@ async function registerOption(
 
   return {
     id: country === "ES" ? `regcess:${place.ccn}` : place.ccn.toLowerCase(),
-    origin: "official_register",
+    origin: source.origin ?? "official_register",
     name,
     category: careLabel,
     care_type: request.careType,
@@ -375,8 +398,8 @@ async function registerOption(
     booking_url: evidence?.discoveredBookingUrl ?? null,
     maps_url: mapsUrl,
     source_label: source.label,
-    source_status: "verified",
-    source_type: "official",
+    source_status: source.origin === "open_map" ? "reported" : "verified",
+    source_type: source.origin === "open_map" ? "community" : "official",
     source_url: source.url,
     checked_at: registerDate,
     comparison,
@@ -420,11 +443,12 @@ export async function searchCareProviders(
   // The register, its geocoder (CartoCiudad) and the public booking links are
   // Spain's for now; elsewhere the map search below is used.
   const findRegister = dependencies.findRegisterPlaces === undefined ? findRegisterPlaces : dependencies.findRegisterPlaces;
-  if (findRegister && hasOfficialRegister(country)) {
-    // Each country's own national geocoder: CartoCiudad in Spain, BAN in France.
-    const geocode = dependencies.geocode ?? (country === "FR" ? geocodeFrenchLocation : geocodeMemberLocation);
+  if (findRegister && hasRegister(country)) {
+    // Each country's own geocoder: CartoCiudad in Spain, BAN in France, Nominatim (OSM) in Germany.
+    const geocode = dependencies.geocode
+      ?? (country === "FR" ? geocodeFrenchLocation : country === "DE" ? geocodeGermanLocation : geocodeMemberLocation);
     const origin = await geocode(request.location).catch(() => null);
-    // Spain names the member's own public health centre; France has none to name.
+    // Spain names the member's own public health centre; France and Germany have none to name.
     const publicPrimary = isPublicPrimaryCare(request) && country === "ES";
     const matches = origin
       ? await findRegister({
