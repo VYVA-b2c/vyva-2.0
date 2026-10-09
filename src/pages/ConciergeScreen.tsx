@@ -9686,6 +9686,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     () => taskEntry ?? coerceConciergeTaskEntry(persistedTask?.entry_payload),
     [persistedTask?.entry_payload, taskEntry],
   );
+  const isHomeServiceTask = effectiveTaskEntry?.kind === "home_service"
+    || (effectiveTaskEntry?.kind === "appointment" && ["home-service", "home_service"].includes(effectiveTaskEntry.appointmentKind ?? ""))
+    || persistedTask?.kind === "home_service"
+    || ["home-service", "home_service"].includes(String(persistedTask?.progress_payload.appointmentType ?? ""));
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
@@ -18053,7 +18057,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" && !insuranceAdminOpen && !isHomeServiceAppointment ? (
+          {mode === "task" && effectiveTaskEntry && !insuranceAdminOpen && !isHomeServiceTask ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}
