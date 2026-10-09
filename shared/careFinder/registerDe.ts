@@ -28,7 +28,8 @@ export const DE_STATES = [
 
 /** Overpass query for one Land: every health element Care Finder could show, with its centre. */
 export function overpassQuery(state: string): string {
-  return `[out:json][timeout:900][maxsize:1073741824];
+  // A modest reservation: a busy public server turns large ones away.
+  return `[out:json][timeout:600][maxsize:536870912];
 area["ISO3166-2"="${state}"]["admin_level"="4"]->.state;
 (
   nwr(area.state)["amenity"~"^(doctors|dentist|clinic)$"];
