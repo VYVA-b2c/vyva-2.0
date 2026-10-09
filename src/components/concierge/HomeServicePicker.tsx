@@ -14,7 +14,7 @@ const icons: Record<HomeServiceType, { icon: LucideIcon; background: string; col
 
 export function HomeServicePicker({ language, onSelect }: { language: string; onSelect: (service: HomeServiceType) => void }) {
   const { isDark } = useHomeMasterTheme();
-  return <div className="order-1 flex flex-col gap-3" data-testid="panel-home-service-service-picker">
+  return <div className="order-1 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4" data-testid="panel-home-service-service-picker">
     {HOME_SERVICE_TYPES.map(service => {
       const { icon: Icon, background, color } = icons[service.key];
       return <button key={service.key} type="button" onClick={() => onSelect(service.key)} data-testid={`button-home-service-type-${service.key}`}

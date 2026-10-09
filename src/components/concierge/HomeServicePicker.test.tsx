@@ -13,6 +13,10 @@ describe("canonical home service picker", () => {
     fireEvent.click(plumber);
     expect(onSelect).toHaveBeenCalledWith("plumber");
   });
+  it("uses the canonical responsive grid", () => {
+    render(<HomeServicePicker language="en" onSelect={vi.fn()} />);
+    expect(screen.getByTestId("panel-home-service-service-picker")).toHaveClass("grid-cols-1", "md:grid-cols-2");
+  });
   it("uses the existing French service labels", () => {
     render(<HomeServicePicker language="fr" onSelect={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Plombier" })).toBeInTheDocument();

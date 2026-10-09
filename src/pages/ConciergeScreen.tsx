@@ -18053,7 +18053,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" && !insuranceAdminOpen ? (
+          {mode === "task" && !insuranceAdminOpen && !isHomeServiceAppointment ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}
@@ -20233,7 +20233,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         </PurpleModal>
       )}
 
-      {(mode !== "task" || appointmentOpen || offersOpen) ? <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
+      {(mode !== "task" || appointmentOpen || offersOpen) ? <section className={`order-[10] flex flex-col ${isHomeServiceAppointment ? "mt-0" : "mt-[22px]"}`} data-testid="concierge-guided-hub">
         {appointmentOpen && (
           <AppointmentContainer
             Icon={AppointmentPanelIcon}

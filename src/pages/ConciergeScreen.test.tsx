@@ -431,8 +431,8 @@ describe("ConciergeScreen task navigation", () => {
 
     if (conciergeTaskEntry.kind === "home_service") {
       expect(await screen.findByRole("heading", { name: "Choose a service" })).toBeInTheDocument();
-      expect(screen.getByTestId("concierge-task-workspace")).toBeInTheDocument();
-      expect(screen.getByTestId("button-concierge-task-sos")).toBeVisible();
+      expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("button-concierge-task-sos")).not.toBeInTheDocument();
     } else if (conciergeTaskEntry.kind === "document") {
       // Document help owns its own header and four-step progress.
       expect(await screen.findByTestId("document-help-progress")).toHaveAttribute("data-step", "choose");
@@ -453,7 +453,8 @@ describe("ConciergeScreen task navigation", () => {
     expect(await screen.findByRole("heading", { name: "Choose a service" })).toBeInTheDocument();
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/pending"));
     expect(screen.queryByText("Harbour Clinic")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-concierge-task-sos")).toBeVisible();
+    expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-concierge-task-sos")).not.toBeInTheDocument();
   });
 
   it("sends a new Healthcare task to Care Finder without creating a concierge task", async () => {

@@ -12,7 +12,7 @@ export function HomeRepairPage({ title, titleId, onClose, children, panelTestId 
         onBack={onClose}
         titleId={titleId}
         shellTestId={panelTestId}
-        frameClassName="!px-0 !pt-0"
+        frameClassName="!px-0 !pt-0 [&>div:first-child]:pt-[max(12px,env(safe-area-inset-top))]"
         headerAction={<CanonicalVoiceButton agentSlug="concierge" contextHint="Help with this home repair request. Do not contact or book without confirmation." />}
       >{children}</CanonicalDetailFlowShell>
     </section>

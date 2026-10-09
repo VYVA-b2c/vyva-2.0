@@ -369,6 +369,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname.startsWith("/concierge/") ||
     location.pathname === "/dev/concierge-canonical-preview" ||
     location.pathname.startsWith("/dev/concierge-canonical-preview/") ||
+    location.pathname === "/dev/home-service-preview" ||
     location.pathname.startsWith("/dev/provider-task-preview/");
   const isFocusedConciergeTaskRoute =
     /^\/concierge\/task\/[^/]+$/.test(location.pathname) ||
@@ -389,6 +390,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname === "/dev/home-master/community" ||
     location.pathname === "/dev/home-master/concierge" ||
     location.pathname === "/dev/home-master/reports";
+  const usesHomeServiceResponsiveShell = location.pathname === "/dev/home-service-preview";
   const usesDevHomeMasterPrototypeSurface =
     location.pathname.startsWith("/dev/home-master") ||
     usesDevBrainPrototypeSurface;
@@ -437,6 +439,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         ? "max-w-none"
       : usesDevHomeMasterDetailShell
         ? "max-w-[520px]"
+      : usesHomeServiceResponsiveShell
+        ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
       : usesDevHomeMasterCompactShell
         ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
       : isSymptomCheckRoute
