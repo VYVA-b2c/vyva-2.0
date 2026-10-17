@@ -132,8 +132,6 @@ function consoleSignInPath(path: string) {
   return `https://console.vyva.life/sign-in?return_to=${encodeURIComponent(path)}`;
 }
 
-const hospitalApplicationsPath = consoleSignInPath("/platform/self-service");
-
 const verticals: { key: string; title: string; icon: LucideIcon; tone: AdminModule["tone"] }[] = [
   { key: "home_care", title: "Home Care", icon: Home, tone: "purple" },
   { key: "post_discharge", title: "Hospital Discharge", icon: ClipboardCheck, tone: "amber" },
@@ -145,16 +143,17 @@ const verticals: { key: string; title: string; icon: LucideIcon; tone: AdminModu
 
 const consoleModules: AdminModule[] = verticals.map((vertical) => {
   const setupPath = consoleSignInPath(`/platform/accounts/new?product=${vertical.key}`);
-  const applications = vertical.key === "post_discharge"
-    ? [{ label: "Applications", path: hospitalApplicationsPath, icon: ClipboardCheck, newTab: true }]
-    : [];
+  const applicationsPath = consoleSignInPath(`/platform/self-service?vertical=${vertical.key}`);
 
   return {
     ...vertical,
     description: `Manage ${vertical.title} accounts and onboarding.`,
-    path: applications.length ? hospitalApplicationsPath : setupPath,
+    path: applicationsPath,
     newTab: true,
-    tools: [...applications, { label: "Set Up", path: setupPath, icon: UserRoundCog, newTab: true }],
+    tools: [
+      { label: "Applications", path: applicationsPath, icon: ClipboardCheck, newTab: true },
+      { label: "Set Up", path: setupPath, icon: UserRoundCog, newTab: true },
+    ],
   };
 });
 
