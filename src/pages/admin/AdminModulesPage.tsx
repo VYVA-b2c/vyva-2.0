@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -7,11 +7,9 @@ import {
   CalendarCheck,
   ClipboardCheck,
   ClipboardList,
-  ExternalLink,
   GitBranch,
   HeartHandshake,
   Home,
-  Hospital,
   LibraryBig,
   Mail,
   Megaphone,
@@ -63,18 +61,16 @@ const modules: AdminModule[] = [
     ],
   },
   {
-    title: "Hospital applications",
-    description: "Review hospital registrations, approve workspaces and send owner invitations.",
-    path: "https://console.vyva.life/sign-in?return_to=%2Fplatform%2Fself-service",
-    icon: Hospital,
+    title: "Console",
+    description: "Manage accounts and onboarding across all verticals.",
+    path: "/admin?module=console",
+    icon: ClipboardCheck,
     tone: "blue",
-    newTab: true,
     tools: [
       {
-        label: "Review applications",
-        path: "https://console.vyva.life/sign-in?return_to=%2Fplatform%2Fself-service",
+        label: "Open console",
+        path: "/admin?module=console",
         icon: ClipboardCheck,
-        newTab: true,
       },
     ],
   },
@@ -132,6 +128,36 @@ const modules: AdminModule[] = [
   },
 ];
 
+function consoleSignInPath(path: string) {
+  return `https://console.vyva.life/sign-in?return_to=${encodeURIComponent(path)}`;
+}
+
+const hospitalApplicationsPath = consoleSignInPath("/platform/self-service");
+
+const verticals: { key: string; title: string; icon: LucideIcon; tone: AdminModule["tone"] }[] = [
+  { key: "home_care", title: "Home Care", icon: Home, tone: "purple" },
+  { key: "post_discharge", title: "Hospital Discharge", icon: ClipboardCheck, tone: "amber" },
+  { key: "senior_living", title: "Senior Living", icon: HeartHandshake, tone: "green" },
+  { key: "community", title: "Community Support", icon: UsersRound, tone: "blue" },
+  { key: "security_services", title: "Safety Support", icon: ShieldCheck, tone: "rose" },
+  { key: "emergency_response", title: "Emergency Response", icon: PhoneCall, tone: "amber" },
+];
+
+const consoleModules: AdminModule[] = verticals.map((vertical) => {
+  const setupPath = consoleSignInPath(`/platform/accounts/new?product=${vertical.key}`);
+  const applications = vertical.key === "post_discharge"
+    ? [{ label: "Applications", path: hospitalApplicationsPath, icon: ClipboardCheck, newTab: true }]
+    : [];
+
+  return {
+    ...vertical,
+    description: `Manage ${vertical.title} accounts and onboarding.`,
+    path: applications.length ? hospitalApplicationsPath : setupPath,
+    newTab: true,
+    tools: [...applications, { label: "Set Up", path: setupPath, icon: UserRoundCog, newTab: true }],
+  };
+});
+
 const toneClasses: Record<AdminModule["tone"], { panel: string; icon: string; accent: string }> = {
   purple: { panel: "hover:border-purple-300", icon: "bg-purple-50 text-purple-700", accent: "bg-purple-600" },
   green: { panel: "hover:border-emerald-300", icon: "bg-emerald-50 text-emerald-700", accent: "bg-emerald-500" },
@@ -142,19 +168,22 @@ const toneClasses: Record<AdminModule["tone"], { panel: string; icon: string; ac
 
 export default function AdminModulesPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const isConsole = new URLSearchParams(location.search).get("module") === "console";
   const isSuperAdmin = user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
+  const visibleModules = isConsole ? consoleModules : modules;
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
-          title="Admin modules"
-          subtitle="Choose the area you want to manage."
-          showAdminHome={false}
+          title={isConsole ? "Console" : "Admin modules"}
+          subtitle={isConsole ? "Choose a vertical." : "Choose the area you want to manage."}
+          showAdminHome={isConsole}
         />
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {modules.map((module) => {
+          {visibleModules.map((module) => {
             const ModuleIcon = module.icon;
             const tone = toneClasses[module.tone];
             const tools = module.tools.filter((tool) => isSuperAdmin || !tool.superAdminOnly);
@@ -202,7 +231,7 @@ export default function AdminModulesPage() {
                           >
                             <ToolIcon size={14} aria-hidden="true" />
                             {tool.label}
-                            {tool.newTab ? <ExternalLink size={12} aria-hidden="true" /> : null}
+                            {tool.newTab ? <ArrowRight size={12} aria-hidden="true" /> : null}
                           </Link>
                         );
                       })}
