@@ -71,9 +71,21 @@ function renderHub() {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms/experts"]}>
       <Routes>
+        <Route path="/" element={<LocationProbe />} />
         <Route path="/social-rooms" element={<LocationProbe />} />
         <Route path="/social-rooms/experts" element={<><AdvisorHub /><LocationProbe /></>} />
         <Route path="/social-rooms/experts/:agentSlug" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderPreviewHub() {
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/home-master/community-team"]}>
+      <Routes>
+        <Route path="/dev/home-master" element={<LocationProbe />} />
+        <Route path="/dev/home-master/community-team" element={<><AdvisorHub preview /><LocationProbe /></>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -156,9 +168,19 @@ describe("AdvisorHub", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts/nora");
   });
 
-  it("returns to Community from back", () => {
+  it("returns to Home from back without changing touch mode", () => {
+    window.localStorage.setItem("vyva:home-interaction-mode:v1", "touch");
     renderHub();
     fireEvent.click(screen.getByTestId("button-advisor-hub-back"));
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms");
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/");
+    expect(window.localStorage.getItem("vyva:home-interaction-mode:v1")).toBe("touch");
+  });
+
+  it("returns preview My Team to preview Home without changing touch mode", () => {
+    window.localStorage.setItem("vyva:home-interaction-mode:v1", "touch");
+    renderPreviewHub();
+    fireEvent.click(screen.getByTestId("button-advisor-hub-back"));
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/dev/home-master");
+    expect(window.localStorage.getItem("vyva:home-interaction-mode:v1")).toBe("touch");
   });
 });
