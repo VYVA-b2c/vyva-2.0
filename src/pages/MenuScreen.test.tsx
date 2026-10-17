@@ -35,7 +35,7 @@ describe("MenuScreen", () => {
     expect(tiles).toHaveLength(4);
     expect(grid).toHaveTextContent("My Health");
     expect(grid).toHaveTextContent("Brain Power");
-    expect(grid).toHaveTextContent("Community");
+    expect(grid).toHaveTextContent("My Team");
     expect(grid).toHaveTextContent("Concierge");
     expect(grid).toHaveTextContent("Check-ins & medicines");
     expect(grid).toHaveTextContent("Memory, focus & calm");
@@ -62,7 +62,7 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
-  it("routes Community and Concierge to their canonical destinations", () => {
+  it("routes My Team and Concierge to their canonical destinations", () => {
     const community = renderMenu();
 
     fireEvent.click(screen.getByTestId("menu-tile-community"));
