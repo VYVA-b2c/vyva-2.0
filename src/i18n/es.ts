@@ -2433,6 +2433,15 @@ const es = {
       sharpenSenses: "Encuentra la calma",
     },
   },
+  reports: { brainCoach: {
+    performanceTitle: "Como van tus areas de pensamiento",
+    mostPracticed: "Mas practicada",
+    completedGames: "{{count}} completados",
+    buildingMore: "{{count}} juegos mas",
+    relaxationMinutes: "Minutos de relajacion: {{count}}",
+    areas: { memory: "Memoria", attention: "Atencion", executive_function: "Planificacion", language: "Lenguaje", processing_speed: "Velocidad", spatial_navigation: "Habilidades espaciales", sensory: "Sentidos", knowledge: "Conocimiento" },
+    status: { usual: "Habitual para ti", above: "Mas alto de lo habitual", below: "Mas bajo de lo habitual", building: "Creando tu rango" },
+  } },
   recommendationReasons: {
     attention: "Hoy trabajamos enfoque y atencion con un ejercicio suave.",
     executive_function: "Hoy trabajamos entrenamiento mental con un ejercicio suave.",

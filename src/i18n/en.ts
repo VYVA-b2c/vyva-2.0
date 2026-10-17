@@ -2843,6 +2843,15 @@ const en = {
       reflectionIntro: "Reflection",
     },
   },
+  reports: { brainCoach: {
+    performanceTitle: "How your thinking areas are doing",
+    mostPracticed: "Most practiced",
+    completedGames: "{{count}} completed",
+    buildingMore: "{{count}} more games",
+    relaxationMinutes: "Relaxation minutes: {{count}}",
+    areas: { memory: "Memory", attention: "Focus", executive_function: "Planning", language: "Language", processing_speed: "Speed", spatial_navigation: "Spatial skills", sensory: "Senses", knowledge: "Knowledge" },
+    status: { usual: "Usual for you", above: "Higher than usual", below: "Lower than usual", building: "Building your range" },
+  } },
   recommendationReasons: {
     attention: "Today we work on focus and attention with a gentle exercise.",
     executive_function: "Today we work on brain training with a gentle exercise.",

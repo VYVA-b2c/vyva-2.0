@@ -2226,6 +2226,15 @@ const de = {
       sharpenSenses: "Ruhe finden",
     },
   },
+  reports: { brainCoach: {
+    performanceTitle: "So entwickeln sich Ihre Denkbereiche",
+    mostPracticed: "Am meisten geuebt",
+    completedGames: "{{count}} abgeschlossen",
+    buildingMore: "Noch {{count}} Spiele",
+    relaxationMinutes: "Entspannungsminuten: {{count}}",
+    areas: { memory: "Gedaechtnis", attention: "Fokus", executive_function: "Planung", language: "Sprache", processing_speed: "Tempo", spatial_navigation: "Raeumliche Faehigkeiten", sensory: "Sinne", knowledge: "Wissen" },
+    status: { usual: "Wie fuer Sie ueblich", above: "Hoeher als ueblich", below: "Niedriger als ueblich", building: "Ihr Bereich wird aufgebaut" },
+  } },
   recommendationReasons: {
     attention: "Heute arbeiten wir an Fokus und Aufmerksamkeit mit einer einfachen Ubung.",
     executive_function: "Heute arbeiten wir am Gehirntraining mit einer einfachen Ubung.",

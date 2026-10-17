@@ -128,6 +128,11 @@ function RecentSessionRow({ session }: { session: BrainCoachSession }) {
   );
 }
 
+function AreaSparkline({ weekly }: { weekly: Array<{ value: number | null }> }) {
+  const points = weekly.map((item, index) => item.value === null ? null : `${index * 14 + 2},${20 - Math.max(-15, Math.min(15, item.value)) / 2}`).filter(Boolean).join(" ");
+  return <svg viewBox="0 0 104 28" className="h-7 w-28" aria-hidden="true"><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 export default function BrainCoachReportScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -144,6 +149,7 @@ export default function BrainCoachReportScreen() {
   const recentSessions = (progress?.history ?? []).slice(0, 6);
   const domains = (progress?.domains ?? []).slice(0, 4);
   const completedToday = progress?.today?.completedCount ?? 0;
+  const performanceAreas = progress?.performance?.areas ?? [];
   const lastPlayed = summary?.lastPlayedAt ? formatBrainCoachDate(summary.lastPlayedAt) : t("reports.brainCoach.notYet", "Not yet");
 
   const copySummary = async () => {
@@ -255,9 +261,9 @@ export default function BrainCoachReportScreen() {
             />
             <StatTile
               icon={Trophy}
-              label={t("reports.brainCoach.strongest", "Strongest")}
+              label={t("reports.brainCoach.mostPracticed", "Most practiced")}
               value={strongestDomain ? domainLabel(strongestDomain.domain) : "--"}
-              sub={strongestDomain ? t("reports.brainCoach.bestScore", "Best score {{score}}", { score: strongestDomain.bestScore }) : t("reports.brainCoach.morePractice", "More practice needed")}
+              sub={strongestDomain ? t("reports.brainCoach.completedGames", "{{count}} completed", { count: strongestDomain.completedSessions }) : t("reports.brainCoach.morePractice", "More practice needed")}
               tone="purple"
               testId="brain-coach-stat-strongest"
             />
@@ -285,6 +291,32 @@ export default function BrainCoachReportScreen() {
               ))}
             </ul>
           </HealthWizardCard>
+
+          {performanceAreas.length > 0 || (progress?.performance?.relaxationMinutes ?? 0) > 0 ? (
+            <section className="mt-7" data-testid="brain-coach-performance">
+              <HealthWizardSectionLabel>{t("reports.brainCoach.performanceTitle", "How your thinking areas are doing")}</HealthWizardSectionLabel>
+              <HealthWizardCard tone="white">
+                <div className="divide-y divide-[#EFE7DD]">
+                  {performanceAreas.map((item) => {
+                    const label = t(`reports.brainCoach.areas.${item.area}`, domainLabel(item.area));
+                    const status = t(`reports.brainCoach.status.${item.status}`, ({ usual: "Usual for you", above: "Higher than usual", below: "Lower than usual", building: "Building your range" } as const)[item.status]);
+                    const tone = item.status === "above" ? "bg-[#ECFDF5] text-[#047857]" : item.status === "below" ? "bg-[#FFFBEB] text-[#B45309]" : "bg-[#F5F3FF] text-[#5B4A61]";
+                    return (
+                      <div key={item.area} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0" data-testid={`brain-coach-performance-${item.area}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-body text-[16px] font-black text-vyva-text-1">{label}</p>
+                          <span className={`mt-1 inline-flex rounded-full px-3 py-1 font-body text-[12px] font-black ${tone}`}>{status}</span>
+                          {item.status === "building" ? <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">{t("reports.brainCoach.buildingMore", "{{count}} more games", { count: Math.max(0, 3 - item.sessionsInWindow) })}</p> : null}
+                        </div>
+                        <span className="text-vyva-purple"><AreaSparkline weekly={item.weekly} /></span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(progress?.performance?.relaxationMinutes ?? 0) > 0 ? <p className="mt-4 border-t border-[#EFE7DD] pt-4 font-body text-[14px] font-bold text-vyva-text-2">{t("reports.brainCoach.relaxationMinutes", "Relaxation minutes: {{count}}", { count: progress?.performance?.relaxationMinutes ?? 0 })}</p> : null}
+              </HealthWizardCard>
+            </section>
+          ) : null}
 
           <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_0.9fr]">
             <section>

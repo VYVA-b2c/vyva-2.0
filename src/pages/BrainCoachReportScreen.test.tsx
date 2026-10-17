@@ -70,6 +70,16 @@ const progress = {
       playedAt: "2026-06-02T09:00:00.000Z",
     },
   ],
+  performance: {
+    areas: [{
+      area: "memory",
+      status: "usual",
+      sessionsInWindow: 3,
+      weekly: Array.from({ length: 8 }, (_, index) => ({ weekStart: `2026-05-${10 + index}`, value: index < 5 ? null : 0 })),
+    }],
+    relaxationMinutes: 4,
+    generatedAt: "2026-06-02T10:00:00.000Z",
+  },
 };
 
 function renderReport(data: unknown = progress) {
@@ -109,6 +119,8 @@ describe("BrainCoachReportScreen", () => {
     expect(screen.getByTestId("brain-coach-domain-memory")).toHaveTextContent("900");
     expect(screen.getByTestId("brain-coach-recent-sessions")).toHaveTextContent("Word recall");
     expect(screen.getByTestId("brain-coach-next-steps")).toHaveTextContent("streak");
+    expect(screen.getByTestId("brain-coach-performance-memory")).toHaveTextContent("Usual for you");
+    expect(screen.getByTestId("brain-coach-performance")).toHaveTextContent("Relaxation minutes: 4");
   });
 
   it("offers a clear start state when no games are recorded", async () => {

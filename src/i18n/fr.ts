@@ -2395,6 +2395,15 @@ const fr = {
       sharpenSenses: "Retrouvez le calme",
     },
   },
+  reports: { brainCoach: {
+    performanceTitle: "Evolution de vos capacites de reflexion",
+    mostPracticed: "Le plus pratique",
+    completedGames: "{{count}} termines",
+    buildingMore: "Encore {{count}} jeux",
+    relaxationMinutes: "Minutes de relaxation : {{count}}",
+    areas: { memory: "Memoire", attention: "Concentration", executive_function: "Planification", language: "Langage", processing_speed: "Vitesse", spatial_navigation: "Capacites spatiales", sensory: "Sens", knowledge: "Connaissances" },
+    status: { usual: "Habituel pour vous", above: "Plus eleve que d'habitude", below: "Plus bas que d'habitude", building: "Creation de votre plage" },
+  } },
   recommendationReasons: {
     attention: "Aujourd'hui, nous travaillons la concentration et l'attention avec un exercice doux.",
     executive_function: "Aujourd'hui, nous travaillons l'entrainement cerebral avec un exercice doux.",

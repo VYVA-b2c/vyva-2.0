@@ -164,7 +164,7 @@ describe("Brain Coach caregiver summary", () => {
       ],
     });
 
-    expect(summary.recentDomains.map((domain) => domain.domain)).toEqual(["visual_memory", "attention"]);
+    expect(summary.recentDomains.map((domain) => domain.domain)).toEqual(["memory", "attention"]);
     expect(summary.recentDomains[0].completedSessions).toBe(2);
   });
 
@@ -289,7 +289,7 @@ describe("Brain Coach caregiver summary", () => {
       },
     });
     expect(summary.weeklyInsights.domainsPracticed.map((domain) => domain.domain)).toEqual([
-      "visual_memory",
+      "memory",
       "attention",
       "language",
     ]);

@@ -1,3 +1,5 @@
+import { areaForDomain, type BrainCoachArea } from "../../shared/brainCoachAreas";
+
 export type BrainCoachSession = {
   id?: string | null;
   activityType: string;
@@ -40,6 +42,16 @@ export type BrainCoachProgress = {
   domains?: Array<BrainCoachGroupSummary & { domain: string }>;
   activities?: Array<BrainCoachGroupSummary & { activityType: string }>;
   history?: BrainCoachSession[];
+  performance?: {
+    areas: Array<{
+      area: BrainCoachArea;
+      status: "usual" | "above" | "below" | "building";
+      sessionsInWindow: number;
+      weekly: Array<{ weekStart: string; value: number | null }>;
+    }>;
+    relaxationMinutes: number;
+    generatedAt: string;
+  };
 };
 
 const domainLabels: Record<string, string> = {
@@ -83,7 +95,8 @@ function safeNumber(value: unknown, fallback = 0) {
 }
 
 export function domainLabel(value?: string | null) {
-  return value ? domainLabels[value] ?? humanizeKey(value) : "Brain Coach";
+  const area = areaForDomain(value) ?? value;
+  return area ? domainLabels[area] ?? humanizeKey(area) : "Brain Coach";
 }
 
 export function activityLabel(value?: string | null) {
@@ -163,6 +176,8 @@ export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null) {
   const streak = summary.streakDays;
   const completed = summary.completedSessions;
   const area = strongest ? domainLabel(strongest.domain).toLowerCase() : "brain training";
+  const higherArea = progress?.performance?.areas.find((item) => item.status === "above");
+  if (higherArea) return `${domainLabel(higherArea.area)} has been higher than your usual range. Keep the routine steady.`;
 
   if (streak >= 3) {
     return `You are on a ${streak}-day streak. Your most practiced area is ${area}.`;
@@ -187,6 +202,8 @@ export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null) {
   const summary = progress!.summary!;
   const domains = progress?.domains ?? [];
   const steps: string[] = [];
+  const easierArea = progress?.performance?.areas.find((item) => item.status === "below");
+  if (easierArea) steps.push(`Try an easier ${domainLabel(easierArea.area).toLowerCase()} game this week.`);
 
   if ((progress?.today?.completedCount ?? 0) === 0) {
     steps.push("Do one short Brain Coach game today.");
@@ -224,6 +241,9 @@ export function buildBrainCoachShareText(progress?: BrainCoachProgress | null) {
   if (strongest) {
     lines.push(`Most practiced area: ${domainLabel(strongest.domain)}`);
   }
+
+  const statusCopy = { usual: "Usual for you", above: "Higher than usual", below: "Lower than usual", building: "Building your range" } as const;
+  (progress?.performance?.areas ?? []).forEach((item) => lines.push(`${domainLabel(item.area)}: ${statusCopy[item.status]}`));
 
   lines.push(`Next step: ${buildBrainCoachNextSteps(progress)[0]}`);
   return lines.join("\n");
