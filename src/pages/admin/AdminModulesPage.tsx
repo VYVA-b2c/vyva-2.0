@@ -7,9 +7,11 @@ import {
   CalendarCheck,
   ClipboardCheck,
   ClipboardList,
+  ExternalLink,
   GitBranch,
   HeartHandshake,
   Home,
+  Hospital,
   LibraryBig,
   Mail,
   Megaphone,
@@ -33,6 +35,7 @@ type ModuleTool = {
   path: string;
   icon: LucideIcon;
   superAdminOnly?: boolean;
+  newTab?: boolean;
 };
 
 type AdminModule = {
@@ -42,6 +45,7 @@ type AdminModule = {
   icon: LucideIcon;
   tone: "purple" | "green" | "blue" | "amber" | "rose";
   tools: ModuleTool[];
+  newTab?: boolean;
 };
 
 const modules: AdminModule[] = [
@@ -56,6 +60,22 @@ const modules: AdminModule[] = [
       { label: "Admin users", path: "/admin/users", icon: UserRoundCog, superAdminOnly: true },
       { label: "Caregivers", path: "/admin/proxy-pending", icon: HeartHandshake },
       { label: "Phone onboarding", path: "/admin/phone-onboarding", icon: PhoneCall },
+    ],
+  },
+  {
+    title: "Hospital applications",
+    description: "Review hospital registrations, approve workspaces and send owner invitations.",
+    path: "https://console.vyva.life/sign-in?return_to=%2Fplatform%2Fself-service",
+    icon: Hospital,
+    tone: "blue",
+    newTab: true,
+    tools: [
+      {
+        label: "Review applications",
+        path: "https://console.vyva.life/sign-in?return_to=%2Fplatform%2Fself-service",
+        icon: ClipboardCheck,
+        newTab: true,
+      },
     ],
   },
   {
@@ -148,6 +168,8 @@ export default function AdminModulesPage() {
                 <div className="p-5">
                   <Link
                     to={module.path}
+                    target={module.newTab ? "_blank" : undefined}
+                    rel={module.newTab ? "noopener noreferrer" : undefined}
                     className="block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-4"
                     aria-label={`Open ${module.title}`}
                   >
@@ -163,6 +185,7 @@ export default function AdminModulesPage() {
                     </div>
                     <h2 className="mt-5 font-serif text-xl font-bold text-[#2f2135]">{module.title}</h2>
                     <p className="sr-only">{module.description}</p>
+                    {module.newTab ? <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Opens in a new tab</p> : null}
                   </Link>
 
                   <div className="mt-5 border-t border-[#f0e7df] pt-4">
@@ -173,10 +196,13 @@ export default function AdminModulesPage() {
                           <Link
                             key={tool.path}
                             to={tool.path}
+                            target={tool.newTab ? "_blank" : undefined}
+                            rel={tool.newTab ? "noopener noreferrer" : undefined}
                             className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-bold text-[#5b4a46] transition hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                           >
                             <ToolIcon size={14} aria-hidden="true" />
                             {tool.label}
+                            {tool.newTab ? <ExternalLink size={12} aria-hidden="true" /> : null}
                           </Link>
                         );
                       })}
