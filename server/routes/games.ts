@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { NON_GAME_ACTIVITY_TYPES, areaForDomain } from "../../shared/brainCoachAreas.js";
 import { buildBrainCoachPerformance } from "../lib/brainCoachPerformance.js";
+import { isBrainCoachPerformanceEnabled } from "../brainCoach/brainCoachFeatureFlag.js";
 import OpenAI from "openai";
 import { z } from "zod";
 import { buildBrainCoachCaregiverSummary } from "../lib/brainCoachCaregiverSummary.js";
@@ -370,7 +371,11 @@ function summariseGroup(sessions: ReturnType<typeof normalizeProgressSession>[],
   });
 }
 
-export function buildBrainCoachProgress(sessions: BrainCoachSessionLike[], now = new Date()) {
+export function buildBrainCoachProgress(
+  sessions: BrainCoachSessionLike[],
+  now = new Date(),
+  options: { performanceEnabled?: boolean } = {},
+) {
   const normalized = sessions
     .map(normalizeProgressSession)
     .sort((a, b) => b.playedAt.localeCompare(a.playedAt));
@@ -379,7 +384,7 @@ export function buildBrainCoachProgress(sessions: BrainCoachSessionLike[], now =
   const todayKey = utcDayKey(now);
   const todayCompleted = completed.filter((session) => utcDayKey(session.playedAt) === todayKey);
 
-  return {
+  const progress = {
     summary: {
       totalSessions: gameSessions.length,
       completedSessions: completed.length,
@@ -399,8 +404,10 @@ export function buildBrainCoachProgress(sessions: BrainCoachSessionLike[], now =
     }), "domain").map(({ key, ...rest }) => ({ domain: key, ...rest })),
     activities: summariseGroup(gameSessions, "activityType").map(({ key, ...rest }) => ({ activityType: key, ...rest })),
     history: gameSessions.slice(0, 25),
-    performance: buildBrainCoachPerformance(normalized, now),
   };
+  return (options.performanceEnabled ?? isBrainCoachPerformanceEnabled())
+    ? { ...progress, performance: buildBrainCoachPerformance(normalized, now) }
+    : progress;
 }
 
 function fallbackRetellScore(keyFacts: string[], error: string): RetellScore {

@@ -13,6 +13,7 @@ export const DOMAIN_TO_AREA: Record<string, BrainCoachArea | null> = {
   episodic_memory: "memory",
   visual_memory: "memory",
   associative_memory: "memory",
+  comprehension_memory: "memory",
   working_memory: "memory",
   prospective_memory: "memory",
   social_recognition: "memory",

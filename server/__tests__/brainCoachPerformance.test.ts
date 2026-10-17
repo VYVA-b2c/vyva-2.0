@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DOMAIN_TO_AREA, areaForDomain } from "../../shared/brainCoachAreas.js";
 import { getBrainCoachActivityCatalog } from "../lib/brainCoachPlan.js";
 import { buildBrainCoachPerformance, type BrainCoachPerformanceRow } from "../lib/brainCoachPerformance.js";
+import { isBrainCoachPerformanceEnabled } from "../brainCoach/brainCoachFeatureFlag.js";
+import type { CognitiveDomain } from "../../src/games/memory/types.js";
 
 const NOW = new Date("2026-06-30T12:00:00.000Z");
 
@@ -69,5 +71,13 @@ describe("brain coach area taxonomy", () => {
     expect([...new Set(domains)].filter((domain) => !(domain in DOMAIN_TO_AREA))).toEqual([]);
     expect(areaForDomain("arousal_regulation")).toBeNull();
     expect(areaForDomain("not_in_catalogue")).toBeNull();
+  });
+
+  it("covers every CognitiveDomain and keeps performance off by default", () => {
+    const cognitiveDomains: CognitiveDomain[] = ["attention", "executive_function", "language", "visual_memory", "working_memory", "episodic_memory", "prospective_memory", "associative_memory", "comprehension_memory"];
+    expect(cognitiveDomains.filter((domain) => !(domain in DOMAIN_TO_AREA))).toEqual([]);
+    expect(isBrainCoachPerformanceEnabled({})).toBe(false);
+    expect(isBrainCoachPerformanceEnabled({ VYVA_BRAIN_COACH_PERFORMANCE_ENABLED: "true" })).toBe(true);
+    expect(isBrainCoachPerformanceEnabled({ VYVA_BRAIN_COACH_PERFORMANCE_ENABLED: "TRUE" })).toBe(false);
   });
 });

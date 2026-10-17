@@ -414,7 +414,7 @@ export function CaregiverBrainCoachPanel() {
           </div>
           {summary.performance.relaxationMinutes > 0 ? (
             <p className="mt-2 font-body text-[12px] font-semibold text-[#5F6B63]">
-              {t("reports.brainCoach.relaxationMinutes", "Relaxation minutes: {{count}}", { count: summary.performance.relaxationMinutes })}
+              {t("reports.brainCoach.relaxationThisWeek", "Relaxation this week: {{count}} min", { count: summary.performance.relaxationMinutes })}
             </p>
           ) : null}
         </div>

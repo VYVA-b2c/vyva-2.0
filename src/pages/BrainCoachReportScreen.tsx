@@ -145,7 +145,7 @@ export default function BrainCoachReportScreen() {
   const summary = progress?.summary;
   const hasData = hasBrainCoachData(progress);
   const strongestDomain = strongestBrainCoachDomain(progress);
-  const nextSteps = buildBrainCoachNextSteps(progress);
+  const nextSteps = buildBrainCoachNextSteps(progress, t);
   const recentSessions = (progress?.history ?? []).slice(0, 6);
   const domains = (progress?.domains ?? []).slice(0, 4);
   const completedToday = progress?.today?.completedCount ?? 0;
@@ -155,7 +155,7 @@ export default function BrainCoachReportScreen() {
   const copySummary = async () => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable");
-      await navigator.clipboard.writeText(buildBrainCoachShareText(progress));
+      await navigator.clipboard.writeText(buildBrainCoachShareText(progress, t));
       toast({
         title: t("reports.brainCoach.copyDone", "Brain Coach summary copied"),
         description: t("reports.brainCoach.copyDoneSub", "Ready to share when you need it."),
@@ -215,7 +215,7 @@ export default function BrainCoachReportScreen() {
             icon={<Sparkles size={25} />}
             kicker={t("reports.brainCoach.kicker", "Games and practice")}
             title={hasData ? brainCoachCompletionLabel(progress) : t("reports.brainCoach.emptyTitle", "Ready for your first game")}
-            body={buildBrainCoachNarrative(progress)}
+            body={buildBrainCoachNarrative(progress, t)}
             className="mt-2"
           >
             <div className="grid gap-3 border-t border-white/20 pt-4 sm:grid-cols-3">
@@ -306,14 +306,14 @@ export default function BrainCoachReportScreen() {
                         <div className="min-w-0 flex-1">
                           <p className="font-body text-[16px] font-black text-vyva-text-1">{label}</p>
                           <span className={`mt-1 inline-flex rounded-full px-3 py-1 font-body text-[12px] font-black ${tone}`}>{status}</span>
-                          {item.status === "building" ? <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">{t("reports.brainCoach.buildingMore", "{{count}} more games", { count: Math.max(0, 3 - item.sessionsInWindow) })}</p> : null}
+                          {item.status === "building" ? <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">{t("reports.brainCoach.buildingKeepPlaying", "Keep playing to build your range")}</p> : null}
                         </div>
                         <span className="text-vyva-purple"><AreaSparkline weekly={item.weekly} /></span>
                       </div>
                     );
                   })}
                 </div>
-                {(progress?.performance?.relaxationMinutes ?? 0) > 0 ? <p className="mt-4 border-t border-[#EFE7DD] pt-4 font-body text-[14px] font-bold text-vyva-text-2">{t("reports.brainCoach.relaxationMinutes", "Relaxation minutes: {{count}}", { count: progress?.performance?.relaxationMinutes ?? 0 })}</p> : null}
+                {(progress?.performance?.relaxationMinutes ?? 0) > 0 ? <p className="mt-4 border-t border-[#EFE7DD] pt-4 font-body text-[14px] font-bold text-vyva-text-2">{t("reports.brainCoach.relaxationThisWeek", "Relaxation this week: {{count}} min", { count: progress?.performance?.relaxationMinutes ?? 0 })}</p> : null}
               </HealthWizardCard>
             </section>
           ) : null}

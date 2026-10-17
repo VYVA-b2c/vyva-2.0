@@ -120,7 +120,7 @@ describe("BrainCoachReportScreen", () => {
     expect(screen.getByTestId("brain-coach-recent-sessions")).toHaveTextContent("Word recall");
     expect(screen.getByTestId("brain-coach-next-steps")).toHaveTextContent("streak");
     expect(screen.getByTestId("brain-coach-performance-memory")).toHaveTextContent("Usual for you");
-    expect(screen.getByTestId("brain-coach-performance")).toHaveTextContent("Relaxation minutes: 4");
+    expect(screen.getByTestId("brain-coach-performance")).toHaveTextContent("Relaxation this week: 4 min");
   });
 
   it("offers a clear start state when no games are recorded", async () => {

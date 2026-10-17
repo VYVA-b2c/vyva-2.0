@@ -220,6 +220,10 @@ describe("brain game API routes", () => {
       "number_trails",
       "category_sort",
     ]);
+    expect("performance" in progress).toBe(false);
+
+    const enabled = buildBrainCoachProgress([], new Date("2026-05-31T12:00:00.000Z"), { performanceEnabled: true });
+    expect("performance" in enabled).toBe(true);
   });
 
   it("projects the latest caregiver Brain Coach nudge from plan events", () => {

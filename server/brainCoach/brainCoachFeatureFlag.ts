@@ -33,6 +33,13 @@ const ROLLOUT_ENV = "VYVA_BRAIN_COACH_SPECIALIST_ROLLOUT_BPS";
 const ALLOW_USERS_ENV = "VYVA_BRAIN_COACH_SPECIALIST_ALLOW_USERS";
 const DENY_USERS_ENV = "VYVA_BRAIN_COACH_SPECIALIST_DENY_USERS";
 const ALLOW_PRODUCTION_ENV = "VYVA_BRAIN_COACH_SPECIALIST_ALLOW_PRODUCTION";
+export const BRAIN_COACH_PERFORMANCE_ENV = "VYVA_BRAIN_COACH_PERFORMANCE_ENABLED" as const;
+
+export function isBrainCoachPerformanceEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return env[BRAIN_COACH_PERFORMANCE_ENV] === "true";
+}
 
 function invalid(): BrainCoachSpecialistFlagResolution {
   return {

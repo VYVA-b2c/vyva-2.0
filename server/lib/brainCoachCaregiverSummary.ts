@@ -1,5 +1,6 @@
 import { NON_GAME_ACTIVITY_TYPES, areaForDomain } from "../../shared/brainCoachAreas.js";
 import { buildBrainCoachPerformance } from "./brainCoachPerformance.js";
+import { isBrainCoachPerformanceEnabled } from "../brainCoach/brainCoachFeatureFlag.js";
 
 export type BrainCoachCaregiverSession = {
   id?: string | null;
@@ -109,12 +110,11 @@ function normalizeSessions(sessions: BrainCoachCaregiverSession[]) {
     .map((session): NormalizedSession | null => {
       const playedAt = coerceDate(session.playedAt);
       const dayKey = utcDayKey(playedAt);
-      const area = areaForDomain(session.domain);
-      if (!dayKey || NON_GAME_ACTIVITY_TYPES.has(session.activityType) || !area) return null;
+      if (!dayKey || NON_GAME_ACTIVITY_TYPES.has(session.activityType)) return null;
       return {
         id: session.id ?? null,
         activityType: session.activityType,
-        domain: area,
+        domain: session.domain,
         completed: Boolean(session.completed),
         score: Math.max(0, Math.round(numeric(session.score))),
         durationSeconds: Math.max(0, Math.round(numeric(session.durationSeconds))),
@@ -180,8 +180,10 @@ function summarizeDomains(sessions: NormalizedSession[]) {
   }>();
 
   sessions.forEach((session) => {
-    const existing = domains.get(session.domain) ?? {
-      domain: session.domain,
+    const area = areaForDomain(session.domain);
+    if (!area) return;
+    const existing = domains.get(area) ?? {
+      domain: area,
       completedSessions: 0,
       totalSessions: 0,
       lastPlayedAt: null,
@@ -191,7 +193,7 @@ function summarizeDomains(sessions: NormalizedSession[]) {
     existing.lastPlayedAt = !existing.lastPlayedAt || session.playedAt > existing.lastPlayedAt
       ? session.playedAt
       : existing.lastPlayedAt;
-    domains.set(session.domain, existing);
+    domains.set(area, existing);
   });
 
   return [...domains.values()]
@@ -377,6 +379,7 @@ export function buildBrainCoachCaregiverSummary(input: {
   planItems?: BrainCoachCaregiverPlanItem[];
   planEvents?: BrainCoachCaregiverPlanEvent[];
   now?: Date;
+  performanceEnabled?: boolean;
 }) {
   const now = input.now ?? new Date();
   const todayStart = utcDayStart(now);
@@ -449,11 +452,7 @@ export function buildBrainCoachCaregiverSummary(input: {
       ? "lapsed"
       : "active";
 
-  return {
-    performance: {
-      areas: performance.areas.map(({ area, status, sessionsInWindow }) => ({ area, status, sessionsInWindow })),
-      relaxationMinutes: performance.relaxationMinutes,
-    },
+  const summary = {
     status,
     currentStreakDays: calculateStreak(normalized, now),
     lastActivityAt: latestCompleted?.playedAt ?? null,
@@ -508,4 +507,13 @@ export function buildBrainCoachCaregiverSummary(input: {
       playedAt: session.playedAt,
     })),
   };
+  return (input.performanceEnabled ?? isBrainCoachPerformanceEnabled())
+    ? {
+      ...summary,
+      performance: {
+        areas: performance.areas.map(({ area, status, sessionsInWindow }) => ({ area, status, sessionsInWindow })),
+        relaxationMinutes: performance.relaxationMinutes,
+      },
+    }
+    : summary;
 }
