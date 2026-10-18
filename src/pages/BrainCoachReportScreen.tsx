@@ -181,8 +181,9 @@ export default function BrainCoachReportScreen() {
       try {
         await navigator.share({ text });
         return;
-      } catch {
-        // Fall through to the clipboard when native sharing is interrupted.
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+        // Fall through to the clipboard when native sharing genuinely fails.
       }
     }
     await copySummary();

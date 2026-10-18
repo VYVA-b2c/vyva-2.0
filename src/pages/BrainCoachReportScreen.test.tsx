@@ -219,6 +219,20 @@ describe("BrainCoachReportScreen", () => {
     await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("VYVA Brain Coach report") })));
   });
 
+  it("does not copy the report when native sharing is cancelled", async () => {
+    const shareError = new Error("Share cancelled");
+    shareError.name = "AbortError";
+    const share = vi.fn().mockRejectedValue(shareError);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    renderReport();
+
+    fireEvent.click(await screen.findByTestId("button-copy-brain-coach-report"));
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
   it("falls back to copying the family summary when native sharing is unavailable", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
