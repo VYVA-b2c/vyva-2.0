@@ -47,6 +47,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/benefits",
   "/concierge",
   "/informes",
+  "/informes/brain-coach",
   "/meds",
   "/meds/my-medicines",
   "/meds/interactions",
