@@ -1,7 +1,11 @@
 import { useTranslation } from "react-i18next";
+import { CARE_FINDER_PATH } from "@/lib/careFinderNavigation";
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
-import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
+import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -34,6 +38,7 @@ import { useLanguage } from "@/i18n";
 import { homeServiceText } from "../../shared/homeServiceText";
 import {
   conciergeTaskPath,
+  conciergeTaskInboxPath,
   type ConciergeTaskEntry,
 } from "@/lib/conciergeTaskNavigation";
 import {
@@ -46,10 +51,6 @@ import { apiFetch } from "@/lib/queryClient";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import { buildConciergeTaskInbox, fetchConciergeTaskPendingItems, fetchConciergeTaskCompletedSessions } from "@/lib/conciergeTaskInbox";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
-import {
-  CANONICAL_MENU_ITEM_SUBTITLE_CLASS,
-  CANONICAL_MENU_ITEM_TITLE_CLASS,
-} from "@/design/canonicalMenuTypography";
 
 export type ConciergePickerCategory = "get-help" | "order-in" | "book-appointments" | "discover";
 
@@ -180,15 +181,10 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
           labelKey: "concierge.master.picker.getHelp.options.healthcare",
           labelFallback: "Healthcare",
           detailKey: "concierge.master.picker.getHelp.options.healthcareDetail",
-          detailFallback: "Find a specialist or health support",
-          action: {
-            kind: "task",
-            entry: {
-              kind: "provider_contact",
-              providerSearchMode: "specialist",
-              query: isSpanish ? "buscar especialista" : "find a specialist",
-            },
-          },
+          detailFallback: "Find the right care for a health worry",
+          // Care Finder asks what is wrong in everyday words and works out the
+          // kind of care; nobody has to know which specialist they need.
+          action: { kind: "navigate", path: CARE_FINDER_PATH, state: { returnTo: "/concierge/get-help" } },
           testId: "button-concierge-picker-healthcare",
         },
         {
@@ -439,9 +435,10 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
 type ConciergePickerScreenProps = {
   category: ConciergePickerCategory;
   backPath?: string;
+  previewActiveHomeRequestCount?: number;
 };
 
-export default function ConciergePickerScreen({ category, backPath = "/concierge" }: ConciergePickerScreenProps) {
+export default function ConciergePickerScreen({ category, backPath = "/concierge", previewActiveHomeRequestCount = 0 }: ConciergePickerScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { isDark } = useHomeMasterTheme();
@@ -536,6 +533,8 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   }
 
   const homeTasks = taskNudgeQuery.data?.needs_you.filter((item) => item.continuation.flow === "home_service") ?? [];
+  const waitingHomeTasks = taskNudgeQuery.data?.waiting.filter((item) => item.continuation.flow === "home_service") ?? [];
+  const activeHomeTasks = [...homeTasks, ...waitingHomeTasks];
   const attentionTask = homeTasks.find((item) => ["needs_info", "ready_to_confirm", "blocked"].includes(item.continuation.state));
   const draftTask = homeTasks.find((item) => item.continuation.state === "draft");
   const providerOption = config.options.find((option) => setupRequirementsForOption(option, conciergeProfile).includes("trusted_provider"));
@@ -549,17 +548,43 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
     pt: ["O seu pedido precisa de atenção", "Continuar o seu pedido", "Adicionar um prestador de confiança", "Fechar"],
   };
   const nudgeLabels = nudgeCopy[language.split("-")[0]] ?? nudgeCopy.en;
+  const visibleReminders = visibleConciergeReminders(homeTasks, language, reminderDismissals.hidden);
   const reminderTask = attentionTask ?? draftTask;
   const reminder = reminderTask ? conciergeTaskReminder(reminderTask, language) : null;
   const reminderKey = reminder?.taskKey ?? "setup:trusted-provider";
   const reminderRevision = reminder?.revision ?? "1";
   const showNudge = category === "get-help" && reminderDismissals.ready && !reminderDismissals.hidden(reminderKey, reminderRevision) && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
+  const activeHomeRequestCount = activeHomeTasks.length || previewActiveHomeRequestCount;
+  const activeHomeRequestLabel = homeServiceText(
+    language,
+    activeHomeRequestCount === 1 ? "1 active request" : "{count} active requests",
+  ).replace("{count}", String(activeHomeRequestCount));
+
+  function handlePickerOptionSelect(option: PickerOptionConfig) {
+    if (category === "get-help" && option.id === "home-repair" && activeHomeRequestCount > 0) {
+      if (activeHomeRequestCount > 1) {
+        navigate(conciergeTaskInboxPath());
+        return;
+      }
+      const activeTask = activeHomeTasks[0];
+      if (!activeTask) {
+        navigate(conciergeTaskInboxPath());
+        return;
+      }
+      const taskPath = activeTask.continuation.state === "draft"
+        ? activeTask.resumePath
+        : activeTask.detailPath;
+      navigate(taskPath || conciergeTaskInboxPath());
+      return;
+    }
+    handleOptionSelect(option);
+  }
 
   return (
     <CanonicalDetailFlowShell
       shellContract={shellContract}
       onBack={() => blockedOption ? setBlockedOption(null) : navigate(backPath)}
-      frameClassName="concierge-picker-frame !px-4 sm:!px-5"
+      frameClassName="concierge-picker-frame canonical-submenu-frame"
       shellTestId="concierge-picker-screen"
       backTestId="button-concierge-picker-back"
       headerAction={
@@ -571,7 +596,8 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
         />
       }
     >
-      {showNudge && (
+      {category === "get-help" && reminderDismissals.ready && !blockedOption && visibleReminders.length > 0 && <div data-testid="get-help-nudge"><ConciergeRequestUpdates reminders={visibleReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /></div>}
+      {showNudge && !reminder && (
         <aside className={`mb-4 flex items-center gap-1 rounded-[22px] border px-3 py-2 ${isDark ? "border-white/[0.14] bg-white/[0.06] text-[#FFF8FF]" : "border-[#E9DDF5] bg-[#FAF7FF] text-vyva-text-1"}`} data-testid="get-help-nudge">
           <button type="button" className="vyva-tap flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl text-left font-body text-[15px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B98CFF]" onClick={() => {
             if (reminder) navigate(reminder.path);
@@ -591,35 +617,24 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
         <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
         <button type="button" disabled={profileFetching} className="min-h-11 text-vyva-purple underline" onClick={() => void retryProfile()}>{homeServiceText(language, "Retry")}</button>
       </div>}
-      {!blockedOption && <div className="flex flex-col gap-3" data-testid="concierge-picker-options">
+      {!blockedOption && <div className={MENU_GRID_CLASS} data-testid="concierge-picker-options">
         {config.options.map((option) => {
           const Icon = option.icon;
           const label = t(option.labelKey, option.labelFallback);
           const detail = t(option.detailKey, option.detailFallback);
           return (
-            <button
-              key={option.id}
-              type="button"
-              data-testid={option.testId}
-              onClick={() => handleOptionSelect(option)}
+            <CanonicalMenuTile key={option.id} title={label} detail={detail} icon={Icon}
+              isDark={isDark} onClick={() => handlePickerOptionSelect(option)} testId={option.testId}
               disabled={profileLoading || profileError}
-              aria-label={`${label}. ${detail}`}
-              style={{ "--picker-accent-tint": `${option.iconColor}18`, ...(!isDark ? { background: `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${option.iconBg} 100%)` } : {}) } as CSSProperties}
-              className={`vyva-tap flex min-h-[84px] w-full items-center gap-4 rounded-[22px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B5DE5] min-[390px]:min-h-[88px] min-[390px]:rounded-[24px] sm:min-h-[96px] sm:px-5 ${isDark ? "border-white/[0.14] bg-white/[0.075] shadow-[0_14px_30px_rgba(0,0,0,0.24)]" : "border-[#EFE7F7] bg-white shadow-[0_12px_28px_rgba(63,45,35,0.065)]"}`}
-            >
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px]" style={{ background: option.iconBg, color: option.iconColor }}>
-                <Icon size={24} strokeWidth={2.6} aria-hidden="true" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={`block ${CANONICAL_MENU_ITEM_TITLE_CLASS} ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
-                  {label}
+              ariaLabel={option.id === "home-repair" && activeHomeRequestCount > 0 ? `${label}. ${detail}. ${activeHomeRequestLabel}` : undefined}
+              status={option.id === "home-repair" && activeHomeRequestCount > 0 ? (
+                <span
+                  className={`mt-2 inline-flex rounded-full px-2.5 py-1 font-body text-[12px] font-black ${isDark ? "bg-[#B98CFF]/18 text-[#E2CAFF]" : "bg-[#F1E8FF] text-vyva-purple"}`}
+                  data-testid="home-repair-active-request-status"
+                >
+                  {activeHomeRequestLabel}
                 </span>
-                <span className={`mt-1 block truncate ${CANONICAL_MENU_ITEM_SUBTITLE_CLASS} ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-3"}`}>
-                  {detail}
-                </span>
-              </span>
-              <ChevronRight size={20} strokeWidth={2.6} className={`flex-shrink-0 ${isDark ? "text-[#B98CFF]" : "text-vyva-purple"}`} aria-hidden="true" />
-            </button>
+              ) : undefined} />
           );
         })}
       </div>}

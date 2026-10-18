@@ -52,6 +52,16 @@ function renderGate(initialPath = "/health/doctor") {
 }
 
 describe("ServiceGateRoute", () => {
+  it("renders the add-medicine page when only the medicine list is missing", () => {
+    const readiness = readinessForDoctor(true);
+    readiness.services.medications = { ready: false, missing: [{ section: "medications", path: "/onboarding/profile/medications", reason: "Add a medicine" }] };
+    const canUseService = vi.fn();
+    useServiceGateMock.mockReturnValue({ readiness, isLoading: false, canUseService });
+    render(<MemoryRouter initialEntries={["/meds/my-medicines"]}><ServiceGateRoute service="medications"><div>Medicine form</div></ServiceGateRoute></MemoryRouter>);
+    expect(screen.getByText("Medicine form")).toBeInTheDocument();
+    expect(canUseService).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -10,6 +10,7 @@ import {
 } from "../../shared/conciergeChannelReadiness.js";
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
 import { pool } from "../db.js";
+import { ownedConciergeWhatsappConfigured } from "./conciergeWhatsappAdapter.js";
 import { runConciergeActionAdapterProbe } from "./conciergeActionAdapters.js";
 import {
   ownedConciergeEmailAdapterBlockers,
@@ -288,9 +289,10 @@ function adapterSetupForChannel(
   const storedQaTarget = cleanText(setting?.adapterQaTarget);
   const phoneConfigured = isPhoneChannelFullyConfigured();
   const ownedEmailConfigured = channel === "email" && ownedConciergeEmailAdapterConfigured();
+  const ownedWhatsappConfigured = channel === "whatsapp" && ownedConciergeWhatsappConfigured();
   const ownedEmailReference = channel === "email" ? ownedConciergeEmailAdapterReference() : null;
   const endpointConfigured = channel === "phone_call" ? false : Boolean(storedEndpoint || endpointEnvKey);
-  const configured = channel === "phone_call" ? phoneConfigured : endpointConfigured || ownedEmailConfigured;
+  const configured = channel === "phone_call" ? phoneConfigured : endpointConfigured || ownedEmailConfigured || ownedWhatsappConfigured;
   const source: AdapterSetupSource = configured
     ? (storedEndpoint ? "admin_console" : "environment")
     : "missing";
@@ -308,10 +310,10 @@ function adapterSetupForChannel(
     version: 1,
     configured,
     source,
-    live_endpoint_configured: endpointConfigured || ownedEmailConfigured,
+    live_endpoint_configured: endpointConfigured || ownedEmailConfigured || ownedWhatsappConfigured,
     live_endpoint_url: storedEndpoint,
-    live_endpoint_reference: storedEndpoint ?? endpointEnvKey ?? ownedEmailReference,
-    credential_reference: storedCredentialReference ?? (phoneConfigured ? "ELEVENLABS_API_KEY" : ownedEmailConfigured ? "RESEND_API_KEY" : null),
+    live_endpoint_reference: storedEndpoint ?? endpointEnvKey ?? ownedEmailReference ?? (ownedWhatsappConfigured ? "TWILIO_WHATSAPP" : null),
+    credential_reference: storedCredentialReference ?? (channel === "phone_call" && phoneConfigured ? "ELEVENLABS_API_KEY" : ownedEmailConfigured ? "RESEND_API_KEY" : ownedWhatsappConfigured ? "TWILIO_AUTH_TOKEN" : null),
     qa_target_configured: Boolean(storedQaTarget || qaEnvKey),
     qa_target: storedQaTarget,
     qa_target_reference: storedQaTarget ?? qaEnvKey,
@@ -383,7 +385,7 @@ export function loadConciergeChannelReadinessFlags(): ConciergeChannelReadinessF
     },
     whatsapp: {
       adminEnabled: envFlag(["CONCIERGE_WHATSAPP_CHANNEL_READY", "CONCIERGE_CHANNEL_WHATSAPP_READY"]),
-      configured: Boolean(liveEndpointEnvKey("whatsapp")),
+      configured: Boolean(liveEndpointEnvKey("whatsapp")) || ownedConciergeWhatsappConfigured(),
       verified: envFlag(["CONCIERGE_WHATSAPP_CHANNEL_VERIFIED", "CONCIERGE_CHANNEL_WHATSAPP_VERIFIED"]),
     },
     form_application: {
@@ -459,9 +461,9 @@ function mergeAdminSettingsIntoFlags(
     const setting = settings[id];
     const adapterSetup = adapterSetupForChannel(id, setting);
     return [id, {
-      adminEnabled: setting ? setting.adminEnabled : false,
+      adminEnabled: setting ? setting.adminEnabled : envFlag.adminEnabled === true,
       configured: adapterSetup.configured || envFlag.configured === true,
-      verified: setting ? setting.verified : false,
+      verified: setting ? setting.verified : envFlag.verified === true,
       notes: setting?.notes ?? envFlag.notes ?? null,
     }];
   })) as ConciergeChannelReadinessFlags;

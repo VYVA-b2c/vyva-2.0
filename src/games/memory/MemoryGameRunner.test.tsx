@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import { getGameHistory, saveGameResult } from "./gameStorage";
 import type { GameResult } from "./types";
-import MemoryGameRunner, { createWordRecallNumberChallenge, scoreWordRecallChoices } from "./MemoryGameRunner";
+import MemoryGameRunner, { createWordRecallNumberChallenge, getWordRecallRequiredCount, scoreWordRecallChoices } from "./MemoryGameRunner";
 
 const mocks = vi.hoisted(() => ({
   speakSequence: vi.fn(),
@@ -127,6 +127,13 @@ async function completeEightPairVisualMemoryBoard() {
 }
 
 describe("MemoryGameRunner word recall", () => {
+  it("uses achievable whole-word progression targets", () => {
+    expect(getWordRecallRequiredCount(3)).toBe(2);
+    expect(getWordRecallRequiredCount(4)).toBe(3);
+    expect(getWordRecallRequiredCount(5)).toBe(4);
+    expect(getWordRecallRequiredCount(6)).toBe(5);
+  });
+
   it("penalizes selecting distractors instead of awarding full accuracy", () => {
     expect(scoreWordRecallChoices(
       ["bread", "milk", "cheese"],

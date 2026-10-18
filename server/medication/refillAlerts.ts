@@ -184,10 +184,11 @@ export async function reconcileRefillAlerts(profileId: string, summaries: Refill
     .orderBy(desc(medicationRefillAlerts.created_at));
 }
 
-export function serializeRefillAlert(alert: typeof medicationRefillAlerts.$inferSelect) {
+export function serializeRefillAlert(alert: typeof medicationRefillAlerts.$inferSelect, medicineName?: string) {
   return {
     id: alert.id,
     medicineId: alert.medicine_id,
+    medicineName,
     status: alert.status,
     title: alert.title,
     message: alert.message,

@@ -30,57 +30,28 @@ function runnerTask(id: string, content: Record<string, unknown>): CognitiveAsse
 }
 
 describe("CognitiveAssessmentRunnerPage response builder", () => {
-  it("adds idea-unit scoring fields to story recall responses", () => {
+  // Scores are computed on the server (shared/cognitiveAssessmentScoring.ts).
+  const scorerOwnedKeys = ["score", "max_score", "scoring_method", "idea_units_recalled", "longest_span_forward", "unique_responses"];
+
+  it("sends raw story recall text without scoring it", () => {
     const response = buildResponseData(storyTask({
       title: "Elaine's Window Curtain",
-      idea_units: [
-        "subject_elaine",
-        "main_object_window_curtain",
-        "action_clipped",
-        "location_kitchen",
-      ],
+      idea_units: ["subject_elaine", "main_object_window_curtain", "action_clipped", "location_kitchen"],
     }), {
       text: "Elaine clipped the window curtain.",
       storyReadComplete: true,
     });
 
-    expect(response).toMatchObject({
+    expect(response).toEqual({
       text: "Elaine clipped the window curtain.",
+      word_count: 5,
       title: "Elaine's Window Curtain",
       delayed: false,
-      scoring_method: "idea_unit_match",
-      idea_units_recalled: 3,
-      recalled_idea_units: [
-        "subject_elaine",
-        "main_object_window_curtain",
-        "action_clipped",
-      ],
-      total_idea_units: 4,
-      score: 3,
-      max_score: 4,
+      no_recall: false,
     });
   });
 
-  it("keeps word-count fallback when story idea units are unusable", () => {
-    const response = buildResponseData(storyTask({
-      title: "Opaque story",
-      idea_units: ["object", "main"],
-    }), {
-      text: "A few remembered fragments.",
-      storyReadComplete: true,
-    });
-
-    expect(response).toMatchObject({
-      word_count: 4,
-      score: 1,
-      idea_units_recalled: null,
-      recalled_idea_units: [],
-      total_idea_units: 2,
-      scoring_method: "word_count_fallback",
-    });
-  });
-
-  it("saves guided digit span trials with span totals", () => {
+  it("sends digit span trials only", () => {
     const response = buildResponseData(runnerTask("digit_span", {}), {
       forwardSpan: 4,
       backwardSpan: 3,
@@ -90,17 +61,11 @@ describe("CognitiveAssessmentRunnerPage response builder", () => {
       digitComplete: true,
     });
 
-    expect(response).toMatchObject({
-      longest_span_forward: 4,
-      longest_span_backward: 3,
-      scoring_method: "guided_digit_span",
-      score: 7,
-      max_score: 17,
-    });
     expect(response.trials).toHaveLength(1);
+    for (const key of scorerOwnedKeys) expect(response).not.toHaveProperty(key);
   });
 
-  it("saves clock hand placement without creating a clinical clock score", () => {
+  it("sends clock hand placement for the server to compare with the target", () => {
     const response = buildResponseData(runnerTask("clock_drawing", { target_time: "10:11" }), {
       clockHour: "10",
       clockMinute: "11",
@@ -108,14 +73,20 @@ describe("CognitiveAssessmentRunnerPage response builder", () => {
     });
 
     expect(response).toMatchObject({
-      text: "Placed clock hands at 10:11.",
       target_time: "10:11",
       placed_hour: 10,
       placed_minute: 11,
       placement_complete: true,
       input_method: "clock_hand_placement",
-      score: 1,
     });
-    expect(response).not.toHaveProperty("clock_score");
+    for (const key of scorerOwnedKeys) expect(response).not.toHaveProperty(key);
+  });
+
+  it("sends unanswered questionnaire items as null instead of zero", () => {
+    const response = buildResponseData(runnerTask("mood_screen", {
+      items: [{ id: "phq2_1", text: "a" }, { id: "phq2_2", text: "b" }],
+    }), { answers: { phq2_1: "2" } });
+
+    expect(response.answers).toEqual([{ id: "phq2_1", value: 2 }, { id: "phq2_2", value: null }]);
   });
 });

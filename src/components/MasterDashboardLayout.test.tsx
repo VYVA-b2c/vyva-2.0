@@ -258,9 +258,9 @@ describe("MasterDashboardLayout Home card presentation", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Ready" }).closest("section")).toHaveAttribute("data-hero-layout", "canonical-menu");
+    expect(screen.getByRole("heading", { name: "Today" }).closest("header")).toBeInTheDocument();
     expect(screen.getByTestId("cards").querySelector('[data-card-layout="canonical-action-grid"]')).toBeInTheDocument();
-    expect(screen.getByTestId("card-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("card-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
     expect(screen.getByTestId("card-memory-detail")).toHaveTextContent("Matching and recall");
     expect(screen.getByTestId("card-memory")).toHaveAccessibleName("Strengthen Memory. Practice recall, matching, and daily routines.");
     expect(screen.getByTestId("card-memory").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();

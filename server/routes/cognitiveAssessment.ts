@@ -41,6 +41,11 @@ import {
   type CognitiveAssessmentSaveResponseResponse,
   type CognitiveAssessmentStartSessionResponse,
 } from "../../shared/cognitiveAssessmentRunner.js";
+import {
+  buildScoredResponseData,
+  scoreCognitiveTask,
+  type CognitiveScoringContext,
+} from "../../shared/cognitiveAssessmentScoring.js";
 
 type SessionRow = {
   id: string;
@@ -68,6 +73,7 @@ type TaskDefinitionRow = {
   content_source: "item_bank" | "rotation" | "static";
   expected_duration_sec: number;
   content_static: unknown;
+  scoring_config: unknown;
 };
 
 type ItemBankRow = {
@@ -416,7 +422,8 @@ async function loadTaskDefinitions() {
       task_type,
       content_source,
       expected_duration_sec,
-      content_static
+      content_static,
+      scoring_config
     from public.cc_task_definitions
     where is_active = true
       and supports_wizard = true
@@ -599,6 +606,99 @@ function buildRunnerTask(
     content: objectData(item?.content),
     itemBankId: item?.id ?? null,
   };
+}
+
+async function loadScoringProfile(userId: string): Promise<{ timezone: string; profile: CognitiveScoringContext["profile"] }> {
+  try {
+    const { rows } = await pool.query<{
+      country_code: string | null;
+      city: string | null;
+      region: string | null;
+      timezone: string | null;
+    }>(`
+      select country_code, city, region, timezone
+      from public.profiles
+      where id = $1
+      limit 1
+    `, [userId]);
+    const row = rows[0];
+    return {
+      timezone: row?.timezone || "Europe/Madrid",
+      profile: { countryCode: row?.country_code ?? null, city: row?.city ?? null, region: row?.region ?? null },
+    };
+  } catch (error) {
+    console.warn("[cognitive-assessment] Profile unavailable for scoring:", error);
+    return { timezone: "Europe/Madrid", profile: {} };
+  }
+}
+
+// Rebuilds the step exactly as it was served, so scoring uses server-side content
+// (idea units, answer examples, clock target) rather than anything the client sends.
+async function buildServedTask(session: SessionRow, definition: TaskDefinitionRow) {
+  const language = normalizeAssessmentLanguage(session.language);
+  const [itemBankRows, rotationFormRows, responseRefsByTask] = await Promise.all([
+    loadRunnerItemBank(language),
+    loadRunnerRotationForms(language),
+    loadResponseRefs(session.id),
+  ]);
+  return buildRunnerTask(
+    definition,
+    session.id,
+    language,
+    groupByTask(itemBankRows),
+    groupByTask(rotationFormRows),
+    responseRefsByTask,
+  );
+}
+
+async function scoreSavedResponse(
+  userId: string,
+  session: SessionRow,
+  taskDefinitionId: string,
+  responseData: Record<string, unknown>,
+  submittedRefs: { itemBankId: string | null; rotationFormId: string | null },
+) {
+  try {
+    return await scoreWithServedContent(userId, session, taskDefinitionId, responseData, submittedRefs);
+  } catch (error) {
+    // A scoring failure must never lose the member's answer: save it unscored.
+    console.error("[cognitive-assessment] Scoring failed; saving unscored:", error);
+    return { ...responseData, score: null, max_score: null, needs_review: true, scoring_flags: ["scoring_error"] };
+  }
+}
+
+async function scoreWithServedContent(
+  userId: string,
+  session: SessionRow,
+  taskDefinitionId: string,
+  responseData: Record<string, unknown>,
+  submittedRefs: { itemBankId: string | null; rotationFormId: string | null },
+) {
+  const definition = (await loadTaskDefinitions()).find((row) => row.id === taskDefinitionId);
+  if (!definition) return responseData;
+  const [task, scoringProfile] = await Promise.all([
+    buildServedTask(session, definition),
+    loadScoringProfile(userId),
+  ]);
+  const scoring = scoreCognitiveTask({
+    taskId: taskDefinitionId,
+    scoringConfig: objectData(definition.scoring_config),
+    content: objectData(task.content),
+    response: responseData,
+    context: {
+      now: new Date(),
+      timezone: scoringProfile.timezone,
+      language: normalizeAssessmentLanguage(session.language),
+      profile: scoringProfile.profile,
+    },
+  });
+  const contentMismatch = (task.itemBankId && submittedRefs.itemBankId && task.itemBankId !== submittedRefs.itemBankId)
+    || (task.rotationFormId && submittedRefs.rotationFormId && task.rotationFormId !== submittedRefs.rotationFormId);
+  if (contentMismatch) {
+    scoring.needs_review = true;
+    scoring.flags.push("served_content_mismatch");
+  }
+  return buildScoredResponseData(responseData, scoring);
 }
 
 async function buildRunnerSession(session: SessionRow): Promise<CognitiveAssessmentRunnerSession> {
@@ -1253,6 +1353,11 @@ router.post("/sessions/:sessionId/responses", async (req: Request, res: Response
       }
     }
 
+    const scoredResponseData = await scoreSavedResponse(userId, session, taskDefinitionId, responseData, {
+      itemBankId,
+      rotationFormId,
+    });
+
     await client.query(`
       delete from public.cc_task_responses
       where session_id = $1::uuid
@@ -1269,7 +1374,7 @@ router.post("/sessions/:sessionId/responses", async (req: Request, res: Response
       taskDefinitionId,
       itemBankId,
       rotationFormId,
-      JSON.stringify(responseData),
+      JSON.stringify(scoredResponseData),
     ]);
 
     await client.query("commit");

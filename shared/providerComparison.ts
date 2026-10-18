@@ -32,6 +32,32 @@ export type ProviderComparisonEvidenceStatus = "verified" | "reported" | "unknow
 export type ProviderComparisonSingleEvidenceStatus = Exclude<ProviderComparisonEvidenceStatus, "conflicting">;
 export type ProviderShortlistRecheckCriterion = typeof PROVIDER_SHORTLIST_RECHECK_CRITERIA[number];
 
+export interface ProviderPriorityContext {
+  orderedCriteria: ProviderComparisonCriterion[];
+  mustHaves: string[];
+  dealBreakers: string[];
+  constraints: string[];
+}
+
+export interface ProviderServiceIntake {
+  mode: string;
+  serviceType: string;
+  answers: Record<string, string[]>;
+  mustHaveAnswerIds: string[];
+  additionalDetails?: string;
+}
+
+export type ProviderRecommendationStatus = "best_fit" | "possible_fit" | "cautious";
+
+export interface ProviderPersonalisedFit {
+  matchedPriorities: string[];
+  tradeOffs: string[];
+  unmetMustHaves: string[];
+  unknowns: string[];
+  explanation: string;
+  recommendationStatus: ProviderRecommendationStatus;
+}
+
 export interface ProviderComparisonEvidence {
   value: string | null;
   status: ProviderComparisonSingleEvidenceStatus;
@@ -76,6 +102,7 @@ export interface ProviderComparisonOption {
   sourceType: ProviderComparisonEvidenceSourceType;
   sourceUrl: string | null;
   checkedAt: string | null;
+  personalisedFit?: ProviderPersonalisedFit;
 }
 
 export interface ProviderComparisonSourceOption {
@@ -101,6 +128,7 @@ export interface ProviderComparisonSourceOption {
   source_url?: string | null;
   checked_at?: string | null;
   comparison?: Partial<Record<ProviderComparisonCriterion, Partial<ProviderComparisonFact> | null>> | null;
+  personalised_fit?: Partial<ProviderPersonalisedFit> | null;
 }
 
 export interface ProviderRecheckTarget {
@@ -530,6 +558,15 @@ export function buildProviderComparisonOption(
   const factualSummary = factualWhy(facts);
   const sourceStatus = evidenceStatus(option.source_status)
     ?? (clean(option.source_label) ? "reported" : "unknown");
+  const rawFit = recordOrNull(option.personalised_fit);
+  const stringList = (value: unknown) => Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+  const recommendationStatus = rawFit?.recommendationStatus === "best_fit"
+    || rawFit?.recommendationStatus === "possible_fit"
+    || rawFit?.recommendationStatus === "cautious"
+    ? rawFit.recommendationStatus
+    : "possible_fit";
   return {
     id: clean(option.id) || `${compactId(option.name) || "provider"}-${index + 1}`,
     name: clean(option.name) || "Provider",
@@ -551,6 +588,14 @@ export function buildProviderComparisonOption(
     sourceType: evidenceSourceType(option.source_type),
     sourceUrl: httpUrlOrNull(option.source_url),
     checkedAt: isoDateOrNull(option.checked_at),
+    personalisedFit: rawFit ? {
+      matchedPriorities: stringList(rawFit.matchedPriorities),
+      tradeOffs: stringList(rawFit.tradeOffs),
+      unmetMustHaves: stringList(rawFit.unmetMustHaves),
+      unknowns: stringList(rawFit.unknowns),
+      explanation: clean(rawFit.explanation),
+      recommendationStatus,
+    } : undefined,
   };
 }
 
@@ -575,6 +620,7 @@ export function providerComparisonSnapshot(option: ProviderComparisonOption): Re
     source_type: option.sourceType,
     source_url: option.sourceUrl,
     checked_at: option.checkedAt,
+    personalised_fit: option.personalisedFit ?? null,
   };
 }
 

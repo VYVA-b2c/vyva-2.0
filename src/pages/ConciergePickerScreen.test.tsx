@@ -114,6 +114,7 @@ describe("ConciergePickerScreen", () => {
     sessionStorage.clear();
     dismissedReminders = {};
     nudgeInbox.needs_you = [];
+    nudgeInbox.waiting = [];
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
   });
 
@@ -145,8 +146,8 @@ describe("ConciergePickerScreen", () => {
       { key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" },
     ];
     const view = renderPicker("get-help");
-    expect(await screen.findByRole("button", { name: "Plumber: Add information" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(await screen.findByRole("button", { name: "2 requests to review" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss reminder" }));
     await waitFor(() => expect(screen.queryByTestId("get-help-nudge")).not.toBeInTheDocument());
     expect(dismissedReminders["pending:attention"]).toBeTruthy();
     view.unmount();
@@ -162,12 +163,34 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/draft");
   });
 
+  it("places the active home-service nudge inside the Home Repair card", async () => {
+    nudgeInbox.needs_you = [{ key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" }];
+    nudgeInbox.waiting = [{ key: "pending:waiting", source: "pending", title: "Electrician", continuation: { flow: "home_service", state: "waiting" }, detailPath: "/concierge/tasks/pending/waiting" }];
+    renderPicker("get-help");
+
+    expect(await screen.findByTestId("concierge-picker-options")).toBeInTheDocument();
+    const homeRepairCard = screen.getByTestId("button-concierge-picker-home-repair");
+    expect(await screen.findByTestId("home-repair-active-request-status")).toHaveTextContent("2 active requests");
+    expect(homeRepairCard).toHaveTextContent("2 active requests");
+    expect(screen.queryByTestId("get-help-requests-entry")).not.toBeInTheDocument();
+    fireEvent.click(homeRepairCard);
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
+  });
+
+  it("does not put a non-home-service request on the Home Repair card", async () => {
+    nudgeInbox.waiting = [{ key: "pending:ride", source: "pending", title: "Ride", continuation: { flow: "ride", state: "waiting" }, detailPath: "/concierge/tasks/pending/ride" }];
+    renderPicker("get-help");
+
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    expect(screen.queryByTestId("home-repair-active-request-status")).not.toBeInTheDocument();
+  });
+
   it("inherits the persisted dark theme", () => {
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
     renderPicker("get-help");
 
     expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "dark");
-    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-white/[0.075]");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-[#2A2034]");
     expect(screen.getByTestId("button-concierge-picker-home-repair")).not.toHaveClass("bg-white");
   });
 
@@ -184,7 +207,7 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByText("Get Help")).toBeInTheDocument();
     expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveTextContent("Home Repair");
     expect(screen.getByText("Home Repair")).toHaveClass("font-display", "text-[20px]", "font-semibold", "md:text-[24px]");
-    expect(screen.getByText("Plumber, electrician, cleaning")).toHaveClass("font-body", "text-[14px]", "font-bold", "md:text-[15px]");
+    expect(screen.getByText("Plumber, electrician, cleaning")).toHaveClass("sr-only");
     expect(screen.getByTestId("button-concierge-picker-healthcare")).toHaveTextContent("Healthcare");
     expect(screen.getByTestId("button-concierge-picker-admin-service")).toHaveTextContent("Admin Service");
     expect(screen.getByTestId("button-concierge-picker-home-care")).toHaveTextContent("Home Care");

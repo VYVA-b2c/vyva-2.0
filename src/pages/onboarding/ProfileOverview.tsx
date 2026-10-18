@@ -22,7 +22,7 @@ const ProfileOverview = ({ preview = false }: { preview?: boolean }) => {
   const completed = deriveCompletedSections(data?.profile ?? null, data?.onboardingState ?? null);
   const profile = data?.profile ?? {};
   const displayName = typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name.trim() : "Your profile";
-  const location = typeof profile.city === "string" && profile.city.trim() ? profile.city.trim() : "Profile & settings";
+  const location = typeof profile.city === "string" && profile.city.trim() ? profile.city.trim() : "Personal and care information";
   const proxyName = typeof profile.proxy_initiator_id === "string" ? profile.proxy_initiator_id : null;
   const elderConfirmed = Boolean(profile.elder_confirmed_at);
 
@@ -31,7 +31,7 @@ const ProfileOverview = ({ preview = false }: { preview?: boolean }) => {
       <main className="mx-auto w-full max-w-[920px] pb-8" data-testid="profile-overview">
         <header className="grid grid-cols-[44px_1fr_44px] items-center gap-3 px-1 py-3 sm:px-3">
           <button type="button" onClick={() => navigate("/")} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full border border-vyva-border bg-white text-vyva-purple shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/20"><ArrowLeft size={20} aria-hidden="true" /></button>
-          <h1 className="truncate text-center font-display text-[26px] font-semibold text-vyva-text-1">Profile</h1>
+          <h1 className={`truncate text-center font-display text-[26px] font-semibold ${resolvedIsDark ? "text-white" : "text-vyva-text-1"}`}>My profile</h1>
           <button type="button" onClick={() => navigate("/")} aria-label="Open VYVA voice mode" className="grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-vyva-purple text-white shadow-[0_12px_28px_rgba(107,33,168,0.24)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/20"><VyvaIcon icon={Mic} size={18} tone="inverse" /></button>
         </header>
 

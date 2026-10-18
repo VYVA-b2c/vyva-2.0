@@ -1330,6 +1330,8 @@ export default function CategorySort({
           onReplay={handleReplay}
           onAnother={handleExit}
           onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+          onClose={handleExit}
+          closeLabel={t("common.close", "Close")}
           details={
             <div className="grid gap-3">
               <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">

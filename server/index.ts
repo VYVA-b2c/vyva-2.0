@@ -46,6 +46,7 @@ import { adminRouter } from "./routes/admin.js";
 import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminTrustedHelpPartnersRouter from "./routes/adminTrustedHelpPartners.js";
+import adminVettedPartnersRouter from "./routes/adminVettedPartners.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
 import adminCrossPillarToolReadinessRouter from "./routes/adminCrossPillarToolReadiness.js";
@@ -131,7 +132,9 @@ import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
+import careFinderRouter from "./routes/careFinder.js";
 import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
+import { readDocumentHelpHandler } from "./routes/documentHelpReader.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
 import { createSeniorHomeFinderShareHandler, sharedSeniorHomeFinderReportHandler } from "./routes/seniorHomeFinderShare.js";
@@ -204,6 +207,7 @@ app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, re
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
 app.post("/api/bill-reader/analyze", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
+app.post("/api/document-help/read", express.json({ limit: "20mb" }), authMiddleware, readDocumentHelpHandler);
 
 app.use(
   "/api/webhooks/sendgrid",
@@ -274,6 +278,7 @@ app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycle
 app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsRouter);
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/trusted-help-partners", authMiddleware, requireAdminUser, adminTrustedHelpPartnersRouter);
+app.use("/api/admin/concierge/vetted-partners", authMiddleware, requireAdminUser, adminVettedPartnersRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
 app.use("/api/admin/cross-pillar/tool-readiness", authMiddleware, requireAdminUser, adminCrossPillarToolReadinessRouter);
@@ -332,6 +337,7 @@ app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
+app.use("/api/care-finder", authMiddleware, requireUser, careFinderRouter);
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
 app.use("/api/games", authMiddleware, requireUser, gamesRouter);

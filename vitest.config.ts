@@ -40,7 +40,7 @@ export default defineConfig({
         test: {
           name: "shared",
           environment: "node",
-          include: ["shared/**/*.test.ts", "migrations/**/*.test.ts"],
+          include: ["shared/**/*.test.ts", "migrations/**/*.test.ts", "scripts/**/*.test.ts"],
         },
       },
       ...serverProjects,

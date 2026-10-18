@@ -148,7 +148,7 @@ async function saveInventoryEvent(req: Request, res: Response, eventType: "purch
   const summary = summaries.find((item) => item.medicineId === medicine.id) ?? null;
   await db.update(myMedicines).set({ refill_due_date: summary?.projectedRunOutDate ?? null }).where(eq(myMedicines.id, medicine.id));
   const alerts = await reconcileRefillAlerts(context.profileId, summaries);
-  return res.status(201).json({ summary, alerts: alerts.map(serializeRefillAlert) });
+  return res.status(201).json({ summary, alerts: alerts.map((alert) => serializeRefillAlert(alert, summaries.find((item) => item.medicineId === alert.medicine_id)?.medicineName)) });
 }
 
 router.get("/:profileId", async (req: Request, res: Response) => {
@@ -162,7 +162,7 @@ router.get("/:profileId", async (req: Request, res: Response) => {
       permissions: context.access.permissions,
       actorRole: context.access.actorRole,
       medicines,
-      alerts: alerts.map(serializeRefillAlert),
+      alerts: alerts.map((alert) => serializeRefillAlert(alert, medicines.find((item) => item.medicineId === alert.medicine_id)?.medicineName)),
     });
   } catch (error) {
     console.error("[meds/refills GET]", error);
@@ -202,7 +202,7 @@ router.patch("/:profileId/medicines/:medicineId/settings", async (req, res) => {
     const summary = summaries.find((item) => item.medicineId === updated.id) ?? null;
     await db.update(myMedicines).set({ refill_due_date: summary?.projectedRunOutDate ?? null }).where(eq(myMedicines.id, updated.id));
     const alerts = await reconcileRefillAlerts(context.profileId, summaries);
-    return res.json({ summary, alerts: alerts.map(serializeRefillAlert) });
+    return res.json({ summary, alerts: alerts.map((alert) => serializeRefillAlert(alert, summaries.find((item) => item.medicineId === alert.medicine_id)?.medicineName)) });
   } catch (error) {
     console.error("[meds/refills settings]", error);
     return res.status(500).json({ error: "Failed to update refill settings" });

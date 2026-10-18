@@ -6,6 +6,7 @@ import {
   refreshAppointmentProviderContact,
   reservationSystemLinksFor,
   normalizeSearchAddress,
+  providerSearchArea,
 } from "./appointmentDiscovery.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -29,6 +30,96 @@ afterEach(() => {
 });
 
 describe("appointment discovery", () => {
+  it("falls back to Places Text Search (New) when the legacy endpoint is unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      if (url.pathname.includes("/place/textsearch/")) return jsonResponse({ status: "REQUEST_DENIED" });
+      if (url.hostname === "places.googleapis.com") {
+        expect(init?.method).toBe("POST");
+        expect((init?.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("test-key");
+        return jsonResponse({ places: [{
+          id: "new-place-id",
+          displayName: { text: "Marbella Plomberie" },
+          formattedAddress: "Calle Example, Marbella, Spain",
+          location: { latitude: 36.51, longitude: -4.88 },
+          addressComponents: [{ shortText: "ES", types: ["country"] }],
+          internationalPhoneNumber: "+34 956 123 456",
+          googleMapsUri: "https://maps.google.com/?cid=new-place-id",
+          rating: 4.7,
+          userRatingCount: 31,
+          businessStatus: "OPERATIONAL",
+        }] });
+      }
+      return jsonResponse({ status: "NOT_FOUND" }, 404);
+    });
+
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service",
+      serviceType: "plumber",
+      detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" },
+      language: "fr",
+    });
+
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({
+      place_id: "new-place-id",
+      name: "Marbella Plomberie",
+      phone: "+34 956 123 456",
+      country_code: "ES",
+    });
+  });
+
+  it("stops before searching when the address is outside the enabled countries", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.stubEnv("HOME_SERVICE_COUNTRIES", "DE,AT");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      throw new Error(`unexpected search ${url}`);
+    });
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service", serviceType: "plumber", detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" }, language: "es",
+    });
+    expect(result.fallback_reason).toBe("country_not_enabled");
+    expect(result.options).toEqual([]);
+    expect(fetchMock.mock.calls.every(([input]) => String(input).includes("geocode"))).toBe(true);
+  });
+
+  it("captures whether a listing shows business premises", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) {
+        return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      }
+      if (url.pathname.includes("/place/textsearch/")) return jsonResponse({ status: "REQUEST_DENIED" });
+      if (url.hostname === "places.googleapis.com" && url.pathname.includes("searchText")) {
+        return jsonResponse({ places: [
+          { id: "shop", displayName: { text: "Fontaneria Centro" }, formattedAddress: "Calle Mayor 5, 29601 Marbella, Spain", location: { latitude: 36.51, longitude: -4.88 }, addressComponents: [{ shortText: "ES", types: ["country"] }], businessStatus: "OPERATIONAL" },
+          { id: "area", displayName: { text: "Fontanero Marbella" }, formattedAddress: "Marbella, Spain", location: { latitude: 36.51, longitude: -4.88 }, addressComponents: [{ shortText: "ES", types: ["country"] }], businessStatus: "OPERATIONAL" },
+        ] });
+      }
+      return jsonResponse({ status: "NOT_FOUND" }, 404);
+    });
+    const result = await discoverAppointmentProviderOptions({
+      appointmentType: "home-service", serviceType: "plumber", detail: "plumber",
+      location: { city: "Marbella", countryCode: "ES" }, language: "es",
+    });
+    const byPlace = Object.fromEntries(result.options.map(o => [o.provider_snapshot.place_id, o.provider_snapshot.has_business_address]));
+    expect(byPlace).toEqual({ shop: true, area: false });
+  });
+
   it("refreshes a selected external provider phone before contact methods are shown", async () => {
     clearPlacesEnv();
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
@@ -54,6 +145,7 @@ describe("appointment discovery", () => {
         place_id: "provider-place-id",
         name: "Provider",
         phone: null,
+        email: "hello@provider.example",
         website_url: "https://provider.example",
       },
     });
@@ -64,7 +156,70 @@ describe("appointment discovery", () => {
       booking_url: null,
       open_now: true,
     });
+    expect(refreshed?.availableChannels).toEqual(["phone", "email", "manual"]);
+  });
+
+  it("uses Places Details (New) when legacy details cannot refresh provider contact", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("/place/details/")) {
+        return jsonResponse({ status: "REQUEST_DENIED" });
+      }
+      expect(url.hostname).toBe("places.googleapis.com");
+      expect(url.pathname).toBe("/v1/places/provider-place-id");
+      expect(url.searchParams.get("languageCode")).toBe("fr");
+      expect((init?.headers as Record<string, string>)["X-Goog-Api-Key"]).toBe("test-key");
+      return jsonResponse({
+        internationalPhoneNumber: "+34 956 654 321",
+        websiteUri: "https://provider.example",
+        googleMapsUri: "https://maps.google.com/?cid=provider",
+        regularOpeningHours: { openNow: true },
+      });
+    });
+
+    const refreshed = await refreshAppointmentProviderContact({
+      appointmentType: "home-service",
+      language: "fr",
+      snapshot: {
+        place_id: "provider-place-id",
+        name: "Provider",
+        phone: null,
+      },
+    });
+
+    expect(refreshed?.snapshot).toMatchObject({
+      phone: "+34 956 654 321",
+      website_url: "https://provider.example/",
+      maps_url: "https://maps.google.com/?cid=provider",
+      open_now: true,
+    });
     expect(refreshed?.availableChannels).toEqual(["phone", "manual"]);
+  });
+
+  it("uses the provider's local weekday when deriving open-today", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-04T23:30:00.000Z"));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ name: "Night Plumber", place_id: "night", types: ["plumber"], business_status: "OPERATIONAL", geometry: { location: { lat: 36.51, lng: -4.88 } } }] });
+      return jsonResponse({ status: "OK", result: {
+        address_components: spain,
+        utc_offset_minutes: 120,
+        opening_hours: {
+          open_now: false,
+          periods: [{ open: { day: 1 }, close: { day: 1 } }],
+        },
+      } });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { city: "Marbella", countryCode: "ES" } });
+    expect(result.options[0].provider_snapshot.open_today).toBe(true);
+    vi.useRealTimers();
   });
 
   it("falls back to an explicit postcode area without changing the visit address or accepting US results", async () => {
@@ -96,6 +251,13 @@ describe("appointment discovery", () => {
   it("cleans the reported conversational address without inventing a country", () => {
     expect(normalizeSearchAddress("my address is Calle madroneo number 6, 11380 Tarifa, Andalucia, Other"))
       .toBe("Calle madroneo number 6, 11380 Tarifa, Andalucia");
+  });
+
+  it("uses the postcode and locality for provider queries instead of the house address", () => {
+    expect(providerSearchArea("6 Calle Madroño, 11380 Tarifa, Cádiz, Spain"))
+      .toBe("11380 Tarifa, Cádiz, Spain");
+    expect(providerSearchArea("Tarifa, Cádiz, Spain"))
+      .toBe("Tarifa, Cádiz, Spain");
   });
 
   it.each([
@@ -291,6 +453,56 @@ describe("appointment discovery", () => {
       return jsonResponse({ status: "OK", result: detail });
     });
     const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", detail: "plumber", location: { address: "Tarifa" } });
+    expect(result.options).toEqual([]);
+    expect(result.fallback_reason).toBe("no_google_results");
+  });
+
+  it("keeps an in-country Text Search result when Place Details is temporarily unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ place_id: "local", name: "Fontaneria Tarifa", formatted_address: "Tarifa, Cadiz, Spain", geometry: { location: { lat: 36.02, lng: -5.61 } } }] });
+      return jsonResponse({ status: "OVER_QUERY_LIMIT" });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { address: "Tarifa, Spain" }, language: "en" });
+
+    expect(result.fallback_reason).toBeUndefined();
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({ name: "Fontaneria Tarifa", address: "Tarifa, Cadiz, Spain" });
+  });
+
+  it("keeps a local in-radius result when Google omits the country suffix and Place Details is unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ place_id: "local", name: "Fontaneria Tarifa", formatted_address: "Calle Sancho IV, 11380 Tarifa, Cadiz", geometry: { location: { lat: 36.02, lng: -5.61 } } }] });
+      return jsonResponse({ status: "OVER_QUERY_LIMIT" });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { address: "Tarifa, Spain" }, language: "fr" });
+
+    expect(result.fallback_reason).toBeUndefined();
+    expect(result.options).toHaveLength(1);
+    expect(result.options[0].provider_snapshot).toMatchObject({ name: "Fontaneria Tarifa" });
+  });
+
+  it("does not keep a cross-border Text Search result when Place Details is unavailable", async () => {
+    clearPlacesEnv();
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("geocode")) return jsonResponse({ status: "OK", results: [{ address_components: spain, geometry: { location: { lat: 36.014, lng: -5.604 } } }] });
+      if (url.pathname.includes("textsearch")) return jsonResponse({ status: "OK", results: [{ place_id: "foreign", name: "Plombier Tanger", formatted_address: "Tanger, Morocco", geometry: { location: { lat: 35.76, lng: -5.81 } } }] });
+      return jsonResponse({ status: "OVER_QUERY_LIMIT" });
+    });
+
+    const result = await discoverAppointmentProviderOptions({ appointmentType: "home-service", serviceType: "plumber", detail: "plumber", location: { address: "Tarifa, Spain" }, language: "en" });
+
     expect(result.options).toEqual([]);
     expect(result.fallback_reason).toBe("no_google_results");
   });

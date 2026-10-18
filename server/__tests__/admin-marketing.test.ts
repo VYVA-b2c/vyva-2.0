@@ -2554,7 +2554,13 @@ describe("admin marketing router", () => {
     expect(location.searchParams.get("client_id")).toBe("meta-app-id");
     expect(location.searchParams.get("redirect_uri")).toBe("https://v2.vyva.life/api/admin/marketing/social-publishing/meta/callback");
     expect(location.searchParams.get("state")).toBeTruthy();
-    expect(location.searchParams.get("scope")).toContain("instagram_content_publish");
+    expect(location.searchParams.get("scope")).toBe("pages_show_list,pages_read_engagement,pages_manage_posts");
+
+    const instagramResponse = await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/social-publishing/meta/connect?instagram=1")
+      .expect(302);
+    const instagramLocation = new URL(instagramResponse.headers.location);
+    expect(instagramLocation.searchParams.get("scope")).toContain("instagram_content_publish");
   });
 
   it("reports Meta connection configuration without exposing credentials", async () => {

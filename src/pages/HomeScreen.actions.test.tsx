@@ -408,7 +408,7 @@ describe("Home fast service actions", () => {
     const actionPill = within(screen.getByTestId("home-topbar-action-pill"));
     const profileButton = screen.getByTestId("button-home-profile");
     const manualButton = actionPill.getByTestId("button-home-mode-touch");
-    expect(profileButton).toHaveAccessibleName("Open profile and settings");
+    expect(profileButton).toHaveAccessibleName("Open my profile");
     expect(profileButton).toHaveClass("h-9");
     expect(profileButton).toHaveClass("w-9");
     expect(profileButton).toHaveClass("!min-h-9");
@@ -422,7 +422,7 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByTestId("button-home-profile"));
     const profileMenu = screen.getByTestId("home-profile-menu");
     expect(profileMenu).toBeInTheDocument();
-    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveTextContent("My profile");
     expect(profileMenu).toHaveClass("md:max-w-[720px]");
     expect(profileMenu).toHaveClass("md:top-1/2");
     expect(profileMenu).toHaveClass("md:-translate-y-1/2");
@@ -435,7 +435,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-profile-care-team")).toHaveTextContent("Care team");
     expect(screen.getByTestId("button-home-profile-providers")).toHaveTextContent("Doctors & providers");
     fireEvent.click(screen.getByTestId("button-home-profile-account"));
-    expect(guardPathMock).toHaveBeenCalledWith("/settings/account", undefined);
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/group/account", undefined);
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
@@ -479,7 +479,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-layout")).toHaveAttribute("data-screen-mode", "voice");
     expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
     expect(guardPathMock).not.toHaveBeenCalledWith("/login", expect.anything());
-    expect(guardPathMock).not.toHaveBeenCalledWith("/settings/account", expect.anything());
+    expect(guardPathMock).not.toHaveBeenCalledWith("/onboarding/profile/group/account", expect.anything());
     expect(guardPathMock).not.toHaveBeenCalledWith("/", expect.anything());
   });
 
@@ -505,7 +505,7 @@ describe("Home fast service actions", () => {
       expect(guardPathMock).toHaveBeenCalledWith(path, undefined);
     };
 
-    expectProfileRoute("button-home-profile-account", "/settings/account");
+    expectProfileRoute("button-home-profile-account", "/onboarding/profile/group/account");
     expectProfileRoute("button-home-profile-health", "/onboarding/profile/health");
     expectProfileRoute("button-home-profile-medications", "/onboarding/profile/medications");
     expectProfileRoute("button-home-profile-emergency", "/onboarding/profile/emergency");

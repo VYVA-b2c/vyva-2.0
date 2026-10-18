@@ -29,6 +29,11 @@ describe("multilingual home-service discovery", () => {
     expect(localHomeServiceTerms("plumber", "CA")).toEqual(["plumber", "plombier"]);
   });
 
+  it("adds the member's own language after local vocabulary", () => {
+    expect(localHomeServiceTerms("plumber", "ES", "de")).toEqual(["fontanero", "Sanit\u00e4rinstallateur", "plumber"]);
+    expect(localHomeServiceTerms("plumber", "ES", "es")).toEqual(["fontanero", "plumber"]);
+  });
+
   it("falls back safely for unknown locales", () => {
     expect(localHomeServiceTerms("plumber", undefined, "fr-CA")).toEqual(["plombier", "plumber"]);
     expect(localHomeServiceTerms("plumber", "ZZ", "constructor")).toEqual(["plumber"]);

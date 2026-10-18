@@ -1431,6 +1431,8 @@ export default function NumberTrails({
           onReplay={replayCurrentTrail}
           onAnother={handleExit}
           onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+          onClose={handleExit}
+          closeLabel={t("common.close", "Close")}
           disabled={savingResult}
           details={
             <div className="grid gap-3">

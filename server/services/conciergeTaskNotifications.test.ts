@@ -21,6 +21,9 @@ describe("Concierge task notification delivery", () => {
     expect(query.mock.calls[0][0]).not.toContain("delete");
     await expect(listConciergeReminderDismissals("user-1", database)).resolves.toEqual({ "pending:one": "v1" });
     expect(query.mock.calls[1][1]).toEqual(["user-1"]);
+    expect(query.mock.calls[1][0]).toContain("draft.user_id = dismissal.user_id");
+    expect(query.mock.calls[1][0]).toContain("draft.linked_pending_id");
+    expect(query.mock.calls[1][0]).toContain("dismissal.dismissed_at desc");
   });
   it("creates one visible alert and relies on a unique dedupe key for retries", async () => {
     const query = vi.fn()

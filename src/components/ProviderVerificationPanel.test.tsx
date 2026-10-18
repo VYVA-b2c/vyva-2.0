@@ -1,6 +1,6 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProviderVerificationPanel } from "./ProviderVerificationPanel";
+import { PROVIDER_AUDIT_DEPTH, ProviderVerificationPanel } from "./ProviderVerificationPanel";
 import { apiFetch } from "@/lib/queryClient";
 import { homeServiceText } from "../../shared/homeServiceText";
 vi.mock("@/lib/queryClient", () => ({ apiFetch: vi.fn() }));
@@ -73,6 +73,38 @@ describe("provider verification wait", () => {
     fireEvent.click(screen.getByText("Keep checking"));
     expect(apiFetch).toHaveBeenCalledTimes(3);
     expect(vi.mocked(apiFetch).mock.calls.filter(([url]) => String(url).includes("/one/"))).toHaveLength(1);
+  });
+  it("checks beyond the first three and reports exclusions found during checks", async () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ id: `p${i}`, provider_source: "external", provider_snapshot: {} }));
+    vi.mocked(apiFetch).mockImplementation(async url => ({ ok: true, json: async () => ({
+      verification: { version: 1, status: String(url).includes("/p4/") ? "concerns" : "verified", checkedAt: new Date().toISOString(), reviewCount: 5, recentReviewCount: 2, sources: [], gaps: [], concerns: [], retryable: false },
+      ranking: String(url).includes("/p4/") ? null : { score: 100, priority_notes: [] },
+      excluded: String(url).includes("/p4/"),
+    }) }) as Response);
+    const ranked = vi.fn();
+    render(<ProviderVerificationPanel requestId="request" options={many} selectedId="p0" isSpanish={false} onResultsVisible={vi.fn()} onRanked={ranked} />);
+    await waitFor(() => expect(ranked).toHaveBeenCalled());
+    expect(apiFetch).toHaveBeenCalledTimes(PROVIDER_AUDIT_DEPTH);
+    expect(ranked.mock.calls.at(-1)?.[0].p4).toEqual({ score: 0, priority_notes: [], excluded: true });
+    expect(ranked.mock.calls.at(-1)?.[0].p5.excluded).toBeUndefined();
+  });
+  it("shows service advice, published prices and stated credentials for the selected provider", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({
+      verification: { version: 1, status: "verified", checkedAt: new Date().toISOString(), reviewCount: 5, recentReviewCount: 2, sources: [], gaps: [], concerns: [], retryable: false,
+        pricing: { publishedPrices: ["Call-out fee 35 EUR"], signals: { as_quoted: 0, above_quote: 0, good_value: 0, expensive: 0 } }, credentials: ["Registered installer no. 123"] },
+      ranking: { score: 120, priority_notes: [], advice: ["Agree the full price by phone before anyone comes out."] },
+      excluded: false,
+    }) } as Response);
+    render(<ProviderVerificationPanel requestId="request" options={[{ id: "one", provider_source: "external", provider_snapshot: {} }]} selectedId="one" isSpanish={false} onResultsVisible={vi.fn()} />);
+    expect(await screen.findByTestId("provider-service-advice")).toHaveTextContent("Agree the full price by phone");
+    expect(screen.getByText(/Call-out fee 35 EUR/)).toBeInTheDocument();
+    expect(screen.getByText(/Registered installer no\. 123/)).toBeInTheDocument();
+  });
+  it("never sends partner-vetted providers to public research", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    render(<ProviderVerificationPanel requestId="request" options={[{ id: "partner", provider_source: "partner", provider_snapshot: {} }]} selectedId="partner" isSpanish={false} onResultsVisible={vi.fn()} />);
+    expect(await screen.findByText("Vetted by a partner organisation. Not checked against public reviews.")).toBeInTheDocument();
+    expect(apiFetch).not.toHaveBeenCalled();
   });
   it("asks at two minutes, aborts, and only restarts with permission", async () => {
     vi.useFakeTimers();

@@ -35,7 +35,7 @@ describe("MenuScreen", () => {
     expect(tiles).toHaveLength(4);
     expect(grid).toHaveTextContent("My Health");
     expect(grid).toHaveTextContent("Brain Power");
-    expect(grid).toHaveTextContent("Community");
+    expect(grid).toHaveTextContent("My Team");
     expect(grid).toHaveTextContent("Concierge");
     expect(grid).toHaveTextContent("Check-ins & medicines");
     expect(grid).toHaveTextContent("Memory, focus & calm");
@@ -62,7 +62,7 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
-  it("routes Community and Concierge to their canonical destinations", () => {
+  it("routes My Team and Concierge to their canonical destinations", () => {
     const community = renderMenu();
 
     fireEvent.click(screen.getByTestId("menu-tile-community"));
@@ -96,14 +96,14 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/");
   });
 
-  it("opens profile and settings in-place from manual mode before protected routes", () => {
+  it("opens My profile in-place from manual mode before protected routes", () => {
     renderMenu();
 
     fireEvent.click(screen.getByTestId("button-menu-profile"));
 
     const profileMenu = screen.getByTestId("menu-profile-menu");
     expect(profileMenu).toBeInTheDocument();
-    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveTextContent("My profile");
     expect(profileMenu).toHaveClass("md:max-w-[720px]");
     expect(profileMenu).toHaveClass("md:top-1/2");
     expect(profileMenu).toHaveClass("md:-translate-y-1/2");
@@ -119,7 +119,7 @@ describe("MenuScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-menu-profile-account"));
 
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/settings/account");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/onboarding/profile/group/account");
   });
 
   it("can return to the public Home preview when rendered by the dev preview route", () => {

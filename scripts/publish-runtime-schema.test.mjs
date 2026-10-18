@@ -41,6 +41,14 @@ test("publishes scheduled support before enrollments and verifies before commit"
   assert.match(migrations[1], /0060_cognitive_assessment_program_enrollments.sql$/);
   assert.ok(migrations.some((name) => name.endsWith("0085_publish_triage_report_columns.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0104_concierge_reminder_dismissals.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0106_provider_reputation.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0107_provider_job_outcomes.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0108_vetted_partner_providers.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0109_care_register_places.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0110_care_health_zone_municipalities.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0111_care_register_country.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0112_care_register_france.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0113_care_register_osm.sql")));
   for (const migration of migrations) {
     assert.ok(readFileSync(new URL(`../migrations/${migration.split("/").at(-1)}`, import.meta.url), "utf8").length);
   }

@@ -79,7 +79,7 @@ describe("MindMemoryScreen", () => {
     ] as const;
 
     for (const [testId, title, count, iconAccent] of expectedCards) {
-      expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-health-hub-action");
+      expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
       expect(screen.getByTestId(testId)).toHaveTextContent(title);
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
       expect(screen.getByTestId(testId).querySelector(`[data-vyva-icon-tile="${iconAccent}"]`)).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("MindMemoryScreen", () => {
     renderMindMemory();
 
     expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-home-master-theme", "dark");
-    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-white/[0.08]");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-[#2A2034]");
   });
 
   it("replaces activity counts with the latest score and achieved level after play", () => {

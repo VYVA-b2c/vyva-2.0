@@ -59,6 +59,9 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
 
 const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
   ...HOME_NAV_PROTOTYPE_DOCK_ROUTES,
+  "/onboarding/profile/medications",
+  "/dev/profile-overview/medications",
+  "/dev/profile-overview/section/medications",
   "/dev/home-master/check-in",
   "/dev/home-master/health-plan",
   "/dev/home-master/profile",

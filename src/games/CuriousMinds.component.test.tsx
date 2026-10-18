@@ -81,6 +81,29 @@ describe("Curious Minds component", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
+  it("does not render content from a different language", async () => {
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
+      state: getDefaultCuriousMindsUserState("user-1"),
+      hook: {
+        id: "hook-es",
+        fact_prompt: "Una pregunta en espanol",
+        fact_answer: "Una respuesta en espanol",
+        language: "es",
+      },
+      prompt: {
+        id: "prompt-es",
+        prompt_text: "Una idea en espanol",
+        language: "es",
+      },
+    }), { status: 200 }));
+
+    window.localStorage.setItem("curiousMinds:tutorialSeen:v1:user-1", "true");
+    render(<CuriousMinds userId="user-1" onExit={vi.fn()} />);
+
+    expect(await screen.findByRole("heading", { name: "This activity could not open" })).toBeInTheDocument();
+    expect(screen.queryByText("Una pregunta en espanol")).not.toBeInTheDocument();
+  });
+
   it("shows the tutorial once and reopens it from Instructions", async () => {
     apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
       state: getDefaultCuriousMindsUserState("user-1"),

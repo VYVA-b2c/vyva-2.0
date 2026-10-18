@@ -23,12 +23,26 @@ const migrationPaths = [
   "0084_replit_publish_schema_parity.sql",
   "0085_publish_triage_report_columns.sql",
   "0104_concierge_reminder_dismissals.sql",
+  "0106_provider_reputation.sql",
+  "0107_provider_job_outcomes.sql",
+  "0108_vetted_partner_providers.sql",
+  "0109_care_register_places.sql",
+  "0110_care_health_zone_municipalities.sql",
+  "0111_care_register_country.sql",
+  "0112_care_register_france.sql",
+  "0113_care_register_osm.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
 const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
   .join("\n\n");
 const requiredTables = [
   "concierge_reminder_dismissals",
+  "provider_reputation",
+  "provider_job_outcomes",
+  "vetted_partner_organisations",
+  "vetted_partner_providers",
+  "care_register_places",
+  "care_health_zone_municipalities",
   "triage_reports",
   "scheduled_interactions",
   "interaction_logs",
@@ -51,6 +65,8 @@ const requiredColumns = [
     "possible_patterns", "uncertainty", "reassessment_window", "change_plan_triggers",
     "clinical_handoff", "bpm", "respiratory_rate", "duration_seconds", "created_at",
   ].map((column) => `triage_reports.${column}`),
+  "care_register_places.country",
+  "care_health_zone_municipalities.country",
   "cc_program_enrollments.user_id",
   "cc_program_enrollments.status",
   "cc_program_enrollments.start_date",

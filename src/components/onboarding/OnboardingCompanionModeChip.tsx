@@ -74,6 +74,7 @@ export function OnboardingCompanionModeChip({
   const vyvaVoice = useOptionalVyvaVoice();
   const isCanonicalProfilePage = typeof window !== "undefined" && (
     window.location.pathname.startsWith("/onboarding/profile/") ||
+    window.location.pathname === "/dev/profile-conditions" ||
     window.location.pathname.startsWith("/dev/profile-overview/section/")
   );
 

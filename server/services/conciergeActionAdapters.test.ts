@@ -11,6 +11,8 @@ import {
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
+const whatsappSend = vi.hoisted(() => vi.fn());
+vi.mock("./communicationDispatcher.js", () => ({ sendWhatsapp: whatsappSend }));
 
 type ChannelSpec = {
   channel: ConciergeProductionChannel;
@@ -79,6 +81,8 @@ function clearConciergeEnv() {
     "CONCIERGE_PHONE_CALL_CHANNEL_CONFIGURED",
     "CONCIERGE_EMAIL_CHANNEL_CONFIGURED",
     "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+    "CONCIERGE_WHATSAPP_ADAPTER",
+    "CONCIERGE_WHATSAPP_PILOT_RECIPIENTS",
     "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
     "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
@@ -140,6 +144,7 @@ describe("Concierge action adapters", () => {
   beforeEach(() => {
     clearConciergeEnv();
     globalThis.fetch = vi.fn();
+    whatsappSend.mockReset();
   });
 
   afterEach(() => {
@@ -159,6 +164,31 @@ describe("Concierge action adapters", () => {
       expect(result, spec.channel).toEqual({ status: "pass", blocker: null });
     }
 
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps confirmation, live readiness and dry-run gates on the owned WhatsApp path", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "whatsapp")!;
+    process.env.CONCIERGE_WHATSAPP_ADAPTER = "twilio";
+    process.env.CONCIERGE_WHATSAPP_PILOT_RECIPIENTS = spec.qaTarget;
+    process.env.TWILIO_ACCOUNT_SID = "test-account";
+    process.env.TWILIO_AUTH_TOKEN = "test-token";
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+12025550100";
+    for (const overrides of [
+      { userConfirmed: false },
+      { channelReadiness: readiness(spec, { adminEnabled: false }) },
+      { channelReadiness: readiness(spec, { verified: false }) },
+    ]) {
+      expect(await executeConciergeActionAdapter(adapterInput(spec, overrides)))
+        .toMatchObject({ status: "blocked", external_action_allowed: false });
+    }
+    expect(await executeConciergeActionAdapter(adapterInput(spec, { mode: "dry_run", dryRun: true })))
+      .toMatchObject({ status: "simulated", external_action_allowed: false });
+    expect(whatsappSend).not.toHaveBeenCalled();
+    whatsappSend.mockResolvedValue({ sid: "SM-pilot", status: "queued" });
+    expect(await executeConciergeActionAdapter(adapterInput(spec)))
+      .toMatchObject({ status: "sent", result_id: "SM-pilot" });
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 

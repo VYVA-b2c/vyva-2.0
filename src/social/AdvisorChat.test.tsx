@@ -342,16 +342,19 @@ describe("AdvisorChat", () => {
 
     renderChat("/social-rooms/experts/amara");
 
-    expect(screen.getByText("Wellness Coach")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Move gently today" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Voice guide/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Wellness Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Talk by voice/i })).toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-start-voice")).toHaveTextContent("");
+    expect(screen.queryByText("Speak naturally with VYVA")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-advisor-start-chat")).not.toBeInTheDocument();
     expect(screen.queryByTestId("input-advisor-message")).not.toBeInTheDocument();
     expect(screen.queryByText(/Text guidance/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
     expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-tai-chi")).toBeInTheDocument();
-    expect(screen.getByTestId("button-movement-coach-routine-sit-to-stand")).toBeInTheDocument();
+    expect(screen.getByTestId("button-movement-coach-routine-seated-strength")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^button-movement-coach-routine-/)).toHaveLength(4);
+    expect(screen.getByTestId("button-movement-coach-all-routines")).toBeInTheDocument();
     expect(screen.getByTestId("button-movement-coach-routine-calm-breathing")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-movement-coach-routine-chair-yoga"));
@@ -359,6 +362,29 @@ describe("AdvisorChat", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent("autoStartVoiceGuide");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/social-rooms/experts/amara\"");
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps returning Wellness Coach users on the routine picker", () => {
+    queryMock.mockReturnValue({
+      data: {
+        ...amaraSession,
+        introRequired: false,
+        session: { id: "amara-session-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: "2026-07-07T10:02:00.000Z" },
+        messages: [
+          { id: "m1", role: "assistant", text: "Welcome back.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat("/social-rooms/experts/amara");
+
+    expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
+    expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-chat-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-message-assistant")).not.toBeInTheDocument();
   });
 
   it("starts the movement coach through the advisor API with voice context", async () => {

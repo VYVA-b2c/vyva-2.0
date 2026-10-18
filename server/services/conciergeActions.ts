@@ -1,4 +1,6 @@
 import { eq } from "drizzle-orm";
+import { withConciergeRequestLock } from "./conciergeRequestLock.js";
+import { requestWasExecuted } from "./conciergeRequestDeletion.js";
 import { db, pool } from "../db.js";
 import { profiles } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
@@ -365,6 +367,16 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
 }
 
 async function insertPending(input: ConciergeTriggerInput, language: string): Promise<PendingRow> {
+  const draftId = conciergeTaskIdFromPayload(input.actionPayload);
+  if (!draftId) return insertPendingUnlocked(input, language);
+  return withConciergeRequestLock(`draft:${draftId}`, async () => {
+    const draft = await pool.query("select status from concierge_task_drafts where id = $1::uuid and user_id = $2", [draftId, input.userId]);
+    if (draft.rows[0]?.status !== "active") throw new Error("Concierge task is no longer active");
+    return insertPendingUnlocked(input, language);
+  });
+}
+
+async function insertPendingUnlocked(input: ConciergeTriggerInput, language: string): Promise<PendingRow> {
   const basePayload = {
     ...input.actionPayload,
     _meta: {
@@ -546,6 +558,7 @@ async function updatePendingStatus(
       update concierge_pending
       set status = $2, action_payload = $3::jsonb, updated_at = now()
       where id = $1::uuid
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
     `,
     [pending.id, status, JSON.stringify(actionPayload)],
   );
@@ -739,6 +752,7 @@ async function loadPendingById(pendingId: string): Promise<PendingRow | null> {
         status
       from concierge_pending
       where id = $1::uuid
+        and action_payload ->> 'request_deleted_at' is null
       limit 1
     `,
     [pendingId],
@@ -807,6 +821,7 @@ export async function updatePendingConciergeActionDetails(
       set action_payload = $3::jsonb, updated_at = now()
       where id = $1::uuid
         and user_id = $2
+        and status <> 'cancelled' and action_payload ->> 'request_deleted_at' is null
       returning
         id,
         user_id,
@@ -857,6 +872,8 @@ async function runConfirmedConciergeActionAdapter(
   plan: ConciergeConfirmedExecutionPlan,
 ): Promise<TriggerResult> {
   const adapterRuntimeConfig = await adapterRuntimeConfigForPlan(plan);
+  // Persist an in-flight state before external work; an interrupted send must not look cancellable.
+  if (!plan.dry_run) await updatePendingStatus(pending, "calling");
   const adapterResult = await executeConciergeActionAdapter({
     mode: adapterModeForPlan(plan),
     tool: plan.active_tool,
@@ -952,8 +969,7 @@ export async function triggerConciergeAction(input: ConciergeTriggerInput): Prom
     };
   }
 
-  const profile = await loadProfile(input.userId);
-  return confirmLoadedPendingConciergeAction(pending, profile, input.triggerSource ?? "auto_start");
+  return startPendingConciergeAction(pending.id, input.userId, input.triggerSource ?? "auto_start");
 }
 
 async function queueConfirmedConciergeAction(
@@ -985,6 +1001,7 @@ async function queueConfirmedConciergeAction(
   const adapterRuntimeConfig = plan.dry_run || liveUserControlledChannel
     ? await adapterRuntimeConfigForPlan(plan)
     : { liveEndpointUrl: null, qaTarget: null };
+  if (liveUserControlledChannel) await updatePendingStatus(pending, "calling");
   const adapterResult = plan.dry_run || liveUserControlledChannel
     ? await executeConciergeActionAdapter({
         mode: plan.dry_run ? "dry_run" : "live",
@@ -1184,6 +1201,14 @@ export async function startPendingConciergeAction(
   userId: string,
   confirmationSource = "confirm_endpoint",
 ): Promise<TriggerResult> {
+  return withConciergeRequestLock(`pending:${pendingId}`, () => startPendingConciergeActionUnlocked(pendingId, userId, confirmationSource));
+}
+
+async function startPendingConciergeActionUnlocked(
+  pendingId: string,
+  userId: string,
+  confirmationSource = "confirm_endpoint",
+): Promise<TriggerResult> {
   const pending = await loadPendingById(pendingId);
   if (!pending) {
     throw new Error("Concierge action not found.");
@@ -1200,7 +1225,7 @@ export async function startPendingConciergeAction(
       message: "Concierge action is already in progress.",
     };
   }
-  if (pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
+  if (pending.action_payload?.request_deleted_at || pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
     throw new Error(`Concierge action cannot be started from status "${pending.status}".`);
   }
 
@@ -1213,6 +1238,14 @@ export async function confirmPendingConciergeActionReview(
   userId: string,
   confirmationSource = "user_controlled_execution",
 ): Promise<TriggerResult> {
+  return withConciergeRequestLock(`pending:${pendingId}`, () => confirmPendingConciergeActionReviewUnlocked(pendingId, userId, confirmationSource));
+}
+
+async function confirmPendingConciergeActionReviewUnlocked(
+  pendingId: string,
+  userId: string,
+  confirmationSource = "user_controlled_execution",
+): Promise<TriggerResult> {
   const pending = await loadPendingById(pendingId);
   if (!pending) {
     throw new Error("Concierge action not found.");
@@ -1220,7 +1253,7 @@ export async function confirmPendingConciergeActionReview(
   if (pending.user_id !== userId) {
     throw new Error("You do not have access to this concierge action.");
   }
-  if (pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
+  if (pending.action_payload?.request_deleted_at || pending.status === "calling" || pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
     throw new Error(`Concierge action cannot be confirmed from status "${pending.status}".`);
   }
 
@@ -1257,6 +1290,10 @@ export async function confirmPendingConciergeActionReview(
 }
 
 export async function cancelPendingConciergeAction(pendingId: string, userId: string): Promise<void> {
+  return withConciergeRequestLock(`pending:${pendingId}`, () => cancelPendingConciergeActionUnlocked(pendingId, userId));
+}
+
+async function cancelPendingConciergeActionUnlocked(pendingId: string, userId: string): Promise<void> {
   const pending = await loadPendingById(pendingId);
   if (!pending) {
     throw new Error("Concierge action not found.");
@@ -1264,7 +1301,9 @@ export async function cancelPendingConciergeAction(pendingId: string, userId: st
   if (pending.user_id !== userId) {
     throw new Error("You do not have access to this concierge action.");
   }
-  if (pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
+  if (pending.status === "calling") throw new Error("This request is being processed.");
+  if (requestWasExecuted(pending.status, pending.action_payload ?? {})) throw new Error("This action has already been executed and cannot be cancelled here.");
+  if (pending.action_payload?.request_deleted_at || pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
     return;
   }
 
@@ -1276,6 +1315,14 @@ export async function cancelPendingConciergeAction(pendingId: string, userId: st
 }
 
 export async function completePendingConciergeAction(
+  pendingId: string,
+  userId: string,
+  input: { outcomeSummary?: string | null; outcomePayload?: Record<string, unknown> | null } = {},
+): Promise<CompleteResult> {
+  return withConciergeRequestLock(`pending:${pendingId}`, () => completePendingConciergeActionUnlocked(pendingId, userId, input));
+}
+
+async function completePendingConciergeActionUnlocked(
   pendingId: string,
   userId: string,
   input: { outcomeSummary?: string | null; outcomePayload?: Record<string, unknown> | null } = {},
@@ -1303,7 +1350,7 @@ export async function completePendingConciergeAction(
     return { ok: true, status: "completed", sessionId: existing.rows[0]?.id ?? null };
   }
 
-  if (pending.status === "failed" || pending.status === "cancelled") {
+  if (pending.action_payload?.request_deleted_at || pending.status === "failed" || pending.status === "cancelled") {
     throw new Error(`Concierge action cannot be completed from status "${pending.status}".`);
   }
 

@@ -58,6 +58,7 @@ const adminItems: AdminItem[] = [
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts", icon: Mic },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits", icon: Package },
   { label: "Trusted partners", path: "/admin/trusted-help-partners", description: "Concierge provider catalog", icon: BadgeCheck },
+  { label: "Partner providers", path: "/admin/partner-providers", description: "Vetted local providers by area", icon: BadgeCheck },
   { label: "Caregivers", path: "/admin/proxy-pending", description: "Elder assignments and support", icon: HeartHandshake },
 ];
 

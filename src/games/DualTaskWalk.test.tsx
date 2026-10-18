@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
-import DualTaskWalk, { isGreatDualTaskResult } from "./DualTaskWalk";
+import DualTaskWalk, { isDualTaskRoundComplete, isGreatDualTaskResult } from "./DualTaskWalk";
 
 const gameDataMock = vi.hoisted(() => {
   const query: Record<string, unknown> = {
@@ -60,5 +60,12 @@ describe("DualTaskWalk", () => {
       tap_accuracy_pct: 75,
       dual_task_score: 710,
     })).toBe(false);
+  });
+
+  it("waits for the math task after the visual stream finishes", () => {
+    expect(isDualTaskRoundComplete(0, 4, true)).toBe(false);
+    expect(isDualTaskRoundComplete(3, 4, true)).toBe(false);
+    expect(isDualTaskRoundComplete(4, 4, false)).toBe(false);
+    expect(isDualTaskRoundComplete(4, 4, true)).toBe(true);
   });
 });

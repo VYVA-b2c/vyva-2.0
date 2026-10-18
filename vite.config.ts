@@ -285,6 +285,36 @@ function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
       const body = chunks.length ? Buffer.concat(chunks) : undefined;
       const isHomeMasterPreview = isHomeMasterAskDrAiPreview(req);
       const isBenefitsPreview = String(req.headers.referer ?? "").includes("/dev/benefits");
+      const isProviderTaskPreview = String(req.headers.referer ?? "").includes("/dev/provider-task-preview/");
+      if (isProviderTaskPreview && req.method === "POST" && req.url?.startsWith("/api/offers/search")) {
+        const checkedAt = new Date().toISOString();
+        const fact = (criterion: string, value: string | null, source: string, status: "verified" | "reported" | "unknown" = value ? "verified" : "unknown") => ({
+          criterion, value, status, source, sourceType: status === "verified" ? "provider_owned" : status === "reported" ? "directory" : "unknown",
+          sourceUrl: value ? "https://example.com/provider-evidence" : null, checkedAt, conflict: false,
+          evidence: value ? [{ value, status, source, sourceType: status === "verified" ? "provider_owned" : "directory", sourceUrl: "https://example.com/provider-evidence", checkedAt }] : [],
+        });
+        const options = [
+          { id: "clinic-sol", name: "Clinica Sol Madrid", address: "1.2 km · Calle Mayor", price: "Consultation from EUR 65", reputation: "4.8/5 from 184 reviews", availability: "Appointments this week", accessibility: "Step-free entrance and lift", coverage: "Sanitas and Adeslas listed" },
+          { id: "centro-salud", name: "Centro Salud Retiro", address: "2.4 km · Retiro", price: "Public coverage; referral may apply", reputation: "4.5/5 from 96 reviews", availability: "Next appointment in 9 days", accessibility: "Accessible entrance", coverage: "Public health system" },
+          { id: "doctor-casa", name: "Doctor en Casa Madrid", address: "Home visits in Madrid", price: null, reputation: "4.7/5 from 61 reviews", availability: "Call to confirm", accessibility: "Care delivered at home", coverage: null },
+        ].map((item, index) => ({
+          id: item.id, label: index === 0 ? "Opcion recomendada" : `Alternativa ${index}`, name: item.name, category: "Vivienda y cuidados",
+          what_it_offers: "Local healthcare option", price_or_advantage: item.price ?? "Price to confirm", why_good_option: "Compared with your selected priorities.",
+          distance_or_availability: item.address, contact_method: "Contact can be prepared after review", source_label: "Preview evidence", source_status: index < 2 ? "verified" : "reported", source_type: index < 2 ? "provider_owned" : "directory", source_url: "https://example.com/provider-evidence", checked_at: checkedAt,
+          comparison: {
+            distance: fact("distance", item.address, "Demo: Maps listing", "reported"), price: fact("price", item.price, "Demo: provider price page", item.price ? "verified" : "unknown"),
+            reputation: fact("reputation", item.reputation, "Demo: public directory", "reported"), availability: fact("availability", item.availability, "Demo: provider booking page", index === 0 ? "verified" : "reported"),
+            accessibility: fact("accessibility", item.accessibility, "Demo: provider accessibility page", "verified"), coverage: fact("coverage", item.coverage, "Demo: provider coverage page", item.coverage ? "verified" : "unknown"),
+          },
+          personalised_fit: index === 0 ? { matchedPriorities: ["distance", "reputation", "accessibility"], tradeOffs: ["Price is higher than the public option"], unmetMustHaves: [], unknowns: [], explanation: "Closest option with verified step-free access and near-term availability.", recommendationStatus: "best_fit" } : { matchedPriorities: ["reputation", "accessibility"], tradeOffs: [], unmetMustHaves: item.coverage ? [] : ["coverage"], unknowns: item.price ? [] : ["price", "coverage"], explanation: item.coverage ? "Strong coverage option, but further away and slower." : "Convenient home visits, but price and coverage still need confirmation.", recommendationStatus: item.coverage ? "possible_fit" : "cautious" },
+          score: 0, score_breakdown: { distance: 0, price_value: 0, trust: 0, simplicity: 0, preference_match: 0 },
+        }));
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("cache-control", "no-store");
+        res.end(JSON.stringify({ category: "Preview data — vivienda y cuidados", options, best_fit_provider_id: "clinic-sol", recommendation_confident: true, recommendation_explanation: "Demo result: Clinica Sol Madrid is the best-supported fit for your priorities.", decision_explanation: "Demo result: Clinica Sol Madrid is the best-supported fit for your priorities.", neutrality_note: "Preview data only. VYVA does not receive commissions.", source_guidance: [], next_step: "Review the evidence before choosing.", no_results_message: "" }));
+        return;
+      }
       if (isBenefitsPreview && req.method === "GET" && req.url?.startsWith("/api/profile")) {
         res.statusCode = 200;
         res.setHeader("content-type", "application/json");

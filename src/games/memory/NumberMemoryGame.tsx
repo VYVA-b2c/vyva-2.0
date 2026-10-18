@@ -68,6 +68,14 @@ const CONTINUE_ROUND_LABEL: Record<LanguageCode, string> = {
   it: "Inizia il round",
   pt: "Começar ronda",
 };
+const CLOSE_LABEL: Record<LanguageCode, string> = {
+  en: "Close",
+  es: "Cerrar",
+  fr: "Fermer",
+  de: "Schliessen",
+  it: "Chiudi",
+  pt: "Fechar",
+};
 const NEXT_LEVEL_REQUIREMENT: Record<LanguageCode, string> = {
   en: "Reach 80% to unlock the next level",
   es: "Alcanza el 80 % para desbloquear el siguiente nivel",
@@ -404,6 +412,8 @@ export default function NumberMemoryGame({ plan, localizedVariant, cognitiveDoma
           onNextLevel={canAdvance ? () => void onOpenSameGame(plan.level + 1) : undefined}
           onReplay={() => void onOpenSameGame(plan.level)}
           onAnother={onBack}
+          onClose={onBack}
+          closeLabel={CLOSE_LABEL[language] ?? CLOSE_LABEL.en}
           disabled={actionLoading !== null}
         />
       </div>

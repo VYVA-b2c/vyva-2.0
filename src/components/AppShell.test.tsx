@@ -366,6 +366,17 @@ describe("app shell route layout", () => {
     );
   });
 
+  it("removes the global dock and bottom reservation from a focused Concierge task", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/concierge/task/task-1"]}>
+        <AppShell><div>Provider task</div></AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-shell-scroll")).toHaveClass("pb-0");
+  });
+
   it("lets the dev movement guide own the full screen without the global header or dock", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/social-rooms/morning-movement/exercises/chair-yoga"]}>

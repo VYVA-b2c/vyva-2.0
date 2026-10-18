@@ -374,6 +374,7 @@ async function attachWithClient(client: PoolClient, input: Parameters<ConciergeI
     from concierge_pending
     where id = $1::uuid
       and status in ('pending', 'calling')
+      and action_payload ->> 'request_deleted_at' is null
       and coalesce(action_payload->>'provider_task_status', '') <> 'done'
     for update
   `, [input.pending.id]);

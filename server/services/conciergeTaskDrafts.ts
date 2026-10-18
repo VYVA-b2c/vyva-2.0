@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { deleteConciergeRequest } from "./conciergeRequestDeletion.js";
 import type {
   ConciergeTaskDraft,
   ConciergeTaskEntryPayload,
@@ -147,15 +148,6 @@ export async function completeConciergeTaskDraft(id: string, userId: string): Pr
 }
 
 export async function deleteConciergeTaskDraft(id: string, userId: string): Promise<ConciergeTaskDraft> {
-  await requireActiveTask(id, userId);
-  const result = await pool.query<TaskDraftDbRow>(
-    `
-      update concierge_task_drafts
-      set status = 'deleted', deleted_at = now(), updated_at = now()
-      where id = $1::uuid and user_id = $2 and status = 'active'
-      returning *
-    `,
-    [id, userId],
-  );
-  return normalizeTask(result.rows[0]!);
+  await deleteConciergeRequest("draft", id, userId);
+  return (await taskForUser(id, userId))!;
 }

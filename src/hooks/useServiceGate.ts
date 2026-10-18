@@ -3,6 +3,7 @@ import { useNavigate, type NavigateOptions } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiFetch } from "@/lib/queryClient";
+import { useLanguage } from "@/i18n";
 
 export type ServiceId =
   | "medications"
@@ -41,6 +42,13 @@ export type ReadinessResponse = {
 
 export const READINESS_CHECK_TIMEOUT_MS = 8_000;
 
+export function blockingSetupStep(service: ServiceReadiness | undefined, path: string) {
+  if (!service || service.ready) return undefined;
+  const pathname = path.split("?")[0];
+  const isMedicineManagement = pathname === "/meds" || pathname === "/meds/my-medicines";
+  return service.missing.find((step) => !(isMedicineManagement && step.section === "medications"));
+}
+
 export async function fetchReadiness({ signal }: { signal?: AbortSignal }): Promise<ReadinessResponse> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), READINESS_CHECK_TIMEOUT_MS);
@@ -73,30 +81,30 @@ function withReturnTo(path: string, returnTo: string): string {
   return `${path}${separator}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-function setupToastCopy(step: MissingSetupStep) {
+function setupToastCopy(step: MissingSetupStep, t: ReturnType<typeof useLanguage>["t"]) {
   if (step.section === "account") {
     return {
-      title: "Account access disabled",
+      title: t("serviceGate.disabled"),
       description: step.reason,
     };
   }
 
   if (step.section === "subscription") {
     return {
-      title: "Plan upgrade needed",
+      title: t("serviceGate.upgrade"),
       description: step.reason,
     };
   }
 
   if (step.section === "medications") {
     return {
-      title: "Add one medication first",
-      description: "Medication reminders and reports need at least one medication in your profile.",
+      title: t("serviceGate.addMedicine"),
+      description: t("serviceGate.medicineRequired"),
     };
   }
 
   return {
-    title: "Complete this setup step",
+    title: t("serviceGate.setup"),
     description: step.reason,
   };
 }
@@ -113,6 +121,7 @@ export function serviceForPath(path: string): ServiceId | null {
 }
 
 export function useServiceGate() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const readinessQuery = useQuery<ReadinessResponse>({
@@ -132,9 +141,9 @@ export function useServiceGate() {
 
       if (!service || service.ready) return true;
 
-      const firstMissing = service.missing[0];
+      const firstMissing = blockingSetupStep(service, returnTo);
       if (!firstMissing) return true;
-      const toastCopy = setupToastCopy(firstMissing);
+      const toastCopy = setupToastCopy(firstMissing, t);
 
       toast({
         ...toastCopy,
@@ -143,7 +152,7 @@ export function useServiceGate() {
       navigate(withReturnTo(firstMissing.path, returnTo));
       return false;
     },
-    [navigate, readinessQuery.data, toast],
+    [navigate, readinessQuery.data, toast, t],
   );
 
   const guardPath = useCallback(

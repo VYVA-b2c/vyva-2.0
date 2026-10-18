@@ -127,6 +127,17 @@ describe("BottomNav", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master");
   });
 
+  it("uses the canonical floating dock on the Home Service preview", () => {
+    mocks.isDark = true;
+    renderBottomNav("/dev/home-service-preview");
+
+    const dock = screen.getByRole("navigation");
+    expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]", "bg-[#21172B]/[0.98]");
+
+    fireEvent.click(screen.getByTestId("nav-tab-home"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master");
+  });
+
   it("localizes the shared dock on development preview routes", () => {
     mocks.translations = {
       "nav.home": "Accueil",

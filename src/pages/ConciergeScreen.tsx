@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { CARE_FINDER_PATH, careFinderTaskPath } from "@/lib/careFinderNavigation";
+import { isCareFinderProviderTask } from "../../shared/careFinder/flow";
 import { useConciergeReminderDismissals } from "@/hooks/useConciergeReminderDismissals";
 import { buildConciergeTaskInbox } from "@/lib/conciergeTaskInbox";
-import { conciergeTaskReminder } from "@/lib/conciergeTaskReminder";
+import { conciergeTaskReminder, visibleConciergeReminders } from "@/lib/conciergeTaskReminder";
+import { ConciergeRequestUpdates } from "@/components/ConciergeRequestUpdates";
 import { ProviderVerificationPanel, type VerificationRanking } from "@/components/ProviderVerificationPanel";
 import { HomeProviderDetails } from "@/components/HomeProviderDetails";
 import { homeHelpCopy } from "../../shared/homeHelpCopy";
 import { homeServiceText } from "../../shared/homeServiceText";
 import { HomeServicePriorities } from "@/components/HomeServicePriorities";
+import { HomeServiceOutcomeCheckIn } from "@/components/concierge/HomeServiceOutcomeCheckIn";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,7 +77,21 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
+import { compressBillImage, readFileAsDataUrl } from "@/lib/documentImage";
+import { DocumentHelpFlow, type DocumentHelpSaveState } from "@/components/document-help/DocumentHelpFlow";
+import {
+  EMPTY_DOCUMENT_HELP_DETAILS,
+  documentHelpOption,
+  documentHelpText,
+  type DocumentHelpDetails,
+  type DocumentHelpKind,
+  type DocumentHelpOption,
+  type DocumentHelpStep,
+} from "@/components/document-help/documentHelpModel";
+import { primaryDocumentDeadline, type DocumentHelpReading } from "../../shared/documentHelpReading";
 import { ConciergeTaskWorkspaceHeader } from "@/components/concierge/ConciergeTaskNavigation";
+import { ProviderTaskWizard } from "@/components/concierge/ProviderTaskWizard";
+import { emptyProviderServiceIntake, intakeMustHaveLabels, intakeSearchTerms } from "@/components/concierge/providerIntakeConfig";
 import { HomeRepairPage } from "@/components/concierge/HomeRepairPage";
 import {
   AppointmentVoiceCanvas,
@@ -107,9 +125,12 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
 } from "@/components/MasterDashboardLayout";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
-import { HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
+import { HomeServicePicker } from "@/components/concierge/HomeServicePicker";
+import { HomeMasterTopbar } from "@/components/HomeMasterTopControls";
+import { BackButton } from "@/components/vyva-ui/BackButton";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { normalizeProviderWizardStep, useProviderTaskWizard } from "@/hooks/useProviderTaskWizard";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
@@ -147,6 +168,7 @@ import {
   type PersistedConciergeTaskStage,
 } from "@/lib/conciergeTaskDrafts";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { emitSosSheetOpen } from "@/lib/sosEvents";
 import {
   buildConciergeAppointmentCanvasViewModel,
   type ConciergeAppointmentCanvasCopy,
@@ -244,6 +266,9 @@ import {
   parseProviderShortlistPayload,
   updateProviderShortlistPayload,
   type ProviderComparisonOption,
+  type ProviderComparisonCriterion,
+  type ProviderPriorityContext,
+  type ProviderServiceIntake,
   type ProviderComparisonSourceOption,
   type ProviderRecheckContext,
   type ProviderShortlistState,
@@ -1008,7 +1033,7 @@ interface AppointmentRequestItem {
 interface AppointmentProviderOption {
   id: string;
   provider_id: string | null;
-  provider_source: "saved" | "external" | "manual";
+  provider_source: "saved" | "external" | "manual" | "partner";
   provider_snapshot: Record<string, unknown>;
   match_reason: string | null;
   available_channels: AppointmentChannel[];
@@ -1067,7 +1092,7 @@ interface PreparedAppointmentAttempt {
 interface AppointmentDiscoveryMeta {
   search_id?: string;
   source?: string;
-  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable";
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable" | "address_unresolved" | "geocoding_unavailable" | "country_not_enabled";
   inserted_count?: number;
   eligible_count?: number;
   exclusion_summary?: Record<string, number>;
@@ -1324,6 +1349,9 @@ interface OffersSearchResponse {
   protection_summary?: OfferProtectionSummary;
   next_step: string;
   no_results_message?: string;
+  best_fit_provider_id?: string | null;
+  recommendation_confident?: boolean;
+  recommendation_explanation?: string;
 }
 
 type WebSearchActionResult = {
@@ -1676,13 +1704,8 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
 ]);
 
 type ScamCheckKind = "email" | "document" | "phone" | "company";
-type InsuranceAdminKind = "insurance-letter" | "claim" | "government-form" | "call-email";
-type InsuranceAdminDetails = {
-  subject: string;
-  recipient: string;
-  deadline: string;
-  notes: string;
-};
+type InsuranceAdminKind = DocumentHelpKind;
+type InsuranceAdminDetails = DocumentHelpDetails;
 
 const SCAM_CHECK_OPTIONS: Array<{
   key: ScamCheckKind;
@@ -1731,53 +1754,6 @@ const SCAM_CHECK_OPTIONS: Array<{
   },
 ];
 
-const INSURANCE_ADMIN_OPTIONS: Array<{
-  key: InsuranceAdminKind;
-  en: string;
-  es: string;
-  detailEn: string;
-  detailEs: string;
-  requestedTool: ConciergeToolRequirement;
-  Icon: LucideIcon;
-}> = [
-  {
-    key: "insurance-letter",
-    en: "Insurance letter or bill",
-    es: "Carta o factura de seguro",
-    detailEn: "Photo, upload, or paste",
-    detailEs: "Foto, subir o pegar",
-    requestedTool: "camera_or_upload",
-    Icon: FileUp,
-  },
-  {
-    key: "claim",
-    en: "Claim or reimbursement",
-    es: "Reclamo o reembolso",
-    detailEn: "Prepare what to send",
-    detailEs: "Preparar que enviar",
-    requestedTool: "email",
-    Icon: PiggyBank,
-  },
-  {
-    key: "government-form",
-    en: "Government/admin form",
-    es: "Formulario oficial",
-    detailEn: "Fill step by step",
-    detailEs: "Rellenar paso a paso",
-    requestedTool: "camera_or_upload",
-    Icon: Building2,
-  },
-  {
-    key: "call-email",
-    en: "Call or email someone",
-    es: "Llamar o enviar email",
-    detailEn: "Draft before action",
-    detailEs: "Borrador antes de actuar",
-    requestedTool: "phone_call",
-    Icon: PhoneCall,
-  },
-];
-
 function scamCheckDetailCopy(kind: ScamCheckKind, isSpanish: boolean): { label: string; placeholder: string; helper: string } {
   const copy: Record<ScamCheckKind, { en: string; es: string; placeholderEn: string; placeholderEs: string; helperEn: string; helperEs: string }> = {
     email: {
@@ -1821,49 +1797,6 @@ function scamCheckDetailCopy(kind: ScamCheckKind, isSpanish: boolean): { label: 
   };
 }
 
-function insuranceAdminDetailCopy(kind: InsuranceAdminKind, isSpanish: boolean): {
-  subjectLabel: string;
-  subjectPlaceholder: string;
-  recipientLabel: string;
-  deadlineLabel: string;
-  notesLabel: string;
-} {
-  if (kind === "call-email") {
-    return {
-      subjectLabel: isSpanish ? "Motivo" : "Reason",
-      subjectPlaceholder: isSpanish ? "Ej. pedir cita, aclarar factura..." : "E.g. request appointment, clarify bill...",
-      recipientLabel: isSpanish ? "A quien contactar" : "Who to contact",
-      deadlineLabel: isSpanish ? "Para cuando" : "By when",
-      notesLabel: isSpanish ? "Resultado deseado" : "Desired outcome",
-    };
-  }
-  if (kind === "government-form") {
-    return {
-      subjectLabel: isSpanish ? "Formulario" : "Form",
-      subjectPlaceholder: isSpanish ? "Nombre del formulario o tramite..." : "Form or application name...",
-      recipientLabel: isSpanish ? "Organismo" : "Office / agency",
-      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-      notesLabel: isSpanish ? "Datos que ya tienes" : "Details you already have",
-    };
-  }
-  if (kind === "claim") {
-    return {
-      subjectLabel: isSpanish ? "Que reclamar" : "What to claim",
-      subjectPlaceholder: isSpanish ? "Reembolso, pago, factura..." : "Reimbursement, payment, bill...",
-      recipientLabel: isSpanish ? "Aseguradora o destinatario" : "Insurer or recipient",
-      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-      notesLabel: isSpanish ? "Documentos o importes" : "Documents or amounts",
-    };
-  }
-  return {
-    subjectLabel: isSpanish ? "Carta o factura" : "Letter or bill",
-    subjectPlaceholder: isSpanish ? "Que quieres entender..." : "What you want to understand...",
-    recipientLabel: isSpanish ? "Aseguradora" : "Insurer",
-    deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
-    notesLabel: isSpanish ? "Preguntas o preocupaciones" : "Questions or worries",
-  };
-}
-
 function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], detail: string, isSpanish: boolean): Record<string, unknown> {
   const cleanDetail = detail.trim();
   const optionLabel = isSpanish ? option.es : option.en;
@@ -1895,17 +1828,42 @@ function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], d
   return payload;
 }
 
-function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails, isSpanish: boolean): Record<string, unknown> {
+function documentHelpReadingPayload(reading: DocumentHelpReading | null): Record<string, unknown> {
+  if (!reading) return { has_document: false };
+  if (reading.status !== "read") return { has_document: true, document_read_status: reading.status };
+  const deadline = primaryDocumentDeadline(reading);
+  return {
+    has_document: true,
+    document_read_status: "read",
+    document_summary: reading.summary,
+    document_organization: reading.organization,
+    document_type_label: reading.document_type_label,
+    document_deadline: deadline?.date ?? deadline?.text ?? null,
+    document_dates: reading.dates,
+    document_amounts: reading.amounts,
+    document_requested_actions: reading.requested_actions,
+    document_unclear: reading.unclear,
+    document_read_confidence: reading.confidence,
+  };
+}
+
+function insuranceAdminStructuredPayload(
+  option: DocumentHelpOption,
+  details: InsuranceAdminDetails,
+  reading: DocumentHelpReading | null,
+  isSpanish: boolean,
+): Record<string, unknown> {
   const subject = details.subject.trim();
   const recipient = details.recipient.trim();
   const deadline = details.deadline.trim();
   const notes = details.notes.trim();
-  const optionLabel = isSpanish ? option.es : option.en;
+  const optionLabel = documentHelpText(option.title, isSpanish);
   const payload: Record<string, unknown> = {
     task_type: option.key,
     admin_task: optionLabel,
     action_type: option.requestedTool,
     requested_tool: option.requestedTool,
+    ...documentHelpReadingPayload(reading),
   };
 
   if (subject) {
@@ -1923,6 +1881,64 @@ function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[
   if (notes) payload.notes = notes;
 
   return payload;
+}
+
+function documentHelpReadingPromptLines(reading: DocumentHelpReading | null, isSpanish: boolean): string {
+  if (!reading || reading.status !== "read") return "";
+  const lines = [
+    reading.summary ? `${isSpanish ? "El documento dice" : "The document says"}: ${reading.summary}` : "",
+    reading.dates.length
+      ? `${isSpanish ? "Fechas" : "Dates"}: ${reading.dates.map((entry) => `${entry.label} ${entry.date ?? entry.text}`).join("; ")}.`
+      : "",
+    reading.amounts.length
+      ? `${isSpanish ? "Importes" : "Amounts"}: ${reading.amounts.map((amount) => `${amount.label} ${amount.amount}${amount.currency ? ` ${amount.currency}` : ""}`).join("; ")}.`
+      : "",
+    reading.requested_actions.length
+      ? `${isSpanish ? "Pide" : "It asks"}: ${reading.requested_actions.join("; ")}.`
+      : "",
+  ];
+  return lines.filter(Boolean).join(" ");
+}
+
+function insuranceAdminPrompt(
+  option: DocumentHelpOption,
+  details: InsuranceAdminDetails,
+  reading: DocumentHelpReading | null,
+  isSpanish: boolean,
+) {
+  const common = isSpanish
+    ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
+    : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
+  const detailLines = [
+    details.subject.trim() ? (isSpanish ? `Tema: ${details.subject.trim()}.` : `Subject: ${details.subject.trim()}.`) : "",
+    details.recipient.trim() ? (isSpanish ? `Destinatario: ${details.recipient.trim()}.` : `Recipient: ${details.recipient.trim()}.`) : "",
+    details.deadline.trim() ? (isSpanish ? `Fecha limite: ${details.deadline.trim()}.` : `Deadline: ${details.deadline.trim()}.`) : "",
+    details.notes.trim() ? (isSpanish ? `Notas: ${details.notes.trim()}.` : `Notes: ${details.notes.trim()}.`) : "",
+    documentHelpReadingPromptLines(reading, isSpanish),
+  ].filter(Boolean).join(" ");
+  const detailText = detailLines || (isSpanish ? "Pregunta por los datos que falten." : "Ask for any missing details.");
+  switch (option.key) {
+    case "insurance-letter":
+      return isSpanish
+        ? `Ayudame a entender una carta o factura. ${detailText} Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
+        : `Help me understand a letter or bill. ${detailText} Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
+    case "claim":
+      return isSpanish
+        ? `Ayudame a preparar un reclamo o reembolso. ${detailText} Prepara un borrador para revisar. ${common}`
+        : `Help me prepare a claim or reimbursement. ${detailText} Prepare a draft for review. ${common}`;
+    case "government-form":
+      return isSpanish
+        ? `Ayudame a rellenar un formulario oficial o administrativo. ${detailText} Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
+        : `Help me fill a government or admin form. ${detailText} Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
+    case "call-email":
+      return isSpanish
+        ? `Ayudame a preparar una llamada o email administrativo. ${detailText} Prepara guion o borrador y espera mi confirmacion. ${common}`
+        : `Help me prepare an admin call or email. ${detailText} Prepare a script or draft and wait for my confirmation. ${common}`;
+    default:
+      return isSpanish
+        ? `No se bien que es este documento. ${detailText} Explicame que es y si tengo que hacer algo. ${common}`
+        : `I am not sure what this document is. ${detailText} Explain what it is and whether I need to do anything. ${common}`;
+  }
 }
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
@@ -3054,6 +3070,8 @@ async function searchOffers(
   documentContext?: BillDocumentAnalysis,
   recheckContext?: ProviderRecheckContext,
   providerMode?: ProviderSearchMode | null,
+  priorities?: ProviderPriorityContext,
+  serviceIntake?: ProviderServiceIntake,
 ): Promise<OffersSearchResponse> {
   const res = await apiFetch("/api/offers/search", {
     method: "POST",
@@ -3074,6 +3092,8 @@ async function searchOffers(
             })),
           }
         : undefined,
+      priorities,
+      service_intake: serviceIntake,
     }),
   });
   if (!res.ok) {
@@ -3126,71 +3146,6 @@ async function saveProviderShortlistAction(params: {
   const result = await trigger.json() as { pendingId?: string | null };
   if (!result.pendingId) throw new Error("Could not save provider shortlist");
   return { pendingId: result.pendingId };
-}
-
-function compressBillImage(file: File, targetChars = 1_500_000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("canvas context unavailable"));
-
-      const emergencyMode = targetChars <= 120_000;
-      const qualities = emergencyMode
-        ? [0.48, 0.4, 0.32, 0.24, 0.16, 0.1]
-        : [0.86, 0.78, 0.68, 0.58, 0.48, 0.38];
-      const maxSizes = emergencyMode
-        ? [620, 520, 420, 340, 260, 200, 160]
-        : [1900, 1600, 1300, 1050, 850];
-      let best = "";
-
-      for (const maxSize of maxSizes) {
-        let { width, height } = img;
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height = Math.round((height * maxSize) / width);
-            width = maxSize;
-          } else {
-            width = Math.round((width * maxSize) / height);
-            height = maxSize;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-
-        for (const quality of qualities) {
-          const dataUrl = canvas.toDataURL("image/jpeg", quality);
-          if (!best || dataUrl.length < best.length) best = dataUrl;
-          if (dataUrl.length <= targetChars) {
-            resolve(dataUrl);
-            return;
-          }
-        }
-      }
-
-      resolve(best);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("image load failed"));
-    };
-    img.src = url;
-  });
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("No he podido abrir el archivo."));
-    reader.readAsDataURL(file);
-  });
 }
 
 function billReaderEndpoints(): string[] {
@@ -3380,11 +3335,33 @@ function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boo
     .map((item) => es ? item.es : item.en);
 }
 
+function providerCriteriaForMode(mode: ProviderSearchMode | null): ProviderSearchCriterionKey[] {
+  if (mode === "transport") return ["available-soon", "accessible", "clear-price", "reputation", "nearby"];
+  if (mode === "pharmacy") return ["available-soon", "nearby", "clear-price", "accessible", "reputation"];
+  if (mode === "home-service") return ["available-soon", "reputation", "clear-price", "nearby"];
+  if (mode === "shopping-seller") return ["clear-price", "reputation", "nearby", "available-soon"];
+  if (mode === "residence" || mode === "care" || mode === "personal-care") return ["reputation", "accessible", "available-soon", "coverage", "clear-price", "nearby"];
+  return ["available-soon", "accessible", "coverage", "reputation", "nearby", "clear-price"];
+}
+
+function defaultProviderCriteriaForMode(mode: ProviderSearchMode | null): ProviderSearchCriterionKey[] {
+  return providerCriteriaForMode(mode).slice(0, 3);
+}
+
+function comparisonCriterion(key: ProviderSearchCriterionKey): ProviderComparisonCriterion {
+  return ({ nearby: "distance", "clear-price": "price", reputation: "reputation", "available-soon": "availability", accessible: "accessibility", coverage: "coverage" } as const)[key];
+}
+
+function splitPersonalDetails(value: string): string[] {
+  return value.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 8);
+}
+
 function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
   if (!mode || criteria.length === 0) return query;
-  const selected = PROVIDER_SEARCH_CRITERIA
-    .filter((item) => criteria.includes(item.key))
-    .map((item) => es ? item.queryEs : item.queryEn);
+  const selected = criteria.map((key) => {
+    const item = PROVIDER_SEARCH_CRITERIA.find((candidate) => candidate.key === key);
+    return item ? (es ? item.queryEs : item.queryEn) : "";
+  }).filter(Boolean);
   if (selected.length === 0) return query;
   return es
     ? `${query}. Prioriza para ${providerSearchModeLabel(mode, true)}: ${selected.join(", ")}. Explica proximidad, precio, reputacion y disponibilidad. No contactar ni compartir datos sin confirmacion.`
@@ -3629,7 +3606,9 @@ function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isS
     priorityNotes.some(note => note.startsWith("Price information is unavailable")) ? copy("Price to be confirmed") : "",
     priorityNotes.some(note => note.includes("job availability is unconfirmed") || note.startsWith("No confirmed timing evidence")) ? copy("Availability unconfirmed") : "",
   ].filter(Boolean);
+  const partner = option.provider_source === "partner" ? appointmentSnapshotText(option, "partner_organisation_name") : "";
   const parts = [
+    partner ? copy("Vetted by {organisation}").replace("{organisation}", partner) : "",
     rating ? `${rating}${reviews !== null ? ` (${reviews} ${copy("reviews")})` : ""}` : "",
     opening,
     ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1).map(copy)),
@@ -7842,6 +7821,7 @@ type MissingProviderChoicePanelProps = {
   findTestId?: string;
   helperTestId?: string;
   isSpanish: boolean;
+  language: string;
 };
 
 function MissingProviderChoicePanel({
@@ -7863,6 +7843,7 @@ function MissingProviderChoicePanel({
   findTestId,
   helperTestId,
   isSpanish,
+  language,
 }: MissingProviderChoicePanelProps) {
   const choices: Array<{
     key: string;
@@ -7944,7 +7925,7 @@ function MissingProviderChoicePanel({
       <p className="mt-3 rounded-full bg-white px-3 py-2 text-center font-body text-[12px] font-black text-[#92400E]">
         {isSpanish
           ? "Nada se llama, reserva, envia ni comparte hasta que confirmes."
-          : "Nothing is called, booked, sent, or shared until you confirm."}
+          : homeServiceText(language, "Nothing is called, booked, sent, or shared until you confirm.")}
       </p>
     </div>
   );
@@ -9705,6 +9686,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     () => taskEntry ?? coerceConciergeTaskEntry(persistedTask?.entry_payload),
     [persistedTask?.entry_payload, taskEntry],
   );
+  const isHomeServiceTask = effectiveTaskEntry?.kind === "home_service"
+    || (effectiveTaskEntry?.kind === "appointment" && ["home-service", "home_service"].includes(effectiveTaskEntry.appointmentKind ?? ""))
+    || persistedTask?.kind === "home_service"
+    || ["home-service", "home_service"].includes(String(persistedTask?.progress_payload.appointmentType ?? ""));
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
@@ -9762,6 +9747,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   useEffect(() => {
     if (mode !== "task" || taskId !== "new" || !taskEntry || taskCreationStartedRef.current) return;
+    if (isCareFinderProviderTask(taskEntry)) {
+      // Health care searches live in Care Finder, which creates its own task.
+      taskCreationStartedRef.current = true;
+      navigate(CARE_FINDER_PATH, { replace: true, state: { returnTo: "/concierge" } });
+      return;
+    }
     taskCreationStartedRef.current = true;
     void createConciergeTaskDraft({
       entry: taskEntry,
@@ -9945,12 +9936,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [selectedInsuranceAdminKind, setSelectedInsuranceAdminKind] = useState<InsuranceAdminKind | null>(() => (
     mode === "task" && taskEntry?.kind === "document" ? taskEntry.documentKind ?? null : null
   ));
-  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>({
-    subject: "",
-    recipient: "",
-    deadline: "",
-    notes: "",
-  });
+  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>(EMPTY_DOCUMENT_HELP_DETAILS);
+  const [documentHelpStep, setDocumentHelpStep] = useState<DocumentHelpStep>(() => (
+    mode === "task" && taskEntry?.kind === "document" && taskEntry.documentKind ? "details" : "choose"
+  ));
+  const [documentHelpReading, setDocumentHelpReading] = useState<DocumentHelpReading | null>(null);
+  const [documentHelpFileName, setDocumentHelpFileName] = useState<string | null>(null);
+  const [documentHelpSubmitted, setDocumentHelpSubmitted] = useState(false);
+  const [taskSaveState, setTaskSaveState] = useState<DocumentHelpSaveState>(null);
   const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(() => mode === "task" && taskEntry?.kind === "otc_pharmacy");
   const [otcItemText, setOtcItemText] = useState("");
   const [otcFulfillmentPreference, setOtcFulfillmentPreference] = useState<"delivery" | "pickup">("delivery");
@@ -10016,11 +10009,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [providerSearchMode, setProviderSearchMode] = useState<ProviderSearchMode | null>(() => (
     mode === "task" && taskEntry?.kind === "provider_contact" ? taskEntry.providerSearchMode ?? "specialist" : null
   ));
+  const [providerServiceIntake, setProviderServiceIntake] = useState<ProviderServiceIntake>(() => {
+    const initialMode = mode === "task" && taskEntry?.kind === "provider_contact" ? taskEntry.providerSearchMode ?? "specialist" : "specialist";
+    return emptyProviderServiceIntake(initialMode, taskEntry?.kind === "provider_contact" ? taskEntry.query ?? "" : "");
+  });
   const [providerSearchCriteria, setProviderSearchCriteria] = useState<ProviderSearchCriterionKey[]>(DEFAULT_PROVIDER_SEARCH_CRITERIA);
+  const [providerMustHaves, setProviderMustHaves] = useState<ProviderSearchCriterionKey[]>([]);
+  const [providerDealBreakers, setProviderDealBreakers] = useState("");
+  const [providerConstraints, setProviderConstraints] = useState("");
+  const providerWizard = useProviderTaskWizard();
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
   const [providerShortlistIds, setProviderShortlistIds] = useState<string[]>([]);
+  const [selectedProviderOptionId, setSelectedProviderOptionId] = useState<string | null>(null);
   const [providerShortlistNotice, setProviderShortlistNotice] = useState<string | null>(null);
   const [providerShortlistError, setProviderShortlistError] = useState<string | null>(null);
   const [editingProviderShortlistId, setEditingProviderShortlistId] = useState<string | null>(null);
@@ -10041,12 +10043,16 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
     if (effectiveTaskEntry.kind === "document") {
       setSelectedInsuranceAdminKind(effectiveTaskEntry.documentKind ?? null);
+      setDocumentHelpStep(effectiveTaskEntry.documentKind ? "details" : "choose");
     } else if (effectiveTaskEntry.kind === "appointment" || effectiveTaskEntry.kind === "home_service") {
       const chipKey = effectiveTaskEntry.kind === "home_service" ? "home-service" : effectiveTaskEntry.appointmentKind;
       setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === chipKey) ?? null);
     } else if (effectiveTaskEntry.kind === "provider_contact") {
-      setProviderSearchMode(effectiveTaskEntry.providerSearchMode ?? "specialist");
+      const nextMode = effectiveTaskEntry.providerSearchMode ?? "specialist";
+      setProviderSearchMode(nextMode);
+      setProviderSearchCriteria(defaultProviderCriteriaForMode(nextMode));
       setOffersQuery(effectiveTaskEntry.query ?? "");
+      setProviderServiceIntake(emptyProviderServiceIntake(nextMode, effectiveTaskEntry.query ?? ""));
       setOffersError(null);
       setOffersResult(null);
     } else if (effectiveTaskEntry.kind === "transport") {
@@ -10067,6 +10073,15 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   useEffect(() => {
     if (!persistedTask || hydratedConciergeTaskIdRef.current === persistedTask.id) return;
+    const legacyHealthSearch = persistedTask.kind === "provider_contact"
+      && !persistedTask.entry_payload.providerSearchMode
+      && persistedTask.progress_payload.providerSearchMode === "specialist";
+    if (isCareFinderProviderTask(persistedTask.entry_payload) || legacyHealthSearch) {
+      // Resume in Care Finder. Never hydrate here: this screen's autosave
+      // would overwrite Care Finder progress with its own payload.
+      navigate(careFinderTaskPath(persistedTask.id), { replace: true, state: { returnTo: "/concierge/tasks" } });
+      return;
+    }
     hydratedConciergeTaskIdRef.current = persistedTask.id;
     lastSavedConciergeTaskHashRef.current = JSON.stringify({
       progress: persistedTask.progress_payload,
@@ -10075,9 +10090,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     const progress = persistedTask.progress_payload;
 
     if (persistedTask.kind === "document") {
+      const documentKind = progress.documentKind ?? effectiveTaskEntry?.documentKind ?? null;
       setInsuranceAdminOpen(true);
-      setSelectedInsuranceAdminKind(progress.documentKind ?? effectiveTaskEntry?.documentKind ?? null);
-      if (progress.documentDetails) setInsuranceAdminDetails(progress.documentDetails);
+      setSelectedInsuranceAdminKind(documentKind);
+      if (progress.documentDetails) setInsuranceAdminDetails({ ...EMPTY_DOCUMENT_HELP_DETAILS, ...progress.documentDetails });
+      setDocumentHelpStep(documentKind ? progress.documentStep ?? "details" : "choose");
+      setDocumentHelpReading((progress.documentReading as DocumentHelpReading | null | undefined) ?? null);
+      setDocumentHelpFileName(progress.documentFileName ?? null);
       return;
     }
 
@@ -10123,9 +10142,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         ? progress.providerSearchMode
         : effectiveTaskEntry?.providerSearchMode ?? "specialist");
       setOffersQuery(progress.query ?? effectiveTaskEntry?.query ?? "");
-      setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion));
+      setProviderServiceIntake(progress.providerServiceIntake ?? emptyProviderServiceIntake(
+        isProviderSearchMode(progress.providerSearchMode) ? progress.providerSearchMode : effectiveTaskEntry?.providerSearchMode ?? "specialist",
+        progress.query ?? effectiveTaskEntry?.query ?? "",
+      ));
+      setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion).slice(0, 3));
+      setProviderMustHaves((progress.providerMustHaves ?? []).filter(isProviderSearchCriterion).slice(0, 3));
       setOffersResult((progress.providerResult ?? null) as OffersSearchResponse | null);
       setProviderShortlistIds(progress.shortlistIds ?? []);
+      setSelectedProviderOptionId(progress.selectedProviderOptionId ?? null);
+      providerWizard.goTo(normalizeProviderWizardStep(
+        progress.providerWizardStep,
+        Boolean(progress.providerResult),
+        Boolean(progress.selectedProviderOptionId),
+      ));
       return;
     }
 
@@ -10153,7 +10183,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setRideCanvasStep(progress.canvasStep as ConciergeRideCanvasStep);
       }
     }
-  }, [effectiveTaskEntry, isSpanish, persistedTask, t]);
+  // providerWizard.goTo is stable; depending on the wrapper object would rehydrate after every step change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTaskEntry, isSpanish, navigate, persistedTask, t]);
 
   const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
     switch (effectiveTaskEntry?.kind) {
@@ -10161,6 +10193,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         return {
           documentKind: selectedInsuranceAdminKind,
           documentDetails: insuranceAdminDetails,
+          // Consent is never persisted: a resumed task re-enters at review, not confirm.
+          documentStep: documentHelpStep === "confirm" ? "review" : documentHelpStep,
+          documentReading: documentHelpReading,
+          documentFileName: documentHelpFileName,
         };
       case "appointment":
         return {
@@ -10203,10 +10239,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       case "provider_contact":
         return {
           providerSearchMode,
+          providerWizardStep: providerWizard.step,
           query: offersQuery,
           criteria: providerSearchCriteria,
+          providerMustHaves,
+          providerServiceIntake,
           providerResult: offersResult as unknown as Record<string, unknown> | null,
           shortlistIds: providerShortlistIds,
+          selectedProviderOptionId,
         };
       default:
         return {};
@@ -10217,6 +10257,9 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     appointmentCanvasStep,
     appointmentNote,
     appointmentRequest?.id,
+    documentHelpFileName,
+    documentHelpReading,
+    documentHelpStep,
     effectiveTaskEntry?.kind,
     homeServiceCanvasPhotoName,
     homeServiceCanvasStep,
@@ -10228,8 +10271,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     offersQuery,
     offersResult,
     providerSearchCriteria,
+    providerMustHaves,
     providerSearchMode,
+    providerServiceIntake,
     providerShortlistIds,
+    providerWizard.step,
+    selectedProviderOptionId,
     rideCanvasSelectedOptionId,
     rideCanvasStep,
     selectedAppointmentChip?.key,
@@ -10248,7 +10295,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     || (effectiveTaskEntry?.kind === "transport" && Boolean(rideCanvasStep && !["destination", "pickup", "pickup_custom"].includes(rideCanvasStep)))
     || appointmentOptions.length > 0
     || offersResult
-    || (effectiveTaskEntry?.kind === "document" && routePrefill)
+    || (effectiveTaskEntry?.kind === "document" && (documentHelpStep === "review" || documentHelpStep === "confirm"))
     ? "review"
     : "details";
 
@@ -10258,17 +10305,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (nextHash === lastSavedConciergeTaskHashRef.current) return;
     const timer = window.setTimeout(() => {
       lastSavedConciergeTaskHashRef.current = nextHash;
+      setTaskSaveState("saving");
       void updateConciergeTaskDraft({
         id: persistedTask.id,
         progress: savedConciergeTaskProgress,
         stage: savedConciergeTaskStage,
       }).then((updatedTask) => {
+        setTaskSaveState("saved");
         queryClient.setQueryData(["/api/concierge/tasks", updatedTask.id], updatedTask);
         queryClient.setQueryData<ConciergeTaskDraft[]>(["/api/concierge/tasks"], (current) => (
           current?.map((task) => task.id === updatedTask.id ? updatedTask : task) ?? current
         ));
       }).catch(() => {
         lastSavedConciergeTaskHashRef.current = null;
+        setTaskSaveState("error");
       });
     }, 500);
     return () => window.clearTimeout(timer);
@@ -10539,6 +10589,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   const persistedAppointmentRequestId = persistedTask?.progress_payload.requestId ?? null;
   const [appointmentRecoveryExpired, setAppointmentRecoveryExpired] = useState(false);
+  const homeRecoveryDiscoveryRequestRef = useRef<string | null>(null);
   useEffect(() => {
     setAppointmentRecoveryExpired(false);
     if (!persistedAppointmentRequestId) return;
@@ -10652,6 +10703,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const appointmentProviderAddress = appointmentSnapshotText(selectedAppointmentOption, "address");
   const appointmentProviderTrustNote = selectedAppointmentOption?.provider_source === "saved"
     ? (isSpanish ? "Guardado y relevante para esta solicitud" : "Saved and relevant to this request")
+    : selectedAppointmentOption?.provider_source === "partner"
+      ? homeServiceText(locale, "Vetted by {organisation}").replace("{organisation}", appointmentSnapshotText(selectedAppointmentOption, "partner_organisation_name"))
     : selectedAppointmentOption?.provider_source === "external"
       ? (isSpanish ? "Encontrado en fuentes verificables" : "Found from verifiable sources")
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
@@ -11179,6 +11232,10 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         setAppointmentError(homeServiceText(locale, "The search service is unavailable. We couldn't complete the search; this does not mean there are no providers."));
         return;
       }
+      if (result.discovery?.fallback_reason === "country_not_enabled") {
+        setAppointmentNotice(homeServiceText(locale, "Provider search is not available in this country yet. I can still prepare this in chat."));
+        return;
+      }
       if (result.discovery?.fallback_reason === "google_places_not_configured") {
         setAppointmentNotice(homeServiceText(locale, "External search is not configured yet. I can still prepare this in chat."));
         return;
@@ -11197,6 +11254,31 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
     },
   });
+
+  useEffect(() => {
+    const restored = persistedAppointmentRequestQuery.data;
+    const requestId = persistedAppointmentRequestId;
+    if (
+      mode !== "task"
+      || !requestId
+      || !restored?.request
+      || restored.request.appointment_type !== "home-service"
+      || restored.options.length > 0
+      || restored.discovery
+      || persistedAppointmentRequestQuery.isError
+      || discoverAppointmentOptionsMutation.isPending
+      || homeRecoveryDiscoveryRequestRef.current === requestId
+    ) return;
+
+    homeRecoveryDiscoveryRequestRef.current = requestId;
+    discoverAppointmentOptionsMutation.mutate({ requestId });
+  }, [
+    discoverAppointmentOptionsMutation,
+    mode,
+    persistedAppointmentRequestId,
+    persistedAppointmentRequestQuery.data,
+    persistedAppointmentRequestQuery.isError,
+  ]);
 
   const addAppointmentBookingSiteMutation = useMutation({
     mutationFn: addAppointmentBookingSiteOption,
@@ -12303,6 +12385,34 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     },
   });
 
+  // Document Help confirms on its own final screen, so it prepares the task directly
+  // instead of going through the generic route-prefill review panel.
+  const documentHelpSubmitMutation = useMutation({
+    mutationFn: () => {
+      const option = documentHelpOption(selectedInsuranceAdminKind);
+      if (!option) throw new Error("Document help kind is required");
+      const label = documentHelpText(option.title, isSpanish);
+      const payload = insuranceAdminStructuredPayload(option, insuranceAdminDetails, documentHelpReading, isSpanish);
+      const prefill: ConciergeRoutePrefill = {
+        kind: "task",
+        message: insuranceAdminPrompt(option, insuranceAdminDetails, documentHelpReading, isSpanish),
+        flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
+        requestedTool: option.requestedTool,
+        actionLabel: label,
+        summary: isSpanish ? `Gestion preparada: ${label}.` : `Paperwork task prepared: ${label}.`,
+        payload: persistedTask ? { ...payload, concierge_task_id: persistedTask.id } : payload,
+        useCase: "admin_task",
+      };
+      return prepareToolGatedConciergeTask({ prefill, readiness: routePrefillTaskReadiness(prefill), locale });
+    },
+    onSuccess: async (result) => {
+      setDocumentHelpSubmitted(true);
+      setIsRightNowHidden(false);
+      if (result.pendingId) setVisibleActionId(result.pendingId);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+  });
+
   const isMedicalAppointmentIntent = appointmentIntentType === "medical";
   const shouldShowCoverageReadiness = isMedicalAppointmentIntent && !hasAppointmentCoverageInfo;
   const canSaveCoverageReadiness = coverageType !== "unknown"
@@ -12327,22 +12437,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     ? (isSpanish ? "Ej. fuga bajo el fregadero, atasco, sin agua caliente" : "E.g. leaking sink, blocked toilet, no hot water")
     : (isSpanish ? "Ej. dermatologia, martes por la manana, WhatsApp si se puede" : "E.g. dermatology, Tuesday morning, WhatsApp if possible");
   const noSavedProviderTitle = isHomeServiceAppointment
-    ? (isSpanish ? "Sin opcion clara todavia" : "No clear option yet")
+    ? homeServiceText(locale, "No clear option yet")
     : (isSpanish ? "No hay proveedor de confianza elegido." : "No trusted provider selected.");
   const noSavedProviderBody = isHomeServiceAppointment
-    ? (isSpanish
-      ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
-      : "VYVA can search trusted nearby options before anyone is contacted.")
+    ? homeServiceText(locale, "VYVA can search trusted nearby options before anyone is contacted.")
     : isMedicalAppointmentWithoutProvider
       ? (isSpanish
         ? "Anade o elige un medico o clinica de confianza, o busca opciones para revisar."
         : "Add or choose a trusted doctor or clinic, or look for options to review.")
       : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
-    ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
+    ? homeServiceText(locale, "Find trusted options")
     : (isSpanish ? "Buscar opciones" : "Look for options");
   const appointmentPrepareLabel = isHomeServiceAppointment
-    ? (isSpanish ? "Preparar mensaje" : "Prepare message")
+    ? homeServiceText(locale, "Prepare message")
     : (isSpanish ? "Prepararlo por chat" : "Prepare in chat");
   const appointmentFinalReviewTitle = isHomeServiceAppointment
     ? (isSpanish ? "Revisar y confirmar visita" : "Review and confirm visit")
@@ -13040,7 +13148,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setOffersOpen(true);
     setSavingsPanelView("overview");
     setProviderSearchMode(mode);
-    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
+    setProviderSearchCriteria(defaultProviderCriteriaForMode(mode));
+    setProviderServiceIntake(emptyProviderServiceIntake(mode, query));
+    setProviderMustHaves([]);
+    setProviderDealBreakers("");
+    setProviderConstraints("");
     setAppointmentOpen(false);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
@@ -13077,9 +13189,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }
 
   function toggleProviderSearchCriterion(key: ProviderSearchCriterionKey) {
-    setProviderSearchCriteria((current) => current.includes(key)
-      ? current.filter((item) => item !== key)
-      : [...current, key]);
+    setProviderSearchCriteria((current) => {
+      if (current.includes(key)) {
+        setProviderMustHaves((mustHaves) => mustHaves.filter((item) => item !== key));
+        return current.filter((item) => item !== key);
+      }
+      if (current.length >= 3) return current;
+      return [...current, key];
+    });
   }
 
   function openAppointmentAssistant() {
@@ -13415,15 +13532,20 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const [, setHomeVerifiedResultsVisible] = useState(false);
   const applyHomeServiceVerificationRanking = useCallback((ranking: Record<string, VerificationRanking>) => {
     if (Object.keys(ranking).length === 0) return;
-    setAppointmentOptions(current => current.map(option => ({
+    // A safety or fraud allegation found during checks removes the provider.
+    setAppointmentOptions(current => current.filter(option => !ranking[option.id]?.excluded).map(option => ({
       ...option,
       provider_snapshot: {
         ...option.provider_snapshot,
         ...(ranking[option.id] ? { provider_decision: { ...appointmentProviderDecision(option), ...ranking[option.id] } } : {}),
       },
     })).sort((a, b) => (appointmentProviderDecision(b).score ?? 0) - (appointmentProviderDecision(a).score ?? 0)));
-    const best = Object.entries(ranking).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
-    if (best) setSelectedAppointmentOptionId(current => current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best);
+    const best = Object.entries(ranking).filter(([, item]) => !item.excluded).sort((a, b) => b[1].score - a[1].score)[0]?.[0];
+    setSelectedAppointmentOptionId(current => {
+      if (current && ranking[current]?.excluded) return best ?? null;
+      if (!best) return current;
+      return current && (!ranking[current] || ranking[current].score >= ranking[best].score) ? current : best;
+    });
   }, []);
   const homeRequestAwaitingResults = isHomeServiceAppointment && mode === "task"
     && Boolean(persistedAppointmentRequestId) && appointmentOptions.length === 0
@@ -13505,12 +13627,49 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
 
   function prepareHomeServiceContactChannel(channel: AppointmentChannel) {
     if (!appointmentRequest || !selectedAppointmentOption) return;
+    if (openDirectProviderContact(channel)) return;
     prepareAppointmentMutation.mutate({
       requestId: appointmentRequest.id,
       optionId: selectedAppointmentOption.id,
       channel,
     });
   }
+
+  const openDirectProviderContact = useCallback((channel: AppointmentChannel): boolean => {
+    if (!selectedAppointmentOption) return false;
+    const readiness = appointmentContactChannelReadinessQuery.data?.channels?.[channel];
+    if (readiness?.external_action_allowed === true) return false;
+    if (channel === "phone") {
+      const phone = appointmentSnapshotText(selectedAppointmentOption, "phone").replace(/[^+\d]/g, "");
+      if (!phone) return false;
+      window.location.href = `tel:${phone}`;
+      return true;
+    }
+    if (channel === "email") {
+      const email = appointmentSnapshotText(selectedAppointmentOption, "email").trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+      window.location.href = `mailto:${email}`;
+      return true;
+    }
+    if (channel === "whatsapp") {
+      const whatsapp = appointmentSnapshotText(selectedAppointmentOption, "whatsapp").replace(/[^\d]/g, "");
+      if (!whatsapp) return false;
+      window.location.href = `https://wa.me/${whatsapp}`;
+      return true;
+    }
+    if (channel === "booking_url") {
+      const url = appointmentSnapshotText(selectedAppointmentOption, "booking_url").trim()
+        || appointmentSnapshotText(selectedAppointmentOption, "website_url").trim();
+      if (!/^https?:\/\//i.test(url)) return false;
+      window.location.href = url;
+      return true;
+    }
+    return false;
+  }, [appointmentContactChannelReadinessQuery.data?.channels, selectedAppointmentOption]);
+
+  // The voice canvas listener reads the latest contact readiness without re-subscribing.
+  const openDirectProviderContactRef = useRef(openDirectProviderContact);
+  openDirectProviderContactRef.current = openDirectProviderContact;
 
   function handleAppointmentControl(mode: "listening" | "muted" | "stopped") {
     setAppointmentControlMode(mode);
@@ -13598,8 +13757,17 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language, documentContext, undefined, providerSearchMode);
+      const intakeTerms = intakeSearchTerms(providerServiceIntake, language);
+      const intakeMustHaves = intakeMustHaveLabels(providerServiceIntake, language);
+      const focusedQuery = [criteriaQuery, ...intakeTerms].filter(Boolean).join(". ");
+      const result = await searchOffers(focusedQuery, language, documentContext, undefined, providerSearchMode, {
+        orderedCriteria: providerSearchCriteria.map(comparisonCriterion),
+        mustHaves: [...providerMustHaves.map(comparisonCriterion), ...intakeMustHaves],
+        dealBreakers: splitPersonalDetails(providerDealBreakers),
+        constraints: [...intakeTerms, ...splitPersonalDetails(providerServiceIntake.additionalDetails ?? providerConstraints)],
+      }, providerServiceIntake);
       setOffersResult(result);
+      if (providerSearchMode) providerWizard.goTo("results");
     } catch {
       setOffersError(isSpanish
         ? "No he podido comparar opciones verificables ahora mismo."
@@ -14853,7 +15021,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
     setSelectedInsuranceAdminKind(initialKind);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "", ...initialDetails });
+    setInsuranceAdminDetails({ ...EMPTY_DOCUMENT_HELP_DETAILS, ...initialDetails });
+    setDocumentHelpStep(initialKind ? "details" : "choose");
+    setDocumentHelpReading(null);
+    setDocumentHelpFileName(null);
+    setDocumentHelpSubmitted(false);
+    documentHelpSubmitMutation.reset();
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -14861,73 +15034,15 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     }, 80);
   }
 
-  function insuranceAdminReadiness(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
-      operator_review: true,
-      camera_or_upload: true,
-      email: false,
-      phone_call: false,
-    };
-    return evaluateConciergeToolReadiness({
-      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
-      requestedTool: option.requestedTool,
-      capabilities,
-      provider: { name: isSpanish ? option.es : option.en },
-    });
-  }
-
-  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails) {
-    const common = isSpanish
-      ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
-      : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
-    const detailLines = [
-      details.subject.trim() ? (isSpanish ? `Tema: ${details.subject.trim()}.` : `Subject: ${details.subject.trim()}.`) : "",
-      details.recipient.trim() ? (isSpanish ? `Destinatario: ${details.recipient.trim()}.` : `Recipient: ${details.recipient.trim()}.`) : "",
-      details.deadline.trim() ? (isSpanish ? `Fecha limite: ${details.deadline.trim()}.` : `Deadline: ${details.deadline.trim()}.`) : "",
-      details.notes.trim() ? (isSpanish ? `Notas: ${details.notes.trim()}.` : `Notes: ${details.notes.trim()}.`) : "",
-    ].filter(Boolean).join(" ");
-    const detailText = detailLines || (isSpanish ? "Pregunta por los datos que falten." : "Ask for any missing details.");
-    if (option.key === "insurance-letter") {
-      return isSpanish
-        ? `Ayudame a entender una carta o factura de seguro. ${detailText} Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
-        : `Help me understand an insurance letter or bill. ${detailText} Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
-    }
-    if (option.key === "claim") {
-      return isSpanish
-        ? `Ayudame a preparar un reclamo o reembolso. ${detailText} Prepara un borrador para revisar. ${common}`
-        : `Help me prepare a claim or reimbursement. ${detailText} Prepare a draft for review. ${common}`;
-    }
-    if (option.key === "government-form") {
-      return isSpanish
-        ? `Ayudame a rellenar un formulario oficial o administrativo. ${detailText} Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
-        : `Help me fill a government or admin form. ${detailText} Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
-    }
-    return isSpanish
-      ? `Ayudame a preparar una llamada o email administrativo. ${detailText} Prepara guion o borrador y espera mi confirmacion. ${common}`
-      : `Help me prepare an admin call or email. ${detailText} Prepare a script or draft and wait for my confirmation. ${common}`;
-  }
-
-  function handleInsuranceAdminChoice(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    setSelectedInsuranceAdminKind(option.key);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
-  }
-
-  function prepareSelectedInsuranceAdminTask() {
-    const option = INSURANCE_ADMIN_OPTIONS.find((item) => item.key === selectedInsuranceAdminKind);
-    if (!option) return;
-    prepareConciergeRequest(insuranceAdminPrompt(option, insuranceAdminDetails), {
-      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
-      requestedTool: option.requestedTool,
-      actionLabel: isSpanish ? option.es : option.en,
-      summary: isSpanish
-        ? `Gestion preparada: ${option.es}.`
-        : `Paperwork task prepared: ${option.en}.`,
-      payload: insuranceAdminStructuredPayload(option, insuranceAdminDetails, isSpanish),
-      useCase: "admin_task",
-    });
+  function closeDocumentHelp() {
     setInsuranceAdminOpen(false);
     setSelectedInsuranceAdminKind(null);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+    setInsuranceAdminDetails(EMPTY_DOCUMENT_HELP_DETAILS);
+    setDocumentHelpStep("choose");
+    setDocumentHelpReading(null);
+    setDocumentHelpFileName(null);
+    setDocumentHelpSubmitted(false);
+    documentHelpSubmitMutation.reset();
   }
 
   function handleOfferAssistance(option: OfferOption) {
@@ -15894,11 +16009,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     ? scamCheckDetailCopy(selectedScamCheckOption.key, isSpanish)
     : null;
   const SelectedScamCheckIcon = selectedScamCheckOption?.Icon ?? AlertTriangle;
-  const selectedInsuranceAdminOption = INSURANCE_ADMIN_OPTIONS.find((option) => option.key === selectedInsuranceAdminKind) ?? null;
-  const selectedInsuranceAdminCopy = selectedInsuranceAdminOption
-    ? insuranceAdminDetailCopy(selectedInsuranceAdminOption.key, isSpanish)
-    : null;
-  const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
+  const similarDocumentTaskCount = savedTaskDrafts.filter((task) => (
+    task.kind === "document"
+    && task.status === "active"
+    && task.id !== persistedTask?.id
+    && Boolean(selectedInsuranceAdminKind)
+    && task.progress_payload.documentKind === selectedInsuranceAdminKind
+  )).length;
   useEffect(() => {
     setActiveProviderShortlistNotice(null);
     setActiveProviderShortlistError(null);
@@ -16454,23 +16571,36 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     if (!selectedAppointmentOption) return [];
     const readiness = appointmentContactChannelReadinessQuery.data?.channels;
     if (!readiness) return [];
-    const availableLiveChannels = selectedAppointmentOption.available_channels.filter((channel) => (
-      channel !== "manual"
-      && channel !== "booking_url"
-      && readiness?.[channel]?.external_action_allowed === true
-    ));
-    const visible: AppointmentChannel[] = availableLiveChannels.length > 0
-      ? availableLiveChannels
+    const providerPhone = appointmentSnapshotText(selectedAppointmentOption, "phone");
+    const providerEmail = appointmentSnapshotText(selectedAppointmentOption, "email");
+    const providerWhatsApp = appointmentSnapshotText(selectedAppointmentOption, "whatsapp");
+    const providerBookingUrl = appointmentSnapshotText(selectedAppointmentOption, "booking_url");
+    const candidateChannels = Array.from(new Set<AppointmentChannel>([
+      ...(providerBookingUrl ? ["booking_url" as const] : []),
+      ...selectedAppointmentOption.available_channels.filter((channel) => channel !== "manual"),
+      ...(providerWhatsApp ? ["whatsapp" as const] : []),
+      ...(providerPhone ? ["phone" as const] : []),
+      ...(providerEmail ? ["email" as const] : []),
+    ]));
+    const availableContactChannels = candidateChannels.filter((channel) => readiness?.[channel]?.external_action_allowed === true);
+    const visible: AppointmentChannel[] = availableContactChannels.length > 0
+      ? availableContactChannels
       : ["manual"];
     return visible.map((channel) => ({
       id: channel,
       label: channel === "manual"
         ? homeServiceText(locale, "Ask VYVA support to prepare the contact")
+        : channel === "booking_url"
+          ? homeServiceText(locale, "Book online")
         : homeServiceText(locale, appointmentChannelLabel(channel, isSpanish)),
       description: channel === "manual"
         ? homeServiceText(locale, "No direct contact method is currently available. A VYVA operator will prepare the next step and return it for your approval before contacting the provider.")
+        : channel === "booking_url"
+          ? homeServiceText(locale, "Opens the provider's booking page. Nothing is submitted until you complete it.")
         : undefined,
-      recommended: channel === suggestedAppointmentActionChannel,
+      recommended: channel === "booking_url" && Boolean(providerBookingUrl)
+        ? true
+        : channel !== "manual" && !providerBookingUrl && channel === suggestedAppointmentActionChannel,
     }));
   }, [
     appointmentContactChannelReadinessQuery.data?.channels,
@@ -16746,6 +16876,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         const channel = response.choiceId as AppointmentChannel | undefined;
         if (!channel || !homeServiceCanvasContactChannels.some((option) => option.id === channel)) return;
         if (!appointmentRequest || !selectedAppointmentOption) return;
+        if (openDirectProviderContactRef.current(channel)) return;
         prepareAppointmentMutation.mutate({
           requestId: appointmentRequest.id,
           optionId: selectedAppointmentOption.id,
@@ -16821,6 +16952,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     homeServiceType,
     homeServiceVisitAddress,
     isSpanish,
+    openDirectProviderContact,
     openHomeServiceProviderSetup,
     prepareAppointmentMutation,
     preparedAppointmentAttempt,
@@ -17739,7 +17871,8 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const reminderInbox = buildConciergeTaskInbox({ drafts: savedTaskDrafts, pending: pendingActions, completed: [], isSpanish: false });
   const reminderItem = [...reminderInbox.needs_you, ...reminderInbox.waiting].find(item => item.detailPath === homeActiveTask?.detailPath);
   const homeReminder = reminderItem ? conciergeTaskReminder(reminderItem, language) : null;
-  const homeTaskNudge = reminderDismissals.ready && homeReminder && !reminderDismissals.hidden(homeReminder.taskKey, homeReminder.revision) ? homeReminder : null;
+  const visibleHomeReminders = visibleConciergeReminders(reminderInbox.needs_you, language, reminderDismissals.hidden);
+  const homeTaskNudge = reminderDismissals.ready ? (visibleHomeReminders.find(item => item.taskKey === homeReminder?.taskKey) ?? visibleHomeReminders[0] ?? null) : null;
   const homeTaskFlowReference = activeSavedTaskExecutionTask?.flow_reference
     ?? activeActionExecutionTask?.flow_reference
     ?? (activeSavedTask?.action ? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]) : "")
@@ -17776,17 +17909,92 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           nudgeDetail: homeTaskNudge.action,
           nudgeTestId: `button-concierge-task-nudge-${card.id}`,
           onNudgeClick: () => navigate(homeTaskNudge.path),
-          onNudgeDismiss: () => reminderDismissals.dismiss(homeTaskNudge.taskKey, homeTaskNudge.revision),
+          onNudgeDismiss: () => reminderDismissals.dismissMany(homeTaskNudge.aliases.map(taskKey => ({ taskKey, revision: homeTaskNudge.revision }))),
+          nudgeContent: visibleHomeReminders.length > 0 ? <ConciergeRequestUpdates embedded navigationTestId={`button-concierge-task-nudge-${card.id}`} reminders={visibleHomeReminders} language={language} dismiss={reminderDismissals.dismissMany} pending={reminderDismissals.pending} /> : undefined,
           nudgeDismissLabel: homeServiceText(language, "Dismiss reminder"),
           nudgeDismissPending: reminderDismissals.pending,
           nudgeError: reminderDismissals.error ? homeServiceText(language, "Could not dismiss reminder. Try again.") : undefined,
         }
       : card
   ));
+  const selectedProviderOption = providerComparisonOptions.find((option) => option.id === selectedProviderOptionId) ?? null;
+  const relevantProviderCriteria = providerCriteriaForMode(providerSearchMode);
+  const providerCriterionOptions = relevantProviderCriteria.map((key) => {
+    const criterion = PROVIDER_SEARCH_CRITERIA.find((item) => item.key === key)!;
+    return {
+      key: criterion.key,
+      label: isSpanish ? criterion.es : criterion.en,
+      description: isSpanish ? criterion.queryEs : criterion.queryEn,
+    };
+  });
+  const providerWizardResults = offersLoading ? (
+    <div className="flex items-center gap-2 rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] font-bold text-vyva-text-2">
+      <Loader2 size={18} className="animate-spin text-vyva-purple" />
+      {isSpanish ? "Validando opciones…" : "Validating options…"}
+    </div>
+  ) : offersError ? (
+    <div className="rounded-[18px] bg-red-50 p-4 text-[14px] font-bold text-red-700" role="alert">
+      <p>{offersError}</p>
+      <Button type="button" variant="outline" onClick={() => providerWizard.goTo("search_review")} className="mt-3 rounded-full">
+        {isSpanish ? "Revisar y reintentar" : "Review and retry"}
+      </Button>
+    </div>
+  ) : offersResult?.options.length === 0 ? (
+    <div className="space-y-3">
+    <p className="rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] font-bold text-vyva-text-1">
+      {offersResult.no_results_message || (isSpanish ? "No hay suficientes opciones verificables ahora mismo." : "There are not enough verifiable options right now.")}
+    </p>
+    <MissingProviderChoicePanel
+      title={isSpanish ? "Elige cómo continuar" : "Choose how to continue"}
+      body={isSpanish ? "Puedes guardar tu proveedor habitual, pedir otra búsqueda o solicitar ayuda." : "You can save your usual provider, revise the search, or ask someone trusted to help."}
+      addLabel={isSpanish ? "Añadir mi proveedor" : "Add my usual provider"}
+      addDetail={isSpanish ? "Guardarlo para usarlo primero" : "Save it for next time"}
+      findLabel={isSpanish ? "Cambiar búsqueda" : "Revise search"}
+      findDetail={isSpanish ? "Ajustar necesidad o prioridades" : "Adjust the need or priorities"}
+      helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+      helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+      onAddProvider={openProviderSearchSetup}
+      onFindOptions={() => providerWizard.goTo("need")}
+      onAskHelper={() => openProviderSetupHelper("Ask trusted helper to set up provider search", { kind: "provider_search", mode: providerSearchMode, query: offersQuery.trim(), criteria: providerSearchCriteria })}
+      testId="panel-provider-search-missing-provider"
+      addTestId="button-provider-search-setup"
+      findTestId="button-provider-search-manual"
+      helperTestId="button-provider-search-ask-helper"
+      isSpanish={isSpanish}
+      language={locale}
+    />
+    </div>
+  ) : offersResult ? (
+    <div className="space-y-4">
+      <ProviderComparisonPanel
+        options={providerComparisonOptions}
+        locale={locale}
+        shortlistedIds={providerShortlistIds}
+        shortlistSaved={Boolean(providerShortlistNotice)}
+        shortlistSaving={providerShortlistMutation.isPending}
+        onToggleShortlist={toggleProviderShortlist}
+        onSaveShortlist={(options) => providerShortlistMutation.mutate(options)}
+        onSaveProvider={handleSaveComparisonProvider}
+        onPrepareContact={(option) => { setSelectedProviderOptionId(option.id); providerWizard.goTo("contact_review"); }}
+        preferredId={selectedProviderOptionId}
+        onSelectPreferred={(option) => { setSelectedProviderOptionId(option.id); providerWizard.goTo("contact_review"); }}
+        onWatch={providerSearchMode === "shopping-seller" ? (option) => {
+          const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+          const raw = comparisonIndex >= 0 ? offersResult.options[comparisonIndex] : undefined;
+          if (raw) handleOfferWatch(raw);
+        } : undefined}
+      />
+      {providerShortlistNotice ? <p data-testid="notice-provider-shortlist" className="rounded-[14px] bg-[#F0FDFA] p-3 text-[13px] font-bold text-[#0F766E]">{providerShortlistNotice}</p> : null}
+      {providerShortlistError ? <p role="alert" className="rounded-[14px] bg-red-50 p-3 text-[13px] text-red-700">{providerShortlistError}</p> : null}
+    </div>
+  ) : (
+    <p className="rounded-[18px] bg-[#F8F5FF] p-4 text-[14px] text-vyva-text-2">{isSpanish ? "Revisa la búsqueda para ver opciones." : "Review the search to see provider options."}</p>
+  );
   const AppointmentContainer = isHomeServiceAppointment ? HomeRepairPage : PurpleModal;
   return (
     <MasterDashboardLayout
       isDarkMode={isDark}
+      presentationClassName={mode === "task" ? "concierge-task-page" : undefined}
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
@@ -17799,12 +18007,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           testId="concierge-master-hero"
           compact
         >
-          <HomeMasterProfileControl
-            isDark={isDark}
-            ariaLabel={t("concierge.master.backToMenu", "Back to menu")}
-            onClick={() => navigate(previewBasePath ? "/dev/home-master/menu" : "/menu")}
-            testId="button-concierge-back"
-            compact
+          <BackButton
+            label={<span className="sr-only">{t("concierge.master.backToMenu", "Back to menu")}</span>}
+            title={t("concierge.master.backToMenu", "Back to menu")}
+            to={previewBasePath ? "/dev/home-master/menu" : "/menu"}
+            data-testid="button-concierge-back"
+            className={`h-10 !min-h-10 w-10 shrink-0 justify-center gap-0 p-0 ${isDark ? "bg-[#2A1645] text-[#F7F0FF] ring-1 ring-inset ring-[#C4B5FD]/18" : "bg-white text-vyva-purple"}`}
           />
 
           <h1 className={`truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] ${isDark ? "text-[#FFF8FF]" : "text-[#241C30]"}`}>
@@ -17849,7 +18057,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     >
       {mode !== "home" ? (
         <>
-          {mode === "task" && !(isHomeServiceAppointment && appointmentOpen) ? (
+          {mode === "task" && effectiveTaskEntry && !insuranceAdminOpen && !isHomeServiceTask ? (
             <ConciergeTaskWorkspaceHeader
               title={taskWorkspaceTitle}
               summary={taskWorkspaceSummary}
@@ -17862,6 +18070,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               canvasSummary={activeActionCanvasState}
               isSpanish={isSpanish}
               onBack={() => navigate("/concierge/tasks")}
+              onSos={() => emitSosSheetOpen("concierge_provider_task")}
               onDelete={persistedTask ? () => {
                 const approved = window.confirm(isSpanish
                   ? "Eliminar esta tarea guardada?"
@@ -17869,6 +18078,37 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 if (approved) deleteTaskMutation.mutate(persistedTask.id);
               } : undefined}
               isDeleting={deleteTaskMutation.isPending}
+              showProgress={effectiveTaskEntry?.kind !== "provider_contact"}
+            />
+          ) : null}
+          {mode === "task" && effectiveTaskEntry?.kind === "provider_contact" && providerSearchMode ? (
+            <ProviderTaskWizard
+              step={providerWizard.step}
+              onStepChange={providerWizard.goTo}
+              providerType={providerSearchModeLabel(providerSearchMode, isSpanish)}
+              providerMode={providerSearchMode}
+              locale={language}
+              serviceIntake={providerServiceIntake}
+              onServiceIntakeChange={setProviderServiceIntake}
+              query={offersQuery}
+              onQueryChange={(value) => { setOffersQuery(value); setProviderServiceIntake((current) => ({ ...current, serviceType: value })); setOffersResult(null); setSelectedProviderOptionId(null); }}
+              criteria={providerSearchCriteria}
+              criterionOptions={providerCriterionOptions}
+              onToggleCriterion={(key) => toggleProviderSearchCriterion(key as ProviderSearchCriterionKey)}
+              selectionLimitReached={providerSearchCriteria.length >= 3}
+              mustHaves={providerMustHaves}
+              onToggleMustHave={(key) => setProviderMustHaves((current) => current.includes(key as ProviderSearchCriterionKey) ? current.filter((item) => item !== key) : [...current, key as ProviderSearchCriterionKey])}
+              dealBreakers={providerDealBreakers}
+              onDealBreakersChange={setProviderDealBreakers}
+              constraints={providerConstraints}
+              onConstraintsChange={setProviderConstraints}
+              isSpanish={isSpanish}
+              isSearching={offersLoading}
+              searchError={offersError}
+              onSearch={() => void handleSearchOffers()}
+              results={providerWizardResults}
+              selectedProvider={selectedProviderOption}
+              onPrepareContact={() => { if (selectedProviderOption) handlePrepareComparisonContact(selectedProviderOption); }}
             />
           ) : null}
       {trustedProviderResume && trustedProviderResumeMeta && (
@@ -17967,169 +18207,39 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
       )}
 
       {insuranceAdminOpen && (
-        <section
-          className="relative z-20 order-[14] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#DDD6FE] bg-white"
-          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.12)" }}
-          data-testid="panel-insurance-admin"
-        >
-          <div className="bg-[#F5F3FF] p-4 lg:p-5">
-            <div className="flex items-start gap-3">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#6B21A8] shadow-sm">
-                <FileText size={23} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-                  {isSpanish ? "Ayuda administrativa" : "Paperwork help"}
-                </p>
-                <h2 className="mt-1 font-body text-[23px] font-black leading-tight text-vyva-text-1">
-                  {isSpanish ? "Que necesitas preparar?" : "What do you need to prepare?"}
-                </h2>
-                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                  {isSpanish
-                    ? "VYVA organiza los pasos, pero no envia, llama ni comparte datos sin tu confirmacion."
-                    : "VYVA organizes the steps, but does not send, call, or share details without your confirmation."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setInsuranceAdminOpen(false);
-                  setSelectedInsuranceAdminKind(null);
-                  setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
-                }}
-                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#6B21A8]"
-                aria-label={isSpanish ? "Cerrar" : "Close"}
-                data-testid="button-insurance-admin-close"
-              >
-                <X size={17} />
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3 p-4 lg:p-5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {INSURANCE_ADMIN_OPTIONS.map((option) => {
-                const Icon = option.Icon;
-                const readiness = insuranceAdminReadiness(option);
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => handleInsuranceAdminChoice(option)}
-                    className="vyva-tap flex min-h-[112px] items-start gap-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBF8FF] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
-                    data-testid={`button-insurance-admin-${option.key}`}
-                  >
-                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[17px] bg-white text-[#6B21A8] shadow-sm">
-                      <Icon size={22} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                        {isSpanish ? option.es : option.en}
-                      </span>
-                      <span className="sr-only">
-                        {isSpanish ? option.detailEs : option.detailEn}
-                      </span>
-                      <ActionReadinessPanel
-                        readiness={readiness}
-                        desiredAction={isSpanish ? option.es : option.en}
-                        isSpanish={isSpanish}
-                        compact
-                        testId={`panel-insurance-admin-readiness-${option.key}`}
-                      />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedInsuranceAdminOption && selectedInsuranceAdminCopy ? (
-              <div
-                className="rounded-[24px] border border-[#DDD6FE] bg-[#FBF8FF] p-4"
-                data-testid="panel-insurance-admin-guided-fields"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#6B21A8] shadow-sm">
-                    <SelectedInsuranceAdminIcon size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                      {isSpanish ? selectedInsuranceAdminOption.es : selectedInsuranceAdminOption.en}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                      {isSpanish
-                        ? "Completa solo lo que sepas. VYVA preguntara lo que falte."
-                        : "Fill only what you know. VYVA will ask for what is missing."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.subjectLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.subject}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, subject: event.target.value }))}
-                      placeholder={selectedInsuranceAdminCopy.subjectPlaceholder}
-                      data-testid="input-insurance-admin-subject"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.recipientLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.recipient}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, recipient: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-recipient"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.deadlineLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.deadline}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, deadline: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-deadline"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                      {selectedInsuranceAdminCopy.notesLabel}
-                    </span>
-                    <Input
-                      value={insuranceAdminDetails.notes}
-                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, notes: event.target.value }))}
-                      placeholder={isSpanish ? "Opcional" : "Optional"}
-                      data-testid="input-insurance-admin-notes"
-                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
-                    />
-                  </label>
-                </div>
-                <button
-                  type="button"
-                  onClick={prepareSelectedInsuranceAdminTask}
-                  className="vyva-tap mt-4 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[16px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.18)]"
-                  data-testid="button-insurance-admin-prepare"
-                >
-                  <Send size={17} />
-                  {isSpanish ? "Preparar para revisar" : "Prepare for review"}
-                </button>
-              </div>
-            ) : null}
-            <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-              {isSpanish
-                ? "Si falta una herramienta, VYVA prepara un resumen para revision en lugar de dejarte bloqueado."
-                : "If a tool is missing, VYVA prepares a review summary instead of leaving you stuck."}
-            </p>
-          </div>
-        </section>
+        <DocumentHelpFlow
+          isSpanish={isSpanish}
+          language={language}
+          isDark={isDark}
+          standalone={mode === "task"}
+          kind={selectedInsuranceAdminKind}
+          details={insuranceAdminDetails}
+          step={documentHelpStep}
+          reading={documentHelpReading}
+          fileName={documentHelpFileName}
+          onKindChange={setSelectedInsuranceAdminKind}
+          onDetailsChange={setInsuranceAdminDetails}
+          onStepChange={setDocumentHelpStep}
+          onReadingChange={(reading, fileName) => {
+            setDocumentHelpReading(reading);
+            setDocumentHelpFileName(fileName);
+          }}
+          onSubmit={() => documentHelpSubmitMutation.mutate()}
+          submitState={documentHelpSubmitted
+            ? "done"
+            : documentHelpSubmitMutation.isPending
+              ? "submitting"
+              : documentHelpSubmitMutation.isError
+                ? "error"
+                : "idle"}
+          saveState={persistedTask ? taskSaveState : null}
+          onExit={() => (mode === "task" ? navigate("/concierge/tasks") : closeDocumentHelp())}
+          onRemove={persistedTask ? () => deleteTaskMutation.mutate(persistedTask.id) : undefined}
+          isRemoving={deleteTaskMutation.isPending}
+          similarTaskCount={similarDocumentTaskCount}
+          onOpenTasks={() => navigate("/concierge/tasks")}
+          onDone={() => (mode === "task" ? navigate("/concierge") : closeDocumentHelp())}
+        />
       )}
 
       {scamCheckOpen && (
@@ -18322,6 +18432,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 findTestId="button-otc-pharmacy-find-options"
                 helperTestId="button-otc-pharmacy-ask-helper"
                 isSpanish={isSpanish}
+                language={locale}
               />
             </div>
           ) : (
@@ -18706,6 +18817,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       findTestId="button-transport-provider-find-options"
                       helperTestId="button-transport-provider-ask-helper"
                       isSpanish={isSpanish}
+                      language={locale}
                     />
                   </div>
                 ) : null}
@@ -20125,7 +20237,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         </PurpleModal>
       )}
 
-      {(mode !== "task" || appointmentOpen || offersOpen) ? <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
+      {(mode !== "task" || appointmentOpen || offersOpen) ? <section className={`order-[10] flex flex-col ${isHomeServiceAppointment ? "mt-0" : "mt-[22px]"}`} data-testid="concierge-guided-hub">
         {appointmentOpen && (
           <AppointmentContainer
             Icon={AppointmentPanelIcon}
@@ -20427,31 +20539,24 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                     )}
                     </>
                   ) : (
-                    <div className="order-1 mt-3" data-testid="panel-home-service-service-picker">
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {HOME_SERVICE_TYPES.map((service) => (
-                          <PurpleModalOption
-                            key={service.key}
-                            onClick={() => {
-                              setHomeServiceType(service.key);
-                              setHomeServiceIntakeOrigin((current) => current || "app");
-                              setHomeServiceIntakeAnswers({});
-                              setHomeServiceTextDrafts({});
-                              setAppointmentRequest(null);
-                              setAppointmentOptions([]);
-                              setAppointmentDiscovery(null);
-                              setAppointmentAttemptResult(null);
-                              setAppointmentNotice(null);
-                              setAppointmentError(null);
-                            }}
-                            data-testid={`button-home-service-type-${service.key}`}
-                            className="min-h-[72px] !rounded-lg px-3 text-[16px]"
-                          >
-                            {homeServiceTypeLabel(service.key, locale)}
-                          </PurpleModalOption>
-                        ))}
-                      </div>
-                    </div>
+                    <>
+                    <HomeServiceOutcomeCheckIn language={locale} />
+                    <HomeServicePicker
+                      language={locale}
+                      onSelect={(service) => {
+                        setHomeServiceType(service);
+                        setHomeServiceIntakeOrigin((current) => current || "app");
+                        setHomeServiceIntakeAnswers({});
+                        setHomeServiceTextDrafts({});
+                        setAppointmentRequest(null);
+                        setAppointmentOptions([]);
+                        setAppointmentDiscovery(null);
+                        setAppointmentAttemptResult(null);
+                        setAppointmentNotice(null);
+                        setAppointmentError(null);
+                      }}
+                    />
+                    </>
                   )}
                 </div>
               </div>
@@ -20601,8 +20706,11 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
               <div role="alert" className="py-4 text-vyva-text-2">
                 <p>{homeServiceText(locale, "We couldn't load the results. You can retry the search.")}</p>
                 <button type="button" className="vyva-tap min-h-[44px] text-vyva-purple underline" onClick={() => {
-                  if (appointmentRequest) discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
-                  else void persistedAppointmentRequestQuery.refetch();
+                  const requestId = appointmentRequest?.id ?? persistedAppointmentRequestId;
+                  if (requestId) {
+                    homeRecoveryDiscoveryRequestRef.current = requestId;
+                    discoverAppointmentOptionsMutation.mutate({ requestId });
+                  } else void persistedAppointmentRequestQuery.refetch();
                 }}>{homeServiceText(locale, "Retry search")}</button>
               </div>
             )}
@@ -20714,7 +20822,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isFetching && homeServiceCanvasContactChannels.map((channel) => (
                         <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
-                            {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
+                            {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : channel.id === "booking_url" ? <ExternalLink size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block text-[15px] font-black text-vyva-text-1">{channel.label}</span>
@@ -20826,7 +20934,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               ? (isSpanish ? "Confirmar y enviar WhatsApp" : "Confirm and send WhatsApp")
                               : selectedAppointmentActionChannel === "booking_url"
                                 ? (isSpanish ? "Confirmar y preparar reserva" : "Confirm and prepare booking")
-                                : (isSpanish ? "Confirmar revisión manual" : "Confirm manual review")
+                                : (isSpanish ? "Enviar solicitud al equipo de VYVA" : "Send request to VYVA support")
                         : (isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this")}
                       onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
                       isPending={confirmAppointmentMutation.isPending}
@@ -20933,6 +21041,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                   findTestId="button-appointment-discover-options"
                   helperTestId="button-appointment-ask-helper"
                   isSpanish={isSpanish}
+                  language={locale}
                 />
                 {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
                   <button
@@ -21073,7 +21182,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
           </AppointmentContainer>
         )}
 
-        {offersOpen && (
+        {offersOpen && (mode !== "task" || !providerSearchMode) && (
           <div
             className="mt-4 rounded-[26px] border border-[#D9C7B6] bg-[#FCF8F1] p-4"
             style={{ boxShadow: "0 14px 34px rgba(76,49,28,0.10)" }}
@@ -21873,6 +21982,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                               findTestId="button-provider-search-manual"
                               helperTestId="button-provider-search-ask-helper"
                               isSpanish={isSpanish}
+                              language={locale}
                             />
                           </div>
                         )}

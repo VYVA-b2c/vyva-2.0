@@ -1,3 +1,4 @@
+import { MENU_GRID_CLASS, MENU_TILE_CLASS, MENU_ICON_CLASS, menuTileTheme, menuIconTheme } from "@/design/canonicalMenuLayout";
 import {
   ALargeSmall,
   ArrowUpRight,
@@ -32,6 +33,8 @@ type MenuTile = {
   id: "health" | "brain" | "community" | "concierge";
   title: string;
   detail: string;
+  titleKey: string;
+  detailKey: string;
   path: string;
   icon: LucideIcon;
   iconAccent: VyvaIconAccent;
@@ -42,6 +45,8 @@ const MENU_TILES: MenuTile[] = [
     id: "health",
     title: "My Health",
     detail: "Check-ins & medicines",
+    titleKey: "home.master.cards.healthShortTitle",
+    detailKey: "home.master.cards.healthDetailShort",
     path: "/health",
     icon: Heart,
     iconAccent: "pulse",
@@ -50,14 +55,18 @@ const MENU_TILES: MenuTile[] = [
     id: "brain",
     title: "Brain Power",
     detail: "Memory, focus & calm",
+    titleKey: "home.master.cards.mindMemoryShortTitle",
+    detailKey: "home.master.cards.mindMemoryDetailShort",
     path: "/mind-memory",
     icon: Brain,
     iconAccent: "bridge",
   },
   {
     id: "community",
-    title: "Community",
+    title: "My Team",
     detail: "Experts & support",
+    titleKey: "home.master.cards.communityShortTitle",
+    detailKey: "home.master.cards.communityDetailShort",
     path: "/social-rooms/experts",
     icon: Users,
     iconAccent: "link",
@@ -66,6 +75,8 @@ const MENU_TILES: MenuTile[] = [
     id: "concierge",
     title: "Concierge",
     detail: "Everyday help",
+    titleKey: "home.master.cards.conciergeShortTitle",
+    detailKey: "home.master.cards.conciergeDetailShort",
     path: "/concierge",
     icon: BellRing,
     iconAccent: "clapper",
@@ -82,7 +93,7 @@ type MenuScreenProps = {
 
 export default function MenuScreen({
   backPath = "/",
-  profilePath = "/settings/account",
+  profilePath = "/onboarding/profile/group/account",
   tilePathOverrides,
 }: MenuScreenProps = {}) {
   const navigate = useNavigate();
@@ -179,7 +190,7 @@ export default function MenuScreen({
         >
           <HomeMasterProfileControl
             isDark={isDark}
-            ariaLabel="Open profile and settings"
+            ariaLabel="Open my profile"
             testId="button-menu-profile"
             onClick={() => setProfileMenuOpen(true)}
             expanded={profileMenuOpen}
@@ -216,7 +227,7 @@ export default function MenuScreen({
               id="menu-profile-menu"
               role="dialog"
               aria-modal="true"
-              aria-label="Profile & settings"
+              aria-label="My profile"
               data-testid="menu-profile-menu"
               className={[
                 "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
@@ -241,10 +252,10 @@ export default function MenuScreen({
                   </span>
                   <span className="min-w-0 pt-0.5">
                     <span className={["block font-body text-[17px] font-extrabold leading-tight tracking-[-0.01em]", isDark ? "text-[#E8DFEF]" : "text-[#5F5663]"].join(" ")}>
-                      Profile & settings
+                      My profile
                     </span>
                     <span className={["mt-0.5 block font-body text-[11px] font-semibold leading-snug", isDark ? "text-[#BEB1CD]" : "text-[#8E8592]"].join(" ")}>
-                      Update health, contacts, and display.
+                      Personal, health, and care information.
                     </span>
                   </span>
                 </div>
@@ -340,29 +351,28 @@ export default function MenuScreen({
         ) : null}
 
         <div className="mt-7" data-testid="menu-grid-stage">
-          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+          <section className={MENU_GRID_CLASS} aria-label="VYVA main menu" data-testid="menu-tile-grid">
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
-              const title = tile.id === "brain" ? t("home.master.cards.mindMemoryShortTitle", "Brain Power") : tile.title;
+              const title = t(tile.titleKey, tile.title);
+              const detail = t(tile.detailKey, tile.detail);
               return (
                 <button
                   key={tile.id}
                   type="button"
                   className={[
-                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
-                    isDark
-                      ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
-                      : "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_10px_24px_rgba(36,28,48,0.05)]",
+                    MENU_TILE_CLASS,
+                    menuTileTheme(isDark),
                   ].join(" ")}
                   data-testid={`menu-tile-${tile.id}`}
                   onClick={() => navigate(destination)}
-                  aria-label={`${title}. ${tile.detail}`}
+                  aria-label={`${title}. ${detail}`}
                 >
                   <span
                     className={[
-                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
-                      isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+                      MENU_ICON_CLASS,
+                      menuIconTheme(isDark),
                     ].join(" ")}
                   >
                     <VyvaIcon icon={Icon} accent={tile.iconAccent} size={29} strokeWidth={2.55} tone="brand" />
@@ -375,10 +385,10 @@ export default function MenuScreen({
                       data-testid={`menu-tile-${tile.id}-detail-text`}
                       className="sr-only"
                     >
-                      {tile.detail}
+                      {detail}
                     </span>
                     <span data-testid={`menu-tile-${tile.id}-detail`} className="sr-only">
-                      {tile.detail}
+                      {detail}
                     </span>
                   </span>
                   <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">

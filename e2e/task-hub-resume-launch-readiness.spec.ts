@@ -88,7 +88,7 @@ async function setupTaskHubApi(page: Page, options: {
   });
 }
 
-test("task hub resumes a saved shopping request without writing", async ({
+test("task hub excludes a local shopping draft without writing", async ({
   page,
 }) => {
   const unsafeCalls: string[] = [];
@@ -97,19 +97,9 @@ test("task hub resumes a saved shopping request without writing", async ({
 
   await page.goto("/task-hub-resume-canvas.html?task=draft%3Alocal-canvas-shopping");
 
-  await expect(page.getByTestId("concierge-task-continuation")).toContainText(
-    "Continue where you left off",
-  );
-  await expect(page.getByTestId("concierge-task-detail")).not.toContainText("Shopping Canvas");
-  await expect(page.getByTestId("button-concierge-task-primary-action")).toHaveText("Continue request");
-  await page.getByTestId("button-concierge-task-primary-action").click();
-
-  await expect(page.getByTestId("task-hub-harness-path")).toHaveText(
-    "/concierge/shopping",
-  );
-  await expect(page.getByTestId("task-hub-harness-state")).toContainText(
-    '"resumeCanvas":"shopping"',
-  );
+  await expect(page.getByText("This task is no longer available")).toBeVisible();
+  await expect(page.getByTestId("button-concierge-task-primary-action")).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("vyva.shoppingDelivery.v1")!))).toEqual(shoppingDraftState());
   expect(unsafeCalls).toEqual([]);
 });
 
