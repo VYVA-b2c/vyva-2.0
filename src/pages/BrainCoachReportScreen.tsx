@@ -27,6 +27,7 @@ import {
 import { HomeMasterDetailShell } from "@/components/health/HomeMasterDetailShell";
 import { CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import { useToast } from "@/hooks/use-toast";
+import { useAppLanguage } from "@/i18n";
 import { areaForDomain, type BrainCoachArea } from "../../shared/brainCoachAreas";
 import type { BrainCoachProgress, BrainCoachSession } from "@/lib/brainCoachReport";
 import {
@@ -114,9 +115,10 @@ function recentSessionDateLabel(iso: string | null | undefined, locale: string, 
 }
 
 function RecentSessionRow({ session }: { session: BrainCoachSession }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const area = areaForDomain(session.domain) ?? session.domain;
-  const dateTime = recentSessionDateLabel(session.playedAt, i18n.resolvedLanguage ?? i18n.language ?? "en", t);
+  const dateTime = recentSessionDateLabel(session.playedAt, language, t);
   return (
     <li className="flex items-center gap-4 border-b border-[#EFE7DD] py-5 last:border-b-0">
       <span className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">

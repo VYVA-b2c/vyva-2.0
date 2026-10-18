@@ -6,6 +6,10 @@ import BrainCoachReportScreen from "./BrainCoachReportScreen";
 
 const translationState = vi.hoisted(() => ({ language: "en" }));
 
+vi.mock("@/i18n", () => ({
+  useAppLanguage: () => ({ language: translationState.language }),
+}));
+
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {

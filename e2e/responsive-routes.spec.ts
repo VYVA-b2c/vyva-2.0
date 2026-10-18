@@ -5,6 +5,7 @@ const futureToken = [
   btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 * 60 })),
   "signature",
 ].join(".");
+const responsiveConciergeTaskId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const viewports = [
   { width: 320, height: 568 },
@@ -777,6 +778,28 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (path === `/api/concierge/tasks/${responsiveConciergeTaskId}`) {
+      const timestamp = new Date().toISOString();
+      await fulfillJson(route, 200, {
+        task: {
+          id: responsiveConciergeTaskId,
+          user_id: "responsive-user",
+          kind: "home_service",
+          entry_payload: { kind: "home_service" },
+          progress_payload: {},
+          stage: "details",
+          status: "active",
+          linked_pending_id: null,
+          language: "en",
+          created_at: timestamp,
+          updated_at: timestamp,
+          completed_at: null,
+          deleted_at: null,
+        },
+      });
+      return;
+    }
+
     if (path === "/api/concierge/actions/sessions" || path === "/api/concierge/tasks") {
       await fulfillJson(route, 200, { items: [] });
       return;
@@ -1093,8 +1116,13 @@ async function expectResponsiveRoute(
     }
   }
 
+  const minimumTextLength = route.minTextLength ?? 80;
   await page
-    .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
+    .waitForFunction(
+      (threshold) => (document.body.textContent ?? "").replace(/\s+/g, " ").trim().length >= threshold,
+      minimumTextLength,
+      { timeout: 15_000 },
+    )
     .catch(() => undefined);
 
   if (route.path === "/memory-games") {
@@ -1131,7 +1159,7 @@ async function expectResponsiveRoute(
   expect(
     audit.textLength,
     `${route.path} should render meaningful content. Console: ${relevantConsoleMessages().join(" | ") || "none"}`,
-  ).toBeGreaterThanOrEqual(route.minTextLength ?? 80);
+  ).toBeGreaterThanOrEqual(minimumTextLength);
 
   if (route.expectedLayout) {
     const shell = expectedShell ?? page.getByTestId("app-shell");
@@ -1336,7 +1364,7 @@ const protectedSecondaryRoutes: ResponsiveRoute[] = [
   { name: "dual task walk", path: "/dual-task-walk", minTextLength: 40 },
   { name: "concierge task inbox", path: "/concierge/tasks", expectedLayout: "wide" },
   { name: "concierge task detail", path: "/concierge/tasks/demo-task", expectedLayout: "wide", minTextLength: 50 },
-  { name: "concierge legacy task", path: "/concierge/task/demo-task", expectedLayout: "wide" },
+  { name: "concierge legacy task", path: `/concierge/task/${responsiveConciergeTaskId}`, expectedLayout: "wide" },
   { name: "caregiver dashboard alias", path: "/caregiver-dashboard" },
 ];
 
