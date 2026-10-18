@@ -35,8 +35,6 @@ import {
   buildBrainCoachNextSteps,
   buildBrainCoachShareText,
   domainLabel,
-  formatBrainCoachDate,
-  formatBrainCoachTime,
   hasBrainCoachData,
 } from "@/lib/brainCoachReport";
 
@@ -55,7 +53,6 @@ const STATUS_STYLES = {
   above: "bg-[#DCFCE7] text-[#14532D]",
   usual: "bg-[#EDE9FE] text-[#4C1D95]",
   below: "bg-[#FEF3C7] text-[#78350F]",
-  building: "bg-[#F1EFEC] text-[#3F3A44]",
 } as const;
 const STATUS_FALLBACK = {
   above: "Higher than usual",
@@ -94,8 +91,32 @@ function ReportActionButton({
   );
 }
 
+function recentSessionDateLabel(iso: string | null | undefined, locale: string, t: ReturnType<typeof useTranslation>["t"]) {
+  if (!iso) return "";
+  const playedAt = new Date(iso);
+  if (Number.isNaN(playedAt.getTime())) return "";
+
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfPlayedDay = new Date(playedAt.getFullYear(), playedAt.getMonth(), playedAt.getDate());
+  const dayDifference = Math.round((startOfToday.getTime() - startOfPlayedDay.getTime()) / 86_400_000);
+  const date = dayDifference === 0
+    ? t("reports.brainCoach.today", "Today")
+    : dayDifference === 1
+      ? t("reports.brainCoach.yesterday", "Yesterday")
+      : new Intl.DateTimeFormat(locale, {
+          day: "numeric",
+          month: "short",
+          ...(playedAt.getFullYear() === today.getFullYear() ? {} : { year: "numeric" as const }),
+        }).format(playedAt);
+  const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(playedAt);
+  return `${date}, ${time}`;
+}
+
 function RecentSessionRow({ session }: { session: BrainCoachSession }) {
-  const time = formatBrainCoachTime(session.playedAt);
+  const { t, i18n } = useTranslation();
+  const area = areaForDomain(session.domain) ?? session.domain;
+  const dateTime = recentSessionDateLabel(session.playedAt, i18n.resolvedLanguage ?? i18n.language ?? "en", t);
   return (
     <li className="flex items-center gap-4 border-b border-[#EFE7DD] py-5 last:border-b-0">
       <span className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">
@@ -104,7 +125,7 @@ function RecentSessionRow({ session }: { session: BrainCoachSession }) {
       <div className="min-w-0 flex-1">
         <p className="font-body text-[22px] font-extrabold leading-tight text-vyva-text-1">{activityLabel(session.activityType)}</p>
         <p className="mt-1 font-body text-[20px] font-semibold leading-snug text-vyva-text-2">
-          {formatBrainCoachDate(session.playedAt)}{time ? `, ${time}` : ""} · {domainLabel(session.domain)}
+          {dateTime} · {t(`reports.brainCoach.areas.${area}`, domainLabel(area))}
         </p>
       </div>
     </li>
@@ -235,14 +256,18 @@ export default function BrainCoachReportScreen() {
                   <div className="divide-y divide-[#EFE7DD]">
                     {orderedAreas.map(({ domain, area, performance: areaPerformance }) => {
                       const Icon = AREA_ICONS[area] ?? Target;
-                      const status = areaPerformance?.status;
+                      const status = areaPerformance?.status ?? (performance ? "building" : undefined);
                       return (
                         <div key={domain.domain} className="flex items-center gap-4 p-5" data-testid={"brain-coach-performance-" + area}>
                           <span className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple"><Icon size={25} /></span>
                           <div className="min-w-0 flex-1">
                             <p className="font-body text-[24px] font-extrabold leading-tight text-vyva-text-1">{t("reports.brainCoach.areas." + area, domainLabel(area))}</p>
                             <p className="mt-1 font-body text-[20px] font-semibold text-vyva-text-2">{t("reports.brainCoach.gamesCount", { count: domain.completedSessions })}</p>
-                            {status ? <span className={"mt-3 inline-flex rounded-full px-4 py-2 font-body text-[20px] font-extrabold leading-tight " + STATUS_STYLES[status]}>{t("reports.brainCoach.status." + status, STATUS_FALLBACK[status])}</span> : null}
+                            {status === "building" ? (
+                              <p className="mt-2 font-body text-[20px] font-semibold leading-tight text-vyva-text-2">{t("reports.brainCoach.status.building", STATUS_FALLBACK.building)}</p>
+                            ) : status ? (
+                              <span className={"mt-3 inline-flex rounded-full px-4 py-2 font-body text-[20px] font-extrabold leading-tight " + STATUS_STYLES[status]}>{t("reports.brainCoach.status." + status, STATUS_FALLBACK[status])}</span>
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -278,9 +303,11 @@ export default function BrainCoachReportScreen() {
               <ReportActionButton icon={Play} onClick={() => navigate("/mind-memory")} testId="button-start-brain-coach-games">
                 {hasData ? t("reports.brainCoach.practice", "Practice now") : t("reports.brainCoach.start", "Start a game")}
               </ReportActionButton>
-              <ReportActionButton icon={Share} onClick={() => void shareSummary()} variant="secondary" testId="button-copy-brain-coach-report">
-                {t("reports.brainCoach.shareFamily", "Share with family")}
-              </ReportActionButton>
+              {hasData ? (
+                <ReportActionButton icon={Share} onClick={() => void shareSummary()} variant="secondary" testId="button-copy-brain-coach-report">
+                  {t("reports.brainCoach.shareFamily", "Share with family")}
+                </ReportActionButton>
+              ) : null}
             </div>
 
             <section className="mt-8">

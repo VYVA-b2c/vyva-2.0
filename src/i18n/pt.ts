@@ -2111,6 +2111,8 @@ const pt = {
     factGames: "jogos",
     factStreak: "dias seguidos",
     factMinutes: "minutos",
+    today: "Hoje",
+    yesterday: "Ontem",
     shareFamily: "Partilhar com a família",
     buildingKeepPlaying: "Continue a jogar para a VYVA conhecer o seu nível habitual",
     relaxationThisWeek: "Relaxamento esta semana: {{count}} min",

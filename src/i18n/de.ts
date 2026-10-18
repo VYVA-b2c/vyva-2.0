@@ -2238,6 +2238,8 @@ const de = {
     factGames: "Spiele",
     factStreak: "Tage in Folge",
     factMinutes: "Minuten",
+    today: "Heute",
+    yesterday: "Gestern",
     shareFamily: "Mit der Familie teilen",
     buildingKeepPlaying: "Spielen Sie weiter, damit VYVA Ihr übliches Niveau kennenlernt",
     relaxationThisWeek: "Entspannung diese Woche: {{count}} Min.",

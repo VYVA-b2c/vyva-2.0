@@ -4,14 +4,22 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import BrainCoachReportScreen from "./BrainCoachReportScreen";
 
+const translationState = vi.hoisted(() => ({ language: "en" }));
+
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: { language: translationState.language, resolvedLanguage: translationState.language },
       t: (_key: string, fallbackOrValues?: string | Record<string, unknown>, values?: Record<string, unknown>) => {
+        const localized = translationState.language === "es" ? {
+          "reports.brainCoach.today": "Hoy",
+          "reports.brainCoach.yesterday": "Ayer",
+          "reports.brainCoach.areas.memory": "Memoria",
+        }[_key] : undefined;
         const fallback = typeof fallbackOrValues === "string"
-          ? fallbackOrValues
+          ? localized ?? fallbackOrValues
           : _key === "reports.brainCoach.gamesCount"
             ? Number(fallbackOrValues?.count) === 1 ? "{{count}} game" : "{{count}} games"
             : _key;
@@ -109,7 +117,9 @@ function renderReport(data: unknown = progress) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  translationState.language = "en";
   Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
 });
@@ -132,6 +142,34 @@ describe("BrainCoachReportScreen", () => {
     expect(screen.getByTestId("brain-coach-recent-sessions")).not.toHaveTextContent("100%");
   });
 
+  it("shows building as plain secondary text rather than a status pill", async () => {
+    renderReport({
+      ...progress,
+      performance: {
+        ...progress.performance,
+        areas: [{ ...progress.performance.areas[0], status: "building" }],
+      },
+    });
+
+    const building = await screen.findByText("Learning your usual level");
+    expect(building.tagName).toBe("P");
+    expect(building).toHaveClass("text-vyva-text-2", "text-[20px]");
+    expect(building).not.toHaveClass("rounded-full");
+  });
+
+  it("shows building text for every listed area missing a performance entry", async () => {
+    renderReport({
+      ...progress,
+      domains: [
+        ...progress.domains,
+        { ...progress.domains[0], domain: "language", completedSessions: 1 },
+      ],
+    });
+
+    expect(await screen.findByTestId("brain-coach-performance-language")).toHaveTextContent("Language");
+    expect(screen.getByTestId("brain-coach-performance-language")).toHaveTextContent("Learning your usual level");
+  });
+
   it("shows area game counts without performance language when the flag is off", async () => {
     renderReport({ ...progress, performance: undefined });
 
@@ -146,10 +184,30 @@ describe("BrainCoachReportScreen", () => {
     expect(await screen.findByText("Ready for your first game")).toBeInTheDocument();
     expect(screen.queryByTestId("brain-coach-facts")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-start-brain-coach-games")).toHaveTextContent("Start a game");
+    expect(screen.queryByTestId("button-copy-brain-coach-report")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-start-brain-coach-games"));
 
     await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/mind-memory"));
+  });
+
+  it("localizes recent game day, time, and area labels", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-02T12:00:00"));
+    translationState.language = "es";
+    renderReport({
+      ...progress,
+      history: [
+        { ...progress.history[0], id: "today", playedAt: "2026-06-02T09:00:00" },
+        { ...progress.history[0], id: "yesterday", playedAt: "2026-06-01T10:00:00" },
+        { ...progress.history[0], id: "older", playedAt: "2026-05-31T11:00:00" },
+      ],
+    });
+
+    const recent = await screen.findByTestId("brain-coach-recent-sessions");
+    expect(recent).toHaveTextContent("Hoy, 09:00 · Memoria");
+    expect(recent).toHaveTextContent("Ayer, 10:00 · Memoria");
+    expect(recent).toHaveTextContent(/31 may.*11:00 · Memoria/i);
   });
 
   it("shares with the device share sheet when available", async () => {

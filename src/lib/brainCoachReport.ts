@@ -170,6 +170,10 @@ function translatedArea(t: BrainCoachTranslate, value?: string | null) {
   return t(`reports.brainCoach.areas.${area}`, domainLabel(value));
 }
 
+function lowerFirst(value: string) {
+  return value ? value.charAt(0).toLocaleLowerCase() + value.slice(1) : value;
+}
+
 export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate) {
   if (!hasBrainCoachData(progress)) {
     return t("reports.brainCoach.narrative.empty", "Play a few short games and VYVA will turn them into a simple progress report.");
@@ -181,7 +185,7 @@ export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t
   const completed = summary.completedSessions;
   const area = strongest ? translatedArea(t, strongest.domain) : t("reports.brainCoach.narrative.brainTraining", "brain training");
   const higherArea = progress?.performance?.areas.find((item) => item.status === "above");
-  if (higherArea) return t("reports.brainCoach.narrative.higher", "{{area}} has been higher than your usual range. Keep the routine steady.", { area: translatedArea(t, higherArea.area) });
+  if (higherArea) return t("reports.brainCoach.narrative.higher", "Your {{area}} has been higher than your usual level. Keep the routine steady.", { area: lowerFirst(translatedArea(t, higherArea.area)) });
 
   if (streak >= 3) {
     return t("reports.brainCoach.narrative.streak", "You are on a {{count}}-day streak. Your most practiced area is {{area}}.", { count: streak, area });
@@ -207,7 +211,7 @@ export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t
   const domains = progress?.domains ?? [];
   const steps: string[] = [];
   const easierArea = progress?.performance?.areas.find((item) => item.status === "below");
-  if (easierArea) steps.push(t("reports.brainCoach.steps.easier", "Try an easier {{area}} game this week.", { area: translatedArea(t, easierArea.area) }));
+  if (easierArea) steps.push(t("reports.brainCoach.steps.easier", "Try an easier {{area}} game this week.", { area: lowerFirst(translatedArea(t, easierArea.area)) }));
 
   if ((progress?.today?.completedCount ?? 0) === 0) {
     steps.push(t("reports.brainCoach.steps.playToday", "Do one short Brain Coach game today."));

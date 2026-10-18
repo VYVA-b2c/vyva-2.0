@@ -2108,6 +2108,8 @@ const it = {
       factGames: "giochi",
       factStreak: "giorni di fila",
       factMinutes: "minuti",
+      today: "Oggi",
+      yesterday: "Ieri",
       shareFamily: "Condividi con la famiglia",
     },
   },
