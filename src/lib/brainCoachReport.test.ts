@@ -18,4 +18,33 @@ describe("Brain Coach report localization", () => {
     expect(buildBrainCoachShareText(progress, t)).toContain("[reports.brainCoach.share.title]");
     expect(t).toHaveBeenCalledWith("reports.brainCoach.areas.memory", "Memory");
   });
+
+  it.each([
+    {
+      language: "de",
+      area: "Gedächtnis",
+      higher: "Gedächtnis lag über Ihrem üblichen Niveau.",
+      easier: "Ein leichteres Spiel im Bereich Gedächtnis.",
+    },
+    {
+      language: "es",
+      area: "Memoria",
+      higher: "Memoria está por encima de tu nivel habitual.",
+      easier: "Memoria será más fácil esta semana.",
+    },
+  ])("keeps the area label casing in $language narrative and steps", ({ language, area, higher, easier }) => {
+    const translations: Record<string, string> = {
+      "reports.brainCoach.areas.memory": area,
+      "reports.brainCoach.narrative.higher": higher.replace(area, "{{area}}"),
+      "reports.brainCoach.steps.easier": easier.replace(area, "{{area}}"),
+    };
+    const t = (key: string, fallback: string, values?: Record<string, unknown>) => (translations[key] ?? fallback).replace(
+      /\{\{(\w+)\}\}/g,
+      (_match, name) => String(values?.[name] ?? `{{${name}}}`),
+    );
+    const below = { ...progress, performance: { ...progress.performance!, areas: [{ ...progress.performance!.areas[0], status: "below" as const }] } };
+
+    expect(buildBrainCoachNarrative(progress, t, language)).toBe(higher);
+    expect(buildBrainCoachNextSteps(below, t, language)[0]).toBe(easier);
+  });
 });

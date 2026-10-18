@@ -136,6 +136,7 @@ function RecentSessionRow({ session }: { session: BrainCoachSession }) {
 
 export default function BrainCoachReportScreen() {
   const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: progress, isLoading, isError, refetch } = useQuery<BrainCoachProgress>({
@@ -145,7 +146,7 @@ export default function BrainCoachReportScreen() {
 
   const summary = progress?.summary;
   const hasData = hasBrainCoachData(progress);
-  const nextSteps = buildBrainCoachNextSteps(progress, t);
+  const nextSteps = buildBrainCoachNextSteps(progress, t, language);
   const recentSessions = (progress?.history ?? []).slice(0, 3);
   const performance = progress?.performance;
   const wholeMinutes = Math.max(0, Math.round((summary?.totalDurationSeconds ?? 0) / 60));
@@ -163,7 +164,7 @@ export default function BrainCoachReportScreen() {
   const copySummary = async () => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable");
-      await navigator.clipboard.writeText(buildBrainCoachShareText(progress, t));
+      await navigator.clipboard.writeText(buildBrainCoachShareText(progress, t, language));
       toast({
         title: t("reports.brainCoach.copyDone", "Brain Coach summary copied"),
         description: t("reports.brainCoach.copyDoneSub", "Ready to share when you need it."),
@@ -178,7 +179,7 @@ export default function BrainCoachReportScreen() {
   };
 
   const shareSummary = async () => {
-    const text = buildBrainCoachShareText(progress, t);
+    const text = buildBrainCoachShareText(progress, t, language);
     if (navigator.share) {
       try {
         await navigator.share({ text });
@@ -232,8 +233,8 @@ export default function BrainCoachReportScreen() {
           <>
             <HealthWizardHero
               tone={hasData ? "purple" : "light"}
-              title={hasData ? buildBrainCoachNarrative(progress, t) : t("reports.brainCoach.emptyTitle", "Ready for your first game")}
-              body={hasData ? undefined : buildBrainCoachNarrative(progress, t)}
+              title={hasData ? buildBrainCoachNarrative(progress, t, language) : t("reports.brainCoach.emptyTitle", "Ready for your first game")}
+              body={hasData ? undefined : buildBrainCoachNarrative(progress, t, language)}
             >
               {hasData ? (
                 <div className="grid grid-cols-3 gap-3 border-t border-white/20 pt-5" data-testid="brain-coach-facts">
