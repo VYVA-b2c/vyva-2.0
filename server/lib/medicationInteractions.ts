@@ -1,192 +1,76 @@
 export const MEDICINE_CLASS_TAGS = [
-  "blood_pressure_lowering",
-  "blood_thinner",
-  "nsaid_pain_reliever",
-  "opioid_pain_reliever",
-  "sedative_sleep_aid",
-  "diabetes_blood_sugar",
-  "diuretic_water_pill",
-  "antidepressant",
-  "statin_cholesterol",
-  "supplement_herbal",
-  "antihistamine_allergy",
-  "other_uncategorized",
+  "blood_pressure_lowering", "blood_thinner", "nsaid_pain_reliever", "opioid_pain_reliever",
+  "sedative_sleep_aid", "diabetes_blood_sugar", "diuretic_water_pill", "antidepressant",
+  "statin_cholesterol", "supplement_herbal", "antihistamine_allergy", "cold_flu_combination",
+  "antacid_stomach", "other_uncategorized",
 ] as const;
 
 export type MedicineClassTag = typeof MEDICINE_CLASS_TAGS[number];
-export type DismissReason = "asked_pharmacist" | "not_now" | "already_knew";
-
-export type InteractionMedicine = {
-  id: string;
-  display_name: string;
-  common_name?: string | null;
-  drug_class_tag?: string | null;
-  status?: string | null;
-};
-
-export type InteractionRule = {
-  id: string;
-  class_a: string;
-  class_b: string;
-  flag_message_en: string;
-  flag_message_es: string;
-  flag_message_de: string;
-  severity_tier: string;
-  is_active?: boolean | null;
-  created_at?: Date | string | null;
-};
-
-export type InteractionDismissal = {
-  rule_id: string;
-  medicine_pair: unknown;
-  reason?: string | null;
-  dismissed_at?: Date | string | null;
-};
-
-export type MedicationInteractionFlag = {
-  id: string;
-  kind: "rule" | "duplicate_class";
-  ruleId?: string;
-  classTags: string[];
-  medicineIds: string[];
-  medicines: string[];
-  message: string;
-  severityTier: "worth_asking";
-  canDismiss: boolean;
-};
+export type MedicineCheckStatus = "not_ready" | "has_questions" | "needs_info" | "needs_more" | "nothing_found";
+export type FlagStateStatus = "open" | "snoozed" | "asked" | "resolved_fine" | "resolved_changed" | "unsure";
+export type InteractionMedicine = { id: string; display_name: string; common_name?: string | null; dose_text?: string | null; purpose_text?: string | null; prescriber_name?: string | null; photo_url?: string | null; drug_class_tag?: string | null; status?: string | null };
+export type InteractionRule = { id: string; class_a: string; class_b: string; messages: Record<string, { why?: string }>; approved_locales: string[]; is_active?: boolean | null };
+export type InteractionFlagState = { flag_key: string; status: FlagStateStatus; asked_at?: Date | string | null; snooze_until?: Date | string | null; snooze_count?: number | null };
+export type MedicineChange = { medicine_id: string | null; changed_at: Date | string };
+export type MedicationInteractionFlag = { id: string; flagKey: string; kind: "rule" | "duplicate_class"; ruleId?: string; medicineIds: string[]; medicines: string[]; why: string; snoozeCount: number; canSnooze: boolean };
+export type MedicineSafetyResult = { state: MedicineCheckStatus; savedCount: number; comparedCount: number; untagged: InteractionMedicine[]; flags: MedicationInteractionFlag[]; totalFlagCount: number; approvedRuleCount: number };
 
 const DUPLICATE_CLASS_EXCLUSIONS = new Set(["other_uncategorized", "supplement_herbal"]);
-
-export function isMedicineClassTag(value: unknown): value is MedicineClassTag {
-  return typeof value === "string" && (MEDICINE_CLASS_TAGS as readonly string[]).includes(value);
+const DOSE_SUFFIX = /\b\d+(?:[.,]\d+)?\s*(?:mg|mcg|g|ml|iu|units?|tablets?|capsules?)\b/gi;
+export function isMedicineClassTag(value: unknown): value is MedicineClassTag { return typeof value === "string" && (MEDICINE_CLASS_TAGS as readonly string[]).includes(value); }
+export function normalizeMedicineClassTag(value: unknown): MedicineClassTag | null { return isMedicineClassTag(value) ? value : null; }
+export function normalizedMedicinePair(ids: string[]) { return [...ids].sort(); }
+export function medicineFlagKey(ruleId: string, medicineIds: string[]) { return `${ruleId}:${normalizedMedicinePair(medicineIds).join(":")}`; }
+function normalizedName(name: string) { return name.toLocaleLowerCase().replace(DOSE_SUFFIX, "").replace(/\b(morning|evening|night|am|pm)\b/gi, "").replace(/[^\p{L}]+/gu, " ").trim(); }
+function dateValue(value?: Date | string | null) { if (!value) return 0; const date = value instanceof Date ? value : new Date(value); return Number.isFinite(date.getTime()) ? date.getTime() : 0; }
+function stateSuppressesFlag(state: InteractionFlagState | undefined, pair: string[], changes: MedicineChange[], now: Date) {
+  if (!state) return false;
+  if (state.status === "snoozed") return dateValue(state.snooze_until) > now.getTime();
+  if (state.status === "unsure") return dateValue(state.snooze_until) > now.getTime();
+  if (state.status === "asked") return changes.some((change) => change.medicine_id && pair.includes(change.medicine_id) && dateValue(change.changed_at) > dateValue(state.asked_at));
+  if (state.status === "resolved_fine") return !changes.some((change) => change.medicine_id && pair.includes(change.medicine_id) && dateValue(change.changed_at) > dateValue(state.asked_at));
+  return state.status === "resolved_changed";
 }
 
-export function normalizeMedicineClassTag(value: unknown): MedicineClassTag | null {
-  return isMedicineClassTag(value) ? value : null;
-}
-
-export function normalizedMedicinePair(ids: string[]) {
-  return [...ids].sort();
-}
-
-function pairKey(ids: string[]) {
-  return normalizedMedicinePair(ids).join("|");
-}
-
-function dismissalPairKey(value: unknown) {
-  if (!Array.isArray(value)) return "";
-  return pairKey(value.map((item) => String(item)));
-}
-
-function dismissalIsActive(dismissal: InteractionDismissal, now: Date) {
-  if (dismissal.reason === "asked_pharmacist" || dismissal.reason === "already_knew") return true;
-  if (dismissal.reason !== "not_now") return false;
-  const dismissedAt = dismissal.dismissed_at ? new Date(dismissal.dismissed_at) : null;
-  if (!dismissedAt || !Number.isFinite(dismissedAt.getTime())) return false;
-  return now.getTime() - dismissedAt.getTime() < 7 * 24 * 60 * 60 * 1000;
-}
-
-function localizedRuleMessage(rule: InteractionRule, language?: string) {
-  const normalized = (language ?? "en").toLowerCase();
-  if (normalized.startsWith("es")) return rule.flag_message_es || rule.flag_message_en;
-  if (normalized.startsWith("de")) return rule.flag_message_de || rule.flag_message_en;
-  return rule.flag_message_en;
-}
-
-function humanClassLabel(tag: string) {
-  const labels: Record<string, string> = {
-    blood_pressure_lowering: "blood pressure",
-    blood_thinner: "blood thinner",
-    nsaid_pain_reliever: "pain relief",
-    opioid_pain_reliever: "strong pain relief",
-    sedative_sleep_aid: "sleep",
-    diabetes_blood_sugar: "blood sugar",
-    diuretic_water_pill: "water pill",
-    antidepressant: "mood",
-    statin_cholesterol: "cholesterol",
-    antihistamine_allergy: "allergy",
-  };
-  return labels[tag] ?? tag.replace(/_/g, " ");
-}
-
-function duplicateMessage(language: string | undefined, tag: string) {
-  const normalized = (language ?? "en").toLowerCase();
-  if (normalized.startsWith("es")) {
-    return "Tienes dos cosas en tu lista para lo mismo; vale la pena revisarlo con tu farmacéutico.";
-  }
-  if (normalized.startsWith("de")) {
-    return "Du hast zwei Dinge für dasselbe auf deiner Liste; es lohnt sich, das mit deinem Apotheker zu prüfen.";
-  }
-  return `You have two things on your list for ${humanClassLabel(tag)}; worth reviewing with your pharmacist.`;
-}
-
-export function computeMedicationInteractionFlags(input: {
-  medicines: InteractionMedicine[];
-  rules: InteractionRule[];
-  dismissals?: InteractionDismissal[];
-  language?: string;
-  now?: Date;
-  maxFlags?: number;
-}): MedicationInteractionFlag[] {
+export function computeMedicineSafety(input: { medicines: InteractionMedicine[]; rules: InteractionRule[]; states?: InteractionFlagState[]; changes?: MedicineChange[]; locale?: string; now?: Date; maxFlags?: number }): MedicineSafetyResult {
   const now = input.now ?? new Date();
-  const activeMedicines = input.medicines.filter((medicine) => medicine.status === "active" || !medicine.status);
-  const dismissals = input.dismissals ?? [];
+  const locale = (input.locale ?? "en").split("-")[0].toLowerCase();
+  const active = input.medicines.filter((medicine) => !medicine.status || medicine.status === "active");
+  const tagged = active.filter((medicine) => normalizeMedicineClassTag(medicine.drug_class_tag));
+  const untagged = active.filter((medicine) => !normalizeMedicineClassTag(medicine.drug_class_tag));
+  const approvedRules = input.rules.filter((rule) => rule.is_active !== false && rule.approved_locales.includes(locale) && Boolean(rule.messages?.[locale]?.why?.trim()));
+  const stateMap = new Map((input.states ?? []).map((state) => [state.flag_key, state]));
   const flags: MedicationInteractionFlag[] = [];
-
-  for (const rule of input.rules.filter((item) => item.is_active !== false)) {
-    const medsA = activeMedicines.filter((medicine) => medicine.drug_class_tag === rule.class_a);
-    const medsB = activeMedicines.filter((medicine) => medicine.drug_class_tag === rule.class_b);
-    if (!medsA.length || !medsB.length) continue;
-
-    const pair = medsA[0].id === medsB[0].id && medsB.length > 1
-      ? [medsA[0], medsB[1]]
-      : [medsA[0], medsB[0]];
-    if (pair[0].id === pair[1].id) continue;
-
-    const key = pairKey(pair.map((medicine) => medicine.id));
-    const dismissed = dismissals.some((dismissal) => (
-      dismissal.rule_id === rule.id &&
-      dismissalPairKey(dismissal.medicine_pair) === key &&
-      dismissalIsActive(dismissal, now)
-    ));
-    if (dismissed) continue;
-
-    flags.push({
-      id: `rule-${rule.id}`,
-      kind: "rule",
-      ruleId: rule.id,
-      classTags: [rule.class_a, rule.class_b],
-      medicineIds: normalizedMedicinePair(pair.map((medicine) => medicine.id)),
-      medicines: pair.map((medicine) => medicine.display_name),
-      message: localizedRuleMessage(rule, input.language),
-      severityTier: "worth_asking",
-      canDismiss: true,
-    });
+  for (const rule of approvedRules) {
+    const a = tagged.filter((medicine) => medicine.drug_class_tag === rule.class_a);
+    const b = tagged.filter((medicine) => medicine.drug_class_tag === rule.class_b);
+    if (!a.length || !b.length) continue;
+    const pair = a[0].id === b[0].id ? [a[0], b[1]].filter(Boolean) : [a[0], b[0]];
+    if (pair.length !== 2 || pair[0].id === pair[1].id) continue;
+    const ids = normalizedMedicinePair(pair.map((medicine) => medicine.id));
+    const key = medicineFlagKey(rule.id, ids);
+    const state = stateMap.get(key);
+    if (stateSuppressesFlag(state, ids, input.changes ?? [], now)) continue;
+    flags.push({ id: `rule-${rule.id}`, flagKey: key, kind: "rule", ruleId: rule.id, medicineIds: ids, medicines: pair.map((medicine) => medicine.display_name), why: rule.messages[locale]!.why!.trim(), snoozeCount: state?.snooze_count ?? 0, canSnooze: (state?.snooze_count ?? 0) < 2 });
   }
-
-  const medicinesByClass = new Map<string, InteractionMedicine[]>();
-  for (const medicine of activeMedicines) {
-    const tag = normalizeMedicineClassTag(medicine.drug_class_tag);
-    if (!tag || DUPLICATE_CLASS_EXCLUSIONS.has(tag)) continue;
-    const current = medicinesByClass.get(tag) ?? [];
-    current.push(medicine);
-    medicinesByClass.set(tag, current);
+  const byClass = new Map<string, InteractionMedicine[]>();
+  for (const medicine of tagged) {
+    const tag = medicine.drug_class_tag!;
+    if (DUPLICATE_CLASS_EXCLUSIONS.has(tag)) continue;
+    const group = byClass.get(tag) ?? [];
+    if (!group.some((entry) => normalizedName(entry.display_name) === normalizedName(medicine.display_name))) group.push(medicine);
+    byClass.set(tag, group);
   }
-
-  for (const [tag, medicines] of medicinesByClass.entries()) {
-    if (medicines.length < 2) continue;
-    const pair = medicines.slice(0, 2);
-    flags.push({
-      id: `duplicate-${tag}`,
-      kind: "duplicate_class",
-      classTags: [tag],
-      medicineIds: normalizedMedicinePair(pair.map((medicine) => medicine.id)),
-      medicines: pair.map((medicine) => medicine.display_name),
-      message: duplicateMessage(input.language, tag),
-      severityTier: "worth_asking",
-      canDismiss: false,
-    });
+  for (const [tag, group] of byClass) {
+    if (group.length < 2) continue;
+    const pair = group.slice(0, 2); const ids = normalizedMedicinePair(pair.map((medicine) => medicine.id)); const key = medicineFlagKey(`duplicate-${tag}`, ids); const state = stateMap.get(key);
+    if (stateSuppressesFlag(state, ids, input.changes ?? [], now)) continue;
+    flags.push({ id: `duplicate-${tag}`, flagKey: key, kind: "duplicate_class", medicineIds: ids, medicines: pair.map((medicine) => medicine.display_name), why: "", snoozeCount: state?.snooze_count ?? 0, canSnooze: (state?.snooze_count ?? 0) < 2 });
   }
-
-  return flags.slice(0, input.maxFlags ?? 2);
+  const eligibleFlags = approvedRules.length ? flags : [];
+  const visible = eligibleFlags.slice(0, input.maxFlags ?? 2);
+  const state: MedicineCheckStatus = approvedRules.length === 0 ? "not_ready" : eligibleFlags.length ? "has_questions" : untagged.length ? "needs_info" : tagged.length < 2 ? "needs_more" : "nothing_found";
+  return { state, savedCount: active.length, comparedCount: tagged.length, untagged, flags: visible, totalFlagCount: eligibleFlags.length, approvedRuleCount: approvedRules.length };
 }
+
+export const computeMedicationInteractionFlags = (input: Parameters<typeof computeMedicineSafety>[0]) => computeMedicineSafety(input).flags;

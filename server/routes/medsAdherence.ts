@@ -4,7 +4,7 @@ import { eq, and, desc, gte, inArray, isNull } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import {
   caregiverAlerts,
-  interactionFlagDismissals,
+  interactionFlagStates,
   interactionFlagRules,
   medicationAdherence,
   medicationInventoryEvents,
@@ -13,6 +13,7 @@ import {
   medicationSafetySignals,
   myMedicines,
   myMedicinesChangeLog,
+  profileMedSafetyState,
   profiles,
   teamInvitations,
   triageReports,
@@ -38,9 +39,8 @@ import {
 } from "../lib/medicationSafety.js";
 import {
   MEDICINE_CLASS_TAGS,
-  computeMedicationInteractionFlags,
+  computeMedicineSafety,
   isMedicineClassTag,
-  normalizedMedicinePair,
 } from "../lib/medicationInteractions.js";
 import { buildMedicationUpdates } from "../lib/medicationUpdates.js";
 import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
@@ -165,7 +165,7 @@ const myMedicineFieldsSchema = z.object({
   refill_alert_days: z.coerce.number().int().min(1).max(90).default(7),
   initial_quantity: z.coerce.number().nonnegative().max(1_000_000).optional().nullable(),
   purchased_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  added_via: z.enum(["voice", "manual", "photo", "discharge_flow"]).default("manual"),
+  added_via: z.enum(["voice", "manual", "photo", "discharge_flow", "extras_sweep"]).default("manual"),
 });
 
 const myMedicineCreateSchema = myMedicineFieldsSchema.superRefine((value, context) => {
@@ -192,10 +192,9 @@ const myMedicinePatchSchema = myMedicineFieldsSchema.partial().extend({
   status_changed_by: z.enum(["user", "caregiver"]).optional(),
 });
 
-const interactionDismissSchema = z.object({
-  medicine_pair: z.array(z.string()).length(2),
-  reason: z.enum(["asked_pharmacist", "not_now", "already_knew"]).default("not_now"),
-});
+const flagOutcomeSchema = z.object({ outcome: z.enum(["fine", "changed", "unsure"]) });
+const extrasSchema = z.object({ classTag: medicineClassTagSchema, displayName: z.string().trim().max(160).optional() });
+const previewSchema = z.object({ classTag: medicineClassTagSchema, displayName: z.string().trim().max(160).optional() });
 
 let medicationSafetyPersistencePromise: Promise<void> | null = null;
 let myMedicinesPersistencePromise: Promise<void> | null = null;
@@ -348,9 +347,8 @@ async function ensureMyMedicinesTables() {
           id uuid primary key default gen_random_uuid(),
           class_a text not null,
           class_b text not null,
-          flag_message_es text not null,
-          flag_message_de text not null,
-          flag_message_en text not null,
+          messages jsonb not null default '{}'::jsonb,
+          approved_locales text[] not null default '{}',
           severity_tier text not null default 'worth_asking',
           is_active boolean not null default false,
           reviewed_by text,
@@ -359,57 +357,26 @@ async function ensureMyMedicinesTables() {
         )
       `);
       await pool.query(`
-        create table if not exists interaction_flag_dismissals (
+        create table if not exists interaction_flag_states (
           id uuid primary key default gen_random_uuid(),
           user_id text not null,
-          rule_id uuid not null references interaction_flag_rules(id) on delete cascade,
+          rule_id uuid references interaction_flag_rules(id) on delete cascade,
           medicine_pair jsonb not null,
-          dismissed_at timestamptz not null default now(),
-          reason text
+          flag_key text not null,
+          status text not null default 'open',
+          opened_at timestamptz not null default now(),
+          asked_at timestamptz,
+          snooze_until timestamptz,
+          snooze_count integer not null default 0
         )
       `);
+      await pool.query(`create table if not exists profile_med_safety_state (user_id text primary key references profiles(id) on delete cascade, last_extras_sweep_at timestamptz, updated_at timestamptz not null default now())`);
       await pool.query(`create index if not exists idx_mm_user_status on my_medicines (user_id, status)`);
       await pool.query(`create index if not exists idx_mm_refill_due on my_medicines (user_id, refill_due_date) where status = 'active'`);
       await pool.query(`create index if not exists idx_mcl_user_time on my_medicines_change_log (user_id, changed_at desc)`);
       await pool.query(`create index if not exists idx_ifr_classes on interaction_flag_rules (class_a, class_b) where is_active = true`);
       await pool.query(`create unique index if not exists interaction_flag_rules_class_pair_unique on interaction_flag_rules (class_a, class_b)`);
-      await pool.query(`create index if not exists interaction_flag_dismissals_user_rule_idx on interaction_flag_dismissals (user_id, rule_id)`);
-      await pool.query(`
-        insert into interaction_flag_rules
-          (class_a, class_b, flag_message_es, flag_message_de, flag_message_en, is_active)
-        values
-          ('blood_pressure_lowering', 'nsaid_pain_reliever',
-           'Tienes un medicamento para la tension y un antiinflamatorio en tu lista; vale la pena preguntarle a tu farmaceutico si van bien juntos.',
-           'Du hast ein Blutdruckmedikament und ein Schmerzmittel auf deiner Liste; es lohnt sich, deinen Apotheker zu fragen, ob das zusammenpasst.',
-           'You have a blood pressure medicine and a pain reliever on your list; worth asking your pharmacist if they go well together.',
-           false),
-          ('blood_thinner', 'nsaid_pain_reliever',
-           'Tienes un anticoagulante y un antiinflamatorio en tu lista; vale la pena comentarlo con tu farmaceutico.',
-           'Du hast ein Blutverduennungsmittel und ein Schmerzmittel auf deiner Liste; sprich am besten mit deinem Apotheker darueber.',
-           'You have a blood thinner and a pain reliever on your list; worth mentioning to your pharmacist.',
-           false),
-          ('sedative_sleep_aid', 'opioid_pain_reliever',
-           'Tienes una pastilla para dormir y un analgesico fuerte en tu lista; tu farmaceutico puede confirmarte si esta bien combinarlos.',
-           'Du hast ein Schlafmittel und ein starkes Schmerzmittel auf deiner Liste; dein Apotheker kann dir sagen, ob das zusammenpasst.',
-           'You have a sleep aid and a strong pain reliever on your list; your pharmacist can confirm if that combination is fine.',
-           false),
-          ('diuretic_water_pill', 'blood_pressure_lowering',
-           'Tienes una pastilla de agua y un medicamento para la tension; es buena idea que tu farmaceutico revise como trabajan juntos.',
-           'Du hast eine Wassertablette und ein Blutdruckmedikament; es ist gut, wenn dein Apotheker sich das gemeinsam ansieht.',
-           'You have a water pill and a blood pressure medicine; good idea to have your pharmacist review how they work together.',
-           false),
-          ('antidepressant', 'sedative_sleep_aid',
-           'Tienes un medicamento para el animo y una pastilla para dormir; vale la pena preguntarle a tu medico o farmaceutico si van bien juntos.',
-           'Du hast ein Medikament fuer die Stimmung und ein Schlafmittel; frag am besten deinen Arzt oder Apotheker, ob das zusammenpasst.',
-           'You have a mood medicine and a sleep aid; worth asking your doctor or pharmacist if they go well together.',
-           false),
-          ('statin_cholesterol', 'supplement_herbal',
-           'Tienes un medicamento para el colesterol y un suplemento en tu lista; comentalo a tu farmaceutico para estar tranquilo.',
-           'Du hast ein Cholesterinmedikament und ein Nahrungsergaenzungsmittel auf deiner Liste; sprich das bei deinem Apotheker an.',
-           'You have a cholesterol medicine and a supplement on your list; mention it to your pharmacist just to be safe.',
-           false)
-        on conflict (class_a, class_b) do nothing
-      `);
+      await pool.query(`create unique index if not exists interaction_flag_states_user_key_unique on interaction_flag_states (user_id, flag_key)`);
     })().catch((err) => {
       myMedicinesPersistencePromise = null;
       throw err;
@@ -1415,90 +1382,138 @@ router.post("/my-medicines/:id/discontinue", requireUser, async (req: Request, r
   }
 });
 
-router.get("/interactions", requireUser, async (req: Request, res: Response) => {
+function savedPharmacyFromProfile(consent: unknown) {
+  const root = asRecord(consent);
+  const providersSection = asRecord(root.providers);
+  const providers = Array.isArray(providersSection.providers) ? providersSection.providers : [];
+  for (const candidate of providers) {
+    const provider = asRecord(candidate);
+    const type = `${provider.category ?? ""} ${provider.role ?? ""}`.toLowerCase();
+    if (!/(pharmacy|farmacia|chemist|drugstore)/.test(type)) continue;
+    return { name: String(provider.name ?? provider.category ?? ""), phone: String(provider.phone ?? ""), address: String(provider.address ?? "") };
+  }
+  return null;
+}
+
+async function loadMedicineCheck(userId: string, language: string, extraMedicine?: typeof myMedicines.$inferSelect) {
+  const locale = language.split("-")[0].toLowerCase();
+  const [medicines, rules, states, changes, profile, safetyState] = await Promise.all([
+    db.select().from(myMedicines).where(eq(myMedicines.user_id, userId)).orderBy(myMedicines.display_name),
+    db.select().from(interactionFlagRules).orderBy(interactionFlagRules.created_at),
+    db.select().from(interactionFlagStates).where(eq(interactionFlagStates.user_id, userId)),
+    db.select({ medicine_id: myMedicinesChangeLog.medicine_id, changed_at: myMedicinesChangeLog.changed_at }).from(myMedicinesChangeLog).where(eq(myMedicinesChangeLog.user_id, userId)),
+    db.select({ firstName: profiles.preferred_name, fullName: profiles.full_name, consent: profiles.data_sharing_consent }).from(profiles).where(eq(profiles.id, userId)).limit(1).then((rows) => rows[0] ?? null),
+    db.select().from(profileMedSafetyState).where(eq(profileMedSafetyState.user_id, userId)).limit(1).then((rows) => rows[0] ?? null),
+  ]);
+  for (const state of states) {
+    if (state.status !== "asked" || !state.asked_at) continue;
+    const ids = Array.isArray(state.medicine_pair) ? state.medicine_pair.filter((id): id is string => typeof id === "string") : [];
+    const changedAfterAsk = changes.some((change) => change.medicine_id && ids.includes(change.medicine_id) && new Date(change.changed_at).getTime() > new Date(state.asked_at!).getTime());
+    if (changedAfterAsk) {
+      state.status = "resolved_changed";
+      await db.update(interactionFlagStates).set({ status: "resolved_changed" }).where(eq(interactionFlagStates.id, state.id));
+    }
+  }
+  const result = computeMedicineSafety({ medicines: extraMedicine ? [...medicines, extraMedicine] : medicines, rules, states, changes, locale, maxFlags: 2 });
+  const lastSweepAt = safetyState?.last_extras_sweep_at ?? null;
+  const changedAfterSweep = lastSweepAt ? changes.some((change) => new Date(change.changed_at).getTime() > new Date(lastSweepAt).getTime()) : true;
+  return { ...result, lastSweepAt, sweepDue: changedAfterSweep || !lastSweepAt || Date.now() - new Date(lastSweepAt).getTime() > 30 * 86400000, safetyNetEnabled: process.env.VYVA_MED_SAFETY_NET_ENABLED === "true", pharmacy: savedPharmacyFromProfile(profile?.consent), profile: { firstName: profile?.firstName || profile?.fullName?.split(" ")[0] || "", updatedAt: new Date().toISOString() }, medicines: medicines.filter((medicine) => medicine.status === "active") };
+}
+
+router.get("/safety-check", requireUser, async (req: Request, res: Response) => {
   const userId = req.user!.id;
   const language = String(req.headers["x-vyva-language"] ?? "en");
   try {
     await ensureMyMedicinesTables();
-    const [medicines, rules, dismissals] = await Promise.all([
-      db
-        .select()
-        .from(myMedicines)
-        .where(and(eq(myMedicines.user_id, userId), eq(myMedicines.status, "active")))
-        .orderBy(myMedicines.display_name),
-      db
-        .select()
-        .from(interactionFlagRules)
-        .where(eq(interactionFlagRules.is_active, true))
-        .orderBy(interactionFlagRules.created_at),
-      db
-        .select()
-        .from(interactionFlagDismissals)
-        .where(eq(interactionFlagDismissals.user_id, userId)),
-    ]);
-
-    const flags = computeMedicationInteractionFlags({
-      medicines,
-      rules,
-      dismissals,
-      language,
-      maxFlags: 2,
-    });
-
-    if (process.env.NODE_ENV !== "production" && flags.length) {
-      console.info("[meds/interactions flags]", flags.map((flag) => ({
-        flag_id: flag.id,
-        kind: flag.kind,
-        medicine_ids: flag.medicineIds,
-        medicines: flag.medicines,
-        class_tags: flag.classTags,
-      })));
-    }
-
-    return res.json({
-      flags,
-      hasMore: false,
-      reviewedRuleCount: rules.length,
-      activeMedicineCount: medicines.filter((medicine) => medicine.status === "active").length,
-      message: flags.length
-        ? "Worth asking your pharmacist about these combinations."
-        : "Everything looks okay from the reviewed rules available today. Keep adding medicines so VYVA can keep checking.",
-    });
+    return res.json(await loadMedicineCheck(userId, language));
   } catch (err) {
-    console.error("[meds/interactions GET]", err);
-    return res.status(500).json({ error: "Failed to check medicine interactions" });
+    console.error("[meds/safety-check GET]", err);
+    return res.status(500).json({ error: "Failed to check medicines" });
   }
 });
 
-router.post("/interactions/:ruleId/dismiss", requireUser, async (req: Request, res: Response) => {
+router.get("/interactions", requireUser, async (req: Request, res: Response) => {
+  try { await ensureMyMedicinesTables(); return res.json(await loadMedicineCheck(req.user!.id, String(req.headers["x-vyva-language"] ?? "en"))); }
+  catch (err) { console.error("[meds/interactions GET]", err); return res.status(500).json({ error: "Failed to check medicines" }); }
+});
+
+async function upsertFlagState(userId: string, flagKey: string, values: Partial<typeof interactionFlagStates.$inferInsert>) {
+  const existing = await db.select().from(interactionFlagStates).where(and(eq(interactionFlagStates.user_id, userId), eq(interactionFlagStates.flag_key, flagKey))).limit(1).then((rows) => rows[0]);
+  if (existing) return db.update(interactionFlagStates).set(values).where(eq(interactionFlagStates.id, existing.id)).returning().then((rows) => rows[0]);
+  const [ruleId, ...medicineIds] = flagKey.split(":");
+  const persistedRuleId = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(ruleId) ? ruleId : null;
+  return db.insert(interactionFlagStates).values({ user_id: userId, rule_id: persistedRuleId, medicine_pair: medicineIds, flag_key: flagKey, ...values }).returning().then((rows) => rows[0]);
+}
+
+async function recordMedicineQuestionForFamily(userId: string) {
+  const candidates = await db.select({ userId: teamInvitations.accepted_user_id, email: teamInvitations.invitee_email, phone: teamInvitations.invitee_phone, whatsapp: teamInvitations.invitee_whatsapp }).from(teamInvitations).where(and(eq(teamInvitations.senior_id, userId), eq(teamInvitations.status, "accepted"), eq(teamInvitations.can_receive_medication_alerts, true)));
+  const permitted: string[] = [];
+  for (const candidate of candidates) {
+    if (!candidate.userId) continue;
+    const access = await resolveDomainAccess({ actorUserId: candidate.userId, targetUserId: userId, domain: "meds", requiredPermission: "receive_missed_dose_alerts" });
+    if (access) permitted.push(candidate.whatsapp || candidate.phone || candidate.email || candidate.userId);
+  }
+  if (!permitted.length) return [];
+  await db.insert(caregiverAlerts).values({ user_id: userId, alert_type: "medication_question", severity: "watch", message: "A medicine question is open. Worth asking what the pharmacist said.", sent_to: permitted });
+  return permitted;
+}
+
+router.post("/safety-check/flags/:key/ask", requireUser, async (req, res) => {
+  try { return res.json({ state: await upsertFlagState(req.user!.id, req.params.key, { status: "asked", asked_at: new Date() }) }); }
+  catch (err) { console.error("[meds/safety-check ask]", err); return res.status(500).json({ error: "Failed to save outcome" }); }
+});
+
+router.post("/safety-check/flags/:key/outcome", requireUser, async (req, res) => {
+  const parsed = flagOutcomeSchema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "Invalid outcome" });
+  const status = parsed.data.outcome === "fine" ? "resolved_fine" : parsed.data.outcome === "changed" ? "asked" : "unsure";
+  try { const state = await upsertFlagState(req.user!.id, req.params.key, { status, asked_at: new Date(), snooze_until: status === "unsure" ? new Date(Date.now() + 3 * 86400000) : null }); if (status === "unsure") await recordMedicineQuestionForFamily(req.user!.id); return res.json({ state }); }
+  catch (err) { console.error("[meds/safety-check outcome]", err); return res.status(500).json({ error: "Failed to save outcome" }); }
+});
+
+router.post("/safety-check/flags/:key/snooze", requireUser, async (req, res) => {
   const userId = req.user!.id;
-  const parsed = interactionDismissSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
-  }
-
   try {
-    await ensureMyMedicinesTables();
-    const [rule] = await db
-      .select({ id: interactionFlagRules.id })
-      .from(interactionFlagRules)
-      .where(eq(interactionFlagRules.id, req.params.ruleId))
-      .limit(1);
-    if (!rule) return res.status(404).json({ error: "Interaction rule not found" });
-
-    const pair = normalizedMedicinePair(parsed.data.medicine_pair);
-    const [dismissal] = await db.insert(interactionFlagDismissals).values({
-      user_id: userId,
-      rule_id: rule.id,
-      medicine_pair: pair,
-      reason: parsed.data.reason,
-    }).returning();
-
-    return res.status(201).json({ dismissal });
+    const existing = await db.select().from(interactionFlagStates).where(and(eq(interactionFlagStates.user_id, userId), eq(interactionFlagStates.flag_key, req.params.key))).limit(1).then((rows) => rows[0]);
+    const count = Math.min(2, (existing?.snooze_count ?? 0) + 1);
+    return res.json({ state: await upsertFlagState(userId, req.params.key, { status: "snoozed", snooze_count: count, snooze_until: new Date(Date.now() + 7 * 86400000) }) });
   } catch (err) {
-    console.error("[meds/interactions dismiss POST]", err);
-    return res.status(500).json({ error: "Failed to dismiss interaction flag" });
+    console.error("[meds/safety-check snooze]", err); return res.status(500).json({ error: "Failed to save reminder" });
   }
+});
+
+router.post("/safety-check/preview", requireUser, async (req, res) => {
+  const parsed = previewSchema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "Invalid class tag" });
+  try { const preview = { id: "preview", user_id: req.user!.id, display_name: parsed.data.displayName || parsed.data.classTag.replace(/_/g, " "), common_name: null, dose_text: null, purpose_text: null, item_type: "otc", drug_class_tag: parsed.data.classTag, photo_url: null, prescriber_name: null, refill_due_date: null, dose_unit: null, units_per_dose: null, inventory_unit: null, inventory_units_per_dose: null, daily_frequency: null, inventory_tracking_enabled: false, refill_alert_days: 7, schedule_times: null, status: "active", status_changed_at: null, status_changed_by: null, added_via: "extras_sweep", created_at: new Date(), updated_at: new Date() }; return res.json(await loadMedicineCheck(req.user!.id, String(req.headers["x-vyva-language"] ?? "en"), preview)); }
+  catch (err) { console.error("[meds/safety-check preview]", err); return res.status(500).json({ error: "Failed to preview" }); }
+});
+
+router.post("/extras", requireUser, async (req, res) => {
+  const parsed = extrasSchema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "Invalid extra" });
+  const isSupplement = parsed.data.classTag === "supplement_herbal";
+  try { const [medicine] = await db.insert(myMedicines).values({ user_id: req.user!.id, display_name: parsed.data.displayName || parsed.data.classTag.replace(/_/g, " "), item_type: isSupplement ? "supplement" : "otc", drug_class_tag: parsed.data.classTag, added_via: "extras_sweep" }).returning(); await db.insert(myMedicinesChangeLog).values({ user_id: req.user!.id, medicine_id: medicine.id, change_type: "added", new_value: serializeMyMedicine(medicine), source: "manual_edit" }); return res.status(201).json({ medicine: serializeMyMedicine(medicine) }); }
+  catch (err) { console.error("[meds/extras]", err); return res.status(500).json({ error: "Failed to add medicine" }); }
+});
+
+router.post("/safety-check/sweep-complete", requireUser, async (req, res) => {
+  try { const existing = await db.select().from(profileMedSafetyState).where(eq(profileMedSafetyState.user_id, req.user!.id)).limit(1).then((rows) => rows[0]); if (existing) await db.update(profileMedSafetyState).set({ last_extras_sweep_at: new Date(), updated_at: new Date() }).where(eq(profileMedSafetyState.user_id, req.user!.id)); else await db.insert(profileMedSafetyState).values({ user_id: req.user!.id, last_extras_sweep_at: new Date() }); return res.status(204).end(); }
+  catch (err) { console.error("[meds/sweep-complete]", err); return res.status(500).json({ error: "Failed to save sweep" }); }
+});
+
+router.get("/pharmacist-list", requireUser, async (req, res) => {
+  try { const payload = await loadMedicineCheck(req.user!.id, String(req.headers["x-vyva-language"] ?? "en")); return res.json({ profile: payload.profile, medicines: payload.medicines, questions: payload.flags.map((flag) => ({ key: flag.flagKey, medicines: flag.medicines })) }); }
+  catch (err) { console.error("[meds/pharmacist-list]", err); return res.status(500).json({ error: "Failed to prepare list" }); }
+});
+
+router.post("/safety-check/flags/:key/share-family", requireUser, async (req, res) => {
+  try {
+    const payload = await loadMedicineCheck(req.user!.id, String(req.headers["x-vyva-language"] ?? "en"));
+    const flag = payload.flags.find((item) => item.flagKey === req.params.key);
+    if (!flag) return res.status(404).json({ error: "Question not found" });
+    const permitted = await recordMedicineQuestionForFamily(req.user!.id);
+    if (!permitted.length) return res.status(409).json({ error: "No linked family member has medication access" });
+    return res.status(202).json({ shared: true, sentTo: permitted.length });
+  }
+  catch (err) { console.error("[meds/share-family]", err); return res.status(500).json({ error: "Failed to share" }); }
 });
 
 router.get("/safety", requireUser, async (req: Request, res: Response) => {

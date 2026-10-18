@@ -26,10 +26,8 @@ const reviewedRule = {
   id: "rule-1",
   class_a: "blood_pressure_lowering",
   class_b: "nsaid_pain_reliever",
-  flag_message_en: "Worth asking your pharmacist if they go well together.",
-  flag_message_es: "Pregunta a tu farmaceutico si van bien juntos.",
-  flag_message_de: "Frag deinen Apotheker, ob das zusammenpasst.",
-  severity_tier: "worth_asking",
+  messages: { en: { why: "Worth asking about this combination." } },
+  approved_locales: ["en"],
   is_active: true,
 };
 
@@ -38,6 +36,7 @@ describe("computeMedicationInteractionFlags", () => {
     const flags = computeMedicationInteractionFlags({
       medicines,
       rules: [reviewedRule],
+      locale: "en",
       maxFlags: 2,
       now: new Date("2026-07-07T12:00:00.000Z"),
     });
@@ -47,12 +46,12 @@ describe("computeMedicationInteractionFlags", () => {
       kind: "rule",
       ruleId: "rule-1",
       medicines: ["Amlodipine", "Ibuprofen"],
-      canDismiss: true,
+      canSnooze: true,
     });
     expect(flags[1]).toMatchObject({
       kind: "duplicate_class",
       medicines: ["Amlodipine", "Lisinopril"],
-      canDismiss: false,
+      canSnooze: true,
     });
   });
 
@@ -60,6 +59,7 @@ describe("computeMedicationInteractionFlags", () => {
     const flags = computeMedicationInteractionFlags({
       medicines: medicines.slice(0, 2),
       rules: [{ ...reviewedRule, is_active: false }],
+      locale: "en",
     });
 
     expect(flags).toEqual([]);
@@ -72,21 +72,18 @@ describe("computeMedicationInteractionFlags", () => {
         { ...medicines[1], status: "discontinued" },
       ],
       rules: [reviewedRule],
+      locale: "en",
     });
 
     expect(flags).toEqual([]);
   });
 
-  it("hides reviewed flags permanently after the pharmacist dismissal", () => {
+  it("hides resolved flags until the medicine changes", () => {
     const flags = computeMedicationInteractionFlags({
       medicines: medicines.slice(0, 2),
       rules: [reviewedRule],
-      dismissals: [{
-        rule_id: "rule-1",
-        medicine_pair: ["med-2", "med-1"],
-        reason: "asked_pharmacist",
-        dismissed_at: "2026-07-01T12:00:00.000Z",
-      }],
+      locale: "en",
+      states: [{ flag_key: "rule-1:med-1:med-2", status: "resolved_fine", snooze_until: "2026-07-01T12:00:00.000Z" }],
       now: new Date("2026-07-07T12:00:00.000Z"),
     });
 
