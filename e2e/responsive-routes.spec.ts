@@ -5,7 +5,6 @@ const futureToken = [
   btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 * 60 })),
   "signature",
 ].join(".");
-
 const viewports = [
   { width: 320, height: 568 },
   { width: 390, height: 844 },

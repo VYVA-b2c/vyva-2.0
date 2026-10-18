@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isHomeNavPrototypeTopbarRoute } from "./homeNavPrototypeRoutes";
+import {
+  isHomeNavPrototypeDockRoute,
+  isHomeNavPrototypeTopbarRoute,
+} from "./homeNavPrototypeRoutes";
 
 describe("medication header ownership", () => {
   it.each([
@@ -14,5 +17,11 @@ describe("medication header ownership", () => {
 
   it("does not suppress the status bar on unrelated routes", () => {
     expect(isHomeNavPrototypeTopbarRoute("/onboarding/profile/address")).toBe(false);
+  });
+});
+
+describe("report shell ownership", () => {
+  it("keeps the canonical dock on the Brain Coach report", () => {
+    expect(isHomeNavPrototypeDockRoute("/informes/brain-coach")).toBe(true);
   });
 });

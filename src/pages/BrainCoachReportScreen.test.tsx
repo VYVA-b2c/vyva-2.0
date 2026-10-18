@@ -4,13 +4,29 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import BrainCoachReportScreen from "./BrainCoachReportScreen";
 
+const translationState = vi.hoisted(() => ({ language: "en" }));
+
+vi.mock("@/i18n", () => ({
+  useAppLanguage: () => ({ language: translationState.language }),
+}));
+
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: { language: translationState.language, resolvedLanguage: translationState.language },
       t: (_key: string, fallbackOrValues?: string | Record<string, unknown>, values?: Record<string, unknown>) => {
-        const fallback = typeof fallbackOrValues === "string" ? fallbackOrValues : _key;
+        const localized = translationState.language === "es" ? {
+          "reports.brainCoach.today": "Hoy",
+          "reports.brainCoach.yesterday": "Ayer",
+          "reports.brainCoach.areas.memory": "Memoria",
+        }[_key] : undefined;
+        const fallback = typeof fallbackOrValues === "string"
+          ? localized ?? fallbackOrValues
+          : _key === "reports.brainCoach.gamesCount"
+            ? Number(fallbackOrValues?.count) === 1 ? "{{count}} game" : "{{count}} games"
+            : _key;
         const interpolation = typeof fallbackOrValues === "object" ? fallbackOrValues : values;
         return fallback.replace(/\{\{(\w+)\}\}/g, (_match, key) => String(interpolation?.[key] ?? `{{${key}}}`));
       },
@@ -105,32 +121,128 @@ function renderReport(data: unknown = progress) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  translationState.language = "en";
+  Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
 });
 
 describe("BrainCoachReportScreen", () => {
-  it("turns saved game progress into a readable report", async () => {
-    renderReport();
+  it("shows area status and counts without duplicate stats, sparklines, or scores when the flag is on", async () => {
+    const { container } = renderReport();
 
     expect(await screen.findByTestId("brain-coach-report-shell")).toHaveTextContent("Brain Coach report");
-    expect(screen.getByTestId("brain-coach-stat-completed")).toHaveTextContent("4");
-    expect(screen.getByTestId("brain-coach-stat-streak")).toHaveTextContent("3");
-    expect(screen.getByTestId("brain-coach-domain-memory")).toHaveTextContent("Memory");
-    expect(screen.getByTestId("brain-coach-domain-memory")).toHaveTextContent("900");
-    expect(screen.getByTestId("brain-coach-recent-sessions")).toHaveTextContent("Word recall");
-    expect(screen.getByTestId("brain-coach-next-steps")).toHaveTextContent("streak");
+    expect(screen.getByTestId("brain-coach-facts")).toHaveTextContent("4");
+    expect(screen.getByTestId("brain-coach-performance-memory")).toHaveTextContent("Memory");
+    expect(screen.getByTestId("brain-coach-performance-memory")).toHaveTextContent("4 games");
     expect(screen.getByTestId("brain-coach-performance-memory")).toHaveTextContent("Usual for you");
+    expect(screen.getByText("Compared only with your own recent games.")).toBeInTheDocument();
     expect(screen.getByTestId("brain-coach-performance")).toHaveTextContent("Relaxation this week: 4 min");
+    expect(screen.queryByTestId("brain-coach-report-stats")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("brain-coach-domain-grid")).not.toBeInTheDocument();
+    expect(container.querySelector('svg[viewBox="0 0 104 28"]')).not.toBeInTheDocument();
+    expect(screen.getByTestId("brain-coach-recent-sessions")).not.toHaveTextContent("900");
+    expect(screen.getByTestId("brain-coach-recent-sessions")).not.toHaveTextContent("100%");
+  });
+
+  it("shows building as plain secondary text rather than a status pill", async () => {
+    renderReport({
+      ...progress,
+      performance: {
+        ...progress.performance,
+        areas: [{ ...progress.performance.areas[0], status: "building" }],
+      },
+    });
+
+    const building = await screen.findByText("Learning your usual level");
+    expect(building.tagName).toBe("P");
+    expect(building).toHaveClass("text-vyva-text-2", "text-[20px]");
+    expect(building).not.toHaveClass("rounded-full");
+  });
+
+  it("shows building text for every listed area missing a performance entry", async () => {
+    renderReport({
+      ...progress,
+      domains: [
+        ...progress.domains,
+        { ...progress.domains[0], domain: "language", completedSessions: 1 },
+      ],
+    });
+
+    expect(await screen.findByTestId("brain-coach-performance-language")).toHaveTextContent("Language");
+    expect(screen.getByTestId("brain-coach-performance-language")).toHaveTextContent("Learning your usual level");
+  });
+
+  it("shows area game counts without performance language when the flag is off", async () => {
+    renderReport({ ...progress, performance: undefined });
+
+    expect(await screen.findByTestId("brain-coach-performance-memory")).toHaveTextContent("4 games");
+    expect(screen.queryByText("Usual for you")).not.toBeInTheDocument();
+    expect(screen.queryByText("Compared only with your own recent games.")).not.toBeInTheDocument();
   });
 
   it("offers a clear start state when no games are recorded", async () => {
     renderReport(null);
 
     expect(await screen.findByText("Ready for your first game")).toBeInTheDocument();
-    expect(screen.getByTestId("brain-coach-domain-empty")).toHaveTextContent("No practice areas yet");
+    expect(screen.queryByTestId("brain-coach-facts")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-start-brain-coach-games")).toHaveTextContent("Start a game");
+    expect(screen.queryByTestId("button-copy-brain-coach-report")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-start-brain-coach-games"));
 
     await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/mind-memory"));
+  });
+
+  it("localizes recent game day, time, and area labels", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-02T12:00:00"));
+    translationState.language = "es";
+    renderReport({
+      ...progress,
+      history: [
+        { ...progress.history[0], id: "today", playedAt: "2026-06-02T09:00:00" },
+        { ...progress.history[0], id: "yesterday", playedAt: "2026-06-01T10:00:00" },
+        { ...progress.history[0], id: "older", playedAt: "2026-05-31T11:00:00" },
+      ],
+    });
+
+    const recent = await screen.findByTestId("brain-coach-recent-sessions");
+    expect(recent).toHaveTextContent("Hoy, 09:00 · Memoria");
+    expect(recent).toHaveTextContent("Ayer, 10:00 · Memoria");
+    expect(recent).toHaveTextContent(/31 may.*11:00 · Memoria/i);
+  });
+
+  it("shares with the device share sheet when available", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    renderReport();
+
+    fireEvent.click(await screen.findByTestId("button-copy-brain-coach-report"));
+    await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("VYVA Brain Coach report") })));
+  });
+
+  it("does not copy the report when native sharing is cancelled", async () => {
+    const shareError = new Error("Share cancelled");
+    shareError.name = "AbortError";
+    const share = vi.fn().mockRejectedValue(shareError);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    renderReport();
+
+    fireEvent.click(await screen.findByTestId("button-copy-brain-coach-report"));
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("falls back to copying the family summary when native sharing is unavailable", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    renderReport();
+
+    fireEvent.click(await screen.findByTestId("button-copy-brain-coach-report"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining("VYVA Brain Coach report")));
   });
 });
