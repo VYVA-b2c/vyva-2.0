@@ -33,6 +33,8 @@ type MenuTile = {
   id: "health" | "brain" | "community" | "concierge";
   title: string;
   detail: string;
+  titleKey: string;
+  detailKey: string;
   path: string;
   icon: LucideIcon;
   iconAccent: VyvaIconAccent;
@@ -43,6 +45,8 @@ const MENU_TILES: MenuTile[] = [
     id: "health",
     title: "My Health",
     detail: "Check-ins & medicines",
+    titleKey: "home.master.cards.healthShortTitle",
+    detailKey: "home.master.cards.healthDetailShort",
     path: "/health",
     icon: Heart,
     iconAccent: "pulse",
@@ -51,6 +55,8 @@ const MENU_TILES: MenuTile[] = [
     id: "brain",
     title: "Brain Power",
     detail: "Memory, focus & calm",
+    titleKey: "home.master.cards.mindMemoryShortTitle",
+    detailKey: "home.master.cards.mindMemoryDetailShort",
     path: "/mind-memory",
     icon: Brain,
     iconAccent: "bridge",
@@ -59,6 +65,8 @@ const MENU_TILES: MenuTile[] = [
     id: "community",
     title: "My Team",
     detail: "Experts & support",
+    titleKey: "home.master.cards.communityShortTitle",
+    detailKey: "home.master.cards.communityDetailShort",
     path: "/social-rooms/experts",
     icon: Users,
     iconAccent: "link",
@@ -67,6 +75,8 @@ const MENU_TILES: MenuTile[] = [
     id: "concierge",
     title: "Concierge",
     detail: "Everyday help",
+    titleKey: "home.master.cards.conciergeShortTitle",
+    detailKey: "home.master.cards.conciergeDetailShort",
     path: "/concierge",
     icon: BellRing,
     iconAccent: "clapper",
@@ -345,7 +355,8 @@ export default function MenuScreen({
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
-              const title = tile.id === "brain" ? t("home.master.cards.mindMemoryShortTitle", "Brain Power") : tile.title;
+              const title = t(tile.titleKey, tile.title);
+              const detail = t(tile.detailKey, tile.detail);
               return (
                 <button
                   key={tile.id}
@@ -356,7 +367,7 @@ export default function MenuScreen({
                   ].join(" ")}
                   data-testid={`menu-tile-${tile.id}`}
                   onClick={() => navigate(destination)}
-                  aria-label={`${title}. ${tile.detail}`}
+                  aria-label={`${title}. ${detail}`}
                 >
                   <span
                     className={[
@@ -374,10 +385,10 @@ export default function MenuScreen({
                       data-testid={`menu-tile-${tile.id}-detail-text`}
                       className="sr-only"
                     >
-                      {tile.detail}
+                      {detail}
                     </span>
                     <span data-testid={`menu-tile-${tile.id}-detail`} className="sr-only">
-                      {tile.detail}
+                      {detail}
                     </span>
                   </span>
                   <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
