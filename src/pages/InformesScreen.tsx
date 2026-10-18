@@ -1478,7 +1478,7 @@ export function InformesMain() {
               {brainCoachHasProgress ? (
                 <>
                   <p className="line-clamp-2 font-body text-[14px] font-bold leading-relaxed text-vyva-text-2">
-                    {buildBrainCoachNarrative(brainCoachProgress)}
+                    {buildBrainCoachNarrative(brainCoachProgress, t)}
                   </p>
                   <div className="mt-4 grid grid-cols-3 gap-3 border-y border-[#E8DED4] py-3">
                     <div>

@@ -15,6 +15,7 @@ import {
   Target,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
+import { useTranslation } from "react-i18next";
 
 type BrainCoachPermissions = {
   view_summary: boolean;
@@ -25,6 +26,10 @@ type BrainCoachPermissions = {
 };
 
 type BrainCoachCaregiverSummary = {
+  performance?: {
+    areas: Array<{ area: string; status: "usual" | "above" | "below" | "building"; sessionsInWindow: number }>;
+    relaxationMinutes: number;
+  };
   status: "no_history" | "active" | "lapsed";
   currentStreakDays: number;
   lastActivityAt: string | null;
@@ -271,6 +276,7 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 }
 
 export function CaregiverBrainCoachPanel() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<BrainCoachSettings>(DEFAULT_SETTINGS);
 
@@ -395,6 +401,24 @@ export function CaregiverBrainCoachPanel() {
         </div>
         <Brain className="h-6 w-6 text-[#2F6F5E]" />
       </div>
+
+      {summary?.performance && (summary.performance.areas.length > 0 || summary.performance.relaxationMinutes > 0) ? (
+        <div className="mt-4 rounded-[12px] bg-[#F8FAF8] p-3" data-testid="caregiver-brain-coach-performance">
+          <p className="font-body text-[14px] font-bold text-[#26312B]">{t("reports.brainCoach.performanceTitle", "How your thinking areas are doing")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {summary.performance.areas.map((item) => (
+              <span key={item.area} className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-bold text-[#26312B]">
+                {t(`reports.brainCoach.areas.${item.area}`, labelize(item.area))}: {t(`reports.brainCoach.status.${item.status}`, item.status)}
+              </span>
+            ))}
+          </div>
+          {summary.performance.relaxationMinutes > 0 ? (
+            <p className="mt-2 font-body text-[12px] font-semibold text-[#5F6B63]">
+              {t("reports.brainCoach.relaxationThisWeek", "Relaxation this week: {{count}} min", { count: summary.performance.relaxationMinutes })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-[12px] bg-[#F8FAF8] p-3">
