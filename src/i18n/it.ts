@@ -2099,6 +2099,18 @@ const it = {
       sharpenSenses: "Trova la calma",
     },
   },
+  reports: {
+    brainCoach: {
+      thinkingTitle: "Le tue aree di pensiero",
+      comparedNote: "Confrontato solo con i tuoi giochi recenti.",
+      gamesCount_one: "{{count}} gioco",
+      gamesCount_other: "{{count}} giochi",
+      factGames: "giochi",
+      factStreak: "giorni di fila",
+      factMinutes: "minuti",
+      shareFamily: "Condividi con la famiglia",
+    },
+  },
   recommendationReasons: {
     attention: "Oggi lavoriamo su concentrazione e attenzione con un esercizio delicato.",
     executive_function: "Oggi lavoriamo sull'allenamento mentale con un esercizio delicato.",

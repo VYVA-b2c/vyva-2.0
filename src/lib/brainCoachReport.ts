@@ -157,24 +157,12 @@ export function formatBrainCoachTime(iso?: string | null) {
   }
 }
 
-export function formatBrainCoachAccuracy(value?: number | null) {
-  const numeric = safeNumber(value, Number.NaN);
-  return Number.isFinite(numeric) ? `${Math.round(numeric)}%` : "--";
-}
-
 export function strongestBrainCoachDomain(progress?: BrainCoachProgress | null) {
   return [...(progress?.domains ?? [])].sort((a, b) => {
     if (b.completedSessions !== a.completedSessions) return b.completedSessions - a.completedSessions;
     if (b.bestScore !== a.bestScore) return b.bestScore - a.bestScore;
     return (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? "");
   })[0] ?? null;
-}
-
-export function brainCoachCompletionLabel(progress?: BrainCoachProgress | null) {
-  const completed = progress?.summary?.completedSessions ?? 0;
-  if (completed === 0) return "No games completed yet";
-  if (completed === 1) return "1 game completed";
-  return `${completed} games completed`;
 }
 
 function translatedArea(t: BrainCoachTranslate, value?: string | null) {
