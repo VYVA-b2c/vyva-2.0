@@ -364,6 +364,29 @@ describe("AdvisorChat", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
+  it("keeps returning Wellness Coach users on the routine picker", () => {
+    queryMock.mockReturnValue({
+      data: {
+        ...amaraSession,
+        introRequired: false,
+        session: { id: "amara-session-1", status: "active", startedAt: "2026-07-07T10:00:00.000Z", lastMessageAt: "2026-07-07T10:02:00.000Z" },
+        messages: [
+          { id: "m1", role: "assistant", text: "Welcome back.", source: "text", createdAt: "2026-07-07T10:02:00.000Z" },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderChat("/social-rooms/experts/amara");
+
+    expect(screen.getByTestId("movement-coach-routines")).toHaveTextContent("Pick a routine");
+    expect(screen.getByTestId("button-movement-coach-routine-chair-yoga")).toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-chat-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("advisor-message-assistant")).not.toBeInTheDocument();
+  });
+
   it("starts the movement coach through the advisor API with voice context", async () => {
     queryMock.mockReturnValue({
       data: amaraSession,

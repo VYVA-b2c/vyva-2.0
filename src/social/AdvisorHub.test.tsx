@@ -128,6 +128,8 @@ describe("AdvisorHub", () => {
     expect(screen.getByTestId("button-advisor-amara")).toHaveAccessibleName(
       "Wellness Coach. Movement, breathing and balance",
     );
+    expect(screen.getByTestId("button-advisor-amara").querySelector(".advisor-team-portrait svg")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-advisor-amara").querySelector('[data-advisor-avatar-placeholder="neutral"]')).toBeInTheDocument();
   });
 
   it("inherits the persisted dark theme", () => {

@@ -782,6 +782,27 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (path === "/api/concierge/tasks/11111111-1111-4111-8111-111111111111") {
+      await fulfillJson(route, 200, {
+        task: {
+          id: "11111111-1111-4111-8111-111111111111",
+          user_id: "user-responsive",
+          kind: "appointment",
+          entry_payload: { kind: "appointment", appointmentKind: "medical" },
+          progress_payload: { appointmentType: "medical", note: "Responsive fixture appointment" },
+          stage: "details",
+          status: "active",
+          linked_pending_id: null,
+          language: "en",
+          created_at: "2026-10-18T12:00:00.000Z",
+          updated_at: "2026-10-18T12:00:00.000Z",
+          completed_at: null,
+          deleted_at: null,
+        },
+      });
+      return;
+    }
+
     if (path === "/api/concierge/notifications") {
       await fulfillJson(route, 200, { items: [], unreadCount: 0 });
       return;
@@ -1341,7 +1362,7 @@ const protectedSecondaryRoutes: ResponsiveRoute[] = [
   { name: "dual task walk", path: "/dual-task-walk", minTextLength: 40 },
   { name: "concierge task inbox", path: "/concierge/tasks", expectedLayout: "wide" },
   { name: "concierge task detail", path: "/concierge/tasks/demo-task", expectedLayout: "wide", minTextLength: 50 },
-  { name: "concierge legacy task", path: "/concierge/task/demo-task", expectedLayout: "wide" },
+  { name: "concierge legacy task", path: "/concierge/task/11111111-1111-4111-8111-111111111111", expectedLayout: "wide" },
   { name: "caregiver dashboard alias", path: "/caregiver-dashboard" },
 ];
 

@@ -490,11 +490,10 @@ describe("ConciergeScreen task navigation", () => {
     mockConciergeLists();
     renderScreen(["/concierge/task/task-1"], "task");
 
-    await waitFor(() => {
-      expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "confirmation");
-    });
-    expect(screen.getByTestId("concierge-task-confirmation-screen")).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "Task progress" })).getByText("Confirm")).toHaveAttribute("aria-current", "step");
+    const confirmation = await screen.findByTestId("concierge-task-confirmation-screen");
+    expect(within(confirmation).getByRole("heading", { name: "Confirm this task" })).toBeInTheDocument();
+    expect(within(confirmation).getByText("Awaiting confirmation")).toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
   });
 
