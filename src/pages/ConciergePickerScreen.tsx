@@ -435,9 +435,10 @@ function buildCategoryConfigs(isSpanish: boolean): Record<ConciergePickerCategor
 type ConciergePickerScreenProps = {
   category: ConciergePickerCategory;
   backPath?: string;
+  previewActiveHomeRequestCount?: number;
 };
 
-export default function ConciergePickerScreen({ category, backPath = "/concierge" }: ConciergePickerScreenProps) {
+export default function ConciergePickerScreen({ category, backPath = "/concierge", previewActiveHomeRequestCount = 0 }: ConciergePickerScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { isDark } = useHomeMasterTheme();
@@ -532,6 +533,8 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   }
 
   const homeTasks = taskNudgeQuery.data?.needs_you.filter((item) => item.continuation.flow === "home_service") ?? [];
+  const waitingHomeTasks = taskNudgeQuery.data?.waiting.filter((item) => item.continuation.flow === "home_service") ?? [];
+  const activeHomeTasks = [...homeTasks, ...waitingHomeTasks];
   const attentionTask = homeTasks.find((item) => ["needs_info", "ready_to_confirm", "blocked"].includes(item.continuation.state));
   const draftTask = homeTasks.find((item) => item.continuation.state === "draft");
   const providerOption = config.options.find((option) => setupRequirementsForOption(option, conciergeProfile).includes("trusted_provider"));
@@ -551,8 +554,31 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
   const reminderKey = reminder?.taskKey ?? "setup:trusted-provider";
   const reminderRevision = reminder?.revision ?? "1";
   const showNudge = category === "get-help" && reminderDismissals.ready && !reminderDismissals.hidden(reminderKey, reminderRevision) && !blockedOption && !profileLoading && taskNudgeQuery.isSuccess && nudgeKind !== null;
-  const activeRequestCount = (taskNudgeQuery.data?.needs_you.length ?? 0) + (taskNudgeQuery.data?.waiting.length ?? 0);
-  const showRequestsEntry = category === "get-help" && !blockedOption && taskNudgeQuery.isSuccess && activeRequestCount > 0;
+  const activeHomeRequestCount = activeHomeTasks.length || previewActiveHomeRequestCount;
+  const activeHomeRequestLabel = homeServiceText(
+    language,
+    activeHomeRequestCount === 1 ? "1 active request" : "{count} active requests",
+  ).replace("{count}", String(activeHomeRequestCount));
+
+  function handlePickerOptionSelect(option: PickerOptionConfig) {
+    if (category === "get-help" && option.id === "home-repair" && activeHomeRequestCount > 0) {
+      if (activeHomeRequestCount > 1) {
+        navigate(conciergeTaskInboxPath());
+        return;
+      }
+      const activeTask = activeHomeTasks[0];
+      if (!activeTask) {
+        navigate(conciergeTaskInboxPath());
+        return;
+      }
+      const taskPath = activeTask.continuation.state === "draft"
+        ? activeTask.resumePath
+        : activeTask.detailPath;
+      navigate(taskPath || conciergeTaskInboxPath());
+      return;
+    }
+    handleOptionSelect(option);
+  }
 
   return (
     <CanonicalDetailFlowShell
@@ -586,21 +612,6 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
           }}><X size={20} aria-hidden="true" /></button>
         </aside>
       )}
-      {showRequestsEntry && (
-        <div className="mb-4 flex items-center justify-between gap-3 px-1" data-testid="get-help-requests-entry">
-          <span className={`font-body text-[13px] font-bold ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-2"}`}>
-            {homeServiceText(language, activeRequestCount === 1 ? "1 active request" : "{count} active requests").replace("{count}", String(activeRequestCount))}
-          </span>
-          <button
-            type="button"
-            onClick={() => navigate(conciergeTaskInboxPath())}
-            className={`vyva-tap min-h-11 rounded-xl px-3 font-body text-[14px] font-black ${isDark ? "text-[#D7B8FF] hover:bg-white/10" : "text-vyva-purple hover:bg-[#F1E8FF]"}`}
-            data-testid="button-get-help-see-all-requests"
-          >
-            {homeServiceText(language, "See all requests")}
-          </button>
-        </div>
-      )}
       {reminderDismissals.error && <p role="alert">{homeServiceText(language, "Could not dismiss reminder. Try again.")}</p>}
       {profileError && <div role="alert" className="mb-4 text-vyva-text-1">
         <p>{homeServiceText(language, "We couldn't load your profile. Retry before continuing.")}</p>
@@ -613,8 +624,17 @@ export default function ConciergePickerScreen({ category, backPath = "/concierge
           const detail = t(option.detailKey, option.detailFallback);
           return (
             <CanonicalMenuTile key={option.id} title={label} detail={detail} icon={Icon}
-              isDark={isDark} onClick={() => handleOptionSelect(option)} testId={option.testId}
-              disabled={profileLoading || profileError} />
+              isDark={isDark} onClick={() => handlePickerOptionSelect(option)} testId={option.testId}
+              disabled={profileLoading || profileError}
+              ariaLabel={option.id === "home-repair" && activeHomeRequestCount > 0 ? `${label}. ${detail}. ${activeHomeRequestLabel}` : undefined}
+              status={option.id === "home-repair" && activeHomeRequestCount > 0 ? (
+                <span
+                  className={`mt-2 inline-flex rounded-full px-2.5 py-1 font-body text-[12px] font-black ${isDark ? "bg-[#B98CFF]/18 text-[#E2CAFF]" : "bg-[#F1E8FF] text-vyva-purple"}`}
+                  data-testid="home-repair-active-request-status"
+                >
+                  {activeHomeRequestLabel}
+                </span>
+              ) : undefined} />
           );
         })}
       </div>}

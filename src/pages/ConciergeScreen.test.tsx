@@ -491,7 +491,8 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge/task/task-1"], "task");
 
     const confirmation = await screen.findByTestId("concierge-task-confirmation-screen");
-    expect(confirmation).toHaveTextContent("Confirm this task");
+    expect(within(confirmation).getByRole("heading", { name: "Confirm this task" })).toBeInTheDocument();
+    expect(within(confirmation).getByText("Awaiting confirmation")).toBeInTheDocument();
     expect(screen.queryByTestId("concierge-task-workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
   });
