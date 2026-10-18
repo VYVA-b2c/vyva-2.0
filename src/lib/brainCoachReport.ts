@@ -174,7 +174,11 @@ function lowerFirst(value: string) {
   return value ? value.charAt(0).toLocaleLowerCase() + value.slice(1) : value;
 }
 
-export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate) {
+function areaForSentence(area: string, language: string) {
+  return language === "en" ? lowerFirst(area) : area;
+}
+
+export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   if (!hasBrainCoachData(progress)) {
     return t("reports.brainCoach.narrative.empty", "Play a few short games and VYVA will turn them into a simple progress report.");
   }
@@ -185,7 +189,7 @@ export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t
   const completed = summary.completedSessions;
   const area = strongest ? translatedArea(t, strongest.domain) : t("reports.brainCoach.narrative.brainTraining", "brain training");
   const higherArea = progress?.performance?.areas.find((item) => item.status === "above");
-  if (higherArea) return t("reports.brainCoach.narrative.higher", "Your {{area}} has been higher than your usual level. Keep the routine steady.", { area: lowerFirst(translatedArea(t, higherArea.area)) });
+  if (higherArea) return t("reports.brainCoach.narrative.higher", "Your {{area}} has been higher than your usual level. Keep the routine steady.", { area: areaForSentence(translatedArea(t, higherArea.area), language) });
 
   if (streak >= 3) {
     return t("reports.brainCoach.narrative.streak", "You are on a {{count}}-day streak. Your most practiced area is {{area}}.", { count: streak, area });
@@ -198,7 +202,7 @@ export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t
   return t("reports.brainCoach.narrative.moreSessions", "A few more short sessions will make this report more useful.");
 }
 
-export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate) {
+export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   if (!hasBrainCoachData(progress)) {
     return [
       t("reports.brainCoach.steps.startMemory", "Start with one short memory game."),
@@ -211,7 +215,7 @@ export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t
   const domains = progress?.domains ?? [];
   const steps: string[] = [];
   const easierArea = progress?.performance?.areas.find((item) => item.status === "below");
-  if (easierArea) steps.push(t("reports.brainCoach.steps.easier", "Try an easier {{area}} game this week.", { area: lowerFirst(translatedArea(t, easierArea.area)) }));
+  if (easierArea) steps.push(t("reports.brainCoach.steps.easier", "Try an easier {{area}} game this week.", { area: areaForSentence(translatedArea(t, easierArea.area), language) }));
 
   if ((progress?.today?.completedCount ?? 0) === 0) {
     steps.push(t("reports.brainCoach.steps.playToday", "Do one short Brain Coach game today."));
@@ -235,7 +239,7 @@ export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t
   return [...new Set(steps)].slice(0, 3);
 }
 
-export function buildBrainCoachShareText(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate) {
+export function buildBrainCoachShareText(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   const summary = progress?.summary;
   const strongest = strongestBrainCoachDomain(progress);
   const lines = [
@@ -255,6 +259,6 @@ export function buildBrainCoachShareText(progress?: BrainCoachProgress | null, t
     status: t(`reports.brainCoach.status.${item.status}`, item.status),
   })));
 
-  lines.push(t("reports.brainCoach.share.nextStep", "Next step: {{step}}", { step: buildBrainCoachNextSteps(progress, t)[0] }));
+  lines.push(t("reports.brainCoach.share.nextStep", "Next step: {{step}}", { step: buildBrainCoachNextSteps(progress, t, language)[0] }));
   return lines.join("\n");
 }

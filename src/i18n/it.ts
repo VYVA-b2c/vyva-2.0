@@ -2145,7 +2145,7 @@ const it = {
         startMemory: "Inizia con un breve gioco di memoria.",
         returnTomorrow: "Torna domani perché VYVA possa individuare uno schema.",
         keepShort: "Mantieni le sessioni brevi e regolari.",
-        easier: "Questa settimana prova un gioco più facile di {{area}}.",
+        easier: "{{area}}: questa settimana prova un gioco più facile.",
         playToday: "Fai oggi un breve gioco di Brain Coach.",
         practicedToday: "Ti sei già allenato oggi. Domani continua con qualcosa di leggero e regolare.",
         aimStreak: "Prova a giocare per 3 giorni consecutivi.",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useAppLanguage } from "@/i18n";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -766,6 +767,7 @@ const overviewActionClass = "vyva-tap inline-flex min-h-[50px] items-center just
 
 export function InformesMain() {
   const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const navigate = useNavigate();
   const { id: urlId } = useParams<{ id?: string }>();
   const [selectedReportId, setSelectedReportId] = useState<string | null>(urlId ?? null);
@@ -1478,7 +1480,7 @@ export function InformesMain() {
               {brainCoachHasProgress ? (
                 <>
                   <p className="line-clamp-2 font-body text-[14px] font-bold leading-relaxed text-vyva-text-2">
-                    {buildBrainCoachNarrative(brainCoachProgress, t)}
+                    {buildBrainCoachNarrative(brainCoachProgress, t, language)}
                   </p>
                   <div className="mt-4 grid grid-cols-3 gap-3 border-y border-[#E8DED4] py-3">
                     <div>
