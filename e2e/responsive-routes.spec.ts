@@ -1093,8 +1093,13 @@ async function expectResponsiveRoute(
     }
   }
 
+  const minimumTextLength = route.minTextLength ?? 80;
   await page
-    .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
+    .waitForFunction(
+      (threshold) => (document.body.textContent ?? "").replace(/\s+/g, " ").trim().length >= threshold,
+      minimumTextLength,
+      { timeout: 15_000 },
+    )
     .catch(() => undefined);
 
   if (route.path === "/memory-games") {
@@ -1131,7 +1136,7 @@ async function expectResponsiveRoute(
   expect(
     audit.textLength,
     `${route.path} should render meaningful content. Console: ${relevantConsoleMessages().join(" | ") || "none"}`,
-  ).toBeGreaterThanOrEqual(route.minTextLength ?? 80);
+  ).toBeGreaterThanOrEqual(minimumTextLength);
 
   if (route.expectedLayout) {
     const shell = expectedShell ?? page.getByTestId("app-shell");

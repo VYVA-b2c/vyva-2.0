@@ -2099,6 +2099,18 @@ const it = {
       sharpenSenses: "Trova la calma",
     },
   },
+  reports: { brainCoach: {
+    performanceTitle: "Come stanno andando le tue aree cognitive",
+    mostPracticed: "Più allenata",
+    completedGames: "{{count}} completati",
+    buildingKeepPlaying: "Continua a giocare perché VYVA possa conoscere il tuo livello abituale",
+    relaxationThisWeek: "Rilassamento questa settimana: {{count}} min",
+    areas: { memory: "Memoria", attention: "Attenzione", executive_function: "Pianificazione", language: "Linguaggio", processing_speed: "Velocità", spatial_navigation: "Orientamento spaziale", sensory: "Sensi", knowledge: "Conoscenza" },
+    status: { usual: "Nella tua norma", above: "Sopra il tuo livello abituale", below: "Sotto il tuo livello abituale", building: "Stiamo conoscendo il tuo livello abituale" },
+    narrative: { empty: "Gioca ad alcuni giochi brevi e VYVA li trasformerà in un semplice rapporto.", brainTraining: "allenamento mentale", higher: "{{area}} è stata sopra il tuo livello abituale. Mantieni la routine.", streak: "Hai una serie di {{count}} giorni. L'area che alleni di più è {{area}}.", completed: "Hai completato {{count}} giochi. Prova a giocare per tre giorni consecutivi per rafforzare la routine.", moreSessions: "Qualche altra breve sessione renderà questo rapporto più utile." },
+    steps: { startMemory: "Inizia con un breve gioco di memoria.", returnTomorrow: "Torna domani perché VYVA possa individuare uno schema.", keepShort: "Mantieni le sessioni brevi e regolari.", easier: "Questa settimana prova un gioco più facile di {{area}}.", playToday: "Fai oggi un breve gioco di Brain Coach.", practicedToday: "Ti sei già allenato oggi. Domani continua con qualcosa di leggero e regolare.", aimStreak: "Prova a giocare per 3 giorni consecutivi.", protectStreak: "Mantieni la serie con un gioco facile domani.", tryArea: "Poi prova un'altra area, come attenzione o linguaggio.", leastPracticed: "Ora dedica un turno a {{area}}." },
+    share: { title: "Rapporto VYVA Brain Coach", completed: "Giochi completati: {{count}}", streak: "Serie attuale: {{count}} giorni", time: "Tempo di allenamento: {{time}}", lastPlayed: "Ultimo allenamento: {{date}}", mostPracticed: "Area più allenata: {{area}}", areaStatus: "{{area}}: {{status}}", nextStep: "Passo successivo: {{step}}" },
+  } },
   recommendationReasons: {
     attention: "Oggi lavoriamo su concentrazione e attenzione con un esercizio delicato.",
     executive_function: "Oggi lavoriamo sull'allenamento mentale con un esercizio delicato.",
