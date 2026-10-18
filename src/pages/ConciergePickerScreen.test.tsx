@@ -114,6 +114,7 @@ describe("ConciergePickerScreen", () => {
     sessionStorage.clear();
     dismissedReminders = {};
     nudgeInbox.needs_you = [];
+    nudgeInbox.waiting = [];
     window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
   });
 
@@ -162,15 +163,26 @@ describe("ConciergePickerScreen", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/draft");
   });
 
-  it("keeps Get Help as the landing page and links active work to all requests", async () => {
+  it("places the active home-service nudge inside the Home Repair card", async () => {
     nudgeInbox.needs_you = [{ key: "pending:attention", source: "pending", title: "Plumber", continuation: { flow: "home_service", state: "needs_info" }, detailPath: "/concierge/tasks/pending/attention" }];
     nudgeInbox.waiting = [{ key: "pending:waiting", source: "pending", title: "Electrician", continuation: { flow: "home_service", state: "waiting" }, detailPath: "/concierge/tasks/pending/waiting" }];
     renderPicker("get-help");
 
     expect(await screen.findByTestId("concierge-picker-options")).toBeInTheDocument();
-    expect(await screen.findByTestId("get-help-requests-entry")).toHaveTextContent("2 active requests");
-    fireEvent.click(screen.getByTestId("button-get-help-see-all-requests"));
+    const homeRepairCard = screen.getByTestId("button-concierge-picker-home-repair");
+    expect(await screen.findByTestId("home-repair-active-request-status")).toHaveTextContent("2 active requests");
+    expect(homeRepairCard).toHaveTextContent("2 active requests");
+    expect(screen.queryByTestId("get-help-requests-entry")).not.toBeInTheDocument();
+    fireEvent.click(homeRepairCard);
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
+  });
+
+  it("does not put a non-home-service request on the Home Repair card", async () => {
+    nudgeInbox.waiting = [{ key: "pending:ride", source: "pending", title: "Ride", continuation: { flow: "ride", state: "waiting" }, detailPath: "/concierge/tasks/pending/ride" }];
+    renderPicker("get-help");
+
+    await waitForPickerReady("button-concierge-picker-home-repair");
+    expect(screen.queryByTestId("home-repair-active-request-status")).not.toBeInTheDocument();
   });
 
   it("inherits the persisted dark theme", () => {

@@ -55,12 +55,16 @@ export function AdvisorAvatar({
         className="absolute inset-2 rounded-[22px] opacity-70"
         style={{ border: `1px solid ${iconColor}24` }}
       />
-      <AdvisorIcon
-        iconKey={iconKey}
-        size={size}
-        strokeWidth={strokeWidth}
-        className={`relative drop-shadow-[0_4px_8px_rgba(63,45,35,0.10)] ${iconClassName}`}
-      />
+      {!portraitSrc ? (
+        <AdvisorIcon
+          iconKey={iconKey}
+          size={size}
+          strokeWidth={strokeWidth}
+          className={`relative drop-shadow-[0_4px_8px_rgba(63,45,35,0.10)] ${iconClassName}`}
+        />
+      ) : (
+        <span className="absolute inset-0 bg-white/20" data-advisor-avatar-placeholder="neutral" />
+      )}
       {portraitSrc ? (
         <img
           src={portraitSrc}

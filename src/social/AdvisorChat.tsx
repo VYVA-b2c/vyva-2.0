@@ -253,6 +253,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     return [...messages, ...voiceMessages];
   }, [messages, voice.status, voice.transcript]);
   const showIntro = Boolean(advisor && advisorData?.introRequired && !introDismissed && messages.length === 0);
+  const showWellnessHub = Boolean(advisor && isMovementCoach);
   const isSeniorHomeFinder = apiSlug === "sabio";
   const canShareShortlist = isSeniorHomeFinder && !preview && messages.some((message) => message.role === "assistant");
   const wellnessRoutineCards = useMemo(
@@ -511,12 +512,12 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
     <>
       <SocialStyles />
       <main
-        className={`advisor-chat-theme vyva-page flex min-h-[calc(100vh-90px)] flex-col ${isDark ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]" : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"} ${showIntro ? "pb-[120px]" : "pb-[200px]"}`}
+        className={`advisor-chat-theme vyva-page flex min-h-[calc(100vh-90px)] flex-col ${isDark ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]" : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]"} ${showWellnessHub || showIntro ? "pb-[120px]" : "pb-[200px]"}`}
         data-testid="advisor-chat-screen"
         data-home-master-theme={isDark ? "dark" : "light"}
       >
         <header className="sticky top-0 z-10 -mx-4 border-b border-[#E8E2F0] bg-[#FBF7F0]/95 px-4 py-3 backdrop-blur min-[390px]:-mx-[22px] min-[390px]:px-[22px]">
-          <div className={isMovementCoach && showIntro ? "mx-auto grid max-w-3xl grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3" : "flex items-center gap-3"}>
+          <div className={showWellnessHub ? "mx-auto grid max-w-3xl grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3" : "flex items-center gap-3"}>
             <button
               type="button"
               onClick={() => navigate("/social-rooms/experts")}
@@ -526,14 +527,14 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
             >
               <ArrowLeft size={20} strokeWidth={2.6} aria-hidden="true" />
             </button>
-            {advisor && isMovementCoach && showIntro ? (
+            {advisor && showWellnessHub ? (
               <>
                 <h1 className="min-w-0 text-center font-body text-[24px] font-black leading-tight text-vyva-text-1">
                   {advisorPresentation?.title ?? advisorDisplayName}
                 </h1>
                 <button
                   type="button"
-                  onClick={() => void handleStartSession("voice")}
+                  onClick={handleMicToggle}
                   className="vyva-tap flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#D8B4FE] bg-[#6B21A8] text-white shadow-sm"
                   data-testid="button-advisor-start-voice"
                   aria-label={ui?.micIdle ?? "Talk by voice"}
@@ -580,7 +581,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
             <section className="rounded-[24px] border border-[#E8E2F0] bg-white p-5 text-center font-body text-[17px] font-bold text-vyva-text-2">
               {ui?.empty ?? "Your experts are not available right now."}
             </section>
-          ) : showIntro ? (
+          ) : showWellnessHub || showIntro ? (
             <section className={isMovementCoach ? "mx-auto w-full max-w-3xl" : "mx-auto mt-5 w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8E2F0] bg-white shadow-[0_16px_38px_rgba(63,45,35,0.08)]"} data-testid="advisor-intro">
               <div className={isMovementCoach ? "py-2" : "px-5 pb-5 pt-5"}>
                 {!isMovementCoach && <div className="flex items-center gap-4">
@@ -672,7 +673,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           )}
         </div>
 
-        {!showIntro && advisor?.disclaimerText ? (
+        {!showWellnessHub && !showIntro && advisor?.disclaimerText ? (
           <aside
             role="note"
             aria-label={ui?.disclaimerLabel ?? "Important note"}
@@ -686,7 +687,7 @@ export default function AdvisorChat({ preview = false }: { preview?: boolean }) 
           </aside>
         ) : null}
 
-        {showIntro && isMovementCoach ? null : showIntro ? (
+        {showWellnessHub ? null : showIntro ? (
           <form
             onSubmit={handleSend}
             className="fixed inset-x-0 bottom-[96px] z-20 mx-auto flex w-full max-w-[680px] items-center gap-2 border-t border-[#E8E2F0] bg-[#FBF7F0]/96 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur min-[390px]:px-[22px]"
