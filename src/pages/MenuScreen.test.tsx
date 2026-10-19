@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
+import { setLanguage } from "@/i18n";
 import MenuScreen, { MENU_TILES } from "./MenuScreen";
 
 function LocationProbe() {
@@ -24,6 +25,7 @@ function renderMenu(props?: ComponentProps<typeof MenuScreen>) {
 describe("MenuScreen", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    setLanguage("en");
   });
 
   it("renders exactly the four approved Menu tiles", () => {

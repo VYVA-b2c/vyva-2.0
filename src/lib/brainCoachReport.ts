@@ -1,3 +1,5 @@
+import { areaForDomain, type BrainCoachArea } from "../../shared/brainCoachAreas";
+
 export type BrainCoachSession = {
   id?: string | null;
   activityType: string;
@@ -40,7 +42,28 @@ export type BrainCoachProgress = {
   domains?: Array<BrainCoachGroupSummary & { domain: string }>;
   activities?: Array<BrainCoachGroupSummary & { activityType: string }>;
   history?: BrainCoachSession[];
+  performance?: {
+    areas: Array<{
+      area: BrainCoachArea;
+      status: "usual" | "above" | "below" | "building";
+      sessionsInWindow: number;
+      weekly: Array<{ weekStart: string; value: number | null }>;
+    }>;
+    relaxationMinutes: number;
+    generatedAt: string;
+  };
 };
+
+export type BrainCoachTranslate = (
+  key: string,
+  fallback: string,
+  values?: Record<string, unknown>,
+) => string;
+
+const fallbackTranslate: BrainCoachTranslate = (_key, fallback, values) => fallback.replace(
+  /\{\{(\w+)\}\}/g,
+  (_match, name) => String(values?.[name] ?? `{{${name}}}`),
+);
 
 const domainLabels: Record<string, string> = {
   attention: "Focus",
@@ -83,7 +106,8 @@ function safeNumber(value: unknown, fallback = 0) {
 }
 
 export function domainLabel(value?: string | null) {
-  return value ? domainLabels[value] ?? humanizeKey(value) : "Brain Coach";
+  const area = areaForDomain(value) ?? value;
+  return area ? domainLabels[area] ?? humanizeKey(area) : "Brain Coach";
 }
 
 export function activityLabel(value?: string | null) {
@@ -133,11 +157,6 @@ export function formatBrainCoachTime(iso?: string | null) {
   }
 }
 
-export function formatBrainCoachAccuracy(value?: number | null) {
-  const numeric = safeNumber(value, Number.NaN);
-  return Number.isFinite(numeric) ? `${Math.round(numeric)}%` : "--";
-}
-
 export function strongestBrainCoachDomain(progress?: BrainCoachProgress | null) {
   return [...(progress?.domains ?? [])].sort((a, b) => {
     if (b.completedSessions !== a.completedSessions) return b.completedSessions - a.completedSessions;
@@ -146,85 +165,100 @@ export function strongestBrainCoachDomain(progress?: BrainCoachProgress | null) 
   })[0] ?? null;
 }
 
-export function brainCoachCompletionLabel(progress?: BrainCoachProgress | null) {
-  const completed = progress?.summary?.completedSessions ?? 0;
-  if (completed === 0) return "No games completed yet";
-  if (completed === 1) return "1 game completed";
-  return `${completed} games completed`;
+function translatedArea(t: BrainCoachTranslate, value?: string | null) {
+  const area = areaForDomain(value) ?? value;
+  return t(`reports.brainCoach.areas.${area}`, domainLabel(value));
 }
 
-export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null) {
+function lowerFirst(value: string) {
+  return value ? value.charAt(0).toLocaleLowerCase() + value.slice(1) : value;
+}
+
+function areaForSentence(area: string, language: string) {
+  return language === "en" ? lowerFirst(area) : area;
+}
+
+export function buildBrainCoachNarrative(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   if (!hasBrainCoachData(progress)) {
-    return "Play a few short games and VYVA will turn them into a simple progress report.";
+    return t("reports.brainCoach.narrative.empty", "Play a few short games and VYVA will turn them into a simple progress report.");
   }
 
   const summary = progress!.summary!;
   const strongest = strongestBrainCoachDomain(progress);
   const streak = summary.streakDays;
   const completed = summary.completedSessions;
-  const area = strongest ? domainLabel(strongest.domain).toLowerCase() : "brain training";
+  const area = strongest ? translatedArea(t, strongest.domain) : t("reports.brainCoach.narrative.brainTraining", "brain training");
+  const higherArea = progress?.performance?.areas.find((item) => item.status === "above");
+  if (higherArea) return t("reports.brainCoach.narrative.higher", "Your {{area}} has been higher than your usual level. Keep the routine steady.", { area: areaForSentence(translatedArea(t, higherArea.area), language) });
 
   if (streak >= 3) {
-    return `You are on a ${streak}-day streak. Your most practiced area is ${area}.`;
+    return t("reports.brainCoach.narrative.streak", "You are on a {{count}}-day streak. Your most practiced area is {{area}}.", { count: streak, area });
   }
 
   if (completed >= 3) {
-    return `You have completed ${completed} games. Keep three steady days in a row to build a stronger routine.`;
+    return t("reports.brainCoach.narrative.completed", "You have completed {{count}} games. Keep three steady days in a row to build a stronger routine.", { count: completed });
   }
 
-  return "A few more short sessions will make this report more useful.";
+  return t("reports.brainCoach.narrative.moreSessions", "A few more short sessions will make this report more useful.");
 }
 
-export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null) {
+export function buildBrainCoachNextSteps(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   if (!hasBrainCoachData(progress)) {
     return [
-      "Start with one short memory game.",
-      "Come back tomorrow so VYVA can spot a pattern.",
-      "Keep sessions short and steady.",
+      t("reports.brainCoach.steps.startMemory", "Start with one short memory game."),
+      t("reports.brainCoach.steps.returnTomorrow", "Come back tomorrow so VYVA can spot a pattern."),
+      t("reports.brainCoach.steps.keepShort", "Keep sessions short and steady."),
     ];
   }
 
   const summary = progress!.summary!;
   const domains = progress?.domains ?? [];
   const steps: string[] = [];
+  const easierArea = progress?.performance?.areas.find((item) => item.status === "below");
+  if (easierArea) steps.push(t("reports.brainCoach.steps.easier", "Try an easier {{area}} game this week.", { area: areaForSentence(translatedArea(t, easierArea.area), language) }));
 
   if ((progress?.today?.completedCount ?? 0) === 0) {
-    steps.push("Do one short Brain Coach game today.");
+    steps.push(t("reports.brainCoach.steps.playToday", "Do one short Brain Coach game today."));
   } else {
-    steps.push("You already practiced today. Keep tomorrow light and steady.");
+    steps.push(t("reports.brainCoach.steps.practicedToday", "You already practiced today. Keep tomorrow light and steady."));
   }
 
   if (summary.streakDays < 3) {
-    steps.push("Aim for 3 completed days in a row.");
+    steps.push(t("reports.brainCoach.steps.aimStreak", "Aim for 3 completed days in a row."));
   } else {
-    steps.push("Protect the streak with one easy game tomorrow.");
+    steps.push(t("reports.brainCoach.steps.protectStreak", "Protect the streak with one easy game tomorrow."));
   }
 
   if (domains.length <= 1) {
-    steps.push("Try a different area next, like focus or language.");
+    steps.push(t("reports.brainCoach.steps.tryArea", "Try a different area next, like focus or language."));
   } else {
     const leastPracticed = [...domains].sort((a, b) => a.completedSessions - b.completedSessions)[0];
-    steps.push(`Give ${domainLabel(leastPracticed.domain).toLowerCase()} a turn next.`);
+    steps.push(t("reports.brainCoach.steps.leastPracticed", "Give {{area}} a turn next.", { area: translatedArea(t, leastPracticed.domain) }));
   }
 
   return [...new Set(steps)].slice(0, 3);
 }
 
-export function buildBrainCoachShareText(progress?: BrainCoachProgress | null) {
+export function buildBrainCoachShareText(progress?: BrainCoachProgress | null, t: BrainCoachTranslate = fallbackTranslate, language = "en") {
   const summary = progress?.summary;
   const strongest = strongestBrainCoachDomain(progress);
   const lines = [
-    "VYVA Brain Coach report",
-    `Completed games: ${summary?.completedSessions ?? 0}`,
-    `Current streak: ${summary?.streakDays ?? 0} day${(summary?.streakDays ?? 0) === 1 ? "" : "s"}`,
-    `Practice time: ${formatBrainCoachDuration(summary?.totalDurationSeconds ?? 0)}`,
-    `Last played: ${formatBrainCoachDate(summary?.lastPlayedAt ?? null)}`,
+    t("reports.brainCoach.share.title", "VYVA Brain Coach report"),
+    t("reports.brainCoach.share.completed", "Completed games: {{count}}", { count: summary?.completedSessions ?? 0 }),
+    t("reports.brainCoach.share.streak", "Current streak: {{count}} days", { count: summary?.streakDays ?? 0 }),
+    t("reports.brainCoach.share.time", "Practice time: {{time}}", { time: formatBrainCoachDuration(summary?.totalDurationSeconds ?? 0) }),
+    t("reports.brainCoach.share.lastPlayed", "Last played: {{date}}", { date: formatBrainCoachDate(summary?.lastPlayedAt ?? null) }),
   ];
 
   if (strongest) {
-    lines.push(`Most practiced area: ${domainLabel(strongest.domain)}`);
+    lines.push(t("reports.brainCoach.share.mostPracticed", "Most practiced area: {{area}}", { area: translatedArea(t, strongest.domain) }));
   }
 
-  lines.push(`Next step: ${buildBrainCoachNextSteps(progress)[0]}`);
+  (progress?.performance?.areas ?? []).forEach((item) => lines.push(t("reports.brainCoach.share.areaStatus", "{{area}}: {{status}}", {
+    area: translatedArea(t, item.area),
+    status: t(`reports.brainCoach.status.${item.status}`, item.status),
+  })));
+
+  lines.push(t("reports.brainCoach.share.nextStep", "Next step: {{step}}", { step: buildBrainCoachNextSteps(progress, t, language)[0] }));
   return lines.join("\n");
 }

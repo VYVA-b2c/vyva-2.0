@@ -164,8 +164,29 @@ describe("Brain Coach caregiver summary", () => {
       ],
     });
 
-    expect(summary.recentDomains.map((domain) => domain.domain)).toEqual(["visual_memory", "attention"]);
+    expect(summary.recentDomains.map((domain) => domain.domain)).toEqual(["memory", "attention"]);
     expect(summary.recentDomains[0].completedSessions).toBe(2);
+  });
+
+  it("keeps unmapped games in caregiver counts while omitting them from area performance", () => {
+    const summary = buildBrainCoachCaregiverSummary({
+      now: NOW,
+      performanceEnabled: true,
+      sessions: [session({ domain: "future_domain" })],
+    });
+
+    expect(summary.currentStreakDays).toBe(1);
+    expect(summary.lastActivityAt).toBe("2026-06-01T09:00:00.000Z");
+    expect(summary.recentActivities).toHaveLength(1);
+    expect(summary.recentDomains).toEqual([]);
+    expect(summary.performance.areas).toEqual([]);
+  });
+
+  it("omits caregiver performance unless the feature flag is enabled", () => {
+    const disabled = buildBrainCoachCaregiverSummary({ now: NOW, sessions: [session()] });
+    const enabled = buildBrainCoachCaregiverSummary({ now: NOW, sessions: [session()], performanceEnabled: true });
+    expect("performance" in disabled).toBe(false);
+    expect("performance" in enabled).toBe(true);
   });
 
   it("shows sent caregiver nudge outcome when the latest nudge has not been seen", () => {
@@ -289,7 +310,7 @@ describe("Brain Coach caregiver summary", () => {
       },
     });
     expect(summary.weeklyInsights.domainsPracticed.map((domain) => domain.domain)).toEqual([
-      "visual_memory",
+      "memory",
       "attention",
       "language",
     ]);

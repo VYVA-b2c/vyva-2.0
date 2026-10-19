@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import AdminModulesPage from "./AdminModulesPage";
@@ -47,5 +47,40 @@ describe("AdminModulesPage", () => {
     authEmail = "karim.assad@mokadigital.net";
     renderPage();
     expect(screen.getByRole("link", { name: "Admin users" })).toHaveAttribute("href", "/admin/users");
+  });
+
+  it("opens Console with all six verticals and their application review links", () => {
+    renderPage();
+    expect(screen.queryByRole("heading", { name: "Hospital applications" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Open console", exact: true }));
+
+    expect(screen.getByRole("heading", { name: "Console", level: 1 })).toBeInTheDocument();
+    for (const name of ["Home Care", "Hospital Discharge", "Senior Living", "Community Support", "Safety Support", "Emergency Response"]) {
+      expect(screen.getByRole("heading", { name, level: 2 })).toBeInTheDocument();
+    }
+    const hospital = screen.getByRole("heading", { name: "Hospital Discharge" }).closest("article")!;
+    const applications = within(hospital).getByRole("link", { name: "Applications" });
+    expect(applications).toHaveAttribute("href", "https://console.vyva.life/sign-in?return_to=%2Fplatform%2Fself-service%3Fvertical%3Dpost_discharge");
+    expect(applications).toHaveAttribute("target", "_blank");
+    expect(applications).toHaveAttribute("rel", "noopener noreferrer");
+
+    const setupLinks = screen.getAllByRole("link", { name: "Set Up", exact: true });
+    expect(setupLinks).toHaveLength(6);
+    const products = setupLinks.map((link) => {
+      const returnTo = new URL(link.getAttribute("href")!).searchParams.get("return_to")!;
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(new URL(returnTo, "https://console.vyva.life").pathname).toBe("/platform/accounts/new");
+      return new URL(returnTo, "https://console.vyva.life").searchParams.get("product");
+    });
+    expect(new Set(products).size).toBe(6);
+    const applicationLinks = screen.getAllByRole("link", { name: "Applications", exact: true });
+    expect(applicationLinks).toHaveLength(6);
+    expect(applicationLinks.map((link) => {
+      const returnTo = new URL(link.getAttribute("href")!).searchParams.get("return_to")!;
+      const destination = new URL(returnTo, "https://console.vyva.life");
+      expect(destination.pathname).toBe("/platform/self-service");
+      return destination.searchParams.get("vertical");
+    })).toEqual(products);
+    expect(screen.getByRole("link", { name: "Admin home" })).toHaveAttribute("href", "/admin");
   });
 });

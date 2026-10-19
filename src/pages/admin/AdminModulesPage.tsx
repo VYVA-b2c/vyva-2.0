@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -34,6 +34,7 @@ type ModuleTool = {
   path: string;
   icon: LucideIcon;
   superAdminOnly?: boolean;
+  newTab?: boolean;
 };
 
 type AdminModule = {
@@ -43,6 +44,7 @@ type AdminModule = {
   icon: LucideIcon;
   tone: "purple" | "green" | "blue" | "amber" | "rose";
   tools: ModuleTool[];
+  newTab?: boolean;
 };
 
 const modules: AdminModule[] = [
@@ -57,6 +59,20 @@ const modules: AdminModule[] = [
       { label: "Admin users", path: "/admin/users", icon: UserRoundCog, superAdminOnly: true },
       { label: "Caregivers", path: "/admin/proxy-pending", icon: HeartHandshake },
       { label: "Phone onboarding", path: "/admin/phone-onboarding", icon: PhoneCall },
+    ],
+  },
+  {
+    title: "Console",
+    description: "Manage accounts and onboarding across all verticals.",
+    path: "/admin?module=console",
+    icon: ClipboardCheck,
+    tone: "blue",
+    tools: [
+      {
+        label: "Open console",
+        path: "/admin?module=console",
+        icon: ClipboardCheck,
+      },
     ],
   },
   {
@@ -114,6 +130,35 @@ const modules: AdminModule[] = [
   },
 ];
 
+function consoleSignInPath(path: string) {
+  return `https://console.vyva.life/sign-in?return_to=${encodeURIComponent(path)}`;
+}
+
+const verticals: { key: string; title: string; icon: LucideIcon; tone: AdminModule["tone"] }[] = [
+  { key: "home_care", title: "Home Care", icon: Home, tone: "purple" },
+  { key: "post_discharge", title: "Hospital Discharge", icon: ClipboardCheck, tone: "amber" },
+  { key: "senior_living", title: "Senior Living", icon: HeartHandshake, tone: "green" },
+  { key: "community", title: "Community Support", icon: UsersRound, tone: "blue" },
+  { key: "security_services", title: "Safety Support", icon: ShieldCheck, tone: "rose" },
+  { key: "emergency_response", title: "Emergency Response", icon: PhoneCall, tone: "amber" },
+];
+
+const consoleModules: AdminModule[] = verticals.map((vertical) => {
+  const setupPath = consoleSignInPath(`/platform/accounts/new?product=${vertical.key}`);
+  const applicationsPath = consoleSignInPath(`/platform/self-service?vertical=${vertical.key}`);
+
+  return {
+    ...vertical,
+    description: `Manage ${vertical.title} accounts and onboarding.`,
+    path: applicationsPath,
+    newTab: true,
+    tools: [
+      { label: "Applications", path: applicationsPath, icon: ClipboardCheck, newTab: true },
+      { label: "Set Up", path: setupPath, icon: UserRoundCog, newTab: true },
+    ],
+  };
+});
+
 const toneClasses: Record<AdminModule["tone"], { panel: string; icon: string; accent: string }> = {
   purple: { panel: "hover:border-purple-300", icon: "bg-purple-50 text-purple-700", accent: "bg-purple-600" },
   green: { panel: "hover:border-emerald-300", icon: "bg-emerald-50 text-emerald-700", accent: "bg-emerald-500" },
@@ -124,19 +169,22 @@ const toneClasses: Record<AdminModule["tone"], { panel: string; icon: string; ac
 
 export default function AdminModulesPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const isConsole = new URLSearchParams(location.search).get("module") === "console";
   const isSuperAdmin = user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
+  const visibleModules = isConsole ? consoleModules : modules;
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
-          title="Admin modules"
-          subtitle="Choose the area you want to manage."
-          showAdminHome={false}
+          title={isConsole ? "Console" : "Admin modules"}
+          subtitle={isConsole ? "Choose a vertical." : "Choose the area you want to manage."}
+          showAdminHome={isConsole}
         />
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {modules.map((module) => {
+          {visibleModules.map((module) => {
             const ModuleIcon = module.icon;
             const tone = toneClasses[module.tone];
             const tools = module.tools.filter((tool) => isSuperAdmin || !tool.superAdminOnly);
@@ -150,6 +198,8 @@ export default function AdminModulesPage() {
                 <div className="p-5">
                   <Link
                     to={module.path}
+                    target={module.newTab ? "_blank" : undefined}
+                    rel={module.newTab ? "noopener noreferrer" : undefined}
                     className="block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-4"
                     aria-label={`Open ${module.title}`}
                   >
@@ -165,6 +215,7 @@ export default function AdminModulesPage() {
                     </div>
                     <h2 className="mt-5 font-serif text-xl font-bold text-[#2f2135]">{module.title}</h2>
                     <p className="sr-only">{module.description}</p>
+                    {module.newTab ? <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Opens in a new tab</p> : null}
                   </Link>
 
                   <div className="mt-5 border-t border-[#f0e7df] pt-4">
@@ -175,10 +226,13 @@ export default function AdminModulesPage() {
                           <Link
                             key={tool.path}
                             to={tool.path}
+                            target={tool.newTab ? "_blank" : undefined}
+                            rel={tool.newTab ? "noopener noreferrer" : undefined}
                             className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-bold text-[#5b4a46] transition hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                           >
                             <ToolIcon size={14} aria-hidden="true" />
                             {tool.label}
+                            {tool.newTab ? <ArrowRight size={12} aria-hidden="true" /> : null}
                           </Link>
                         );
                       })}

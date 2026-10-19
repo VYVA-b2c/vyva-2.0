@@ -1,4 +1,7 @@
 import { Router, type Request, type Response } from "express";
+import { NON_GAME_ACTIVITY_TYPES, areaForDomain } from "../../shared/brainCoachAreas.js";
+import { buildBrainCoachPerformance } from "../lib/brainCoachPerformance.js";
+import { isBrainCoachPerformanceEnabled } from "../brainCoach/brainCoachFeatureFlag.js";
 import OpenAI from "openai";
 import { z } from "zod";
 import { buildBrainCoachCaregiverSummary } from "../lib/brainCoachCaregiverSummary.js";
@@ -368,32 +371,43 @@ function summariseGroup(sessions: ReturnType<typeof normalizeProgressSession>[],
   });
 }
 
-export function buildBrainCoachProgress(sessions: BrainCoachSessionLike[], now = new Date()) {
+export function buildBrainCoachProgress(
+  sessions: BrainCoachSessionLike[],
+  now = new Date(),
+  options: { performanceEnabled?: boolean } = {},
+) {
   const normalized = sessions
     .map(normalizeProgressSession)
     .sort((a, b) => b.playedAt.localeCompare(a.playedAt));
-  const completed = normalized.filter((session) => session.completed);
+  const gameSessions = normalized.filter((session) => !NON_GAME_ACTIVITY_TYPES.has(session.activityType));
+  const completed = gameSessions.filter((session) => session.completed);
   const todayKey = utcDayKey(now);
   const todayCompleted = completed.filter((session) => utcDayKey(session.playedAt) === todayKey);
 
-  return {
+  const progress = {
     summary: {
-      totalSessions: normalized.length,
+      totalSessions: gameSessions.length,
       completedSessions: completed.length,
-      streakDays: calculateBrainCoachStreak(normalized, now),
-      bestStreakDays: calculateBestBrainCoachStreak(normalized),
-      lastPlayedAt: normalized[0]?.playedAt ?? null,
-      totalDurationSeconds: normalized.reduce((total, session) => total + session.durationSeconds, 0),
+      streakDays: calculateBrainCoachStreak(gameSessions, now),
+      bestStreakDays: calculateBestBrainCoachStreak(gameSessions),
+      lastPlayedAt: gameSessions[0]?.playedAt ?? null,
+      totalDurationSeconds: gameSessions.reduce((total, session) => total + session.durationSeconds, 0),
     },
     today: {
       completedCount: todayCompleted.length,
       activityTypes: [...new Set(todayCompleted.map((session) => session.activityType))],
       domains: [...new Set(todayCompleted.map((session) => session.domain))],
     },
-    domains: summariseGroup(normalized, "domain").map(({ key, ...rest }) => ({ domain: key, ...rest })),
-    activities: summariseGroup(normalized, "activityType").map(({ key, ...rest }) => ({ activityType: key, ...rest })),
-    history: normalized.slice(0, 25),
+    domains: summariseGroup(gameSessions.flatMap((session) => {
+      const area = areaForDomain(session.domain);
+      return area ? [{ ...session, domain: area }] : [];
+    }), "domain").map(({ key, ...rest }) => ({ domain: key, ...rest })),
+    activities: summariseGroup(gameSessions, "activityType").map(({ key, ...rest }) => ({ activityType: key, ...rest })),
+    history: gameSessions.slice(0, 25),
   };
+  return (options.performanceEnabled ?? isBrainCoachPerformanceEnabled())
+    ? { ...progress, performance: buildBrainCoachPerformance(normalized, now) }
+    : progress;
 }
 
 function fallbackRetellScore(keyFacts: string[], error: string): RetellScore {
@@ -1207,7 +1221,7 @@ export async function scentMemorySessionHandler(req: Request, res: Response) {
           completed: true,
           abandoned: false,
           score: hasResponse ? 100 : 0,
-          accuracyPct: hasResponse ? 100 : 0,
+          accuracyPct: null,
           speedPct: null,
           durationSeconds: data.durationSeconds ?? 0,
           playedAt: now,
@@ -1556,7 +1570,7 @@ export async function curiousMindsSessionHandler(req: Request, res: Response) {
           completed: true,
           abandoned: false,
           score: Math.min(100, ideasCount * 10),
-          accuracyPct: data.callbackAttempted ? 100 : 0,
+          accuracyPct: null,
           speedPct: null,
           durationSeconds: data.durationSeconds ?? 0,
           playedAt: now,
