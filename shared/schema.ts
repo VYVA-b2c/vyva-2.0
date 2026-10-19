@@ -3220,7 +3220,11 @@ export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
   updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   completed_at:      timestamp("completed_at", { withTimezone: true }),
   deleted_at:        timestamp("deleted_at", { withTimezone: true }),
-});
+}, (t) => [
+  index("concierge_task_drafts_expert_care_legacy_idx")
+    .on(t.user_id, sql`(${t.progress_payload} -> 'expertCare' ->> 'legacySourceTaskId')`)
+    .where(sql`${t.kind} = 'expert_care' and ${t.status} = 'active'`),
+]);
 
 export const insertConciergeTaskDraftSchema = createInsertSchema(conciergeTaskDrafts).omit({
   id: true,
