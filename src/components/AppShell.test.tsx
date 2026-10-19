@@ -595,7 +595,7 @@ describe("app shell voice dock", () => {
       detail: {
         domain: "meds",
         reason: "Medication support requested",
-        agentSlug: "medication",
+        agentSlug: "meds",
       },
     }));
 
@@ -604,7 +604,7 @@ describe("app shell voice dock", () => {
         "Medication support requested",
         undefined,
         expect.objectContaining({
-          agentSlug: "medication",
+          agentSlug: "meds",
           dynamicVariables: expect.objectContaining({
             app_entrypoint: "voice_specialist_transfer",
           }),

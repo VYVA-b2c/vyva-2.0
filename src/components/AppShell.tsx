@@ -752,7 +752,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 transfer_domain: request.domain,
                 transfer_reason: request.reason,
               },
-              ...(request.agentSlug === "medication"
+              ...(["meds", "medication", "medications"].includes(request.agentSlug ?? "")
                 ? { agentOverrides: medicationAgentOverrides(language) }
                 : {}),
             });

@@ -589,6 +589,7 @@ const AdherenceReportScreen = () => {
 
   return (
     <CanonicalDetailFlowShell
+      appearance="light"
       shellContract={{
         shellId: "home.production",
         headerId: "detail.voice-touch",

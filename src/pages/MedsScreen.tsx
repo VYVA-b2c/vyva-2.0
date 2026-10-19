@@ -81,6 +81,7 @@ type DbMed = {
 };
 
 type TodayResponse = { medications: DbMed[] };
+type MedicineCheckSummary = { totalFlagCount: number; flags: Array<{ medicines: string[]; why: string }> };
 
 export function formatRelativeDoseTime(value: string, now = new Date(), language: LanguageCode = "en"): string {
   const copy = medicationUi[language];
@@ -616,6 +617,11 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     retry: false,
     staleTime: 10 * 60 * 1000,
   });
+  const { data: medicineCheckSummary } = useQuery<MedicineCheckSummary>({
+    queryKey: ["/api/meds/safety-check"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
 
   const displayMeds: DisplayMed[] = (() => {
     if (todayData && todayData.medications.length > 0) {
@@ -990,7 +996,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     {
       id: "interactions",
       icon: LinkIcon,
-      label: t("meds.assistant.interactions.label", "Check Interactions"),
+      label: t("meds.check.title", "Check my medicines"),
       sub: t("meds.assistant.interactions.sub", "Medicine safety"),
       color: "#0F766E",
       bg: "#F0FDFA",
@@ -1000,7 +1006,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
         medNames,
         defaultValue: "Check my medicines and supplements for possible interaction questions: {{medNames}}. Do not suggest dose changes; tell me what to ask my pharmacist or doctor.",
       }),
-      sheetTitle: t("meds.assistant.interactions.sheetTitle", "Check Interactions"),
+      sheetTitle: t("meds.check.title", "Check my medicines"),
     },
     {
       id: "sideEffects",
@@ -1426,8 +1432,10 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     {
       id: "interactions",
       icon: LinkIcon,
-      label: t("meds.primary.checkInteractions", "Drug combinations"),
-      sub: t("meds.primary.checkInteractionsSub", "Review medicines taken together"),
+      label: t("meds.check.title", "Check my medicines"),
+      sub: medicineCheckSummary?.totalFlagCount
+        ? t("meds.check.homeCount", { count: medicineCheckSummary.totalFlagCount, defaultValue: "{{count}} to ask" })
+        : t("meds.check.askSub", "Ask the pharmacist"),
       onClick: () => navigate(`${routeBase}/interactions`),
       testId: "button-meds-primary-interactions",
     },
@@ -1509,7 +1517,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
             count: totalRemainingDoseCount,
             defaultValue: "{{count}} doses left today",
           });
-  const dashboardPrioritySub = todayLoading
+  const adherencePrioritySub = todayLoading
     ? t("meds.dashboard.priorityLoadingSub", "Loading today's schedule.")
     : displayMeds.length === 0
       ? t("meds.dashboard.priorityEmptySub", "Add medicines to start tracking today.")
@@ -1528,6 +1536,9 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
             count: totalRemainingDoseCount,
             defaultValue: "{{count}} doses still need attention.",
           });
+  const dashboardPrioritySub = medicineCheckSummary?.totalFlagCount
+    ? `${adherencePrioritySub} ${t("meds.check.homeQuestions", { count: medicineCheckSummary.totalFlagCount, defaultValue: "{{count}} question(s) for your pharmacist." })}`
+    : adherencePrioritySub;
 
   const medicationScreenMode = location.pathname.endsWith("/my-medicines")
     ? "my-medicines"
@@ -1674,7 +1685,11 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
       label={t("meds.master.heroAction", "Talk to VYVA")}
       contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
       agentSlug="medication"
-      dynamicVariables={{ app_entrypoint: "medication_canonical_header" }}
+      dynamicVariables={{
+        app_entrypoint: "medication_canonical_header",
+        medicine_check_flags: JSON.stringify(medicineCheckSummary?.flags ?? []),
+        medicine_list_summary: medicationSummary,
+      }}
       agentOverrides={medicationAgentOverrides(language)}
       testId="button-meds-hero-talk"
     />
@@ -1685,6 +1700,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
       <>
       <CanonicalDetailFlowShell
         shellContract={medicationFlowShellContract(t("meds.myMedicines.title", "My medicines"))}
+        appearance="light"
         onBack={() => navigate(routeBase)}
         headerAction={medicationHeaderVoiceAction}
         shellTestId="meds-my-medicines-screen"
@@ -1707,30 +1723,16 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     return (
       <>
       <CanonicalDetailFlowShell
-        shellContract={medicationFlowShellContract(t("meds.checkInteractions.kicker", "Drug combinations"))}
+        shellContract={medicationFlowShellContract(t("meds.check.title", "Check my medicines"))}
+        appearance="light"
         onBack={() => navigate(routeBase)}
         headerAction={medicationHeaderVoiceAction}
         shellTestId="meds-interactions-screen"
         contentTestId="meds-interactions-content"
         backTestId="button-meds-screen-back"
       >
-        <CheckInteractions
-          onAskAboutCombination={() => openAssistant(
-            t("meds.checkInteractions.advicePrompt", {
-              medications: medicationSummary,
-              defaultValue: "Review these medicines and supplements together: {{medications}}. Explain possible combination concerns in plain language. Do not tell me to start, stop, skip, or change a dose. Tell me what to ask a pharmacist or doctor and when urgent help may be needed.",
-            }),
-            t("meds.checkInteractions.adviceTitle", "Drug combination advice"),
-          )}
-        />
+        <CheckInteractions onAddMedicine={() => navigate(`${routeBase}/my-medicines`, { state: { startAdd: true } })} />
       </CanonicalDetailFlowShell>
-      <MedsAssistantSheet
-        open={assistantOpen}
-        onOpenChange={setAssistantOpen}
-        title={assistantTitle}
-        subtitle={t("meds.checkInteractions.adviceSubtitle", "Plain-language guidance for medicines and supplements taken together.")}
-        initialPrompt={assistantPrompt}
-      />
       {voiceMedicineReviewModal}
       </>
     );
@@ -1740,6 +1742,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
     <>
       <CanonicalDetailFlowShell
         shellContract={medicationFlowShellContract(profileContext ? t("meds.profile.title", "My Medication") : t("meds.master.heroEyebrow", "Medication"))}
+        appearance="light"
         onBack={() => navigate(backPath)}
         headerAction={medicationHeaderVoiceAction}
         shellTestId="meds-canonical-screen"

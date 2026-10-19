@@ -331,6 +331,7 @@ export default function MedicationRefillsScreen() {
   return (
     <CanonicalDetailFlowShell
       shellContract={shellContract}
+      appearance="light"
       onBack={() => step === "overview" ? navigate(returnTo) : setStep("overview")}
       headerAction={<CanonicalVoiceButton contextHint="Medication refill tracking. Help me check remaining supply, update a purchase, or count what I have now. Never order or contact anyone." testId="button-refills-voice" />}
       shellTestId="medication-refills-screen"
