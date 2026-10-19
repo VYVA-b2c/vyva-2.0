@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/i18n/index";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
@@ -67,6 +68,7 @@ import {
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
 import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
+import { medicationAgentOverrides } from "@/lib/medicationVoice";
 
 const compactModeControlFor = (mode: HomeInteractionMode): HomeModeControlDetail => ({
   label: mode === "voice" ? "Switch to touch" : "Switch to voice",
@@ -311,6 +313,7 @@ export const SosSheet = ({
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
+  const { language } = useLanguage();
   const { profile } = useProfile();
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
@@ -750,6 +753,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 transfer_domain: request.domain,
                 transfer_reason: request.reason,
               },
+              ...(["meds", "medication", "medications"].includes(request.agentSlug ?? "")
+                ? { agentOverrides: medicationAgentOverrides(language) }
+                : {}),
             });
           }, 650);
         }, 80);
@@ -758,7 +764,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     window.addEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
     return () => window.removeEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
-  }, [beginVoiceTransfer, sendContextUpdate, startVoice, stopVoice]);
+  }, [beginVoiceTransfer, language, sendContextUpdate, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeVoiceAction) return;

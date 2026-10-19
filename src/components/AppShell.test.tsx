@@ -14,6 +14,7 @@ import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppAction,
 } from "@/lib/voiceNavigation";
@@ -578,12 +579,42 @@ describe("app shell voice dock", () => {
     voiceState.lastError = null;
     voiceState.lastErrorCode = null;
     voiceState.stopVoice.mockClear();
+    voiceState.startVoice.mockClear();
     voiceState.setMicrophoneMuted.mockClear();
     voiceActionState.activeAction = null;
     voiceActionState.completeActiveAction.mockClear();
     voiceActionState.dismissActiveAction.mockClear();
     voiceCanvasState.activeScene = null;
     voiceCanvasState.submitResponse.mockClear();
+  });
+
+  it("starts medication specialist transfers with localized overrides and a non-empty fallback entrypoint", async () => {
+    renderShell("/meds");
+
+    window.dispatchEvent(new CustomEvent(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, {
+      detail: {
+        domain: "meds",
+        reason: "Medication support requested",
+        agentSlug: "meds",
+      },
+    }));
+
+    await waitFor(() => {
+      expect(voiceState.startVoice).toHaveBeenCalledWith(
+        "Medication support requested",
+        undefined,
+        expect.objectContaining({
+          agentSlug: "meds",
+          dynamicVariables: expect.objectContaining({
+            app_entrypoint: "voice_specialist_transfer",
+          }),
+          agentOverrides: {
+            language: "en",
+            firstMessage: "Hello, I'm here to help with your medicines. What would you like to know?",
+          },
+        }),
+      );
+    }, { timeout: 2_000 });
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {

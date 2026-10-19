@@ -80,6 +80,7 @@ describe("VyvaSessionCta", () => {
         contextHint="Mind and memory support"
         voiceAgentSlug="brain-coach"
         voiceDynamicVariables={{ app_entrypoint: "mind_memory_master_hero" }}
+        voiceAgentOverrides={{ language: "de", firstMessage: "Hallo" }}
         autoStartListening
         testId="button-session"
       />,
@@ -90,6 +91,7 @@ describe("VyvaSessionCta", () => {
     expect(voiceState.startVoice).toHaveBeenCalledWith("Mind and memory support", undefined, {
       agentSlug: "brain-coach",
       dynamicVariables: { app_entrypoint: "mind_memory_master_hero" },
+      agentOverrides: { language: "de", firstMessage: "Hallo" },
       autoStartListening: true,
     });
   });
