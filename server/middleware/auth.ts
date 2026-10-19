@@ -51,10 +51,13 @@ function isRevokedLegacyLogin(account: { password_hash: string; onboarding_inten
     || account.password_hash.startsWith("revoked:");
 }
 
-async function legacyTokenCanAuthenticate(userId: string): Promise<boolean> {
+async function getLegacyAuthenticatedAccount(userId: string): Promise<{
+  email: string | null;
+} | null> {
   try {
     const [account] = await db
       .select({
+        email: users.email,
         password_hash: users.password_hash,
         onboarding_intent: users.onboarding_intent,
       })
@@ -62,10 +65,12 @@ async function legacyTokenCanAuthenticate(userId: string): Promise<boolean> {
       .where(eq(users.id, userId))
       .limit(1);
 
-    return !isRevokedLegacyLogin(account);
+    return isRevokedLegacyLogin(account)
+      ? null
+      : { email: account.email };
   } catch (error) {
     console.error("[auth] legacy token account lookup failed:", error);
-    return false;
+    return null;
   }
 }
 
@@ -102,8 +107,13 @@ export async function authMiddleware(
   async function applyToken(token: string): Promise<boolean> {
     const userId = await verifyToken(token);
     if (userId) {
-      if (!await legacyTokenCanAuthenticate(userId)) return false;
-      req.user = { id: userId, authProvider: "legacy" };
+      const account = await getLegacyAuthenticatedAccount(userId);
+      if (!account) return false;
+      req.user = {
+        id: userId,
+        email: account.email ?? undefined,
+        authProvider: "legacy",
+      };
       return true;
     }
 
