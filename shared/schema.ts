@@ -3232,6 +3232,109 @@ export const insertConciergeTaskDraftSchema = createInsertSchema(conciergeTaskDr
 export type InsertConciergeTaskDraft = z.infer<typeof insertConciergeTaskDraftSchema>;
 export type ConciergeTaskDraftRow = typeof conciergeTaskDrafts.$inferSelect;
 
+// Keep the permanent Expert Care vault and safety tables in the Drizzle model.
+// These tables were originally introduced by reviewed SQL migrations. Declaring
+// them here prevents schema-aware deployment tools from treating them as stale.
+export const expertCareDocuments = pgTable("expert_care_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  case_id: uuid("case_id").notNull().references(() => conciergeTaskDrafts.id, { onDelete: "cascade" }),
+  file_name: text("file_name").notNull(),
+  media_type: text("media_type").notNull(),
+  byte_size: integer("byte_size").notNull(),
+  sha256: text("sha256").notNull(),
+  encrypted_payload: jsonb("encrypted_payload"),
+  malware_status: text("malware_status").notNull(),
+  ocr_status: text("ocr_status").notNull(),
+  ocr_confidence: numeric("ocr_confidence", { precision: 5, scale: 4 }),
+  retention_consent_at: timestamp("retention_consent_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deleted_at: timestamp("deleted_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("expert_care_documents_active_hash_idx")
+    .on(t.user_id, t.case_id, t.sha256)
+    .where(sql`${t.deleted_at} is null`),
+  index("expert_care_documents_case_idx")
+    .on(t.user_id, t.case_id, t.created_at.desc())
+    .where(sql`${t.deleted_at} is null`),
+  check("expert_care_documents_media_type_check", sql`${t.media_type} in ('application/pdf', 'image/jpeg', 'image/png')`),
+  check("expert_care_documents_malware_status_check", sql`${t.malware_status} = 'clean'`),
+  check("expert_care_documents_ocr_status_check", sql`${t.ocr_status} in ('complete', 'needs_review', 'failed')`),
+  check("expert_care_documents_size_check", sql`${t.byte_size} > 0 and ${t.byte_size} <= 10485760`),
+  check("expert_care_documents_confidence_check", sql`${t.ocr_confidence} is null or (${t.ocr_confidence} >= 0 and ${t.ocr_confidence} <= 1)`),
+]);
+
+export const expertCareDocumentSharing = pgTable("expert_care_document_sharing", {
+  document_id: uuid("document_id").primaryKey().references(() => expertCareDocuments.id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  case_id: uuid("case_id").notNull().references(() => conciergeTaskDrafts.id, { onDelete: "cascade" }),
+  approved: boolean("approved").notNull().default(false),
+  approved_at: timestamp("approved_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const expertCareVaultAudit = pgTable("expert_care_vault_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  case_id: uuid("case_id").notNull().references(() => conciergeTaskDrafts.id, { onDelete: "cascade" }),
+  document_id: uuid("document_id").references(() => expertCareDocuments.id, { onDelete: "set null" }),
+  event_type: text("event_type").notNull(),
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("expert_care_vault_audit_case_idx").on(t.user_id, t.case_id, t.created_at.desc()),
+  check("expert_care_vault_audit_event_check", sql`${t.event_type} in ('uploaded', 'listed', 'viewed', 'sharing_approved', 'sharing_revoked', 'deleted')`),
+]);
+
+export const expertCareSafetyEvents = pgTable("expert_care_safety_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  case_id: uuid("case_id").references(() => conciergeTaskDrafts.id, { onDelete: "set null" }),
+  user_id: text("user_id").references(() => profiles.id, { onDelete: "set null" }),
+  metric_name: text("metric_name").notNull(),
+  severity: text("severity").notNull(),
+  value: numeric("value"),
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("expert_care_safety_events_metric_idx").on(t.metric_name, t.created_at.desc()),
+  index("expert_care_safety_events_case_idx")
+    .on(t.case_id, t.created_at.desc())
+    .where(sql`${t.case_id} is not null`),
+  check("expert_care_safety_events_severity_check", sql`${t.severity} in ('info', 'warning', 'critical')`),
+  check("expert_care_safety_events_metric_check", sql`${t.metric_name} in ('research_generated', 'unsupported_claim_detected', 'citation_coverage', 'source_freshness', 'emergency_handoff', 'verification_failed', 'sharing_consent', 'consultation_ready', 'specialist_response', 'user_comprehension', 'privacy_failure', 'security_incident')`),
+]);
+
+export const expertCareRuntimeControl = pgTable("expert_care_runtime_control", {
+  singleton: boolean("singleton").primaryKey().default(true),
+  force_disabled: boolean("force_disabled").notNull().default(false),
+  reason: text("reason"),
+  incident_event_id: uuid("incident_event_id").references(() => expertCareSafetyEvents.id, { onDelete: "set null" }),
+  updated_by: text("updated_by"),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check("expert_care_runtime_control_singleton_check", sql`${t.singleton}`),
+]);
+
+export const expertCareClinicalSafetyReviews = pgTable("expert_care_clinical_safety_reviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  reviewer_user_id: text("reviewer_user_id").references(() => profiles.id, { onDelete: "restrict" }),
+  reviewer_name: text("reviewer_name").notNull(),
+  policy_version: text("policy_version").notNull(),
+  verdict: text("verdict").notNull(),
+  source_policy_reviewed: boolean("source_policy_reviewed").notNull().default(false),
+  emergency_boundaries_reviewed: boolean("emergency_boundaries_reviewed").notNull().default(false),
+  prompts_reviewed: boolean("prompts_reviewed").notNull().default(false),
+  sampled_outputs_reviewed: boolean("sampled_outputs_reviewed").notNull().default(false),
+  notes: text("notes").notNull(),
+  valid_until: timestamp("valid_until", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("expert_care_clinical_safety_reviews_created_idx").on(t.created_at.desc()),
+  check("expert_care_clinical_safety_reviews_verdict_check", sql`${t.verdict} in ('approved', 'rejected')`),
+  check("expert_care_clinical_safety_reviews_approval_scope_check", sql`${t.verdict} <> 'approved' or (${t.source_policy_reviewed} and ${t.emergency_boundaries_reviewed} and ${t.prompts_reviewed} and ${t.sampled_outputs_reviewed})`),
+]);
+
 export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
   channel:            text("channel").primaryKey(),
   admin_enabled:      boolean("admin_enabled").notNull().default(false),
