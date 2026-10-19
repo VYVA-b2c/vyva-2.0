@@ -342,7 +342,7 @@ describe("LearnSomethingNewPage", () => {
     });
 
     const playButton = await screen.findByTestId("button-learn-read-aloud");
-    expect(playButton).toHaveTextContent("Lire a voix haute");
+    expect(playButton).toHaveTextContent("Lire à voix haute");
     fireEvent.click(playButton);
 
     await waitFor(() => expect(spoken).toHaveLength(1));
