@@ -13,7 +13,6 @@ function strings(value: object, prefix = ""): [string, string][] {
     return typeof child === "string" ? [[path, child] as [string, string]] : strings(child, path);
   });
 }
-
 const placeholders = (text: string) => [...text.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
 
 describe("complete shared UI translations", () => {
@@ -40,21 +39,23 @@ describe("complete shared UI translations", () => {
 
   it("does not allow untranslated text back into the medication hub", () => {
     const source = ts.createSourceFile("MedsScreen.tsx", readFileSync("src/pages/MedsScreen.tsx", "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const literals: string[] = [];
-    let found = false;
-    function inspect(node: ts.Node) {
-      if (ts.isJsxText(node) && /[A-Za-z]/.test(node.text)) literals.push(node.text.trim());
-      if (ts.isJsxAttribute(node) && ["aria-label", "title", "placeholder"].includes(node.name.getText(source)) && node.initializer && ts.isStringLiteral(node.initializer)) literals.push(node.initializer.text);
-      ts.forEachChild(node, inspect);
-    }
-    function visit(node: ts.Node) {
-      if (ts.isJsxElement(node) && node.openingElement.attributes.properties.some((property) => ts.isJsxAttribute(property) && property.name.getText(source) === "data-testid" && property.initializer && ts.isStringLiteral(property.initializer) && property.initializer.text === "meds-master-layout")) {
-        found = true;
-        inspect(node);
-      } else ts.forEachChild(node, visit);
-    }
-    visit(source);
-    expect(found).toBe(true);
-    expect(literals).toEqual([]);
+    const literals: string[] = []; let found = false;
+    function inspect(node: ts.Node) { if (ts.isJsxText(node) && /[A-Za-z]/.test(node.text)) literals.push(node.text.trim()); if (ts.isJsxAttribute(node) && ["aria-label", "title", "placeholder"].includes(node.name.getText(source)) && node.initializer && ts.isStringLiteral(node.initializer)) literals.push(node.initializer.text); ts.forEachChild(node, inspect); }
+    function visit(node: ts.Node) { if (ts.isJsxElement(node) && node.openingElement.attributes.properties.some((property) => ts.isJsxAttribute(property) && property.name.getText(source) === "data-testid" && property.initializer && ts.isStringLiteral(property.initializer) && property.initializer.text === "meds-master-layout")) { found = true; inspect(node); } else ts.forEachChild(node, visit); }
+    visit(source); expect(found).toBe(true); expect(literals).toEqual([]);
+  });
+});
+
+describe("Medicine Check translation guard", () => {
+  it("provides the check namespace in all six locales", () => {
+    const referenceKeys = Object.keys(medicationUi.en).filter((key) => key.startsWith("check"));
+    for (const { code } of LANGUAGES) for (const key of referenceKeys) expect(medicationUi[code][key as keyof typeof medicationUi.en], `${code}.${key}`).toBeTruthy();
+  });
+  it("contains no prohibited reassurance or alarm vocabulary", () => {
+    const prohibited = /\b(safe|secure|dangerous|sûr|seguro|sicher|gefährlich|perigoso|sicuro|pericoloso)\b/iu;
+    for (const { code } of LANGUAGES) expect(strings(medicationUiDictionary(code).meds.check).map(([, value]) => value).join(" ")).not.toMatch(prohibited);
+  });
+  it("retains required diacritics", () => {
+    expect(medicationUi.es.checkPreviewSub).toContain("ué"); expect(medicationUi.de.checkQuestions_one).toContain("für"); expect(medicationUi.pt.checkEmergency).toContain("emergência"); expect(medicationUi.it.checkFamily).toContain("famiglia");
   });
 });

@@ -426,7 +426,7 @@ export type CaregiverAlert = typeof caregiverAlerts.$inferSelect;
 
 export const medicationAdherence = pgTable("medication_adherence", {
   id:                 uuid("id").primaryKey().defaultRandom(),
-  user_id:            text("user_id").notNull(),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medication_name:    text("medication_name").notNull(),
   scheduled_time:     text("scheduled_time").notNull(),
   status:             text("status").notNull(),
@@ -520,7 +520,7 @@ export type CheckinTrendState = typeof checkinTrendState.$inferSelect;
 
 export const userMedications = pgTable("user_medications", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         text("user_id").notNull(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medication_name: text("medication_name").notNull(),
   dosage:          text("dosage"),
   frequency:       text("frequency"),
@@ -536,7 +536,7 @@ export type UserMedication = typeof userMedications.$inferSelect;
 
 export const myMedicines = pgTable("my_medicines", {
   id:                uuid("id").primaryKey().defaultRandom(),
-  user_id:           text("user_id").notNull(),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   display_name:      text("display_name").notNull(),
   common_name:       text("common_name"),
   dose_text:         text("dose_text"),
@@ -571,14 +571,14 @@ export type MyMedicine = typeof myMedicines.$inferSelect;
 
 export const medicationInventoryEvents = pgTable("medication_inventory_events", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         text("user_id").notNull(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medicine_id:     uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
   event_type:      text("event_type").notNull(),
   quantity:        numeric("quantity", { precision: 12, scale: 2 }).notNull(),
   unit:            text("unit").notNull(),
   occurred_on:     date("occurred_on").notNull(),
   source:          text("source").notNull().default("manual"),
-  actor_user_id:   text("actor_user_id").notNull(),
+  actor_user_id:   text("actor_user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   actor_role:      text("actor_role").notNull().default("user"),
   actor_name:      text("actor_name"),
   metadata:        jsonb("metadata").notNull().default({}),
@@ -593,7 +593,7 @@ export type MedicationInventoryEvent = typeof medicationInventoryEvents.$inferSe
 
 export const medicationRefillAlerts = pgTable("medication_refill_alerts", {
   id:                    uuid("id").primaryKey().defaultRandom(),
-  user_id:               text("user_id").notNull(),
+  user_id:               text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medicine_id:           uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
   status:                text("status").notNull(),
   cycle_key:             text("cycle_key").notNull(),
@@ -617,10 +617,10 @@ export const medicationRefillPushDeliveries = pgTable("medication_refill_push_de
   id:                uuid("id").primaryKey().defaultRandom(),
   delivery_key:      text("delivery_key").notNull().unique(),
   alert_id:          uuid("alert_id").notNull().references(() => medicationRefillAlerts.id, { onDelete: "cascade" }),
-  profile_id:        text("profile_id").notNull(),
+  profile_id:        text("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medicine_id:       uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
   cycle_key:         text("cycle_key").notNull(),
-  recipient_user_id: text("recipient_user_id").notNull(),
+  recipient_user_id: text("recipient_user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   recipient_role:    text("recipient_role").notNull(),
   subscription_id:   uuid("subscription_id").notNull(),
   status:            text("status").notNull().default("sending"),
@@ -646,7 +646,7 @@ export type MedicationRefillPushDelivery = typeof medicationRefillPushDeliveries
 
 export const myMedicinesChangeLog = pgTable("my_medicines_change_log", {
   id:             uuid("id").primaryKey().defaultRandom(),
-  user_id:        text("user_id").notNull(),
+  user_id:        text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   medicine_id:    uuid("medicine_id").references(() => myMedicines.id, { onDelete: "set null" }),
   change_type:    text("change_type").notNull(),
   previous_value: jsonb("previous_value"),
@@ -665,9 +665,8 @@ export const interactionFlagRules = pgTable("interaction_flag_rules", {
   id:              uuid("id").primaryKey().defaultRandom(),
   class_a:         text("class_a").notNull(),
   class_b:         text("class_b").notNull(),
-  flag_message_es: text("flag_message_es").notNull(),
-  flag_message_de: text("flag_message_de").notNull(),
-  flag_message_en: text("flag_message_en").notNull(),
+  messages:          jsonb("messages").$type<Record<string, { why?: string }>>().notNull().default({}),
+  approved_locales:  text("approved_locales").array().notNull().default([]),
   severity_tier:   text("severity_tier").notNull().default("worth_asking"),
   is_active:       boolean("is_active").notNull().default(false),
   reviewed_by:     text("reviewed_by"),
@@ -681,24 +680,35 @@ export const insertInteractionFlagRuleSchema = createInsertSchema(interactionFla
 export type InsertInteractionFlagRule = z.infer<typeof insertInteractionFlagRuleSchema>;
 export type InteractionFlagRule = typeof interactionFlagRules.$inferSelect;
 
-export const interactionFlagDismissals = pgTable("interaction_flag_dismissals", {
+export const interactionFlagStates = pgTable("interaction_flag_states", {
   id:            uuid("id").primaryKey().defaultRandom(),
-  user_id:       text("user_id").notNull(),
-  rule_id:       uuid("rule_id").notNull().references(() => interactionFlagRules.id, { onDelete: "cascade" }),
+  user_id:       text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  rule_id:       uuid("rule_id").references(() => interactionFlagRules.id, { onDelete: "cascade" }),
   medicine_pair: jsonb("medicine_pair").notNull(),
-  dismissed_at:  timestamp("dismissed_at", { withTimezone: true }).notNull().defaultNow(),
-  reason:        text("reason"),
+  flag_key:      text("flag_key").notNull(),
+  status:        text("status").notNull().default("open"),
+  opened_at:     timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+  asked_at:      timestamp("asked_at", { withTimezone: true }),
+  snooze_until:  timestamp("snooze_until", { withTimezone: true }),
+  snooze_count:  integer("snooze_count").notNull().default(0),
 }, (t) => [
-  index("interaction_flag_dismissals_user_rule_idx").on(t.user_id, t.rule_id),
+  uniqueIndex("interaction_flag_states_user_key_unique").on(t.user_id, t.flag_key),
 ]);
 
-export const insertInteractionFlagDismissalSchema = createInsertSchema(interactionFlagDismissals).omit({ id: true, dismissed_at: true });
-export type InsertInteractionFlagDismissal = z.infer<typeof insertInteractionFlagDismissalSchema>;
-export type InteractionFlagDismissal = typeof interactionFlagDismissals.$inferSelect;
+export const insertInteractionFlagStateSchema = createInsertSchema(interactionFlagStates).omit({ id: true, opened_at: true });
+export type InsertInteractionFlagState = z.infer<typeof insertInteractionFlagStateSchema>;
+export type InteractionFlagState = typeof interactionFlagStates.$inferSelect;
+export const interactionFlagDismissals = interactionFlagStates;
+
+export const profileMedSafetyState = pgTable("profile_med_safety_state", {
+  user_id:              text("user_id").primaryKey().references(() => profiles.id, { onDelete: "cascade" }),
+  last_extras_sweep_at: timestamp("last_extras_sweep_at", { withTimezone: true }),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const medicationSafetySignals = pgTable("medication_safety_signals", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         text("user_id").notNull(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   signal_type:     text("signal_type").notNull(),
   severity:        text("severity").notNull().default("watch"),
   title:           text("title").notNull(),
@@ -721,7 +731,7 @@ export type MedicationSafetySignal = typeof medicationSafetySignals.$inferSelect
 
 export const medicationSafetyCases = pgTable("medication_safety_cases", {
   id:                   uuid("id").primaryKey().defaultRandom(),
-  user_id:              text("user_id").notNull(),
+  user_id:              text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   status:               text("status").notNull().default("draft"),
   severity:             text("severity").notNull().default("watch"),
   signal_type:          text("signal_type").notNull().default("possible_side_effect"),
@@ -754,7 +764,7 @@ export type MedicationSafetyCase = typeof medicationSafetyCases.$inferSelect;
 export const medicationSafetyCaseEvents = pgTable("medication_safety_case_events", {
   id:         uuid("id").primaryKey().defaultRandom(),
   case_id:    uuid("case_id").notNull(),
-  user_id:    text("user_id").notNull(),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   event_type: text("event_type").notNull(),
   actor_id:   text("actor_id"),
   payload:    jsonb("payload").notNull().default({}),
@@ -4947,7 +4957,8 @@ export const schema = {
   medicationRefillAlerts,
   myMedicinesChangeLog,
   interactionFlagRules,
-  interactionFlagDismissals,
+  interactionFlagStates,
+  profileMedSafetyState,
   medicationSafetySignals,
   medicationSafetyCases,
   medicationSafetyCaseEvents,
