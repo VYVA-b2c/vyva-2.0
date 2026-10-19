@@ -29,18 +29,26 @@ end $$;
 update public.interaction_flag_rules set approved_locales = '{}', is_active = false;
 
 alter table public.interaction_flag_rules drop constraint if exists interaction_flag_rules_review_gate;
-alter table public.interaction_flag_rules add constraint interaction_flag_rules_locale_review_gate check (
-  cardinality(approved_locales) = 0 or (
-    reviewed_by is not null and reviewed_at is not null and
-    approved_locales <@ array['en','es','de','fr','pt','it']::text[] and
-    (not ('en' = any(approved_locales)) or coalesce(messages #>> '{en,why}', '') <> '') and
-    (not ('es' = any(approved_locales)) or coalesce(messages #>> '{es,why}', '') <> '') and
-    (not ('de' = any(approved_locales)) or coalesce(messages #>> '{de,why}', '') <> '') and
-    (not ('fr' = any(approved_locales)) or coalesce(messages #>> '{fr,why}', '') <> '') and
-    (not ('pt' = any(approved_locales)) or coalesce(messages #>> '{pt,why}', '') <> '') and
-    (not ('it' = any(approved_locales)) or coalesce(messages #>> '{it,why}', '') <> '')
-  )
-);
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.interaction_flag_rules'::regclass
+      and conname = 'interaction_flag_rules_locale_review_gate'
+  ) then
+    alter table public.interaction_flag_rules add constraint interaction_flag_rules_locale_review_gate check (
+      cardinality(approved_locales) = 0 or (
+        reviewed_by is not null and reviewed_at is not null and
+        approved_locales <@ array['en','es','de','fr','pt','it']::text[] and
+        (not ('en' = any(approved_locales)) or coalesce(messages #>> '{en,why}', '') <> '') and
+        (not ('es' = any(approved_locales)) or coalesce(messages #>> '{es,why}', '') <> '') and
+        (not ('de' = any(approved_locales)) or coalesce(messages #>> '{de,why}', '') <> '') and
+        (not ('fr' = any(approved_locales)) or coalesce(messages #>> '{fr,why}', '') <> '') and
+        (not ('pt' = any(approved_locales)) or coalesce(messages #>> '{pt,why}', '') <> '') and
+        (not ('it' = any(approved_locales)) or coalesce(messages #>> '{it,why}', '') <> '')
+      )
+    );
+  end if;
+end $$;
 -- Keep the legacy message columns and dismissals table until a later verified cleanup.
 -- The new contract is populated alongside them so the migration is non-destructive.
 create table if not exists public.interaction_flag_states (
@@ -104,8 +112,16 @@ alter table public.my_medicines drop constraint if exists my_medicines_user_id_p
 alter table public.my_medicines add constraint my_medicines_user_id_profiles_fk foreign key (user_id) references public.profiles(id) on delete cascade not valid;
 alter table public.my_medicines_change_log drop constraint if exists my_medicines_change_log_user_id_profiles_fk;
 alter table public.my_medicines_change_log add constraint my_medicines_change_log_user_id_profiles_fk foreign key (user_id) references public.profiles(id) on delete cascade not valid;
-alter table public.interaction_flag_states drop constraint if exists interaction_flag_states_user_id_profiles_fk;
-alter table public.interaction_flag_states add constraint interaction_flag_states_user_id_profiles_fk foreign key (user_id) references public.profiles(id) on delete cascade not valid;
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.interaction_flag_states'::regclass
+      and conname = 'interaction_flag_states_user_id_profiles_fk'
+  ) then
+    alter table public.interaction_flag_states add constraint interaction_flag_states_user_id_profiles_fk
+      foreign key (user_id) references public.profiles(id) on delete cascade not valid;
+  end if;
+end $$;
 
 -- Medication-owned profile identifiers use the same text key as public.profiles.
 alter table public.user_medications drop constraint if exists user_medications_user_id_profiles_fk;
@@ -140,8 +156,30 @@ alter table public.my_medicines add constraint my_medicines_drug_class_tag_check
 alter table public.my_medicines drop constraint if exists my_medicines_added_via_check;
 alter table public.my_medicines add constraint my_medicines_added_via_check check (added_via in ('voice','manual','photo','discharge_flow','extras_sweep'));
 
-insert into public.interaction_flag_rules (class_a, class_b, messages, approved_locales, severity_tier, is_active)
-values ('cold_flu_combination', 'blood_pressure_lowering',
-  '{"en":{"why":""},"es":{"why":""},"de":{"why":""},"fr":{"why":""},"pt":{"why":""},"it":{"why":""}}'::jsonb,
-  '{}', 'worth_asking', false)
-on conflict (class_a, class_b) do nothing;
+do $$ begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_en'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_es'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_de'
+  ) then
+    insert into public.interaction_flag_rules (
+      class_a, class_b, flag_message_en, flag_message_es, flag_message_de,
+      messages, approved_locales, severity_tier, is_active
+    ) values (
+      'cold_flu_combination', 'blood_pressure_lowering', '', '', '',
+      '{"en":{"why":""},"es":{"why":""},"de":{"why":""},"fr":{"why":""},"pt":{"why":""},"it":{"why":""}}'::jsonb,
+      '{}', 'worth_asking', false
+    ) on conflict (class_a, class_b) do nothing;
+  else
+    insert into public.interaction_flag_rules (class_a, class_b, messages, approved_locales, severity_tier, is_active)
+    values ('cold_flu_combination', 'blood_pressure_lowering',
+      '{"en":{"why":""},"es":{"why":""},"de":{"why":""},"fr":{"why":""},"pt":{"why":""},"it":{"why":""}}'::jsonb,
+      '{}', 'worth_asking', false)
+    on conflict (class_a, class_b) do nothing;
+  end if;
+end $$;

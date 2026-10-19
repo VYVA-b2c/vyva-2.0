@@ -339,6 +339,12 @@ jobs:
             --testTimeout=180000 \
             migrations/0081_health_semantic_memory_outbox.test.ts
 
+      - name: Verify Medicine Check migration against the existing runtime table
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            migrations/0114_medicine_check.postgres.test.ts
+
       - name: Reset disposable schema before baseline bootstrap
         run: |
           node --input-type=module <<'NODE'

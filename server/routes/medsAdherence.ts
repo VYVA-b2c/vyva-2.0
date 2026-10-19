@@ -371,6 +371,38 @@ async function ensureMyMedicinesTables() {
           snooze_count integer not null default 0
         )
       `);
+      await pool.query(`alter table interaction_flag_states add column if not exists flag_key text`);
+      await pool.query(`alter table interaction_flag_states alter column rule_id drop not null`);
+      await pool.query(`alter table interaction_flag_states add column if not exists status text not null default 'open'`);
+      await pool.query(`alter table interaction_flag_states add column if not exists opened_at timestamptz not null default now()`);
+      await pool.query(`alter table interaction_flag_states add column if not exists asked_at timestamptz`);
+      await pool.query(`alter table interaction_flag_states add column if not exists snooze_until timestamptz`);
+      await pool.query(`alter table interaction_flag_states add column if not exists snooze_count integer not null default 0`);
+      await pool.query(`alter table interaction_flag_states alter column flag_key set not null`);
+      await pool.query(`
+        do $$ begin
+          if not exists (
+            select 1 from pg_constraint
+            where conrelid = 'public.interaction_flag_states'::regclass
+              and conname = 'interaction_flag_states_status_check'
+          ) then
+            alter table interaction_flag_states add constraint interaction_flag_states_status_check
+              check (status in ('open','snoozed','asked','resolved_fine','resolved_changed','unsure'));
+          end if;
+        end $$
+      `);
+      await pool.query(`
+        do $$ begin
+          if not exists (
+            select 1 from pg_constraint
+            where conrelid = 'public.interaction_flag_states'::regclass
+              and conname = 'interaction_flag_states_user_id_profiles_fk'
+          ) then
+            alter table interaction_flag_states add constraint interaction_flag_states_user_id_profiles_fk
+              foreign key (user_id) references profiles(id) on delete cascade not valid;
+          end if;
+        end $$
+      `);
       await pool.query(`create table if not exists profile_med_safety_state (user_id text primary key references profiles(id) on delete cascade, last_extras_sweep_at timestamptz, updated_at timestamptz not null default now())`);
       await pool.query(`create index if not exists idx_mm_user_status on my_medicines (user_id, status)`);
       await pool.query(`create index if not exists idx_mm_refill_due on my_medicines (user_id, refill_due_date) where status = 'active'`);
