@@ -2,16 +2,29 @@
 alter table public.interaction_flag_rules add column if not exists messages jsonb not null default '{}'::jsonb;
 alter table public.interaction_flag_rules add column if not exists approved_locales text[] not null default '{}';
 
-update public.interaction_flag_rules
-set messages = jsonb_build_object(
-  'en', jsonb_build_object('why', coalesce(flag_message_en, '')),
-  'es', jsonb_build_object('why', coalesce(flag_message_es, '')),
-  'de', jsonb_build_object('why', coalesce(flag_message_de, '')),
-  'fr', jsonb_build_object('why', ''),
-  'pt', jsonb_build_object('why', ''),
-  'it', jsonb_build_object('why', '')
-)
-where messages = '{}'::jsonb;
+do $$ begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_en'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_es'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'interaction_flag_rules' and column_name = 'flag_message_de'
+  ) then
+    update public.interaction_flag_rules
+    set messages = jsonb_build_object(
+      'en', jsonb_build_object('why', coalesce(flag_message_en, '')),
+      'es', jsonb_build_object('why', coalesce(flag_message_es, '')),
+      'de', jsonb_build_object('why', coalesce(flag_message_de, '')),
+      'fr', jsonb_build_object('why', ''),
+      'pt', jsonb_build_object('why', ''),
+      'it', jsonb_build_object('why', '')
+    )
+    where messages = '{}'::jsonb;
+  end if;
+end $$;
 
 update public.interaction_flag_rules set approved_locales = '{}', is_active = false;
 
@@ -28,11 +41,20 @@ alter table public.interaction_flag_rules add constraint interaction_flag_rules_
     (not ('it' = any(approved_locales)) or coalesce(messages #>> '{it,why}', '') <> '')
   )
 );
-alter table public.interaction_flag_rules drop column if exists flag_message_en;
-alter table public.interaction_flag_rules drop column if exists flag_message_es;
-alter table public.interaction_flag_rules drop column if exists flag_message_de;
-
-alter table public.interaction_flag_dismissals rename to interaction_flag_states;
+-- Keep the legacy message columns and dismissals table until a later verified cleanup.
+-- The new contract is populated alongside them so the migration is non-destructive.
+create table if not exists public.interaction_flag_states (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  rule_id uuid references public.interaction_flag_rules(id) on delete cascade,
+  medicine_pair jsonb not null,
+  flag_key text not null,
+  status text not null default 'open',
+  opened_at timestamptz not null default now(),
+  asked_at timestamptz,
+  snooze_until timestamptz,
+  snooze_count integer not null default 0
+);
 alter table public.interaction_flag_states add column if not exists flag_key text;
 alter table public.interaction_flag_states alter column rule_id drop not null;
 alter table public.interaction_flag_states add column if not exists status text not null default 'open';
@@ -40,15 +62,37 @@ alter table public.interaction_flag_states add column if not exists opened_at ti
 alter table public.interaction_flag_states add column if not exists asked_at timestamptz;
 alter table public.interaction_flag_states add column if not exists snooze_until timestamptz;
 alter table public.interaction_flag_states add column if not exists snooze_count integer not null default 0;
-update public.interaction_flag_states
-set flag_key = rule_id::text || ':' || array_to_string(array(select jsonb_array_elements_text(medicine_pair) order by 1), ':')
-where flag_key is null;
-update public.interaction_flag_states set status = case reason when 'asked_pharmacist' then 'asked' when 'not_now' then 'snoozed' else 'open' end;
 alter table public.interaction_flag_states alter column flag_key set not null;
-alter table public.interaction_flag_states add constraint interaction_flag_states_status_check check (status in ('open','snoozed','asked','resolved_fine','resolved_changed','unsure'));
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.interaction_flag_states'::regclass
+      and conname = 'interaction_flag_states_status_check'
+  ) then
+    alter table public.interaction_flag_states add constraint interaction_flag_states_status_check check (status in ('open','snoozed','asked','resolved_fine','resolved_changed','unsure'));
+  end if;
+end $$;
 create unique index if not exists interaction_flag_states_user_key_unique on public.interaction_flag_states(user_id, flag_key);
-alter table public.interaction_flag_states drop column if exists reason;
-alter table public.interaction_flag_states drop column if exists dismissed_at;
+
+do $$ begin
+  if to_regclass('public.interaction_flag_dismissals') is not null then
+    insert into public.interaction_flag_states (
+      id, user_id, rule_id, medicine_pair, flag_key, status, opened_at, asked_at, snooze_count
+    )
+    select
+      id,
+      user_id,
+      rule_id,
+      medicine_pair,
+      rule_id::text || ':' || array_to_string(array(select jsonb_array_elements_text(medicine_pair) order by 1), ':'),
+      case reason when 'asked_pharmacist' then 'asked' when 'not_now' then 'snoozed' else 'open' end,
+      dismissed_at,
+      case when reason = 'asked_pharmacist' then dismissed_at end,
+      case when reason = 'not_now' then 1 else 0 end
+    from public.interaction_flag_dismissals
+    on conflict (user_id, flag_key) do nothing;
+  end if;
+end $$;
 
 create table if not exists public.profile_med_safety_state (
   user_id text primary key references public.profiles(id) on delete cascade,
