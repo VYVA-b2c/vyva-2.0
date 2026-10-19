@@ -9,7 +9,6 @@ import { apiFetch } from "@/lib/queryClient";
 type Flag = { flagKey: string; medicines: string[]; why: string; canSnooze: boolean; snoozeCount: number };
 type Medicine = { id: string; display_name: string; dose_text?: string | null; purpose_text?: string | null; prescriber_name?: string | null; photo_url?: string | null };
 type CheckPayload = { state: "not_ready" | "has_questions" | "needs_info" | "needs_more" | "nothing_found"; savedCount: number; comparedCount: number; untagged: Medicine[]; flags: Flag[]; totalFlagCount: number; lastSweepAt: string | null; sweepDue: boolean; safetyNetEnabled: boolean; pharmacy: { name: string; phone: string; address: string } | null; medicines: Medicine[]; profile: { firstName: string; updatedAt: string | null } };
-type LegacyCheckPayload = { activeMedicineCount?: number; flags?: Array<{ id: string; medicines: string[]; message: string }> };
 type Sheet = "extras" | "preview" | "prep" | "outcome" | "unwell" | "list" | null;
 const classes = [
   ["nsaid_pain_reliever", "Pain tablets (ibuprofen, aspirin…)", "otc"],
@@ -20,36 +19,65 @@ const classes = [
   ["supplement_herbal", "Vitamins, herbal, supplements", "supplement"],
 ] as const;
 
+const checkStates = new Set<CheckPayload["state"]>(["not_ready", "has_questions", "needs_info", "needs_more", "nothing_found"]);
+const nullableString = (value: unknown) => value === null || typeof value === "string";
+
+function isMedicine(value: unknown): value is Medicine {
+  if (!value || typeof value !== "object") return false;
+  const medicine = value as Record<string, unknown>;
+  return typeof medicine.id === "string"
+    && typeof medicine.display_name === "string"
+    && (medicine.dose_text === undefined || nullableString(medicine.dose_text))
+    && (medicine.purpose_text === undefined || nullableString(medicine.purpose_text))
+    && (medicine.prescriber_name === undefined || nullableString(medicine.prescriber_name))
+    && (medicine.photo_url === undefined || nullableString(medicine.photo_url));
+}
+
+function isFlag(value: unknown): value is Flag {
+  if (!value || typeof value !== "object") return false;
+  const flag = value as Record<string, unknown>;
+  return typeof flag.flagKey === "string"
+    && Array.isArray(flag.medicines)
+    && flag.medicines.every((medicine) => typeof medicine === "string")
+    && typeof flag.why === "string"
+    && typeof flag.canSnooze === "boolean"
+    && typeof flag.snoozeCount === "number";
+}
+
+function isCheckPayload(value: unknown): value is CheckPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  const profile = payload.profile as Record<string, unknown> | null;
+  const pharmacy = payload.pharmacy as Record<string, unknown> | null;
+  return typeof payload.state === "string"
+    && checkStates.has(payload.state as CheckPayload["state"])
+    && typeof payload.savedCount === "number"
+    && typeof payload.comparedCount === "number"
+    && Array.isArray(payload.untagged)
+    && payload.untagged.every(isMedicine)
+    && Array.isArray(payload.flags)
+    && payload.flags.every(isFlag)
+    && typeof payload.totalFlagCount === "number"
+    && nullableString(payload.lastSweepAt)
+    && typeof payload.sweepDue === "boolean"
+    && typeof payload.safetyNetEnabled === "boolean"
+    && (pharmacy === null || (typeof pharmacy?.name === "string" && typeof pharmacy.phone === "string" && typeof pharmacy.address === "string"))
+    && Array.isArray(payload.medicines)
+    && payload.medicines.every(isMedicine)
+    && Boolean(profile)
+    && typeof profile?.firstName === "string"
+    && nullableString(profile.updatedAt);
+}
+
+function notReadyPayload(): CheckPayload {
+  return { state: "not_ready", savedCount: 0, comparedCount: 0, untagged: [], flags: [], totalFlagCount: 0, lastSweepAt: null, sweepDue: true, safetyNetEnabled: false, pharmacy: null, medicines: [], profile: { firstName: "", updatedAt: null } };
+}
+
 export default function CheckInteractions({ onAddMedicine }: { onAddMedicine?: () => void }) {
   const { t } = useTranslation(); const navigate = useNavigate(); const queryClient = useQueryClient();
   const [sheet, setSheet] = useState<Sheet>(null); const [selectedFlag, setSelectedFlag] = useState<Flag | null>(null); const [preview, setPreview] = useState<CheckPayload | null>(null); const [name, setName] = useState(""); const [selectedClass, setSelectedClass] = useState<(typeof classes)[number] | null>(null);
-  const query = useQuery<CheckPayload>({ queryKey: ["/api/meds/safety-check"], staleTime: 0 });
-  const legacyQuery = useQuery<LegacyCheckPayload>({
-    queryKey: ["/api/meds/interactions"],
-    enabled: Boolean(query.data && !Array.isArray(query.data.flags)),
-    staleTime: 0,
-  });
-  const legacyFlags = Array.isArray(legacyQuery.data?.flags)
-    ? legacyQuery.data.flags.map((flag) => ({ flagKey: flag.id, medicines: flag.medicines, why: flag.message, canSnooze: false, snoozeCount: 0 }))
-    : [];
-  const data = Array.isArray(query.data?.flags)
-    ? query.data
-    : legacyQuery.data
-      ? {
-          state: legacyFlags.length > 0 ? "has_questions" as const : (legacyQuery.data.activeMedicineCount ?? 0) < 2 ? "needs_more" as const : "nothing_found" as const,
-          savedCount: legacyQuery.data.activeMedicineCount ?? 0,
-          comparedCount: legacyQuery.data.activeMedicineCount ?? 0,
-          untagged: [],
-          flags: legacyFlags,
-          totalFlagCount: legacyFlags.length,
-          lastSweepAt: null,
-          sweepDue: true,
-          safetyNetEnabled: false,
-          pharmacy: null,
-          medicines: [],
-          profile: { firstName: "", updatedAt: null },
-        }
-      : query.data;
+  const query = useQuery<unknown>({ queryKey: ["/api/meds/safety-check"], staleTime: 0 });
+  const data = isCheckPayload(query.data) ? query.data : notReadyPayload();
   const flags = Array.isArray(data?.flags) ? data.flags : [];
   const medicines = Array.isArray(data?.medicines) ? data.medicines : [];
   const untagged = Array.isArray(data?.untagged) ? data.untagged : [];

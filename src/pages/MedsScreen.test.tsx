@@ -45,6 +45,8 @@ const labels: Record<string, string> = {
   "meds.checkInteractions.kicker": "Drug combinations",
   "meds.checkInteractions.title": "Check medicines together",
   "meds.checkInteractions.ruleShort": "Check before taking together.",
+  "meds.check.notReady.title": "I can't compare your medicines yet",
+  "meds.check.nothingFound.title": "Nothing to ask about right now",
 };
 
 const mocks = vi.hoisted(() => ({
@@ -176,6 +178,7 @@ type RenderOptions = {
   componentProps?: ComponentProps<typeof MedsScreen>;
   myMedicines?: TestMyMedicine[];
   interactions?: TestInteractionResponse;
+  safetyCheck?: unknown;
   refills?: {
     permissions: { manage_inventory: boolean; receive_refill_alerts: boolean };
     alerts: Array<{
@@ -226,6 +229,24 @@ function interactionsResponse(overrides: Partial<TestInteractionResponse> = {}):
   };
 }
 
+function medicineCheckResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    state: "not_ready",
+    savedCount: 0,
+    comparedCount: 0,
+    untagged: [],
+    flags: [],
+    totalFlagCount: 0,
+    lastSweepAt: null,
+    sweepDue: true,
+    safetyNetEnabled: false,
+    pharmacy: null,
+    medicines: [],
+    profile: { firstName: "", updatedAt: null },
+    ...overrides,
+  };
+}
+
 function renderMedsScreen(medications: TestMedication[] = [], safety = safetyResponse(), options: RenderOptions = {}) {
   const client = new QueryClient({
     defaultOptions: {
@@ -256,6 +277,9 @@ function renderMedsScreen(medications: TestMedication[] = [], safety = safetyRes
             return options.interactions ?? interactionsResponse({
               activeMedicineCount: medications.length,
             });
+          }
+          if (queryKey[0] === "/api/meds/safety-check") {
+            return Object.prototype.hasOwnProperty.call(options, "safetyCheck") ? options.safetyCheck : {};
           }
           if (queryKey[0] === "/api/meds/refills/me") {
             return options.refills ?? { permissions: { manage_inventory: true, receive_refill_alerts: true }, alerts: [] };
@@ -470,6 +494,19 @@ describe("MedsScreen medication home and detail screens", () => {
   it("shows drug-combination advice with clear safety boundaries and no review-dismiss buttons", async () => {
     renderMedsScreen([], safetyResponse(), {
       route: "/meds/interactions",
+      safetyCheck: medicineCheckResponse({
+        state: "has_questions",
+        savedCount: 2,
+        comparedCount: 2,
+        totalFlagCount: 1,
+        flags: [{
+          flagKey: "rule-rule-1",
+          medicines: ["Amlodipine", "Ibuprofen"],
+          why: "Worth asking your pharmacist if they go well together.",
+          canSnooze: false,
+          snoozeCount: 0,
+        }],
+      }),
       interactions: interactionsResponse({
         activeMedicineCount: 2,
         flags: [{
@@ -496,6 +533,26 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.queryByTestId("meds-master-hero")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-med-interaction-asked-0")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-med-interaction-later-0")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["missing", null],
+    ["malformed", { state: "nothing_found", comparedCount: 2 }],
+    ["legacy", interactionsResponse({ activeMedicineCount: 2 })],
+  ])("shows not_ready and never nothing_found for a %s safety-check response", async (_kind, safetyCheck) => {
+    renderMedsScreen([], safetyResponse(), { route: "/meds/interactions", safetyCheck });
+
+    expect(await screen.findByTestId("medicine-check-status-not_ready")).toHaveTextContent("I can't compare your medicines yet");
+    expect(screen.queryByText("Nothing to ask about right now")).not.toBeInTheDocument();
+  });
+
+  it("shows nothing_found only when a complete safety-check response carries that server state", async () => {
+    renderMedsScreen([], safetyResponse(), {
+      route: "/meds/interactions",
+      safetyCheck: medicineCheckResponse({ state: "nothing_found", savedCount: 2, comparedCount: 2 }),
+    });
+
+    expect(await screen.findByTestId("medicine-check-status-nothing_found")).toHaveTextContent("Nothing to ask about right now");
   });
 
   it("keeps the primary taken action visible and leaves Snooze unrecorded", async () => {
