@@ -243,6 +243,58 @@ describe("useVyvaVoice", () => {
     localStorage.clear();
   });
 
+  it("passes medication agent overrides without dropping medication context variables", async () => {
+    let controller: VoiceController | null = null;
+    voiceMocks.apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/voice-readiness") return jsonResponse({ ready: true, agent_id_present: true });
+      if (url === "/api/voice-context") {
+        return jsonResponse({
+          domain: "meds",
+          dynamic_variables: {
+            medicine_check_flags: "interaction_review_due",
+            medicine_list_summary: "Metformin, Apixaban",
+          },
+        });
+      }
+      if (url === "/api/elevenlabs-conversation-token") {
+        return jsonResponse({ signed_url: "wss://example.test/voice-session" });
+      }
+      throw new Error(`Unexpected voice API request: ${url}`);
+    });
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+    await act(async () => {
+      await controller?.startVoice("Medication support", undefined, {
+        agentSlug: "medication",
+        skipMicrophone: true,
+        dynamicVariables: { app_entrypoint: "app_open" },
+        agentOverrides: {
+          language: "de",
+          firstMessage: "Hallo, ich helfe Ihnen gern bei Ihren Medikamenten. Was möchten Sie wissen?",
+        },
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    expect(sessionOptions?.overrides?.agent).toMatchObject({
+      language: "de",
+      firstMessage: "Hallo, ich helfe Ihnen gern bei Ihren Medikamenten. Was möchten Sie wissen?",
+    });
+    expect(sessionOptions?.dynamicVariables).toMatchObject({
+      medicine_check_flags: "interaction_review_due",
+      medicine_list_summary: "Metformin, Apixaban",
+      app_entrypoint: "app_open",
+    });
+  });
+
   it("starts a new ElevenLabs session after the user stops the previous one", async () => {
     let controller: VoiceController | null = null;
 

@@ -4,6 +4,7 @@ import { ArrowLeft, Hand, Mic, type LucideIcon } from "lucide-react";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
+import type { VoiceAgentOverrides } from "@/hooks/useVyvaVoice";
 
 export type CanonicalDetailFlowShellContract = Readonly<{
   shellId: "home.production";
@@ -92,6 +93,7 @@ type CanonicalVoiceButtonProps = {
   contextHint: string;
   agentSlug?: string;
   dynamicVariables?: Record<string, string | number | boolean>;
+  agentOverrides?: VoiceAgentOverrides;
   label?: string;
   testId?: string;
 };
@@ -100,6 +102,7 @@ export function CanonicalVoiceButton({
   contextHint,
   agentSlug,
   dynamicVariables,
+  agentOverrides,
   label,
   testId = "button-canonical-voice",
 }: CanonicalVoiceButtonProps) {
@@ -121,6 +124,7 @@ export function CanonicalVoiceButton({
         void Promise.resolve(voice.startVoice(contextHint, undefined, {
           ...(agentSlug ? { agentSlug } : {}),
           ...(dynamicVariables ? { dynamicVariables } : {}),
+          ...(agentOverrides ? { agentOverrides } : {}),
           autoStartListening: true,
         })).catch(() => undefined);
       }}

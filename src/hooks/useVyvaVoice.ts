@@ -284,6 +284,11 @@ class VoiceConnectionError extends Error {
   }
 }
 
+export type VoiceAgentOverrides = {
+  language: string;
+  firstMessage: string;
+};
+
 type StartVoiceOptions = {
   agentId?: string;
   agentSlug?: string;
@@ -292,6 +297,7 @@ type StartVoiceOptions = {
   autoStartListening?: boolean;
   forceRestart?: boolean;
   dynamicVariables?: Record<string, string | number | boolean>;
+  agentOverrides?: VoiceAgentOverrides;
 };
 
 export type VoiceResolvedSessionContext = {
@@ -939,8 +945,17 @@ function sessionOverridesForResolvedContext(
   resolvedSystemPrompt: string | undefined,
   resolvedDomain: string | undefined,
   resolvedDynamicVariables: Record<string, string | number | boolean>,
+  agentOverrides: VoiceAgentOverrides | undefined,
 ): PartialOptions["overrides"] {
-  const existing = sessionOptions.overrides;
+  const existing = agentOverrides
+    ? {
+        ...sessionOptions.overrides,
+        agent: {
+          ...sessionOptions.overrides?.agent,
+          ...agentOverrides,
+        },
+      }
+    : sessionOptions.overrides;
   const drAiFirstMessage = dynamicString(resolvedDynamicVariables, "dr_ai_first_message");
   if (resolvedDomain === "health" && drAiFirstMessage) {
     const language = dynamicString(resolvedDynamicVariables, "language")
@@ -1731,6 +1746,7 @@ function useVyvaVoiceController() {
           resolvedSystemPrompt,
           resolvedDomain,
           resolvedDynamicVariables,
+          options?.agentOverrides,
         );
         const conversation = await Conversation.startSession({
           ...sessionOptions,

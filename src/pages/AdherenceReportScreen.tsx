@@ -19,6 +19,7 @@ import {
   medicationReviewAppointmentState,
   medicationReviewRideState,
 } from "@/lib/medicationServiceActions";
+import { medicationAgentOverrides } from "@/lib/medicationVoice";
 
 type DailyStatus = "taken" | "missed" | "none";
 
@@ -606,6 +607,7 @@ const AdherenceReportScreen = () => {
           contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
           agentSlug="medication"
           dynamicVariables={{ app_entrypoint: "medication_adherence_header" }}
+          agentOverrides={medicationAgentOverrides(language)}
           testId="button-adherence-header-voice"
         />
       )}

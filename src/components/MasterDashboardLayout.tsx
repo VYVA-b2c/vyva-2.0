@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucid
 import { CanonicalVoiceButton } from "./CanonicalDetailFlowShell";
 import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import type { VoiceAgentOverrides } from "@/hooks/useVyvaVoice";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { CANONICAL_MENU_ITEM_TITLE_CLASS } from "@/design/canonicalMenuTypography";
 import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
@@ -29,6 +30,7 @@ type MasterAction = {
   contextHint?: string;
   voiceAgentSlug?: string;
   voiceDynamicVariables?: Record<string, string | number | boolean>;
+  voiceAgentOverrides?: VoiceAgentOverrides;
   autoStartListening?: boolean;
   canStartVoice?: () => boolean;
   hideWhenSessionActive?: boolean;
@@ -277,7 +279,7 @@ export default function MasterDashboardLayout({
       {usesCanonicalCardGrid && !modeSwitcher ? <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
         <a href="/menu" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full border border-current/20"><ArrowLeft size={18} aria-hidden="true" /></a>
         <h1 className="text-center font-display text-[24px] font-semibold leading-tight">{hero.eyebrow || hero.title}</h1>
-        <CanonicalVoiceButton contextHint={hero.action.contextHint ?? hero.title} agentSlug={hero.action.voiceAgentSlug} dynamicVariables={hero.action.voiceDynamicVariables} testId={hero.action.testId} label={hero.action.label} />
+        <CanonicalVoiceButton contextHint={hero.action.contextHint ?? hero.title} agentSlug={hero.action.voiceAgentSlug} dynamicVariables={hero.action.voiceDynamicVariables} agentOverrides={hero.action.voiceAgentOverrides} testId={hero.action.testId} label={hero.action.label} />
       </header> : null}
 
       {showHero && !usesCanonicalCardGrid ? <section
@@ -396,6 +398,7 @@ export default function MasterDashboardLayout({
               contextHint={hero.action.contextHint}
               voiceAgentSlug={hero.action.voiceAgentSlug}
               voiceDynamicVariables={hero.action.voiceDynamicVariables}
+              voiceAgentOverrides={hero.action.voiceAgentOverrides}
               autoStartListening={hero.action.autoStartListening}
               canStartVoice={hero.action.canStartVoice}
               hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
@@ -428,6 +431,7 @@ export default function MasterDashboardLayout({
               contextHint={hero.action.contextHint}
               voiceAgentSlug={hero.action.voiceAgentSlug}
               voiceDynamicVariables={hero.action.voiceDynamicVariables}
+              voiceAgentOverrides={hero.action.voiceAgentOverrides}
               autoStartListening={hero.action.autoStartListening}
               canStartVoice={hero.action.canStartVoice}
               hideWhenSessionActive={hero.action.hideWhenSessionActive ?? false}

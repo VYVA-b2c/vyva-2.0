@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
 import { medicationUi } from "@/i18n/medicationUi";
+import { medicationAgentOverrides } from "@/lib/medicationVoice";
 import type { LanguageCode } from "@/i18n/languages";
 import { apiFetch } from "@/lib/queryClient";
 import {
@@ -1674,6 +1675,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
       contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
       agentSlug="medication"
       dynamicVariables={{ app_entrypoint: "medication_canonical_header" }}
+      agentOverrides={medicationAgentOverrides(language)}
       testId="button-meds-hero-talk"
     />
   );
@@ -1939,6 +1941,7 @@ const MedsScreen = ({ backPath = "/health", routeBase = "/meds", profileContext 
             contextHint: t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor."),
             voiceAgentSlug: "medication",
             voiceDynamicVariables: { app_entrypoint: "medication_master_hero" },
+            voiceAgentOverrides: medicationAgentOverrides(language),
             autoStartListening: true,
             testId: "button-meds-hero-talk",
           },

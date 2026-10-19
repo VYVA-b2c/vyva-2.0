@@ -5,6 +5,7 @@ import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/co
 import {
   type VoiceConnectionErrorCode,
   type VoiceDiagnosticStep,
+  type VoiceAgentOverrides,
   type TranscriptEntry,
   useVyvaVoice,
 } from "@/hooks/useVyvaVoice";
@@ -23,6 +24,7 @@ type VyvaSessionCtaProps = {
   contextHint?: string;
   voiceAgentSlug?: string;
   voiceDynamicVariables?: VoiceStartVariables;
+  voiceAgentOverrides?: VoiceAgentOverrides;
   autoStartListening?: boolean;
   canStartVoice?: () => boolean;
   hideWhenSessionActive?: boolean;
@@ -57,17 +59,19 @@ type VoiceControls = {
 function useVoiceStartOptions(
   voiceAgentSlug: string | undefined,
   voiceDynamicVariables: VoiceStartVariables | undefined,
+  voiceAgentOverrides: VoiceAgentOverrides | undefined,
   autoStartListening: boolean | undefined,
 ) {
   return useMemo(
-    () => voiceAgentSlug || voiceDynamicVariables || autoStartListening
+    () => voiceAgentSlug || voiceDynamicVariables || voiceAgentOverrides || autoStartListening
       ? {
           ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
           ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
+          ...(voiceAgentOverrides ? { agentOverrides: voiceAgentOverrides } : {}),
           ...(autoStartListening ? { autoStartListening: true } : {}),
         }
       : undefined,
-    [autoStartListening, voiceAgentSlug, voiceDynamicVariables],
+    [autoStartListening, voiceAgentOverrides, voiceAgentSlug, voiceDynamicVariables],
   );
 }
 
@@ -190,6 +194,7 @@ export function VyvaSessionCta({
   contextHint,
   voiceAgentSlug,
   voiceDynamicVariables,
+  voiceAgentOverrides,
   autoStartListening = true,
   canStartVoice,
   hideWhenSessionActive = false,
@@ -223,7 +228,7 @@ export function VyvaSessionCta({
   const [focusedOverlayRequested, setFocusedOverlayRequested] = useState(false);
   const [focusedOverlayHasStarted, setFocusedOverlayHasStarted] = useState(false);
   const [showVoiceOrbHint, setShowVoiceOrbHint] = useState(() => !hasSeenVoiceOrbHint());
-  const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, autoStartListening);
+  const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, voiceAgentOverrides, autoStartListening);
 
   const isActive = status === "connected";
   const isVoiceRail = visual === "voiceRail";
