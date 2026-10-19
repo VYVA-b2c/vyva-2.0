@@ -23,6 +23,7 @@ const STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES = [
 ] as const;
 
 const WIDE_ROUTE_PREFIXES = [
+  "/expert-care",
   "/brain-coach",
   "/settings",
   "/health",

@@ -727,6 +727,13 @@ export async function discoverAppointmentProviderOptions(input: {
           reservationSystems.length > 0 ? "trusted_directories" : null,
           "manual",
         ].filter(Boolean);
+        const providerWeekday = detail ? providerLocalWeekday(detail) : null;
+        const todayOpeningHours = providerWeekday !== null
+          ? detail?.opening_hours?.weekday_text?.[(providerWeekday + 6) % 7] ?? null
+          : null;
+        const providerDistanceMeters = center && validCoordinates(place.geometry?.location)
+          ? Math.round(distanceMeters(center, place.geometry.location))
+          : null;
         const snapshot: Record<string, unknown> = {
           source: "google_places",
           search_area: location,
@@ -750,8 +757,10 @@ export async function discoverAppointmentProviderOptions(input: {
           business_status: place.business_status ?? null,
           opening_status: summarizeOpeningHours(detail, language),
           opening_hours_text: detail?.opening_hours?.weekday_text ?? [],
+          today_opening_hours: todayOpeningHours,
           open_now: detail?.opening_hours?.open_now ?? null,
           open_today: isOpenToday(detail),
+          distance_meters: providerDistanceMeters,
           place_types: place.types ?? [],
           requested_service_type: input.serviceType ?? null,
           reservation_systems: reservationSystems,

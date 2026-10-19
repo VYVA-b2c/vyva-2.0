@@ -1249,10 +1249,6 @@
   background: rgba(33, 22, 42, 0.95);
 }
 
-[data-home-master-theme="dark"] .concierge-picker-frame [data-testid="concierge-picker-options"] > button {
-  background: linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, var(--picker-accent-tint) 100%);
-}
-
 .home-repair-results > div:first-child { align-items: flex-start; }
 .home-repair-results h3 { font-size: 24px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
 .home-repair-results > div:first-child p { font-size: 15px; line-height: 1.6; font-weight: 400; }

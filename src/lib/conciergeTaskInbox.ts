@@ -700,7 +700,9 @@ function activeItem(input: {
     providerName,
     updatedAt,
     detailPath: conciergeTaskInboxItemPath(source, id),
-    resumePath: conciergeTaskResumePath(draft?.id ?? pending!.id),
+    resumePath: draft?.kind === "expert_care"
+      ? `/expert-care/${encodeURIComponent(draft.id)}`
+      : conciergeTaskResumePath(draft?.id ?? pending!.id),
     primaryActionLabel: continuation.actionLabel || primaryActionCopy(group, snapshot?.status ?? null, isSpanish),
     reply: snapshot?.reply || null,
     decisionSummary: decisionCopy(payload, isSpanish),
@@ -788,8 +790,8 @@ export function buildConciergeTaskInbox(input: {
   // belongs in the task inbox once it is attached to a real pending action.
   const activeItems = input.drafts.flatMap((draft) => {
     const pending = draft.linked_pending_id ? pendingById.get(draft.linked_pending_id) ?? null : null;
-    if (!pending) return [];
-    linkedPendingIds.add(pending.id);
+    if (!pending && draft.kind !== "expert_care") return [];
+    if (pending) linkedPendingIds.add(pending.id);
     return [activeItem({ draft, pending, isSpanish, nowMs: safeNowMs })];
   });
   for (const pending of input.pending) {

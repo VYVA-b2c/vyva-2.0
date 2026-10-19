@@ -28,5 +28,6 @@ describe("concierge task navigation", () => {
   it("uses clear task titles", () => {
     expect(conciergeTaskEntryTitle({ kind: "document" }, false)).toBe("Document help");
     expect(conciergeTaskEntryTitle({ kind: "home_service" }, true)).toBe("Servicio para el hogar");
+    expect(conciergeTaskEntryTitle({ kind: "expert_care" }, false)).toBe("Expert Care");
   });
 });

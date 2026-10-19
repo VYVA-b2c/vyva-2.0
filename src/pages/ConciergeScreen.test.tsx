@@ -444,6 +444,14 @@ describe("ConciergeScreen task navigation", () => {
     expect(await screen.findByTestId(expectedPanel)).toBeInTheDocument();
   });
 
+  it("never renders the Concierge landing header on a dedicated task URL", async () => {
+    mockConciergeLists([]);
+    renderScreen(["/concierge/task/new"], "home");
+
+    expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-master-cards")).not.toBeInTheDocument();
+  });
+
   it("does not show an unrelated pending appointment in a new Home Repair task", async () => {
     mockConciergeLists();
     renderScreen([{
@@ -3739,7 +3747,7 @@ describe("ConciergeScreen action hub", () => {
     let createdBody: HomeServiceRequestBody | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
-      if (target.endsWith("/options/option-plumber/verify") || target.endsWith("/options/option-budget/verify")) {
+      if (target.includes("/options/option-") && target.endsWith("/verify")) {
         expect(init?.body).toBeUndefined();
         return jsonResponse({ verification: { version: 1, status: "incomplete", checkedAt: new Date().toISOString(), reviewCount: 0, recentReviewCount: 0, sources: [], gaps: ["Reviews unavailable"], concerns: [], retryable: false }, ranking: { score: target.includes("option-budget") ? 190 : 150, priority_notes: ["Comparing published price bands only; your job still needs a quote."] } });
       }
@@ -3777,6 +3785,33 @@ describe("ConciergeScreen action hub", () => {
             match_reason: "Local plumbing option",
             available_channels: ["phone", "manual"],
             rank: 2,
+            status: "suggested",
+          }, {
+            id: "option-nearby",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: { name: "Nearby Plumbing", distance_meters: 1250, today_opening_hours: "Monday: 09:00–18:00", rating: 4.8, review_count: 42 },
+            match_reason: "Local plumbing option",
+            available_channels: ["manual"],
+            rank: 3,
+            status: "suggested",
+          }, {
+            id: "option-four",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: { name: "Fourth Plumbing", distance_meters: 2800, opening_status: "Open now", rating: 4.4, review_count: 18 },
+            match_reason: "Local plumbing option",
+            available_channels: ["manual"],
+            rank: 4,
+            status: "suggested",
+          }, {
+            id: "option-five",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: { name: "Fifth Plumbing", distance_meters: 5100, opening_status: "Closed now" },
+            match_reason: "Local plumbing option",
+            available_channels: ["manual"],
+            rank: 5,
             status: "suggested",
           }],
           discovery: { source: "google_places", inserted_count: 1 },
@@ -3858,6 +3893,14 @@ describe("ConciergeScreen action hub", () => {
 
 
     expect(await screen.findByRole("heading", { name: "Budget Plumbing" })).toBeVisible();
+    expect(screen.getByText("Nearby Plumbing")).toBeVisible();
+    expect(screen.getByTestId("provider-distance-nearby-plumbing")).toHaveTextContent("1.3 km");
+    expect(screen.getByTestId("provider-hours-nearby-plumbing")).toHaveTextContent("Monday: 09:00–18:00");
+    expect(screen.getByTestId("provider-rating-nearby-plumbing")).toHaveTextContent("4.8 (42)");
+    expect(screen.queryByText("Fifth Plumbing")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-service-load-more-options"));
+    expect(screen.getByText("Fifth Plumbing")).toBeVisible();
+    expect(screen.queryByTestId("button-home-service-load-more-options")).not.toBeInTheDocument();
     expect(screen.getByText("Checks incomplete")).not.toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
   });
@@ -4264,7 +4307,9 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-home-service-contact-yes"));
     expect(screen.getByTestId("panel-home-service-contact-method")).toHaveTextContent("How should VYVA contact them?");
+    expect(screen.getByTestId("panel-home-service-contact-method")).toHaveClass("bg-white/[0.045]", "shadow-none");
     expect(await screen.findByTestId("button-home-service-channel-whatsapp")).toBeVisible();
+    expect(screen.getByTestId("button-home-service-channel-whatsapp")).toHaveClass("bg-white/[0.055]", "shadow-none");
     expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Book online");
     expect(screen.getByTestId("button-home-service-channel-booking_url")).toHaveTextContent("Opens the provider's booking page");
     expect(screen.queryByTestId("button-home-service-channel-phone")).not.toBeInTheDocument();
@@ -4273,6 +4318,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-channel-whatsapp"));
     expect(await screen.findByTestId("panel-home-service-contact-preview")).toHaveTextContent("Review the message");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm and send WhatsApp");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveClass("bg-white/[0.045]");
     fireEvent.change(screen.getByTestId("input-home-service-contact-body"), { target: { value: "Please confirm tomorrow availability and estimated cost." } });
     fireEvent.click(screen.getByTestId("checkbox-share-home-address"));
     fireEvent.click(screen.getByTestId("checkbox-share-access-notes"));

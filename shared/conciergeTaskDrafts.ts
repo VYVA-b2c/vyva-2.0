@@ -8,6 +8,7 @@ export const CONCIERGE_TASK_KINDS = [
   "scam_review",
   "transport",
   "otc_pharmacy",
+  "expert_care",
 ] as const;
 
 export const CONCIERGE_DOCUMENT_KINDS = ["insurance-letter", "claim", "government-form", "call-email", "not-sure"] as const;
