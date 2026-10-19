@@ -43,6 +43,7 @@ import {
   isMedicineClassTag,
 } from "../lib/medicationInteractions.js";
 import { buildMedicationUpdates } from "../lib/medicationUpdates.js";
+import { latestMedicineProfileUpdatedAt } from "../medication/medicineCheckUpdatedAt.js";
 import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 
 const router = Router();
@@ -1402,7 +1403,7 @@ async function loadMedicineCheck(userId: string, language: string, extraMedicine
     db.select().from(interactionFlagRules).orderBy(interactionFlagRules.created_at),
     db.select().from(interactionFlagStates).where(eq(interactionFlagStates.user_id, userId)),
     db.select({ medicine_id: myMedicinesChangeLog.medicine_id, changed_at: myMedicinesChangeLog.changed_at }).from(myMedicinesChangeLog).where(eq(myMedicinesChangeLog.user_id, userId)),
-    db.select({ firstName: profiles.preferred_name, fullName: profiles.full_name, consent: profiles.data_sharing_consent }).from(profiles).where(eq(profiles.id, userId)).limit(1).then((rows) => rows[0] ?? null),
+    db.select({ firstName: profiles.preferred_name, fullName: profiles.full_name, consent: profiles.data_sharing_consent, updatedAt: profiles.updated_at }).from(profiles).where(eq(profiles.id, userId)).limit(1).then((rows) => rows[0] ?? null),
     db.select().from(profileMedSafetyState).where(eq(profileMedSafetyState.user_id, userId)).limit(1).then((rows) => rows[0] ?? null),
   ]);
   for (const state of states) {
@@ -1417,7 +1418,7 @@ async function loadMedicineCheck(userId: string, language: string, extraMedicine
   const result = computeMedicineSafety({ medicines: extraMedicine ? [...medicines, extraMedicine] : medicines, rules, states, changes, locale, maxFlags: 2 });
   const lastSweepAt = safetyState?.last_extras_sweep_at ?? null;
   const changedAfterSweep = lastSweepAt ? changes.some((change) => new Date(change.changed_at).getTime() > new Date(lastSweepAt).getTime()) : true;
-  return { ...result, lastSweepAt, sweepDue: changedAfterSweep || !lastSweepAt || Date.now() - new Date(lastSweepAt).getTime() > 30 * 86400000, safetyNetEnabled: process.env.VYVA_MED_SAFETY_NET_ENABLED === "true", pharmacy: savedPharmacyFromProfile(profile?.consent), profile: { firstName: profile?.firstName || profile?.fullName?.split(" ")[0] || "", updatedAt: new Date().toISOString() }, medicines: medicines.filter((medicine) => medicine.status === "active") };
+  return { ...result, lastSweepAt, sweepDue: changedAfterSweep || !lastSweepAt || Date.now() - new Date(lastSweepAt).getTime() > 30 * 86400000, safetyNetEnabled: process.env.VYVA_MED_SAFETY_NET_ENABLED === "true", pharmacy: savedPharmacyFromProfile(profile?.consent), profile: { firstName: profile?.firstName || profile?.fullName?.split(" ")[0] || "", updatedAt: latestMedicineProfileUpdatedAt(profile?.updatedAt, medicines) }, medicines: medicines.filter((medicine) => medicine.status === "active") };
 }
 
 router.get("/safety-check", requireUser, async (req: Request, res: Response) => {
