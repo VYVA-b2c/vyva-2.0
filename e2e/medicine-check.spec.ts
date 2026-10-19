@@ -9,7 +9,12 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 async function installMedicineCheckApi(page: Page, state: "needs_more" | "has_questions" = "needs_more") {
-  await page.addInitScript((value) => { localStorage.setItem("vyva_auth_token", value); localStorage.setItem("vyva_language", "en"); localStorage.setItem("vyva_theme", "dark"); }, token);
+  await page.addInitScript((value) => {
+    localStorage.setItem("vyva_auth_token", value);
+    localStorage.setItem("vyva_language", "en");
+    localStorage.setItem("vyva_theme", "dark");
+    localStorage.setItem("vyva:home-master-theme:v1", "dark");
+  }, token);
   await page.route("**/api/**", async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     if (path === "/api/auth/me") return json(route, { id: "profile-rosa", email: "rosa@example.com", language: "en", role: "user" });
@@ -28,6 +33,20 @@ async function installMedicineCheckApi(page: Page, state: "needs_more" | "has_qu
     return json(route, {});
   });
 }
+
+test("light medicines hub keeps readable cards inside the dark app theme", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMedicineCheckApi(page);
+  await page.goto("/meds", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("app-shell")).toHaveAttribute("data-home-master-theme", "dark");
+  await expect(page.getByTestId("meds-canonical-screen")).toHaveAttribute("data-home-master-theme", "light");
+
+  const card = page.getByTestId("section-meds-dashboard");
+  const title = page.getByTestId("text-meds-priority-title");
+  await expect(card).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(title).toHaveCSS("color", "rgb(36, 18, 56)");
+});
 
 test("one saved medicine shows the honest light needs-more state at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await installMedicineCheckApi(page);
