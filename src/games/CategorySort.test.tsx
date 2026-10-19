@@ -30,8 +30,8 @@ describe("CategorySort", () => {
     render(<CategorySort userId="" onExit={vi.fn()} />);
 
     expect(await screen.findByTestId("category-sort-intro")).toBeInTheDocument();
-    expect(screen.getByTestId("category-sort-flow-shell").querySelector("h1")).toHaveTextContent("Tri de categories");
-    expect(screen.getByText("Triez chaque carte selon la regle affichee en haut. La regle changera.")).toBeInTheDocument();
+    expect(screen.getByTestId("category-sort-flow-shell").querySelector("h1")).toHaveTextContent("Tri de catégories");
+    expect(screen.getByText("Triez chaque carte selon la règle affichée en haut. La règle changera.")).toBeInTheDocument();
     expect(screen.getAllByText("Couleur").length).toBeGreaterThan(0);
     expect(screen.getByText("Forme")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Voir l'exemple" })).toBeInTheDocument();

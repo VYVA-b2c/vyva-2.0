@@ -146,11 +146,11 @@ describe("language persistence", () => {
   it("keeps the home-style Health page labels localized", () => {
     const expected = {
       en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "Longevity", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
-      es: ["o explora un tema", "Mis sintomas", "Mi medicacion", "Mis signos vitales", "Mi plan de salud", "Ayuda rapida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
-      fr: ["ou explorez un sujet", "Mes symptomes", "Mes medicaments", "Mes constantes", "Mon plan de sante", "Aide rapide", "Mes rapports", "Scan visuel de sante", "Trouver un specialiste"],
+      es: ["o explora un tema", "Mis síntomas", "Mi medicación", "Mis signos vitales", "Mi plan de salud", "Ayuda rápida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
+      fr: ["ou explorez un sujet", "Mes symptômes", "Mes médicaments", "Mes constantes", "Mon plan de santé", "Aide rapide", "Mes rapports", "Scan visuel de santé", "Trouver un spécialiste"],
       de: ["oder ein Thema erkunden", "Meine Symptome", "Meine Medikamente", "Meine Vitalwerte", "Mein Gesundheitsplan", "Schnelle Hilfe", "Meine Berichte", "Visueller Gesundheitscheck", "Spezialisten finden"],
       it: ["oppure esplora un tema", "I miei sintomi", "I miei farmaci", "I miei parametri", "Il mio piano salute", "Aiuto rapido", "I miei report", "Scansione visiva salute", "Trova uno specialista"],
-      pt: ["ou explore um tema", "Os meus sintomas", "A minha medicacao", "Os meus sinais vitais", "O meu plano de saude", "Ajuda rapida", "Os meus relatorios", "Analise visual de saude", "Encontrar especialista"],
+      pt: ["ou explore um tema", "Os meus sintomas", "A minha medicação", "Os meus sinais vitais", "O meu plano de saúde", "Ajuda rápida", "Os meus relatórios", "Analise visual de saúde", "Encontrar especialista"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -171,11 +171,11 @@ describe("language persistence", () => {
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
       en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Longevity", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
-      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
-      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
-      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
+      es: ["Hablar con medico", "Síntomas", "Medicación", "Signos", "Plan salud", "¿Necesitas ayuda?", "Resúmenes recientes", "Revisión de imagen", "Experto adecuado"],
+      fr: ["Parler au médecin", "Symptômes", "Médicaments", "Constantes", "Plan santé", "Besoin d'aide?", "Résumés récents", "Revue image", "Bon expert"],
+      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prüfen", "Passender Experte"],
       it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Revisione immagine", "Esperto giusto"],
-      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Rever imagem", "Especialista certo"],
+      pt: ["Falar com medico", "Sintomas", "Medicação", "Sinais vitais", "Plano saúde", "Precisa de ajuda?", "Resumos recentes", "Rever imagem", "Especialista certo"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -210,8 +210,8 @@ describe("language persistence", () => {
 
   it("keeps Relax & Breathe page copy localized without falling back to English", () => {
     const expected = {
-      es: ["Relajarse y respirar", "Iniciar guia de VYVA", "Respira despacio"],
-      fr: ["Se detendre et respirer", "Demarrer le guide VYVA", "Respirer lentement"],
+      es: ["Relajarse y respirar", "Iniciar guía de VYVA", "Respira despacio"],
+      fr: ["Se détendre et respirer", "Démarrer le guide VYVA", "Respirer lentement"],
       it: ["Rilassati e respira", "Avvia guida VYVA", "Respira lentamente"],
       pt: ["Relaxe e respire", "Iniciar guia VYVA", "Respirar devagar"],
     } as const;
@@ -233,7 +233,7 @@ describe("language persistence", () => {
   it("keeps SOS direct call actions localized for supported account languages", () => {
     const expected = {
       en: ["Need urgent help?", "Call {{number}} now", "Call {{name}}"],
-      es: ["Necesitas ayuda urgente?", "Llamar a {{number}} ahora", "Llamar a {{name}}"],
+      es: ["¿Necesitas ayuda urgente?", "Llamar a {{number}} ahora", "Llamar a {{name}}"],
       fr: ["Besoin d'aide urgente ?", "Appeler {{number}} maintenant", "Appeler {{name}}"],
       de: ["Brauchen Sie dringend Hilfe?", "{{number}} jetzt anrufen", "{{name}} anrufen"],
       it: ["Hai bisogno di aiuto urgente?", "Chiama {{number}} ora", "Chiama {{name}}"],
@@ -252,11 +252,11 @@ describe("language persistence", () => {
   it("keeps medication service actions localized for supported account languages", () => {
     const expected = {
       en: ["Check refill need", "Check interactions", "Doctor help"],
-      es: ["Revisar necesidad de reposicion", "Revisar interacciones", "Ayuda medica"],
-      fr: ["Verifier le besoin de renouvellement", "Verifier interactions", "Aide medecin"],
-      de: ["Nachfuellbedarf pruefen", "Wechselwirkungen prufen", "Arzthilfe"],
+      es: ["Revisar necesidad de reposición", "Revisar interacciones", "Ayuda medica"],
+      fr: ["Vérifier le besoin de renouvellement", "Vérifier interactions", "Aide médecin"],
+      de: ["Nachfuellbedarf prüfen", "Wechselwirkungen prüfen", "Arzthilfe"],
       it: ["Verifica la necessita di rifornimento", "Controlla interazioni", "Aiuto medico"],
-      pt: ["Verificar necessidade de reposicao", "Verificar interacoes", "Ajuda medica"],
+      pt: ["Verificar necessidade de reposição", "Verificar interações", "Ajuda medica"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -271,11 +271,11 @@ describe("language persistence", () => {
   it("keeps official medication update evidence and confirmation copy localized", () => {
     const expectedTitles = {
       en: "Medication updates",
-      es: "Actualizaciones de medicacion",
-      fr: "Actualites des medicaments",
+      es: "Actualizaciones de medicación",
+      fr: "Actualités des médicaments",
       de: "Medikamenten-Aktualisierungen",
       it: "Aggiornamenti sui farmaci",
-      pt: "Atualizacoes de medicamentos",
+      pt: "Atualizações de medicamentos",
     } as const;
 
     for (const [language, title] of Object.entries(expectedTitles)) {
@@ -298,11 +298,11 @@ describe("language persistence", () => {
   it("keeps adherence report service actions localized for supported account languages", () => {
     const expected = {
       en: ["Medication help in one tap", "Check refill need", "Medication appointment"],
-      es: ["Ayuda de medicacion en un toque", "Revisar necesidad de reposicion", "Cita de medicacion"],
-      fr: ["Aide medicaments en un geste", "Verifier le besoin de renouvellement", "Rendez-vous medicaments"],
-      de: ["Medikamentenhilfe mit einem Tipp", "Nachfuellbedarf pruefen", "Medikamententermin"],
+      es: ["Ayuda de medicación en un toque", "Revisar necesidad de reposición", "Cita de medicación"],
+      fr: ["Aide médicaments en un geste", "Vérifier le besoin de renouvellement", "Rendez-vous médicaments"],
+      de: ["Medikamentenhilfe mit einem Tipp", "Nachfuellbedarf prüfen", "Medikamententermin"],
       it: ["Aiuto farmaci in un tocco", "Verifica la necessita di rifornimento", "Appuntamento farmaci"],
-      pt: ["Ajuda com medicacao num toque", "Verificar necessidade de reposicao", "Consulta de medicacao"],
+      pt: ["Ajuda com medicação num toque", "Verificar necessidade de reposição", "Consulta de medicação"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -317,11 +317,11 @@ describe("language persistence", () => {
   it("keeps reports overview service actions localized for supported account languages", () => {
     const expected = {
       en: ["Fast service access", "Review vitals", "Check refill need", "Find transport"],
-      es: ["Acceso rapido a servicios", "Revisar constantes", "Revisar necesidad de reposicion", "Buscar transporte"],
-      fr: ["Acces rapide aux services", "Voir constantes", "Verifier le renouvellement", "Trouver transport"],
-      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfuellbedarf pruefen", "Transport finden"],
+      es: ["Acceso rápido a servicios", "Revisar constantes", "Revisar necesidad de reposición", "Buscar transporte"],
+      fr: ["Accès rapide aux services", "Voir constantes", "Vérifier le renouvellement", "Trouver transport"],
+      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfuellbedarf prüfen", "Transport finden"],
       it: ["Accesso rapido ai servizi", "Vedi parametri", "Verifica rifornimento", "Trova trasporto"],
-      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Verificar necessidade de reposicao", "Encontrar transporte"],
+      pt: ["Acesso rápido a serviços", "Ver sinais vitais", "Verificar necessidade de reposição", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -341,7 +341,7 @@ describe("language persistence", () => {
       fr: ["Commander aides securite", "Demander un devis"],
       de: ["Sicherheitshilfen bestellen", "Angebot anfragen"],
       it: ["Ordina aiuti sicurezza", "Richiedi preventivo"],
-      pt: ["Encomendar ajudas de seguranca", "Pedir orcamento"],
+      pt: ["Encomendar ajudas de segurança", "Pedir orçamento"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -356,7 +356,7 @@ describe("language persistence", () => {
     const expected = {
       en: ["Doctor help", "Appointment", "Find transport"],
       es: ["Ayuda medica", "Cita", "Buscar transporte"],
-      fr: ["Aide medecin", "Rendez-vous", "Trouver transport"],
+      fr: ["Aide médecin", "Rendez-vous", "Trouver transport"],
       de: ["Arzthilfe", "Termin", "Transport finden"],
       it: ["Aiuto medico", "Appuntamento", "Trova trasporto"],
       pt: ["Ajuda medica", "Consulta", "Encontrar transporte"],
@@ -374,11 +374,11 @@ describe("language persistence", () => {
   it("keeps doctor quick service actions localized for supported account languages", () => {
     const expected = {
       en: ["Fast service access", "Call {{name}}", "Book appointment", "Find transport"],
-      es: ["Acceso rapido a servicios", "Llamar a {{name}}", "Pedir cita", "Buscar transporte"],
-      fr: ["Acces rapide aux services", "Appeler {{name}}", "Prendre rendez-vous", "Trouver transport"],
+      es: ["Acceso rápido a servicios", "Llamar a {{name}}", "Pedir cita", "Buscar transporte"],
+      fr: ["Accès rapide aux services", "Appeler {{name}}", "Prendre rendez-vous", "Trouver transport"],
       de: ["Schneller Servicezugang", "{{name}} anrufen", "Termin buchen", "Transport finden"],
       it: ["Accesso rapido ai servizi", "Chiama {{name}}", "Prenota visita", "Trova trasporto"],
-      pt: ["Acesso rapido a servicos", "Ligar a {{name}}", "Marcar consulta", "Encontrar transporte"],
+      pt: ["Acesso rápido a serviços", "Ligar a {{name}}", "Marcar consulta", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -394,9 +394,9 @@ describe("language persistence", () => {
   it("keeps health-home doctor access actions localized for supported account languages", () => {
     const expected = {
       en: ["Doctor access", "Call GP", "Book appointment", "Find transport", "Add GP contact"],
-      es: ["Acceso medico", "Llamar al medico", "Pedir cita", "Buscar transporte", "Anadir contacto medico"],
-      fr: ["Acces medecin", "Appeler le medecin", "Prendre rendez-vous", "Trouver transport", "Ajouter contact medecin"],
-      de: ["Arztzugang", "Arzt anrufen", "Termin buchen", "Transport finden", "Arztkontakt hinzufuegen"],
+      es: ["Acceso medico", "Llamar al medico", "Pedir cita", "Buscar transporte", "Añadir contacto medico"],
+      fr: ["Accès médecin", "Appeler le médecin", "Prendre rendez-vous", "Trouver transport", "Ajouter contact médecin"],
+      de: ["Arztzugang", "Arzt anrufen", "Termin buchen", "Transport finden", "Arztkontakt hinzufügen"],
       it: ["Accesso medico", "Chiama medico", "Prenota visita", "Trova trasporto", "Aggiungi medico"],
       pt: ["Acesso medico", "Ligar ao medico", "Marcar consulta", "Encontrar transporte", "Adicionar medico"],
     } as const;
@@ -416,8 +416,8 @@ describe("language persistence", () => {
     const expected = {
       en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search local specialists"],
       es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
-      fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
-      de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],
+      fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher spécialistes"],
+      de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachärzte suchen"],
       it: ["Chiama", "Appuntamento", "Trova trasporto", "Mappa", "Condividi", "Cerca specialisti"],
       pt: ["Ligar", "Consulta", "Encontrar transporte", "Mapa", "Partilhar", "Pesquisar especialistas"],
     } as const;
@@ -438,10 +438,10 @@ describe("language persistence", () => {
     const expected = {
       en: ["Report not saved", "Initial Assessment", "Monitor at home, with doctor access ready", "Share with doctor", "No doctor contact in profile"],
       es: ["Informe no guardado", "Evaluación inicial", "Vigila en casa, con medico disponible", "Compartir con medico", "Sin contacto medico en perfil"],
-      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez a domicile, avec un medecin pret a etre contacte", "Partager avec le medecin", "Aucun contact medecin dans le profil"],
+      fr: ["Rapport non enregistre", "Évaluation initiale", "Surveillez à domicile, avec un médecin prêt à être contacte", "Partager avec le médecin", "Aucun contact médecin dans le profil"],
       de: ["Bericht nicht gespeichert", "Erste Einschätzung", "Zu Hause beobachten, Arztkontakt bereithalten", "Mit Arzt teilen", "Kein Arztkontakt im Profil"],
       it: ["Report non salvato", "Valutazione iniziale", "Monitora a casa, con accesso al medico pronto", "Condividi col medico", "Nessun contatto medico nel profilo"],
-      pt: ["Relatorio nao guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto", "Partilhar com medico", "Sem contacto medico no perfil"],
+      pt: ["Relatório não guardado", "Avaliação inicial", "Monitorize em casa, com acesso ao medico pronto", "Partilhar com medico", "Sem contacto medico no perfil"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -516,9 +516,9 @@ describe("language persistence", () => {
   it("keeps symptom doctor contact action localized for supported account languages", () => {
     const expected = {
       en: "Add doctor contact",
-      es: "Anadir contacto medico",
-      fr: "Ajouter le contact medecin",
-      de: "Arztkontakt hinzufuegen",
+      es: "Añadir contacto medico",
+      fr: "Ajouter le contact médecin",
+      de: "Arztkontakt hinzufügen",
       it: "Aggiungi contatto medico",
       pt: "Adicionar contacto medico",
     } as const;
@@ -531,11 +531,11 @@ describe("language persistence", () => {
   it("keeps symptom confidence tracker localized for supported account languages", () => {
     const expected = {
       en: ["Confidence level", "Confidence improving", "VYVA is checking symptoms and safety signs", "Symptoms", "Safety check", "Next step"],
-      es: ["Nivel de confianza", "La confianza mejora", "VYVA revisa sintomas y senales de seguridad", "Sintomas", "Control de seguridad", "Siguiente paso"],
-      fr: ["Niveau de confiance", "La confiance augmente", "VYVA verifie les symptomes et les signes de securite", "Symptomes", "Controle securite", "Prochaine etape"],
-      de: ["Vertrauensniveau", "Vertrauen steigt", "VYVA prueft Symptome und Sicherheitssignale", "Symptome", "Sicherheitscheck", "Naechster Schritt"],
+      es: ["Nivel de confianza", "La confianza mejora", "VYVA revisa síntomas y señales de seguridad", "Síntomas", "Control de seguridad", "Siguiente paso"],
+      fr: ["Niveau de confiance", "La confiance augmente", "VYVA vérifie les symptômes et les signes de securite", "Symptômes", "Contrôle securite", "Prochaine étape"],
+      de: ["Vertrauensniveau", "Vertrauen steigt", "VYVA prüft Symptome und Sicherheitssignale", "Symptome", "Sicherheitscheck", "Nächster Schritt"],
       it: ["Livello di fiducia", "Fiducia in aumento", "VYVA controlla sintomi e segnali di sicurezza", "Sintomi", "Controllo sicurezza", "Prossimo passo"],
-      pt: ["Nivel de confianca", "A confianca aumenta", "A VYVA verifica sintomas e sinais de seguranca", "Sintomas", "Verificacao seguranca", "Proximo passo"],
+      pt: ["Nível de confiança", "A confiança aumenta", "A VYVA verifica sintomas e sinais de segurança", "Sintomas", "Verificação segurança", "Próximo passo"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -553,11 +553,11 @@ describe("language persistence", () => {
   it("keeps symptom chat confidence cues localized for supported account languages", () => {
     const expected = {
       en: ["One question at a time", "Current question", "{{count}} answers saved", "Choose the closest answer, or type in your own words."],
-      es: ["Una pregunta cada vez", "Pregunta actual", "{{count}} respuestas guardadas", "Elige la respuesta mas cercana o escribe con tus palabras."],
-      fr: ["Une question a la fois", "Question actuelle", "{{count}} reponses enregistrees", "Choisissez la reponse la plus proche ou ecrivez avec vos mots."],
-      de: ["Eine Frage nach der anderen", "Aktuelle Frage", "{{count}} Antworten gespeichert", "Waehle die passendste Antwort oder schreibe mit eigenen Worten."],
+      es: ["Una pregunta cada vez", "Pregunta actual", "{{count}} respuestas guardadas", "Elige la respuesta más cercana o escribe con tus palabras."],
+      fr: ["Une question à la fois", "Question actuelle", "{{count}} réponses enregistrées", "Choisissez la réponse la plus proche ou écrivez avec vos mots."],
+      de: ["Eine Frage nach der anderen", "Aktuelle Frage", "{{count}} Antworten gespeichert", "Wähle die passendste Antwort oder schreibe mit eigenen Worten."],
       it: ["Una domanda alla volta", "Domanda attuale", "{{count}} risposte salvate", "Scegli la risposta piu vicina o scrivi con parole tue."],
-      pt: ["Uma pergunta de cada vez", "Pergunta atual", "{{count}} respostas guardadas", "Escolha a resposta mais proxima ou escreva pelas suas palavras."],
+      pt: ["Uma pergunta de cada vez", "Pergunta atual", "{{count}} respostas guardadas", "Escolha a resposta mais próxima ou escreva pelas suas palavras."],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -573,11 +573,11 @@ describe("language persistence", () => {
   it("keeps symptom intro voice controls localized for supported account languages", () => {
     const expected = {
       en: ["Use voice input", "Stop voice input", "Listening... tap again to stop. It stops after 30 seconds.", "I couldn't use the microphone. Please try again or type instead."],
-      es: ["Usar voz", "Detener voz", "Escuchando... toca otra vez para parar. Se detiene a los 30 segundos.", "No he podido usar el microfono. Intentalo de nuevo o escribe."],
-      fr: ["Utiliser la voix", "Arreter la voix", "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.", "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez."],
-      de: ["Spracheingabe verwenden", "Spracheingabe stoppen", "Hoere zu... erneut tippen zum Stoppen. Stoppt automatisch nach 30 Sekunden.", "Ich konnte das Mikrofon nicht verwenden. Bitte erneut versuchen oder tippen."],
+      es: ["Usar voz", "Detener voz", "Escuchando... toca otra vez para parar. Se detiene a los 30 segundos.", "No he podido usar el micrófono. Inténtalo de nuevo o escribe."],
+      fr: ["Utiliser la voix", "Arrêter la voix", "Écoute... touchez encore pour arrêter. Arrêt automatique après 30 secondes.", "Je n'ai pas pu utiliser le micro. Réessayez ou écrivez."],
+      de: ["Spracheingabe verwenden", "Spracheingabe stoppen", "Höre zu... erneut tippen zum Stoppen. Stoppt automatisch nach 30 Sekunden.", "Ich konnte das Mikrofon nicht verwenden. Bitte erneut versuchen oder tippen."],
       it: ["Usa voce", "Ferma voce", "Ascolto... tocca ancora per fermare. Si ferma dopo 30 secondi.", "Non sono riuscita a usare il microfono. Riprova o scrivi."],
-      pt: ["Usar voz", "Parar voz", "A ouvir... toque outra vez para parar. Para apos 30 segundos.", "Nao consegui usar o microfone. Tente de novo ou escreva."],
+      pt: ["Usar voz", "Parar voz", "A ouvir... toque outra vez para parar. Para após 30 segundos.", "Não consegui usar o microfone. Tente de novo ou escreva."],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -594,10 +594,10 @@ describe("language persistence", () => {
     const expected = {
       en: ["Say or type a few words.", "One question at a time", "Speak, type, or tap a suggestion."],
       es: ["Di o escribe unas palabras.", "Una pregunta cada vez", "Habla, escribe o toca una sugerencia."],
-      fr: ["Dites ou ecrivez quelques mots.", "Une question a la fois", "Parlez, ecrivez ou touchez une suggestion."],
-      de: ["Sag oder schreibe ein paar Worte.", "Eine Frage nach der anderen", "Sprich, tippe oder waehle einen Vorschlag."],
+      fr: ["Dites ou écrivez quelques mots.", "Une question à la fois", "Parlez, écrivez ou touchez une suggestion."],
+      de: ["Sag oder schreibe ein paar Worte.", "Eine Frage nach der anderen", "Sprich, tippe oder wähle einen Vorschlag."],
       it: ["Di o scrivi poche parole.", "Una domanda alla volta", "Parla, scrivi o tocca un suggerimento."],
-      pt: ["Diga ou escreva algumas palavras.", "Uma pergunta de cada vez", "Fale, escreva ou toque numa sugestao."],
+      pt: ["Diga ou escreva algumas palavras.", "Uma pergunta de cada vez", "Fale, escreva ou toque numa sugestão."],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -612,11 +612,11 @@ describe("language persistence", () => {
   it("keeps scam guard action buttons localized for supported account languages", () => {
     const expected = {
       en: ["Quick safe actions", "Call {{name}}", "Get safe help", "Call guidance"],
-      es: ["Acciones seguras", "Llamar a {{name}}", "Ayuda segura", "Guia por llamada"],
-      fr: ["Actions sures", "Appeler {{name}}", "Aide sure", "Aide par appel"],
+      es: ["Acciones seguras", "Llamar a {{name}}", "Ayuda segura", "Guía por llamada"],
+      fr: ["Actions sûres", "Appeler {{name}}", "Aide sûre", "Aide par appel"],
       de: ["Sichere Schnellaktionen", "{{name}} anrufen", "Sichere Hilfe", "Anrufhilfe"],
       it: ["Azioni sicure", "Chiama {{name}}", "Aiuto sicuro", "Guida in chiamata"],
-      pt: ["Acoes seguras", "Ligar a {{name}}", "Ajuda segura", "Orientacao por chamada"],
+      pt: ["Ações seguras", "Ligar a {{name}}", "Ajuda segura", "Orientação por chamada"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -633,10 +633,10 @@ describe("language persistence", () => {
     const expected = {
       en: ["Next safe step", "Next scam-safe step", "Check company", "Compare nearby"],
       es: ["Siguiente paso seguro", "Siguiente paso contra estafas", "Revisar empresa", "Comparar cerca"],
-      fr: ["Prochaine etape sure", "Prochaine etape anti-arnaque", "Verifier entreprise", "Comparer proche"],
-      de: ["Nachster sicherer Schritt", "Nachster Betrugsschutz-Schritt", "Firma prufen", "Nahe vergleichen"],
+      fr: ["Prochaine étape sûre", "Prochaine étape anti-arnaque", "Vérifier entreprise", "Comparer proche"],
+      de: ["Nächster sicherer Schritt", "Nächster Betrugsschutz-Schritt", "Firma prüfen", "Nahe vergleichen"],
       it: ["Prossimo passo sicuro", "Prossimo passo anti-truffa", "Controlla azienda", "Confronta vicino"],
-      pt: ["Proximo passo seguro", "Proximo passo anti-burla", "Verificar empresa", "Comparar perto"],
+      pt: ["Próximo passo seguro", "Próximo passo anti-burla", "Verificar empresa", "Comparar perto"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -656,7 +656,7 @@ describe("language persistence", () => {
       fr: ["Aide", "Trajet", "Repas", "RDV"],
       de: ["Hilfe", "Fahrt", "Essen", "Termin"],
       it: ["Aiuto", "Taxi", "Ordine", "Visita"],
-      pt: ["Ajuda", "Taxi", "Pedido", "Visita"],
+      pt: ["Ajuda", "Táxi", "Pedido", "Visita"],
     } as const;
 
     const keys = [
@@ -703,11 +703,11 @@ describe("language persistence", () => {
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
       en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "Longevity", "Longevity"],
-      es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Mi plan de salud", "Mi plan de salud"],
-      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Mon plan de sante", "Mon plan de sante"],
-      de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Mein Gesundheitsplan", "Mein Gesundheitsplan"],
+      es: ["Control diario", "Hecho hoy", "¿Cómo estás hoy?", "VYVA tiene la señal de hoy.", "Mi plan de salud", "Mi plan de salud"],
+      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Mon plan de santé", "Mon plan de santé"],
+      de: ["Täglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Mein Gesundheitsplan", "Mein Gesundheitsplan"],
       it: ["Check-in quotidiano", "Fatto oggi", "Come ti senti oggi?", "VYVA ha il segnale di oggi.", "Il mio piano salute", "Il mio piano salute"],
-      pt: ["Check-in diario", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Meu plano de saude", "Meu plano de saude"],
+      pt: ["Check-in diário", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Meu plano de saúde", "Meu plano de saúde"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

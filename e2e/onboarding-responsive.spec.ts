@@ -213,19 +213,19 @@ test.describe("onboarding responsive layout", () => {
 
     await expect(page).toHaveURL(/\/onboarding\/channel$/);
     await expect(page.getByTestId("select-onboarding-language")).toHaveValue("fr");
-    await expect(page.getByRole("heading", { name: "Choisissez votre contact par defaut" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choisissez votre contact par défaut" })).toBeVisible();
     await expect(page.getByText("Soutien quotidien")).toBeVisible();
     await expect(page.getByTestId("button-channel-continue")).toHaveText(/Continuer/);
     await page.getByTestId("button-channel-continue").click();
 
     await expect(page).toHaveURL(/\/onboarding\/consent$/);
-    await expect(page.getByRole("heading", { name: "Vos donnees, votre choix" })).toBeVisible();
-    await expect(page.getByText("Confidentialite et consentement")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Vos données, votre choix" })).toBeVisible();
+    await expect(page.getByText("Confidentialité et consentement")).toBeVisible();
     await expect(page.getByTestId("button-consent-agree")).toHaveText(/Accepter et continuer/);
     await page.getByTestId("button-consent-agree").click();
 
     await expect(page).toHaveURL(/\/onboarding\/activation$/);
-    await expect(page.getByRole("heading", { name: "Tout est pret !" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tout est prêt !" })).toBeVisible();
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({
       full_name: "Karim Assad",

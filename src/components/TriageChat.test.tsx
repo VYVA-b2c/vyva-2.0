@@ -896,10 +896,10 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
 
     expect(screen.getByTestId("triage-optional-scan")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Anadir una medicion rapida"));
+    fireEvent.click(screen.getByText("Añadir una medición rápida"));
     expect(screen.getByTestId("triage-scan-card")).toBeVisible();
-    expect(screen.getByText("Revisar pulso y respiracion")).toBeInTheDocument();
-    expect(screen.queryByText("Tu decides")).not.toBeInTheDocument();
+    expect(screen.getByText("Revisar pulso y respiración")).toBeInTheDocument();
+    expect(screen.queryByText("Tú decides")).not.toBeInTheDocument();
     expect(screen.getByText("Ahora no")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-skip"));

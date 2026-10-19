@@ -230,7 +230,7 @@
       },
       "cognitive": {
         "title": "Denkkraft",
-        "subtitle": "Gedaechtnis, Fokus und Ruhe",
+        "subtitle": "Gedächtnis, Fokus und Ruhe",
         "bubble": "Ich helfe, den Geist in Ihrem Tempo aktiv zu halten.",
         "micLabel": "Denkkraft öffnen",
         "openLabel": "Denkkraft öffnen"
@@ -262,13 +262,13 @@
     "conciergeResume": {
       "kicker": "Jetzt",
       "kickerConfirm": "Braucht dein OK",
-      "kickerReview": "Pruefen",
+      "kickerReview": "Prüfen",
       "kickerWaiting": "Warten",
       "kickerProviderShortlist": "Gespeicherte Auswahl",
       "titlePrefix": "VYVA arbeitet an deinem",
-      "titleConfirmPrefix": "Bestaetige deinen",
-      "titleReviewPrefix": "Pruefe deinen",
-      "titleProviderShortlistPrefix": "Pruefe deine",
+      "titleConfirmPrefix": "Bestätige deinen",
+      "titleReviewPrefix": "Prüfe deinen",
+      "titleProviderShortlistPrefix": "Prüfe deine",
       "task": {
         "ride": "Transport",
         "appointment": "Termin",
@@ -279,26 +279,26 @@
       },
       "fastStatus": {
         "ride": "Transportstatus",
-        "appointment": "Termin pruefen",
-        "pharmacy": "Apotheke pruefen",
-        "homeService": "Hausdienst pruefen",
-        "providerShortlist": "Auswahl pruefen",
-        "default": "Anliegen pruefen"
+        "appointment": "Termin prüfen",
+        "pharmacy": "Apotheke prüfen",
+        "homeService": "Hausdienst prüfen",
+        "providerShortlist": "Auswahl prüfen",
+        "default": "Anliegen prüfen"
       },
       "step": {
         "contacting": "Anbieter kontaktieren",
         "waiting": "Auf Antwort warten",
         "form": "Formular vorbereiten",
         "save": "Bereit zum Speichern",
-        "attention": "Braucht deine Pruefung",
-        "confirm": "Wartet auf deine Bestaetigung",
-        "providerShortlist": "Gespeicherte Optionen pruefen"
+        "attention": "Braucht deine Prüfung",
+        "confirm": "Wartet auf deine Bestätigung",
+        "providerShortlist": "Gespeicherte Optionen prüfen"
       },
-      "open": "Jetzt oeffnen"
+      "open": "Jetzt öffnen"
     },
     "fastHelp": {
       "kicker": "Schnelle Hilfe",
-      "title": "Was soll VYVA fur Sie tun?",
+      "title": "Was soll VYVA für Sie tun?",
       "rotate": "Mehr",
       "rotateAria": "Andere schnelle Hilfen anzeigen",
       "doctor": {
@@ -313,22 +313,22 @@
         "label": "Transport buchen",
         "sub": "VYVA organisiert Ihre Fahrt."
       },
-      "doctorContext": "Schnelle Arzthilfe-Anfrage von der Startseite. Fragen Sie, was passiert, und helfen Sie, den sicheren nachsten Schritt vorzubereiten.",
-      "appointmentPrefill": "Bitte helfen Sie mir, einen Termin zu vereinbaren. Fragen Sie, welche Art Termin ich brauche, und buchen Sie nichts ohne meine Bestatigung.",
-      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit und buchen Sie nichts ohne meine Bestatigung."
+      "doctorContext": "Schnelle Arzthilfe-Anfrage von der Startseite. Fragen Sie, was passiert, und helfen Sie, den sicheren nächsten Schritt vorzubereiten.",
+      "appointmentPrefill": "Bitte helfen Sie mir, einen Termin zu vereinbaren. Fragen Sie, welche Art Termin ich brauche, und buchen Sie nichts ohne meine Bestätigung.",
+      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit und buchen Sie nichts ohne meine Bestätigung."
     },
     "whatNow": "oder Thema erkunden",
     "chatExamples": [
       "Ist dieses Medikament sicher, wenn ich Diabetes habe?",
       "Ich brauche einen Herzspezialisten in meiner Nahe",
-      "Hilf mir, dieses Formular auszufullen",
+      "Hilf mir, dieses Formular auszufüllen",
       "Wie beantrage ich finanzielle Hilfe?",
       "Wie bekomme ich meinen Seniorenrabatt?",
       "Hilf mir, eine gute betreute Wohnanlage zu finden",
       "Welche Nebenwirkungen hat mein Blutdruckmedikament?",
       "Erinnere mich um 8 Uhr an meine Tabletten",
       "Ich brauche Hilfe mit meiner Arztrechnung",
-      "Finde jetzt eine geoffnete Apotheke in meiner Nahe"
+      "Finde jetzt eine geöffnete Apotheke in meiner Nahe"
     ]
   },
   "voiceHero": {
@@ -538,13 +538,13 @@
     "notifications": {
       "title": "Benachrichtigungen & Kontakt",
       "subtitle": "Wählen Sie, wie und wann VYVA Sie kontaktiert.",
-      "channelCheckins": "Tagliche Check-ins",
+      "channelCheckins": "Tägliche Check-ins",
       "channelReminders": "Erinnerungen",
       "channelCall": "VYVA ruft mich an",
       "channelWhatsapp": "WhatsApp-Nachricht",
       "channelApp": "In der App",
-      "checkinsHint": "Wird fur tagliche Check-ins und Nachfassaktionen genutzt.",
-      "remindersHint": "Wird fur Erinnerungen zu Medikamenten, Terminen und Aufgaben genutzt.",
+      "checkinsHint": "Wird für tägliche Check-ins und Nachfassaktionen genutzt.",
+      "remindersHint": "Wird für Erinnerungen zu Medikamenten, Terminen und Aufgaben genutzt.",
       "quietHours": "Ruhezeiten — bitte nicht kontaktieren zwischen",
       "quietHoursHint": "VYVA vermeidet ausgehende Kontakte in diesem Zeitfenster.",
       "from": "Von",
@@ -718,7 +718,7 @@
       "tzLondon": "Vereinigtes Königreich (London)",
       "required": "Erforderlich",
       "optional": "Optional",
-      "minimumInfoTitle": "Bitte erganzen Sie zuerst die erforderlichen Angaben.",
+      "minimumInfoTitle": "Bitte ergänzen Sie zuerst die erforderlichen Angaben.",
       "minimumInfoHint": "Vorname, Nachname und Telefonnummer sind erforderlich, um VYVA zu nutzen.",
       "firstName": "Vorname",
       "lastName": "Nachname",
@@ -727,7 +727,7 @@
       "firstNameRequired": "Vorname ist erforderlich.",
       "lastNameRequired": "Nachname ist erforderlich.",
       "phoneRequired": "Telefonnummer ist erforderlich.",
-      "requiredFieldsMissing": "Bitte fullen Sie die erforderlichen Felder aus.",
+      "requiredFieldsMissing": "Bitte füllen Sie die erforderlichen Felder aus.",
       "saved": "Kontodaten gespeichert",
       "saveError": "Kontodaten konnten nicht gespeichert werden",
       "defaultName": "Maria",
@@ -800,18 +800,18 @@
         "callGpNamed": "{{name}} anrufen",
         "callGpSub": "Jetzt mit der Praxis sprechen.",
         "emailGp": "Arzt mailen",
-        "emailGpSub": "E-Mail mit Kontext oeffnen.",
+        "emailGpSub": "E-Mail mit Kontext öffnen.",
         "doctorHelp": "Arzthilfe",
-        "doctorHelpSub": "Naechsten Schritt mit VYVA klaeren.",
+        "doctorHelpSub": "Nächsten Schritt mit VYVA klären.",
         "bookAppointment": "Termin buchen",
         "bookAppointmentSub": "VYVA bereitet die Anfrage zur Freigabe vor.",
         "bookTransport": "Fahrt buchen",
         "bookTransportSub": "Sichere Fahrt zur Versorgung organisieren.",
-        "addGp": "Arztkontakt hinzufuegen",
+        "addGp": "Arztkontakt hinzufügen",
         "addGpSub": "Zuerst Telefon oder E-Mail speichern.",
-        "defaultContext": "Arztanfrage aus dem Gesundheitsbereich. Fragen, was benoetigt wird, und einen sicheren naechsten Schritt vorbereiten.",
-        "appointmentPrefill": "Bitte helfen Sie mir, einen Arzttermin zu planen. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}",
-        "ridePrefill": "Bitte helfen Sie mir, eine sichere Fahrt zu einem Arzttermin zu organisieren. Nichts ohne meine Bestaetigung buchen.\n\n{{context}}"
+        "defaultContext": "Arztanfrage aus dem Gesundheitsbereich. Fragen, was benötigt wird, und einen sicheren nächsten Schritt vorbereiten.",
+        "appointmentPrefill": "Bitte helfen Sie mir, einen Arzttermin zu planen. Nichts ohne meine Bestätigung buchen.\n\n{{context}}",
+        "ridePrefill": "Bitte helfen Sie mir, eine sichere Fahrt zu einem Arzttermin zu organisieren. Nichts ohne meine Bestätigung buchen.\n\n{{context}}"
       },
       "liveChat": "Live-Chat"
     },
@@ -943,14 +943,14 @@
         "quickBreathingValue": "Ich bin kurzatmig.",
         "quickFever": "Fieber",
         "quickFeverValue": "Ich habe Fieber.",
-        "quickTired": "Sehr mude",
-        "quickTiredValue": "Ich fuhle mich sehr mude.",
+        "quickTired": "Sehr müde",
+        "quickTiredValue": "Ich fühle mich sehr müde.",
         "quickMild": "Leicht",
-        "quickMildValue": "Es fuhlt sich leicht an.",
+        "quickMildValue": "Es fühlt sich leicht an.",
         "quickModerate": "Massig",
-        "quickModerateValue": "Es fuhlt sich massig an.",
+        "quickModerateValue": "Es fühlt sich massig an.",
         "quickStrong": "Stark",
-        "quickStrongValue": "Es fuhlt sich stark an.",
+        "quickStrongValue": "Es fühlt sich stark an.",
         "quickNotSure": "Nicht sicher",
         "quickNotSureValue": "Ich bin nicht sicher.",
         "quickYes": "Ja",
@@ -961,7 +961,7 @@
         "quickWorseValue": "Es wird schlimmer.",
         "emergencyTitle": "Notfallwarnung",
         "contactEmergency": "Rettungsdienst kontaktieren",
-        "evidence": "Evidenz gepruft"
+        "evidence": "Evidenz geprüft"
       },
       "report": {
         "title": "Ihr Bericht",
@@ -979,7 +979,7 @@
         "symptoms": "Festgestellte Symptome",
         "recommendations": "Was als nächstes zu tun ist",
         "doNow": "Jetzt tun",
-        "whyThisStep": "Erste Einschaetzung",
+        "whyThisStep": "Erste Einschätzung",
         "nextStepsTitle": "Nächste Schritte",
         "nextStepsSubtitle": "Vitalwerte kommen nach dem Gespräch. Wählen Sie, was jetzt hilft.",
         "nextStepVitals": "Vitalwerte prüfen",
@@ -1069,7 +1069,7 @@
     },
     "scanWound": {
       "title": "Visueller Gesundheitscheck",
-      "subtitle": "Laden Sie Wunden, Bluterguesse, Stuhl, Urin, Fluessigkeiten, Hautveraenderungen oder Roentgenbilder fuer eine assistive Bewertung hoch.",
+      "subtitle": "Laden Sie Wunden, Blutergüsse, Stuhl, Urin, Flüssigkeiten, Hautveränderungen oder Röntgenbilder für eine assistive Bewertung hoch.",
       "cta": "Bild aufnehmen oder hochladen",
       "analyzing": "Wird analysiert...",
       "resultTitle": "Analyseergebnis",
@@ -1079,27 +1079,27 @@
         "moderate": "Mittel",
         "serious": "Schwer"
       },
-      "advice": "VYVA kann sichtbare Merkmale beschreiben und vorsichtig markieren, was geprueft werden sollte. Alles Auffaellige sollte von einer qualifizierten Fachperson angesehen werden.",
-      "disclaimer": "Nur assistive Beschreibung, keine medizinische Beratung oder Diagnose. Alles Auffaellige sollte von einer qualifizierten Fachperson geprueft werden.",
+      "advice": "VYVA kann sichtbare Merkmale beschreiben und vorsichtig markieren, was geprüft werden sollte. Alles Auffällige sollte von einer qualifizierten Fachperson angesehen werden.",
+      "disclaimer": "Nur assistive Beschreibung, keine medizinische Beratung oder Diagnose. Alles Auffällige sollte von einer qualifizierten Fachperson geprüft werden.",
       "errorTitle": "Analyse nicht verfügbar",
-      "errorAdvice": "Das Bild konnte gerade nicht geprueft werden. Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
-      "errorConcern": "Das Bild konnte gerade nicht geprueft werden.",
-      "errorUncertainty": "Der Assistent konnte die Bildpruefung nicht abschliessen.",
+      "errorAdvice": "Das Bild konnte gerade nicht geprüft werden. Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
+      "errorConcern": "Das Bild konnte gerade nicht geprüft werden.",
+      "errorUncertainty": "Der Assistent konnte die Bildprüfung nicht abschließen.",
       "errorNextStep": "Bitte versuchen Sie es erneut oder wenden Sie sich bei Bedenken an eine medizinische Fachkraft.",
       "category": {
         "wounds": "Wunden",
-        "bruises": "Bluterguesse",
-        "fluids": "Fluessigkeiten",
+        "bruises": "Blutergüsse",
+        "fluids": "Flüssigkeiten",
         "stool": "Stuhl",
         "urine": "Urin",
-        "xrays": "Roentgen"
+        "xrays": "Röntgen"
       },
       "imageType": {
-        "xray": "Roentgenbild",
+        "xray": "Röntgenbild",
         "wound_photo": "Wundfoto",
         "stool_image": "Stuhlbild",
         "urine_image": "Urinbild",
-        "fluid_image": "Fluessigkeitsbild",
+        "fluid_image": "Flüssigkeitsbild",
         "bruise_photo": "Blutergussfoto",
         "skin_lesion": "Haut oder Laesion",
         "other_medical_image": "Medizinisches Bild",
@@ -1107,9 +1107,9 @@
       },
       "sections": {
         "observations": "Was VYVA sehen kann",
-        "concerns": "Was geprueft werden sollte",
+        "concerns": "Was geprüft werden sollte",
         "limits": "Grenzen dieses Bildes",
-        "nextStep": "Vorgeschlagener naechster Schritt"
+        "nextStep": "Vorgeschlagener nächster Schritt"
       },
       "close": "Schließen"
     },
@@ -1127,17 +1127,17 @@
       "optionsButton": "Optionen",
       "hideButton": "Ausblenden",
       "intro": "Beschreiben Sie das Problem oder den Bedarf. VYVA sucht die passende Fachrichtung und nahe Optionen.",
-      "reset": "Zuruecksetzen",
-      "suggestions": "Vorschlaege fuer Sie",
+      "reset": "Zurücksetzen",
+      "suggestions": "Vorschläge für Sie",
       "more": "Mehr",
       "voiceSearch": "Per Sprache suchen",
-      "listening": "Hoere zu...",
-      "conditionPlaceholder": "z. B. Knieschmerz, Diabetes, Gedaechtnis...",
+      "listening": "Höre zu...",
+      "conditionPlaceholder": "z. B. Knieschmerz, Diabetes, Gedächtnis...",
       "locationPlaceholder": "Stadt oder Gebiet",
       "searching": "Facharzt-Suche...",
-      "searchButton": "Fachaerzte suchen",
+      "searchButton": "Fachärzte suchen",
       "experts": {
-        "title": "Experten waehlen",
+        "title": "Experten wählen",
         "elena": {
           "label": "Elena Ruiz",
           "detail": "Stadtgärtnerin"
@@ -1168,10 +1168,10 @@
         }
       },
       "recommendedSpecialties": "Empfohlene Fachrichtungen",
-      "disclaimer": "Dies ist keine Diagnose. Bei schweren oder ploetzlichen Symptomen rufen Sie den Notdienst oder Ihren Arzt an.",
+      "disclaimer": "Dies ist keine Diagnose. Bei schweren oder plötzlichen Symptomen rufen Sie den Notdienst oder Ihren Arzt an.",
       "noProvidersTitle": "Ich konnte derzeit keine verifizierten Anbieter mit genug Daten finden.",
-      "noProvidersBody": "Versuchen Sie eine andere Stadt oder oeffnen Sie Google Maps fuer Optionen in der Naehe.",
-      "openMaps": "Google Maps oeffnen",
+      "noProvidersBody": "Versuchen Sie eine andere Stadt oder öffnen Sie Google Maps für Optionen in der Nähe.",
+      "openMaps": "Google Maps öffnen",
       "contact": "Kontakt",
       "call": "Anrufen",
       "bookAppointment": "Termin",
@@ -1179,15 +1179,15 @@
       "map": "Karte",
       "share": "Teilen",
       "doctorSearchTerm": "Arzt",
-      "searchError": "Ich konnte gerade keine Fachaerzte suchen. Bitte versuchen Sie es gleich erneut.",
+      "searchError": "Ich konnte gerade keine Fachärzte suchen. Bitte versuchen Sie es gleich erneut.",
       "emptyCondition": "Nennen Sie das Problem oder den Bedarf, damit ich den passenden Facharzt finde.",
-      "voiceUnsupported": "Spracheingabe ist hier nicht verfuegbar. Sie koennen den Bedarf eintippen.",
-      "voiceError": "Ich konnte Sie nicht klar hoeren. Versuchen Sie es erneut oder tippen Sie.",
-      "appointmentReady": "Ich habe die Anfrage vorbereitet. Ich bringe Sie zu Concierge zur Bestaetigung.",
+      "voiceUnsupported": "Spracheingabe ist hier nicht verfügbar. Sie können den Bedarf eintippen.",
+      "voiceError": "Ich konnte Sie nicht klar hören. Versuchen Sie es erneut oder tippen Sie.",
+      "appointmentReady": "Ich habe die Anfrage vorbereitet. Ich bringe Sie zu Concierge zur Bestätigung.",
       "appointmentError": "Ich konnte den Termin nicht vorbereiten. Bitte versuchen Sie es gleich erneut.",
       "phoneLabel": "Telefon",
       "locationLabel": "Ort",
-      "hoursLabel": "Oeffnungszeiten",
+      "hoursLabel": "Öffnungszeiten",
       "distanceLabel": "Entfernung",
       "moreInfoLabel": "Weitere Informationen",
       "shareCopied": "Details zum Teilen kopiert.",
@@ -1241,7 +1241,7 @@
     "allGoodToday": "Heute alles gut",
     "wellbeingHistory": {
       "title": "Wohlbefinden-Verlauf",
-      "subtitle": "Sehen Sie fruhere Werte und aktuelle Muster."
+      "subtitle": "Sehen Sie frühere Werte und aktuelle Muster."
     }
   },
   "meds": {
@@ -1260,14 +1260,14 @@
     "quickAccess": "Medikamente",
     "primary": {
       "reminders": "Erinnerungen",
-      "remindersSub": "Heutigen Plan prufen und Medikamentenerinnerungen hinzufugen.",
+      "remindersSub": "Heutigen Plan prüfen und Medikamentenerinnerungen hinzufügen.",
       "remindersMobileSub": "Heutiger Plan",
       "refills": "Nachfullungen",
       "refillsSub": "Restbestand und Nachfuellzeitpunkt verfolgen.",
-      "refillsMobileSub": "Restbestand pruefen",
+      "refillsMobileSub": "Restbestand prüfen",
       "interactions": "Wechselwirkungen",
-      "interactionsSub": "Medikamente und Erganzungen prufen.",
-      "interactionsMobileSub": "Mix prufen",
+      "interactionsSub": "Medikamente und Ergänzungen prüfen.",
+      "interactionsMobileSub": "Mix prüfen",
       "adherence": "Adhaerenz",
       "adherenceSub": "Fortschritt und verpasste Dosen ansehen.",
       "adherenceMobileSub": "Verpasste Dosen",
@@ -1282,14 +1282,14 @@
     "fastHelpKicker": "Schnelle Hilfe",
     "takenToday": "{{taken}} von {{total}} heute genommen",
     "heroDoseHeadline": "Vergessen Sie Ihr\n{{medication}} nicht",
-    "heroDoseDueToday": "Heute fallig. Tippen Sie auf Erinnerungen, wenn erledigt.",
-    "heroDoseDueNow": "Jetzt fallig. Tippen Sie auf Erinnerungen, wenn erledigt.",
-    "heroDoseDueInMinutes_one": "In {{count}} Min. fallig. Tippen Sie auf Erinnerungen, wenn erledigt.",
-    "heroDoseDueInMinutes_other": "In {{count}} Min. fallig. Tippen Sie auf Erinnerungen, wenn erledigt.",
-    "heroDoseDueAt": "Fallig um {{time}}. Tippen Sie auf Erinnerungen, wenn erledigt.",
+    "heroDoseDueToday": "Heute fällig. Tippen Sie auf Erinnerungen, wenn erledigt.",
+    "heroDoseDueNow": "Jetzt fällig. Tippen Sie auf Erinnerungen, wenn erledigt.",
+    "heroDoseDueInMinutes_one": "In {{count}} Min. fällig. Tippen Sie auf Erinnerungen, wenn erledigt.",
+    "heroDoseDueInMinutes_other": "In {{count}} Min. fällig. Tippen Sie auf Erinnerungen, wenn erledigt.",
+    "heroDoseDueAt": "Fällig um {{time}}. Tippen Sie auf Erinnerungen, wenn erledigt.",
     "heroAllDoneHeadline": "Alle Medikamente\nheute erledigt",
-    "heroAllDoneSub": "Gut gemacht. Heute ist nichts weiter fallig.",
-    "loadingSchedule": "Heutigen Plan prufen...",
+    "heroAllDoneSub": "Gut gemacht. Heute ist nichts weiter fällig.",
+    "loadingSchedule": "Heutigen Plan prüfen...",
     "todaySchedule": "Heutiger Zeitplan",
     "dueTonight": "1 heute Abend fällig",
     "taken": "Genommen",
@@ -1460,27 +1460,27 @@
     "checkInteractions": {
       "kicker": "Medikamentensicherheit",
       "title": "Sicherheitscheck",
-      "intro": "Pruefen Sie gespeicherte Medikamente und Nahrungsergaenzungen und erhalten Sie klare Hinweise fuer Fragen an Apotheke oder Arztpraxis.",
+      "intro": "Prüfen Sie gespeicherte Medikamente und Nahrungsergänzungen und erhalten Sie klare Hinweise für Fragen an Apotheke oder Arztpraxis.",
       "adviceCta": "Hinweise zu Kombinationen erhalten",
       "adviceTitle": "Hinweise zu Medikamentenkombinationen",
-      "adviceSubtitle": "Klare Hinweise zu gemeinsam eingenommenen Medikamenten und Nahrungsergaenzungen.",
-      "advicePrompt": "Pruefen Sie diese Medikamente und Nahrungsergaenzungen gemeinsam: {{medications}}. Erklaeren Sie moegliche Bedenken in einfacher Sprache. Empfehlen Sie nicht, eine Dosis zu beginnen, abzusetzen, auszulassen oder zu aendern. Nennen Sie Fragen fuer Apotheke oder Arztpraxis und wann dringende Hilfe noetig sein kann.",
-      "loadingSub": "VYVA prueft Ihre gespeicherte Liste.",
-      "loading": "Liste wird geprueft...",
-      "error": "Ich konnte das gerade nicht pruefen. Bitte versuchen Sie es erneut.",
+      "adviceSubtitle": "Klare Hinweise zu gemeinsam eingenommenen Medikamenten und Nahrungsergänzungen.",
+      "advicePrompt": "Prüfen Sie diese Medikamente und Nahrungsergänzungen gemeinsam: {{medications}}. Erklären Sie mögliche Bedenken in einfacher Sprache. Empfehlen Sie nicht, eine Dosis zu beginnen, abzusetzen, auszulassen oder zu ändern. Nennen Sie Fragen für Apotheke oder Arztpraxis und wann dringende Hilfe nötig sein kann.",
+      "loadingSub": "VYVA prüft Ihre gespeicherte Liste.",
+      "loading": "Liste wird geprüft...",
+      "error": "Ich konnte das gerade nicht prüfen. Bitte versuchen Sie es erneut.",
       "emptyTitle": "Fügen Sie zuerst ein Medikament hinzu",
       "emptySub": "VYVA benötigt Ihre aktuelle Medikamentenliste, bevor es nach wichtigen Rückfragen suchen kann.",
       "clearTitle": "Heute sieht es sicher aus",
-      "clearSub": "Keine Sicherheitsfragen aus den Regeln, die VYVA geprueft hat.",
+      "clearSub": "Keine Sicherheitsfragen aus den Regeln, die VYVA geprüft hat.",
       "flagKicker": "Sicherheitsfrage",
-      "ruleShort": "Vor gemeinsamer Einnahme pruefen.",
-      "duplicateShort": "Aehnliche Medikamente. Pruefen Sie, ob beide noetig sind.",
+      "ruleShort": "Vor gemeinsamer Einnahme prüfen.",
+      "duplicateShort": "Ähnliche Medikamente. Prüfen Sie, ob beide nötig sind.",
       "asked": "Ich habe gefragt",
-      "later": "Spaeter",
-      "footer": "{{count}} Medikamente geprueft. VYVA aendert niemals Dosierungen.",
+      "later": "Später",
+      "footer": "{{count}} Medikamente geprüft. VYVA ändert niemals Dosierungen.",
       "boundary": "Dies ist keine vollständige Wechselwirkungsprüfung. Fragen Sie bei neuen, geänderten oder unklaren Medikamenten eine Apotheke oder Arztpraxis. VYVA ändert niemals Dosierungen."
     },
-    "assistantEmptyFallback": "VYVA konnte gerade keine persoenliche Antwort erstellen. Pruefen Sie die aktuellen Hinweise und fragen Sie Apotheke oder Arztpraxis, bevor Sie neue, geaenderte oder unklare Medikamente gemeinsam einnehmen. Beginnen, beenden, ueberspringen oder aendern Sie keine Dosis aufgrund dieses Bildschirms.",
+    "assistantEmptyFallback": "VYVA konnte gerade keine persönliche Antwort erstellen. Prüfen Sie die aktuellen Hinweise und fragen Sie Apotheke oder Arztpraxis, bevor Sie neue, geänderte oder unklare Medikamente gemeinsam einnehmen. Beginnen, beenden, überspringen oder ändern Sie keine Dosis aufgrund dieses Bildschirms.",
     "takenToastTitle": "Gut gemacht",
     "takenToastDescription": "{{medicine}} wurde als eingenommen markiert.",
     "allTakenToastDescription": "Alle heutigen Dosen sind bereits als eingenommen markiert.",
@@ -1518,7 +1518,7 @@
     "dayStreak": "Tage in Folge",
     "progressSummary": "Brain Coach Fortschritt",
     "progressStreak": "{{count}} Tage in Folge",
-    "progressStart": "Mit einer kurzen Aktivitaet starten",
+    "progressStart": "Mit einer kurzen Aktivität starten",
     "doneTodayShort": "Heute erledigt",
     "dayAbbreviations": [
       "Mo",
@@ -1560,13 +1560,13 @@
     "logActivity": "{{duration}}min {{type}} erfassen",
     "selectActivity": "Wählen Sie oben eine Aktivität",
     "supportTitle": "Brauchen Sie Hilfe beim Rausgehen?",
-    "supportSubtitle": "VYVA kann Transport oder Begleitung vorbereiten, bevor Sie bestatigen.",
+    "supportSubtitle": "VYVA kann Transport oder Begleitung vorbereiten, bevor Sie bestätigen.",
     "bookRide": "Fahrt buchen",
     "bookRideSub": "Transport vor dem Losgehen organisieren.",
     "arrangeCompanion": "Begleitung organisieren",
     "arrangeCompanionSub": "Bitten Sie jemanden, mitzukommen.",
-    "ridePrefill": "Bitte helfen Sie mir, sicheren Transport fur eine {{duration}}-minutige Aktivitat {{activity}} zu organisieren. Fragen Sie nach meiner Bestatigung, bevor etwas gebucht wird.",
-    "companionPrefill": "Bitte helfen Sie mir, eine vertrauenswurdige Begleitung oder Unterstutzung fur eine {{duration}}-minutige Aktivitat {{activity}} zu organisieren. Fragen Sie nach meiner Bestatigung, bevor jemand kontaktiert oder gebucht wird.",
+    "ridePrefill": "Bitte helfen Sie mir, sicheren Transport für eine {{duration}}-minütige Aktivität {{activity}} zu organisieren. Fragen Sie nach meiner Bestätigung, bevor etwas gebucht wird.",
+    "companionPrefill": "Bitte helfen Sie mir, eine vertrauenswürdige Begleitung oder Unterstützung für eine {{duration}}-minütige Aktivität {{activity}} zu organisieren. Fragen Sie nach meiner Bestätigung, bevor jemand kontaktiert oder gebucht wird.",
     "activityLogged": "Aktivität erfasst — gut gemacht!",
     "couldNotSave": "Konnte nicht gespeichert werden — bitte erneut versuchen.",
     "todaysSummary": "Heutige Zusammenfassung",
@@ -2066,16 +2066,16 @@
     "fastHelp": {
       "kicker": "Schnelle Hilfe",
       "title": "Was brauchen Sie jetzt?",
-      "doctorContext": "Concierge-Anfrage fuer aerztliche Hilfe. Fragen Sie, was passiert, und helfen Sie, einen sicheren naechsten Schritt vorzubereiten.",
-      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestaetigung.",
+      "doctorContext": "Concierge-Anfrage für ärztliche Hilfe. Fragen Sie, was passiert, und helfen Sie, einen sicheren nächsten Schritt vorzubereiten.",
+      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestätigung.",
       "actions": {
         "doctor": {
-          "label": "Vertrauenswuerdigen Anbieter finden",
+          "label": "Vertrauenswürdigen Anbieter finden",
           "sub": "Hilfe bei der passenden Versorgung"
         },
         "appointment": {
           "label": "Termin buchen",
-          "sub": "Eine Anfrage zur Bestaetigung vorbereiten"
+          "sub": "Eine Anfrage zur Bestätigung vorbereiten"
         },
         "ride": {
           "label": "Fahrt buchen",
@@ -2093,17 +2093,17 @@
         },
         "care": {
           "label": "Beste Pflege finden",
-          "sub": "Sichere Pflege und Unterstuetzung vergleichen",
+          "sub": "Sichere Pflege und Unterstützung vergleichen",
           "mobileSub": "Pflege und Hilfe"
         },
         "form": {
-          "label": "Formular ausfuellen",
+          "label": "Formular ausfüllen",
           "sub": "Antworten vorbereiten, vor dem Senden stoppen",
           "mobileSub": "Antworten vorbereiten"
         },
         "research": {
           "label": "Thema recherchieren",
-          "sub": "Quellen und naechste Schritte zusammenfassen",
+          "sub": "Quellen und nächste Schritte zusammenfassen",
           "mobileSub": "Quellen und Schritte"
         },
         "best-deal": {
@@ -2113,7 +2113,7 @@
         },
         "age-at-home": {
           "label": "Gut zuhause altern",
-          "sub": "Sicherere Unterstuetzung zuhause planen",
+          "sub": "Sicherere Unterstützung zuhause planen",
           "mobileSub": "Sicherere Hilfe zuhause"
         }
       }
@@ -2133,10 +2133,10 @@
         },
         "message": {
           "label": "Nachricht senden",
-          "sub": "Entwerfen, pruefen, bestaetigen"
+          "sub": "Entwerfen, prüfen, bestätigen"
         },
         "offer": {
-          "label": "Angebot pruefen",
+          "label": "Angebot prüfen",
           "sub": "Preis, Vertrauen, Bedingungen"
         }
       }
@@ -2162,7 +2162,7 @@
       "researchTopic": "Erklären Sie einfach, was Medicare Teil B abdeckt",
       "findDeals": "Finden Sie dieses Wochenende Angebote in meiner Nähe",
       "getAdvice": "Was ist ein gutes einfaches Rezept für eine Person?",
-      "shoppingHelper": "Hilf mir, die beste Einkaufsoption fur meine Bedurfnisse zu wahlen. Vergleiche einfache Moglichkeiten und starte keinen Kauf."
+      "shoppingHelper": "Hilf mir, die beste Einkaufsoption für meine Bedürfnisse zu wählen. Vergleiche einfache Möglichkeiten und starte keinen Kauf."
     }
   },
   "scamGuard": {
@@ -2201,10 +2201,10 @@
       "title": "Sichere Schnellaktionen",
       "trustedFallback": "Vertrauensperson",
       "callTrusted": "{{name}} anrufen",
-      "callTrustedAria": "{{name}} zu dieser Pruefung anrufen",
-      "addTrusted": "Vertrauensperson hinzufuegen",
+      "callTrustedAria": "{{name}} zu dieser Prüfung anrufen",
+      "addTrusted": "Vertrauensperson hinzufügen",
       "safeHelp": "Sichere Hilfe",
-      "safeHelpAria": "VYVA Concierge mit dieser Pruefung oeffnen",
+      "safeHelpAria": "VYVA Concierge mit dieser Prüfung öffnen",
       "callGuidance": "Anrufhilfe",
       "pauseGuidance": "Hilfe pausieren"
     }
@@ -2212,16 +2212,16 @@
   "community": {
     "title": "Meine Gemeinschaft",
     "hero": {
-      "title": "VYVA hat jemanden gefunden, der dir gefallen koennte",
-      "body": "Rosa, 71, aus Salamanca - sie liebt Gaertnern und Flamenco, genau wie du. Soll ich euch vorstellen?",
+      "title": "VYVA hat jemanden gefunden, der dir gefallen könnte",
+      "body": "Rosa, 71, aus Salamanca - sie liebt Gärtnern und Flamenco, genau wie du. Soll ich euch vorstellen?",
       "cta": "Rosa kennenlernen"
     },
     "mood": {
-      "title": "Wie fuehlst du dich heute?",
-      "happy": "Gluecklich",
+      "title": "Wie fühlst du dich heute?",
+      "happy": "Glücklich",
       "calm": "Ruhig",
       "lonely": "Etwas einsam",
-      "tired": "Muede",
+      "tired": "Müde",
       "excited": "Aufgeregt"
     },
     "groups": {
@@ -2243,27 +2243,27 @@
       "memberC": "Carmen",
       "memberJ": "Josefa",
       "memberA": "Amparo",
-      "topic": "Heute: Die besten Pflanzen fuer einen sonnigen Balkon",
-      "topicSub": "VYVA leitet das Gespraech · 20 Min · Sprachanruf",
+      "topic": "Heute: Die besten Pflanzen für einen sonnigen Balkon",
+      "topicSub": "VYVA leitet das Gespräch · 20 Min · Sprachanruf",
       "joinCall": "Anruf beitreten"
     },
     "matches": {
-      "title": "Personen, die dir gefallen koennten",
+      "title": "Personen, die dir gefallen könnten",
       "seeMore": "Mehr sehen",
-      "match": "Uebereinstimmung",
+      "match": "Übereinstimmung",
       "introduce": "VYVA um Vorstellung bitten",
-      "skip": "Ueberspringen",
+      "skip": "Überspringen",
       "rosaCity": "Salamanca",
       "conchaCity": "Valladolid",
       "lolaCity": "Zamora",
-      "tagGardening": "Gaertnern",
+      "tagGardening": "Gärtnern",
       "tagFlamenco": "Flamenco",
-      "tagMorning": "Fruehaufsteher",
+      "tagMorning": "Frühaufsteher",
       "tagReading": "Lesen",
       "tagMusic": "Musik",
-      "tagCalm": "Ruhiger Gespraechspartner",
+      "tagCalm": "Ruhiger Gesprächspartner",
       "tagKnitting": "Stricken",
-      "tagTalks": "Lange Gespraeche",
+      "tagTalks": "Lange Gespräche",
       "tagFaith": "Glaubensbetont"
     },
     "introModal": {
@@ -2292,7 +2292,7 @@
     },
     "bannerMessages": [
       "Hier bist du nie allein",
-      "Deine Geschichte zaehlt",
+      "Deine Geschichte zählt",
       "Gemeinsam, jeden Tag",
       "Es ist immer jemand da",
       "Du bist hier willkommen"
@@ -2330,7 +2330,7 @@
     "noLatest": "Keine aktuellen Messungen",
     "latestReadings": "Neueste Messwerte",
     "noLatestCalm": "Noch keine Messwerte",
-    "addShort": "Hinzufugen",
+    "addShort": "Hinzufügen",
     "helpTitle": "Brauchen Sie Hilfe mit den Messwerten?",
     "voiceMetric": "Messwert",
     "voiceLatest": "Neueste",
@@ -2467,15 +2467,15 @@
     "todaySummary": "Heutige Zusammenfassung",
     "latestReports": "Neueste Berichte",
     "summaryGood": "Heute sieht alles gut aus. Weiter so.",
-    "summaryUrgent": "Ihre letzte Prufung empfiehlt baldige medizinische Hilfe.",
-    "summaryRoutine": "Ihre letzte Prufung empfiehlt einen Arzttermin.",
+    "summaryUrgent": "Ihre letzte Prüfung empfiehlt baldige medizinische Hilfe.",
+    "summaryRoutine": "Ihre letzte Prüfung empfiehlt einen Arzttermin.",
     "summaryMedsPending": "Sie haben heute noch {{pending}} Medikament(e) einzunehmen.",
-    "summaryHighHR": "Ihre letzte Herzfrequenz war etwas erhoht.",
+    "summaryHighHR": "Ihre letzte Herzfrequenz war etwas erhöht.",
     "summaryLowHR": "Ihre letzte Herzfrequenz war etwas niedrig.",
     "summaryEmpty": "Machen Sie den ersten Symptomcheck, um hier Ihre Zusammenfassung zu sehen.",
-    "back": "Zuruck",
+    "back": "Zurück",
     "errorTitle": "Konnte nicht geladen werden",
-    "errorSub": "Prufen Sie die Verbindung und versuchen Sie es erneut.",
+    "errorSub": "Prüfen Sie die Verbindung und versuchen Sie es erneut.",
     "urgency": {
       "urgent": "Hilfe suchen",
       "routine": "Besuch empfohlen",
@@ -2484,7 +2484,7 @@
     "cards": {
       "symptom": {
         "title": "Letzter Symptomcheck",
-        "cta": "Vollstandigen Bericht ansehen",
+        "cta": "Vollständigen Bericht ansehen",
         "empty": "Noch keine Symptomchecks. Starten Sie einen Check im Bereich Gesundheit."
       },
       "vitals": {
@@ -2492,7 +2492,7 @@
         "bpm": "Schlage pro Minute",
         "breathsPerMin": "Atemzuge/min",
         "statusNormal": "Normal",
-        "statusReview": "Prufen",
+        "statusReview": "Prüfen",
         "empty": "Noch keine Vitalwerte. Machen Sie einen Symptomcheck, um den Puls zu speichern."
       },
       "meds": {
@@ -2513,13 +2513,12 @@
       "empty": "Machen Sie den ersten Scan, um hier Trends zu sehen."
     },
     "reportDetail": {
-      "title": "Vollstandiger Bericht",
+      "title": "Vollständiger Bericht",
       "symptoms": "Beobachtete Symptome",
-      "recommendations": "Was als Nachstes zu tun ist",
-      "whyThisStep": "Erste Einschatzung",
+      "recommendations": "Was als Nächstes zu tun ist",
+      "whyThisStep": "Erste Einschätzung",
       "duration": "Sitzungsdauer",
       "chatCta": "Mit VYVA sprechen"
     }
   }
 }
-
