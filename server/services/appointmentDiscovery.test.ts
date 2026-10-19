@@ -379,6 +379,7 @@ describe("appointment discovery", () => {
       rating: 4.7,
       review_count: 118,
       price_level: 2,
+      distance_meters: appointmentType === "home-service" ? 0 : null,
     });
     expect(appointmentOptionIdentity(result.options[0].provider_snapshot)).toBe("place:place-123");
   });

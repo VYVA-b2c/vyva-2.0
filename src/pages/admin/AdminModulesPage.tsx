@@ -22,6 +22,7 @@ import {
   Sparkles,
   UserRoundCog,
   UsersRound,
+  Stethoscope,
 } from "lucide-react";
 import AdminPageHeader from "./AdminPageHeader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -111,6 +112,7 @@ const modules: AdminModule[] = [
     tools: [
       { label: "Task queue", path: "/admin/concierge-queue", icon: ClipboardList },
       { label: "Providers", path: "/admin/providers", icon: ScrollText },
+      { label: "Expert Care", path: "/admin/expert-care", icon: Stethoscope },
       { label: "Supply packages", path: "/admin/concierge-supplies", icon: Package },
     ],
   },

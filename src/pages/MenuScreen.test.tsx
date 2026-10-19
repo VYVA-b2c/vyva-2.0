@@ -153,7 +153,7 @@ describe("MenuScreen", () => {
 
     expect(screen.getByTestId("menu-screen")).toHaveAttribute("data-theme", "dark");
     expect(screen.getByTestId("menu-screen")).toHaveClass("bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]");
-    expect(screen.getByTestId("menu-tile-health")).toHaveClass("bg-[#2A2034]");
+    expect(screen.getByTestId("menu-tile-health")).toHaveClass("bg-transparent", "shadow-none");
     expect(screen.getByTestId("button-menu-profile")).toBeInTheDocument();
   });
 

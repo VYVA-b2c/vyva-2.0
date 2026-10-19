@@ -306,7 +306,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.queryByText("2:00 PM")).not.toBeInTheDocument();
     expect(screen.getByTestId("health-action-grid")).toHaveClass("grid-cols-1", "md:grid-cols-2");
     for (const testId of ["button-health-plan", "button-health-symptom-report", "button-health-vitals", "button-health-medicines"]) {
-      expect(screen.getByTestId(testId)).toHaveClass("bg-[#2A2034]");
+      expect(screen.getByTestId(testId)).toHaveClass("bg-transparent", "shadow-none");
       expect(screen.getByTestId(testId)).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
       expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
       expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("bg-[#3C2956]");

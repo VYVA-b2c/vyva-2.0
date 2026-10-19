@@ -371,6 +371,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname.startsWith("/dev/concierge-canonical-preview/") ||
     location.pathname === "/dev/home-service-preview" ||
     location.pathname.startsWith("/dev/provider-task-preview/");
+  const isExpertCareRoute = location.pathname === "/expert-care" || location.pathname.startsWith("/expert-care/") || location.pathname === "/dev/expert-care";
   const isFocusedConciergeTaskRoute =
     /^\/concierge\/task\/[^/]+$/.test(location.pathname) ||
     /^\/dev\/provider-task-preview\/[^/]+$/.test(location.pathname);
@@ -395,7 +396,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname.startsWith("/dev/home-master") ||
     usesDevBrainPrototypeSurface;
   const usesCompactVoiceSurface =
-    usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute || isBenefitsRoute || usesDevBrainPrototypeSurface;
+    usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute || isExpertCareRoute || isBenefitsRoute || usesDevBrainPrototypeSurface;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const usesDarkCompactSurface = usesCompactVoiceSurface && isHomeMasterDark;
   const { size: readableTextSize } = useReadableTextSize();
@@ -813,14 +814,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-vyva-text-size={readableTextSize}
         className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
-        {!isFullScreen && !ownsPrototypeTopbar && !isConciergeExperienceRoute && (
+        {!isFullScreen && !ownsPrototypeTopbar && !isConciergeExperienceRoute && !isExpertCareRoute && (
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
             variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : isFocusedConciergeTaskRoute ? "pt-0 pb-0" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : isConciergeExperienceRoute ? "pt-0 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : isFocusedConciergeTaskRoute || isExpertCareRoute ? "pt-0 pb-0" : ownsBrainCoachTopbar ? (isBrainCoachDocklessRoute ? "pt-0 pb-0" : "pt-0 pb-[112px]") : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : isConciergeExperienceRoute ? "pt-0 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -832,7 +833,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && !isFocusedConciergeTaskRoute && (
+        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && !isFocusedConciergeTaskRoute && !isExpertCareRoute && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
             <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);

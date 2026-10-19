@@ -59,6 +59,8 @@ import {
   MessageCircle,
   LifeBuoy,
   Compass,
+  Clock,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -3614,6 +3616,42 @@ function appointmentOptionEvidenceSummary(option: AppointmentProviderOption, isS
     ...(priorityGaps.length ? priorityGaps : (decision.uncertainties ?? []).filter(note => note !== "Provider details have not been independently verified").slice(0, 1).map(copy)),
   ].filter(Boolean);
   return parts.join(" · ") || copy("Availability and price to be confirmed");
+}
+
+type HomeServiceProviderMetadata = {
+  kind: "distance" | "hours" | "rating";
+  value: string;
+};
+
+function homeServiceProviderMetadata(option: AppointmentProviderOption, language: string): HomeServiceProviderMetadata[] {
+  const snapshot = option.provider_snapshot;
+  const distanceMeters = typeof snapshot.distance_meters === "number" && Number.isFinite(snapshot.distance_meters)
+    ? snapshot.distance_meters
+    : null;
+  const distanceText = distanceMeters !== null
+    ? distanceMeters < 1000
+      ? `${Math.max(50, Math.round(distanceMeters / 50) * 50)} m`
+      : `${new Intl.NumberFormat(language, { maximumFractionDigits: distanceMeters < 10_000 ? 1 : 0 }).format(distanceMeters / 1000)} km`
+    : appointmentSnapshotText(option, "distance_text")
+      || appointmentSnapshotText(option, "distance")
+      || homeServiceText(language, "Distance is not available");
+  const hours = appointmentSnapshotText(option, "today_opening_hours")
+    || appointmentSnapshotText(option, "opening_status")
+    || (typeof snapshot.open_now === "boolean"
+      ? homeServiceText(language, snapshot.open_now ? "Open now" : "Closed now")
+      : homeServiceText(language, "Hours unavailable"));
+  const rating = typeof snapshot.rating === "number" && Number.isFinite(snapshot.rating)
+    ? snapshot.rating.toFixed(1)
+    : "";
+  const reviews = typeof snapshot.review_count === "number" && Number.isFinite(snapshot.review_count)
+    ? snapshot.review_count
+    : null;
+
+  return [
+    { kind: "distance", value: distanceText },
+    { kind: "hours", value: hours },
+    ...(rating ? [{ kind: "rating" as const, value: `${rating}${reviews !== null ? ` (${reviews})` : ""}` }] : []),
+  ];
 }
 
 function homeServiceCanvasOptionDescription(option: AppointmentProviderOption, language: string): string {
@@ -9661,6 +9699,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   const { language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const isDedicatedTaskRoute = mode === "task" || /^\/concierge\/task\/[^/]+$/.test(location.pathname);
   const { isDark } = useHomeMasterTheme();
   const { taskId } = useParams<{ taskId: string }>();
   const taskEntry = useMemo(
@@ -9831,6 +9870,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   }, []);
   const [appointmentRequest, setAppointmentRequest] = useState<AppointmentRequestItem | null>(null);
   const [appointmentOptions, setAppointmentOptions] = useState<AppointmentProviderOption[]>([]);
+  const [visibleHomeServiceAlternativeCount, setVisibleHomeServiceAlternativeCount] = useState(3);
   const [appointmentDiscovery, setAppointmentDiscovery] = useState<AppointmentDiscoveryMeta | null>(null);
   const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
   const [selectedHomeServiceContactChannel, setSelectedHomeServiceContactChannel] = useState<AppointmentChannel | null>(null);
@@ -10629,6 +10669,13 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
     }
     return appointmentOptions[0] ?? null;
   }, [appointmentOptions, selectedAppointmentOptionId]);
+  const homeServiceAlternativeOptions = useMemo(
+    () => appointmentOptions.filter((option) => option.id !== selectedAppointmentOption?.id),
+    [appointmentOptions, selectedAppointmentOption?.id],
+  );
+  useEffect(() => {
+    setVisibleHomeServiceAlternativeCount(3);
+  }, [appointmentRequest?.id]);
 
   const selectedProviderPlaceId = appointmentSnapshotText(selectedAppointmentOption, "place_id");
   const appointmentProviderContactRefreshQuery = useQuery({
@@ -17994,14 +18041,14 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
   return (
     <MasterDashboardLayout
       isDarkMode={isDark}
-      presentationClassName={mode === "task" ? "concierge-task-page" : undefined}
+      presentationClassName={isDedicatedTaskRoute ? "concierge-task-page" : undefined}
       testId="concierge-master-layout"
       cardGridTestId="concierge-master-cards"
       cardLayoutVariant="canonicalActionGrid"
       cardChevronVariant="plain"
       showFastHelp={false}
       showHero={false}
-      modeSwitcher={mode !== "task" ? (
+      modeSwitcher={!isDedicatedTaskRoute ? (
         <HomeMasterTopbar
           className="mt-3 min-[390px]:mt-4 sm:mt-6"
           testId="concierge-master-hero"
@@ -18053,7 +18100,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
         },
       }}
       cards={conciergeCardsWithTaskNudge}
-      showLauncher={mode !== "task"}
+      showLauncher={!isDedicatedTaskRoute}
     >
       {mode !== "home" ? (
         <>
@@ -18571,6 +18618,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 disabled={!canPrepareOtcPharmacy}
                 testId="panel-otc-pharmacy-confirmation"
                 buttonTestId="button-otc-pharmacy-prepare"
+                isDark={isDark}
               />
 
               {otcPreparedResult?.pendingId ? (
@@ -19127,6 +19175,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                             disabled={!hasTransportDestination}
                             testId={`panel-transport-confirm-${option.id}`}
                             buttonTestId={`button-transport-prepare-${option.id}`}
+                            isDark={isDark}
                           />
                         </div>
                       ) : null}
@@ -20801,32 +20850,32 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                 )}
 
                 {selectedAppointmentOption && isHomeServiceAppointment && homeServiceContactMethodOpen && !selectedAppointmentActionChannel && (
-                  <section className="relative mt-6 overflow-hidden rounded-[26px] border border-[#D7B4FA] bg-[linear-gradient(145deg,#FFFFFF_0%,#FCF7FF_48%,#F4E9FF_100%)] p-5 shadow-[0_20px_48px_rgba(91,33,151,0.12)] sm:p-6" data-testid="panel-home-service-contact-method">
+                  <section className={`relative mt-6 overflow-hidden rounded-[26px] border p-5 sm:p-6 ${isDark ? "border-white/[0.14] bg-white/[0.045] shadow-none" : "border-[#D7B4FA] bg-[linear-gradient(145deg,#FFFFFF_0%,#FCF7FF_48%,#F4E9FF_100%)] shadow-[0_20px_48px_rgba(91,33,151,0.12)]"}`} data-testid="panel-home-service-contact-method">
                     <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-vyva-purple/10 blur-2xl" aria-hidden="true" />
                     <div className="relative flex items-start gap-3">
                       <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-vyva-purple text-white shadow-[0_10px_24px_rgba(116,33,186,0.25)]">
                         <MessageCircle size={21} aria-hidden="true" />
                       </span>
                       <div>
-                        <p className="font-body text-[11px] font-black uppercase tracking-[0.14em] text-vyva-purple">{homeServiceText(locale, "Contact options")}</p>
-                        <h4 className="mt-0.5 font-body text-[20px] font-black leading-tight text-vyva-text-1">{homeServiceCanvasCopyValue.methodTitle}</h4>
-                        <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">{homeServiceCanvasCopyValue.methodHelper}</p>
+                        <p className={`font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#D7B8FF]" : "text-vyva-purple"}`}>{homeServiceText(locale, "Contact options")}</p>
+                        <h4 className={`mt-0.5 font-body text-[20px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>{homeServiceCanvasCopyValue.methodTitle}</h4>
+                        <p className={`mt-1 font-body text-[13px] font-semibold leading-relaxed ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-2"}`}>{homeServiceCanvasCopyValue.methodHelper}</p>
                       </div>
                     </div>
                     <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
                       {appointmentContactChannelReadinessQuery.isPending || appointmentProviderContactRefreshQuery.isFetching ? (
-                        <div className="rounded-[14px] border border-[#D8B4FE] bg-white px-4 py-3 font-body text-[13px] font-semibold text-vyva-text-2" data-testid="status-home-service-contact-methods-loading">
+                        <div className={`rounded-[14px] border px-4 py-3 font-body text-[13px] font-semibold ${isDark ? "border-white/[0.14] bg-white/[0.055] text-[#CFC4D8]" : "border-[#D8B4FE] bg-white text-vyva-text-2"}`} data-testid="status-home-service-contact-methods-loading">
                           {homeServiceText(locale, "Checking the provider's available contact methods...")}
                         </div>
                       ) : null}
                       {!appointmentContactChannelReadinessQuery.isPending && !appointmentProviderContactRefreshQuery.isFetching && homeServiceCanvasContactChannels.map((channel) => (
-                        <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border bg-white/90 p-4 text-left font-body shadow-[0_8px_22px_rgba(49,18,94,0.06)] transition-all hover:-translate-y-0.5 hover:border-vyva-purple hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)] disabled:opacity-60 ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
+                        <button key={channel.id} type="button" disabled={prepareAppointmentMutation.isPending} className={`vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[18px] border p-4 text-left font-body transition-all hover:-translate-y-0.5 hover:border-vyva-purple disabled:opacity-60 ${isDark ? "bg-white/[0.055] shadow-none hover:bg-white/[0.08]" : "bg-white/90 shadow-[0_8px_22px_rgba(49,18,94,0.06)] hover:shadow-[0_14px_30px_rgba(91,33,151,0.14)]"} ${channel.recommended ? "border-vyva-purple ring-2 ring-vyva-purple/10" : isDark ? "border-white/[0.14]" : "border-[#E3CCF8]"}`} data-testid={`button-home-service-channel-${channel.id}`} onClick={() => prepareHomeServiceContactChannel(channel.id)}>
                           <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] ${channel.id === "whatsapp" ? "bg-[#E7F8EF] text-[#168A50]" : channel.id === "email" ? "bg-[#EAF2FF] text-[#2764C5]" : channel.id === "phone" ? "bg-[#FFF1E7] text-[#C45B17]" : "bg-[#F1E7FC] text-vyva-purple"}`}>
                             {channel.id === "whatsapp" ? <MessageCircle size={21} aria-hidden="true" /> : channel.id === "email" ? <Mail size={21} aria-hidden="true" /> : channel.id === "phone" ? <PhoneCall size={21} aria-hidden="true" /> : channel.id === "booking_url" ? <ExternalLink size={21} aria-hidden="true" /> : <LifeBuoy size={21} aria-hidden="true" />}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block text-[15px] font-black text-vyva-text-1">{channel.label}</span>
-                            {channel.description ? <span className="mt-1 block text-[12px] font-semibold leading-snug text-vyva-text-2">{channel.description}</span> : <span className="mt-1 block text-[12px] font-semibold text-vyva-text-3">{homeServiceText(locale, "Review before sending")}</span>}
+                            <span className={`block text-[15px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>{channel.label}</span>
+                            {channel.description ? <span className={`mt-1 block text-[12px] font-semibold leading-snug ${isDark ? "text-[#CFC4D8]" : "text-vyva-text-2"}`}>{channel.description}</span> : <span className={`mt-1 block text-[12px] font-semibold ${isDark ? "text-[#B9AEC3]" : "text-vyva-text-3"}`}>{homeServiceText(locale, "Review before sending")}</span>}
                           </span>
                           {channel.recommended ? <span className="self-start rounded-full bg-vyva-purple px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">{homeServiceCanvasCopyValue.recommended}</span> : <ChevronDown className="-rotate-90 text-vyva-purple/60 transition-transform group-hover:translate-x-0.5" size={17} aria-hidden="true" />}
                         </button>
@@ -20941,6 +20990,7 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       disabled={confirmAppointmentMutation.isPending}
                       testId="panel-appointment-confirmation-checkpoint"
                       buttonTestId="button-appointment-handle-provider"
+                      isDark={isDark}
                     />
                   </>
                 )}
@@ -20959,8 +21009,12 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                       <ChevronDown size={15} aria-hidden="true" />
                     </summary>
                     <div className={isHomeServiceAppointment ? "home-repair-alternatives flex flex-col" : "grid grid-cols-1 gap-2 border-t border-[#E9D5FF] p-3 sm:grid-cols-2"}>
-                      {appointmentOptions.filter((option) => !isHomeServiceAppointment || option.id !== selectedAppointmentOption?.id).map((option) => {
+                      {(isHomeServiceAppointment
+                        ? homeServiceAlternativeOptions.slice(0, visibleHomeServiceAlternativeCount)
+                        : appointmentOptions
+                      ).map((option) => {
                         const isSelected = option.id === selectedAppointmentOption?.id;
+                        const providerMetadata = isHomeServiceAppointment ? homeServiceProviderMetadata(option, locale) : [];
                         return (
                           <button
                             key={option.id}
@@ -20986,13 +21040,35 @@ const ConciergeScreen = ({ mode = "legacy", previewBasePath }: ConciergeScreenPr
                                 ? homeServiceText(locale, "{service} matching this request").replace("{service}", homeServiceTypeLabel(homeServiceType, locale))
                                 : option.match_reason || homeServiceText(locale, "Reviewable source")}
                             </span>
-                            <span className="mt-0.5 block text-[11px] leading-snug text-vyva-text-3">
-                              {appointmentOptionEvidenceSummary(option, isSpanish, locale)}
-                            </span>
+                            {isHomeServiceAppointment ? (
+                              <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] font-semibold leading-snug text-vyva-text-2">
+                                {providerMetadata.map((item) => (
+                                  <span key={item.kind} className="inline-flex min-w-0 items-center gap-1.5" data-testid={`provider-${item.kind}-${testIdSlug(appointmentOptionName(option, isSpanish))}`}>
+                                    {item.kind === "distance" ? <MapPin size={13} aria-hidden="true" /> : item.kind === "hours" ? <Clock size={13} aria-hidden="true" /> : <Star size={13} fill="currentColor" aria-hidden="true" />}
+                                    <span>{item.value}</span>
+                                  </span>
+                                ))}
+                              </span>
+                            ) : (
+                              <span className="mt-0.5 block text-[11px] leading-snug text-vyva-text-3">
+                                {appointmentOptionEvidenceSummary(option, isSpanish, locale)}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
                     </div>
+                    {isHomeServiceAppointment && homeServiceAlternativeOptions.length > visibleHomeServiceAlternativeCount ? (
+                      <button
+                        type="button"
+                        onClick={() => setVisibleHomeServiceAlternativeCount((count) => count + 3)}
+                        data-testid="button-home-service-load-more-options"
+                        className="vyva-tap mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-full px-3 font-body text-[13px] font-bold text-vyva-purple transition-colors hover:bg-vyva-purple/10"
+                      >
+                        <ChevronDown size={15} aria-hidden="true" />
+                        {homeServiceText(locale, "Load more")}
+                      </button>
+                    ) : null}
                     {isHomeServiceAppointment && !homeSavedProvidersFirst && (
                       <button
                         type="button"

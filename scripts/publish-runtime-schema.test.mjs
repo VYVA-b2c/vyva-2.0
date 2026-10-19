@@ -40,6 +40,10 @@ test("publishes scheduled support before enrollments and verifies before commit"
   assert.match(migrations[0], /0019_scheduled_support.sql$/);
   assert.match(migrations[1], /0060_cognitive_assessment_program_enrollments.sql$/);
   assert.ok(migrations.some((name) => name.endsWith("0085_publish_triage_report_columns.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0104_expert_care_tasks.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0105_expert_care_health_vault.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0106_expert_care_safety_controls.sql")));
+  assert.ok(migrations.some((name) => name.endsWith("0107_expert_care_launch_readiness.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0104_concierge_reminder_dismissals.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0106_provider_reputation.sql")));
   assert.ok(migrations.some((name) => name.endsWith("0107_provider_job_outcomes.sql")));

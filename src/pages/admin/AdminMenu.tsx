@@ -23,6 +23,7 @@ import {
   Sparkles,
   UserRoundCog,
   UsersRound,
+  Stethoscope,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -52,6 +53,7 @@ const adminItems: AdminItem[] = [
   { label: "What's On", path: "/admin/curated-activities", description: "Upload and review activities", icon: CalendarCheck },
   { label: "Room prompts", path: "/admin/room-prompts", description: "Daily room topics", icon: MessageSquare },
   { label: "Concierge readiness", path: "/admin/concierge-readiness", description: "Flow coverage and launch gates", icon: ClipboardCheck },
+  { label: "Expert Care", path: "/admin/expert-care", description: "Clinical gates and specialist verification", icon: Stethoscope },
   { label: "Concierge queue", path: "/admin/concierge-queue", description: "Confirmed task status", icon: ClipboardList },
   { label: "Email replies", path: "/admin/concierge-email-replies", description: "Replies needing review", icon: Mail },
   { label: "Providers", path: "/admin/providers", description: "Trusted contacts", icon: ScrollText },

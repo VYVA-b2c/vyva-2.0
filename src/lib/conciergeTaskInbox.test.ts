@@ -49,6 +49,12 @@ function pending(overrides: Partial<ConciergeTaskPendingItem> = {}): ConciergeTa
 }
 
 describe("Concierge task inbox", () => {
+  it("resumes Expert Care drafts in the dedicated safety flow", () => {
+    const expert = draft({ kind: "expert_care", entry_payload: { kind: "expert_care" } });
+    const inbox = buildConciergeTaskInbox({ drafts: [expert], pending: [], completed: [] });
+    expect(inbox.needs_you[0]).toMatchObject({ title: "Expert Care", resumePath: `/expert-care/${expert.id}` });
+  });
+
   it("groups tasks and de-duplicates a pending action linked to a saved draft", () => {
     const linkedDraft = draft({ linked_pending_id: "reply-1" });
     const replyPayload = buildConciergeProviderActionNeededPatch({

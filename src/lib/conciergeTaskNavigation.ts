@@ -21,7 +21,8 @@ export type ConciergeTaskEntryKind =
   | "provider_contact"
   | "scam_review"
   | "transport"
-  | "otc_pharmacy";
+  | "otc_pharmacy"
+  | "expert_care";
 
 export type ConciergeTaskStage = "details" | "review" | "confirmation";
 
@@ -49,6 +50,7 @@ const TASK_ENTRY_KINDS = new Set<ConciergeTaskEntryKind>([
   "scam_review",
   "transport",
   "otc_pharmacy",
+  "expert_care",
 ]);
 
 const DOCUMENT_KINDS = new Set<NonNullable<ConciergeTaskEntry["documentKind"]>>([
@@ -120,6 +122,8 @@ export function conciergeTaskEntryTitle(entry: ConciergeTaskEntry | null, isSpan
       return isSpanish ? "Preparar transporte" : "Prepare transport";
     case "otc_pharmacy":
       return isSpanish ? "Ayuda de farmacia" : "Pharmacy help";
+    case "expert_care":
+      return isSpanish ? "Atención experta" : "Expert Care";
     default:
       return isSpanish ? "Tarea de Concierge" : "Concierge task";
   }
@@ -144,6 +148,8 @@ export function conciergeTaskEntrySummary(entry: ConciergeTaskEntry | null, isSp
       return isSpanish ? "Revisa la ruta y la opcion antes de reservar." : "Review the route and option before booking.";
     case "otc_pharmacy":
       return isSpanish ? "Revisa el producto y la farmacia antes de contactar o comprar." : "Review the item and pharmacy before contact or purchase.";
+    case "expert_care":
+      return isSpanish ? "Continúa tu segunda opinión o búsqueda de especialista." : "Continue your second opinion or specialist search.";
     default:
       return isSpanish ? "Revisa esta tarea y decide el siguiente paso." : "Review this task and choose the next step.";
   }

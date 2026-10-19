@@ -97,7 +97,7 @@ describe("MindMemoryScreen", () => {
     renderMindMemory();
 
     expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-home-master-theme", "dark");
-    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-[#2A2034]");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-transparent", "shadow-none");
   });
 
   it("replaces activity counts with the latest score and achieved level after play", () => {

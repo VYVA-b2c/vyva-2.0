@@ -190,7 +190,7 @@ describe("ConciergePickerScreen", () => {
     renderPicker("get-help");
 
     expect(screen.getByTestId("concierge-picker-screen")).toHaveAttribute("data-home-master-theme", "dark");
-    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-[#2A2034]");
+    expect(screen.getByTestId("button-concierge-picker-home-repair")).toHaveClass("bg-transparent", "shadow-none");
     expect(screen.getByTestId("button-concierge-picker-home-repair")).not.toHaveClass("bg-white");
   });
 

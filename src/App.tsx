@@ -80,6 +80,7 @@ const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
 const ConciergePickerScreen = lazy(() => import("./pages/ConciergePickerScreen"));
 const CareFinderScreen = lazy(() => import("./pages/CareFinderScreen"));
+const ExpertCareScreen = lazy(() => import("./pages/ExpertCareScreen"));
 const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
@@ -310,6 +311,7 @@ const VettedPartnersAdminPage = lazy(() => import("./pages/admin/VettedPartnersA
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
 const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
 const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
+const ExpertCareAdminPage = lazy(() => import("./pages/admin/ExpertCareAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
@@ -1270,6 +1272,11 @@ function HomeMasterPreviewLanguageSync() {
   return null;
 }
 
+function LegacyCareFinderRedirect() {
+  const { taskId } = useParams<{ taskId: string }>();
+  return <Navigate to={`/expert-care?legacyTaskId=${encodeURIComponent(taskId ?? "")}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -1332,6 +1339,7 @@ const App = () => (
                     <Route path="/dev/provider-task-preview/:taskId" element={<ProviderTaskWizardPreviewRoute />} />
                     <Route path="/dev/home-service-preview" element={<HomeServicePreviewRoute />} />
                     <Route path="/dev/care-finder" element={<AppShell><CareFinderScreen /></AppShell>} />
+                    <Route path="/dev/expert-care" element={<AppShell><ExpertCareScreen /></AppShell>} />
                     <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
                     <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
                     <Route path="/dev/home-master/settings" element={<SettingsHome />} />
@@ -1393,6 +1401,7 @@ const App = () => (
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
+                <Route path="/admin/expert-care" element={<AdminRoute><ExpertCareAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
@@ -1504,8 +1513,10 @@ const App = () => (
                   <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
-                  <Route path="/care-finder" element={<AppShell><CareFinderScreen /></AppShell>} />
-                  <Route path="/care-finder/:taskId" element={<AppShell><CareFinderScreen /></AppShell>} />
+                  <Route path="/expert-care" element={<AppShell><ExpertCareScreen /></AppShell>} />
+                  <Route path="/expert-care/:caseId" element={<AppShell><ExpertCareScreen /></AppShell>} />
+                  <Route path="/care-finder" element={<Navigate to="/expert-care" replace />} />
+                  <Route path="/care-finder/:taskId" element={<LegacyCareFinderRedirect />} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
