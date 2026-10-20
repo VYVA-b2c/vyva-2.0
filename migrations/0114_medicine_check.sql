@@ -1,4 +1,4 @@
--- Medicine Check data contract. Run from Replit Shell; this file is not auto-applied.
+-- Medicine Check data contract. Included in the publish runtime schema list; it can also be run from Replit Shell.
 alter table public.interaction_flag_rules add column if not exists messages jsonb not null default '{}'::jsonb;
 alter table public.interaction_flag_rules add column if not exists approved_locales text[] not null default '{}';
 
@@ -25,8 +25,6 @@ do $$ begin
     where messages = '{}'::jsonb;
   end if;
 end $$;
-
-update public.interaction_flag_rules set approved_locales = '{}', is_active = false;
 
 alter table public.interaction_flag_rules drop constraint if exists interaction_flag_rules_review_gate;
 do $$ begin

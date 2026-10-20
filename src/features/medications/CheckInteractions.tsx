@@ -9,8 +9,26 @@ import { apiFetch } from "@/lib/queryClient";
 type Flag = { flagKey: string; medicines: string[]; why: string; canSnooze: boolean; snoozeCount: number };
 type Medicine = { id: string; display_name: string; dose_text?: string | null; purpose_text?: string | null; prescriber_name?: string | null; photo_url?: string | null };
 type CheckPayload = { state: "not_ready" | "has_questions" | "needs_info" | "needs_more" | "nothing_found"; savedCount: number; comparedCount: number; untagged: Medicine[]; flags: Flag[]; totalFlagCount: number; lastSweepAt: string | null; sweepDue: boolean; safetyNetEnabled: boolean; pharmacy: { name: string; phone: string; address: string } | null; medicines: Medicine[]; profile: { firstName: string; updatedAt: string | null } };
-type LegacyCheckPayload = { activeMedicineCount?: number; flags?: Array<{ id: string; medicines: string[]; message: string }> };
 type Sheet = "extras" | "preview" | "prep" | "outcome" | "unwell" | "list" | null;
+const checkStates = new Set<CheckPayload["state"]>(["not_ready", "has_questions", "needs_info", "needs_more", "nothing_found"]);
+
+function isCheckPayload(value: unknown): value is CheckPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CheckPayload>;
+  return checkStates.has(candidate.state as CheckPayload["state"])
+    && typeof candidate.savedCount === "number"
+    && typeof candidate.comparedCount === "number"
+    && Array.isArray(candidate.untagged)
+    && Array.isArray(candidate.flags)
+    && typeof candidate.totalFlagCount === "number"
+    && (candidate.lastSweepAt === null || typeof candidate.lastSweepAt === "string")
+    && typeof candidate.sweepDue === "boolean"
+    && typeof candidate.safetyNetEnabled === "boolean"
+    && (candidate.pharmacy === null || typeof candidate.pharmacy === "object")
+    && Array.isArray(candidate.medicines)
+    && Boolean(candidate.profile && typeof candidate.profile.firstName === "string"
+      && (candidate.profile.updatedAt === null || typeof candidate.profile.updatedAt === "string"));
+}
 const classes = [
   ["nsaid_pain_reliever", "Pain tablets (ibuprofen, aspirin…)", "otc"],
   ["sedative_sleep_aid", "Sleep aids", "otc"],
@@ -23,33 +41,8 @@ const classes = [
 export default function CheckInteractions({ onAddMedicine }: { onAddMedicine?: () => void }) {
   const { t } = useTranslation(); const navigate = useNavigate(); const queryClient = useQueryClient();
   const [sheet, setSheet] = useState<Sheet>(null); const [selectedFlag, setSelectedFlag] = useState<Flag | null>(null); const [preview, setPreview] = useState<CheckPayload | null>(null); const [name, setName] = useState(""); const [selectedClass, setSelectedClass] = useState<(typeof classes)[number] | null>(null);
-  const query = useQuery<CheckPayload>({ queryKey: ["/api/meds/safety-check"], staleTime: 0 });
-  const legacyQuery = useQuery<LegacyCheckPayload>({
-    queryKey: ["/api/meds/interactions"],
-    enabled: Boolean(query.data && !Array.isArray(query.data.flags)),
-    staleTime: 0,
-  });
-  const legacyFlags = Array.isArray(legacyQuery.data?.flags)
-    ? legacyQuery.data.flags.map((flag) => ({ flagKey: flag.id, medicines: flag.medicines, why: flag.message, canSnooze: false, snoozeCount: 0 }))
-    : [];
-  const data = Array.isArray(query.data?.flags)
-    ? query.data
-    : legacyQuery.data
-      ? {
-          state: legacyFlags.length > 0 ? "has_questions" as const : (legacyQuery.data.activeMedicineCount ?? 0) < 2 ? "needs_more" as const : "nothing_found" as const,
-          savedCount: legacyQuery.data.activeMedicineCount ?? 0,
-          comparedCount: legacyQuery.data.activeMedicineCount ?? 0,
-          untagged: [],
-          flags: legacyFlags,
-          totalFlagCount: legacyFlags.length,
-          lastSweepAt: null,
-          sweepDue: true,
-          safetyNetEnabled: false,
-          pharmacy: null,
-          medicines: [],
-          profile: { firstName: "", updatedAt: null },
-        }
-      : query.data;
+  const query = useQuery<unknown>({ queryKey: ["/api/meds/safety-check"], staleTime: 0 });
+  const data = isCheckPayload(query.data) ? query.data : undefined;
   const flags = Array.isArray(data?.flags) ? data.flags : [];
   const medicines = Array.isArray(data?.medicines) ? data.medicines : [];
   const untagged = Array.isArray(data?.untagged) ? data.untagged : [];
@@ -78,7 +71,7 @@ export default function CheckInteractions({ onAddMedicine }: { onAddMedicine?: (
   return <section className="mx-auto w-full max-w-[760px] space-y-5 overflow-x-hidden pb-8 text-vyva-text-1" data-testid="medicine-check">
     <div data-testid="section-check-interactions">
     <h2 className="font-display text-[34px] font-semibold leading-[1.1]">{t("meds.checkInteractions.title", "Check medicines together")}</h2>
-    <article className={`rounded-[26px] border p-5 ${status.tone}`} data-testid={`medicine-check-status-${data?.state || "loading"}`}>
+    <article className={`rounded-[26px] border p-5 ${status.tone}`} data-testid={`medicine-check-status-${data?.state || "not_ready"}`}>
       <div className="flex gap-4"><HeartPulse className="mt-1 shrink-0 text-vyva-purple" size={32} aria-hidden="true"/><div><h3 className="font-display text-[28px] font-semibold leading-tight">{status.title}</h3>{status.body ? <p className="mt-2 text-[20px] leading-snug">{status.body}</p> : null}</div></div>
       {data?.state === "needs_more" ? <button className="mt-4 min-h-[70px] w-full rounded-full bg-vyva-purple px-6 text-[20px] font-bold text-white" onClick={onAddMedicine}>{t("meds.check.needsMore.cta")}</button> : null}
       {data?.state === "needs_info" ? <button className="mt-4 min-h-[70px] w-full rounded-full bg-vyva-purple px-6 text-[20px] font-bold text-white" onClick={onAddMedicine}>{t("meds.check.needsInfo.cta", "Add what it is for")}</button> : null}

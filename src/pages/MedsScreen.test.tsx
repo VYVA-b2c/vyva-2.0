@@ -45,6 +45,8 @@ const labels: Record<string, string> = {
   "meds.checkInteractions.kicker": "Drug combinations",
   "meds.checkInteractions.title": "Check medicines together",
   "meds.checkInteractions.ruleShort": "Check before taking together.",
+  "meds.check.notReady.title": "This check is not ready yet",
+  "meds.check.nothingFound.title": "Nothing to ask about right now",
 };
 
 const mocks = vi.hoisted(() => ({
@@ -176,6 +178,7 @@ type RenderOptions = {
   componentProps?: ComponentProps<typeof MedsScreen>;
   myMedicines?: TestMyMedicine[];
   interactions?: TestInteractionResponse;
+  safetyCheck?: unknown;
   refills?: {
     permissions: { manage_inventory: boolean; receive_refill_alerts: boolean };
     alerts: Array<{
@@ -226,6 +229,24 @@ function interactionsResponse(overrides: Partial<TestInteractionResponse> = {}):
   };
 }
 
+function safetyCheckResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    state: "not_ready",
+    savedCount: 0,
+    comparedCount: 0,
+    untagged: [],
+    flags: [],
+    totalFlagCount: 0,
+    lastSweepAt: null,
+    sweepDue: true,
+    safetyNetEnabled: false,
+    pharmacy: null,
+    medicines: [],
+    profile: { firstName: "", updatedAt: null },
+    ...overrides,
+  };
+}
+
 function renderMedsScreen(medications: TestMedication[] = [], safety = safetyResponse(), options: RenderOptions = {}) {
   const client = new QueryClient({
     defaultOptions: {
@@ -256,6 +277,11 @@ function renderMedsScreen(medications: TestMedication[] = [], safety = safetyRes
             return options.interactions ?? interactionsResponse({
               activeMedicineCount: medications.length,
             });
+          }
+          if (queryKey[0] === "/api/meds/safety-check") {
+            return Object.prototype.hasOwnProperty.call(options, "safetyCheck")
+              ? options.safetyCheck
+              : safetyCheckResponse({ savedCount: medications.length });
           }
           if (queryKey[0] === "/api/meds/refills/me") {
             return options.refills ?? { permissions: { manage_inventory: true, receive_refill_alerts: true }, alerts: [] };
@@ -470,19 +496,18 @@ describe("MedsScreen medication home and detail screens", () => {
   it("shows drug-combination advice with clear safety boundaries and no review-dismiss buttons", async () => {
     renderMedsScreen([], safetyResponse(), {
       route: "/meds/interactions",
-      interactions: interactionsResponse({
-        activeMedicineCount: 2,
+      safetyCheck: safetyCheckResponse({
+        state: "has_questions",
+        savedCount: 2,
+        comparedCount: 2,
+        totalFlagCount: 1,
         flags: [{
-          id: "rule-rule-1",
-          kind: "rule",
-          ruleId: "rule-1",
-          medicineIds: ["med-1", "med-2"],
+          flagKey: "rule-rule-1",
           medicines: ["Amlodipine", "Ibuprofen"],
-          message: "Worth asking your pharmacist if they go well together.",
-          severityTier: "worth_asking",
-          canDismiss: true,
+          why: "Worth asking your pharmacist if they go well together.",
+          canSnooze: true,
+          snoozeCount: 0,
         }],
-        message: "Worth asking your pharmacist about these combinations.",
       }),
     });
 
@@ -496,6 +521,33 @@ describe("MedsScreen medication home and detail screens", () => {
     expect(screen.queryByTestId("meds-master-hero")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-med-interaction-asked-0")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-med-interaction-later-0")).not.toBeInTheDocument();
+  });
+
+  it("missing safety-check payload never shows the nothing-found state", async () => {
+    renderMedsScreen([], safetyResponse(), { route: "/meds/interactions", safetyCheck: null });
+
+    expect(await screen.findByTestId("medicine-check-status-not_ready")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to ask about right now")).not.toBeInTheDocument();
+  });
+
+  it("malformed safety-check payload never shows the nothing-found state", async () => {
+    renderMedsScreen([], safetyResponse(), {
+      route: "/meds/interactions",
+      safetyCheck: { state: "nothing_found", flags: [] },
+    });
+
+    expect(await screen.findByTestId("medicine-check-status-not_ready")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to ask about right now")).not.toBeInTheDocument();
+  });
+
+  it("legacy safety-check payload with 2+ active medicines never shows the nothing-found state", async () => {
+    renderMedsScreen([], safetyResponse(), {
+      route: "/meds/interactions",
+      safetyCheck: interactionsResponse({ activeMedicineCount: 2 }),
+    });
+
+    expect(await screen.findByTestId("medicine-check-status-not_ready")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to ask about right now")).not.toBeInTheDocument();
   });
 
   it("keeps the primary taken action visible and leaves Snooze unrecorded", async () => {

@@ -102,7 +102,37 @@ describe("Migration 0114 against the existing runtime Medicine Check schema", ()
         await client.query("begin");
         await client.query(existingRuntimeSchema);
         await client.query(migrationSql);
+        await client.query(`
+          update public.interaction_flag_rules
+          set messages = jsonb_set(messages, '{en,why}', '"edited"'::jsonb),
+              approved_locales = array['en']::text[],
+              is_active = true,
+              reviewed_by = 'test',
+              reviewed_at = now()
+          where id = '11111111-1111-4111-8111-111111111111'
+        `);
         await client.query(migrationSql);
+
+        const reviewedRule = await client.query<{
+          why: string;
+          approved_locales: string[];
+          is_active: boolean;
+          reviewed_by: string;
+        }>(`
+          select
+            messages #>> '{en,why}' as why,
+            approved_locales,
+            is_active,
+            reviewed_by
+          from public.interaction_flag_rules
+          where id = '11111111-1111-4111-8111-111111111111'
+        `);
+        expect(reviewedRule.rows[0]).toEqual({
+          why: "edited",
+          approved_locales: ["en"],
+          is_active: true,
+          reviewed_by: "test",
+        });
 
         const stateRows = await client.query<{
           id: string;
