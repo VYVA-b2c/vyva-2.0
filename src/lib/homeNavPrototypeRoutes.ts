@@ -15,6 +15,8 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/health-plan",
   "/dev/home-master/brain",
   "/dev/home-master/community",
+  "/dev/social-rooms/morning-movement",
+  "/social-rooms/morning-movement",
   "/dev/home-master/concierge",
   "/dev/concierge-canonical-preview",
   "/dev/home-master/reports",
