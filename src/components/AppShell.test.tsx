@@ -487,6 +487,17 @@ describe("app shell route layout", () => {
     },
   );
 
+  it.each(["/social-rooms/morning-movement", "/dev/social-rooms/morning-movement"])(
+    "lets the Movement page own its canonical header on %s",
+    (path) => {
+      render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+        <AppShell><div>Movement page content</div></AppShell>
+      </MemoryRouter>);
+      expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+      expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+    },
+  );
+
   it.each(["/health/vitals", "/dev/home-master/vitals"])(
     "uses the canonical single-header shell and shared dock on %s",
     (path) => {

@@ -1,5 +1,6 @@
 import { ArrowLeft, Loader2, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
@@ -21,6 +22,8 @@ import {
   getMovementSessionUiCopy,
   getMovementStepImage,
   getMovementStepVideo,
+  getNarratedMovementGuide,
+  getNarratedMovementStepVideo,
   isMovementExerciseCardId,
   loadMovementWeekLogDates,
   saveLastMovementExerciseId,
@@ -35,7 +38,7 @@ const DEFAULT_MOVEMENT_STEP_MOTION: MovementStepMotion = "seated-tall";
 const EMPTY_MOVEMENT_STEPS: string[] = [];
 const MOVEMENT_GUIDE_TOTAL_DURATION_MS = 10 * 60 * 1000;
 const MOVEMENT_GUIDE_TICK_MS = 1000;
-const MOVEMENT_STEP_INSTRUCTION_INTRO_MS = 10_000;
+const MOVEMENT_STEP_INSTRUCTION_INTRO_MS = 5_000;
 
 type GuideRunState = "starting" | "guiding" | "paused" | "blocked" | "saving";
 
@@ -92,14 +95,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       completedStep: "Fertig",
       currentStep: "Jetzt",
       nextStepStatus: "Weiter",
-      audioTitle: "Live-Audioguide",
+      audioTitle: "Live-Guide",
       audioBody: "Vyva fuehrt dich langsam durch diesen Schritt.",
       audioSync: "Das Audio folgt dem Schritt auf dem Bildschirm.",
-      audioUnavailable: "Der visuelle Guide funktioniert auch ohne Audio.",
-      startAudio: "Audioguide starten",
-      stopAudio: "Audioguide stoppen",
+      audioUnavailable: "Audio ist gerade nicht verfuegbar.",
+      startAudio: "Guide starten",
+      stopAudio: "Guide stoppen",
       audioStarting: "Startet...",
-      audioLive: "Audioguide ist live",
+      audioLive: "Guide ist live",
       startSession: "VYVA-Guide starten",
       pauseSession: "Pause",
       resumeSession: "Fortsetzen",
@@ -133,14 +136,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       completedStep: "Fait",
       currentStep: "Maintenant",
       nextStepStatus: "Suivant",
-      audioTitle: "Guide audio en direct",
+      audioTitle: "Guide en direct",
       audioBody: "Vyva peut guider cet exercice lentement, une etape a la fois.",
       audioSync: "L'audio suit l'etape affichee a l'ecran.",
-      audioUnavailable: "Le guide visuel fonctionne aussi sans audio.",
-      startAudio: "Demarrer le guide audio",
-      stopAudio: "Arreter le guide audio",
+      audioUnavailable: "L'audio n'est pas disponible pour le moment.",
+      startAudio: "Demarrer le guide",
+      stopAudio: "Arreter le guide",
       audioStarting: "Demarrage...",
-      audioLive: "Le guide audio est actif",
+      audioLive: "Le guide est actif",
       startSession: "Demarrer le guide VYVA",
       pauseSession: "Pause",
       resumeSession: "Reprendre",
@@ -174,14 +177,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       completedStep: "Fatto",
       currentStep: "Ora",
       nextStepStatus: "Avanti",
-      audioTitle: "Guida audio dal vivo",
+      audioTitle: "Guida live",
       audioBody: "Vyva puo guidare l'esercizio lentamente, un passo alla volta.",
       audioSync: "L'audio segue il passo mostrato sullo schermo.",
-      audioUnavailable: "La guida visiva funziona anche senza audio.",
-      startAudio: "Avvia guida audio",
-      stopAudio: "Ferma guida audio",
+      audioUnavailable: "L'audio non e disponibile ora.",
+      startAudio: "Avvia guida",
+      stopAudio: "Ferma guida",
       audioStarting: "Avvio...",
-      audioLive: "La guida audio e attiva",
+      audioLive: "La guida e attiva",
       startSession: "Avvia guida VYVA",
       pauseSession: "Pausa",
       resumeSession: "Riprendi",
@@ -215,14 +218,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       completedStep: "Feito",
       currentStep: "Agora",
       nextStepStatus: "Seguinte",
-      audioTitle: "Guia audio ao vivo",
+      audioTitle: "Guia ao vivo",
       audioBody: "Vyva pode orientar este exercicio devagar, um passo de cada vez.",
       audioSync: "O audio acompanha o passo mostrado no ecra.",
-      audioUnavailable: "O guia visual tambem funciona sem audio.",
-      startAudio: "Iniciar guia audio",
-      stopAudio: "Parar guia audio",
+      audioUnavailable: "O audio nao esta disponivel agora.",
+      startAudio: "Iniciar guia",
+      stopAudio: "Parar guia",
       audioStarting: "A iniciar...",
-      audioLive: "O guia audio esta ativo",
+      audioLive: "O guia esta ativo",
       startSession: "Iniciar guia VYVA",
       pauseSession: "Pausa",
       resumeSession: "Continuar",
@@ -256,14 +259,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
       completedStep: "Hecho",
       currentStep: "Ahora",
       nextStepStatus: "Siguiente",
-      audioTitle: "Guia de audio en vivo",
+      audioTitle: "Guia en vivo",
       audioBody: "Vyva puede guiar este ejercicio despacio, paso a paso.",
       audioSync: "El audio sigue el paso que ves en pantalla.",
-      audioUnavailable: "La guia visual tambien funciona sin audio.",
-      startAudio: "Iniciar guia de audio",
-      stopAudio: "Parar guia de audio",
+      audioUnavailable: "El audio no esta disponible ahora.",
+      startAudio: "Iniciar guia",
+      stopAudio: "Detener guia",
       audioStarting: "Iniciando...",
-      audioLive: "La guia de audio esta activa",
+      audioLive: "La guia esta activa",
       startSession: "Iniciar guia VYVA",
       pauseSession: "Pausa",
       resumeSession: "Continuar",
@@ -296,14 +299,14 @@ function getMovementGuideCopy(language: MovementExerciseLanguage): GuideCopy {
     completedStep: "Done",
     currentStep: "Now",
     nextStepStatus: "Next",
-    audioTitle: "Live audio guide",
+    audioTitle: "Live guide",
     audioBody: "Vyva can guide this exercise slowly, one step at a time.",
     audioSync: "Audio follows the step you see on screen.",
-    audioUnavailable: "The visual guide still works without audio.",
-    startAudio: "Start audio guide",
-    stopAudio: "Stop audio guide",
+    audioUnavailable: "Audio is not available right now.",
+    startAudio: "Start guide",
+    stopAudio: "Stop guide",
     audioStarting: "Starting...",
-    audioLive: "Audio guide is live",
+    audioLive: "Guide is live",
     startSession: "Start VYVA guide",
     pauseSession: "Pause",
     resumeSession: "Resume",
@@ -361,6 +364,25 @@ function safeInternalReturnPath(value: unknown) {
   return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : null;
 }
 
+async function playNarratedMovementVideo() {
+  if (typeof document === "undefined") return false;
+  if (typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("jsdom")) return true;
+  let video = document.querySelector<HTMLVideoElement>('[data-testid="movement-exercise-step-video"][data-playback-mode="narrated-once"]');
+  for (let attempt = 0; !video && attempt < 5; attempt += 1) {
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    video = document.querySelector<HTMLVideoElement>('[data-testid="movement-exercise-step-video"][data-playback-mode="narrated-once"]');
+  }
+  if (!video) return false;
+  video.muted = false;
+  video.volume = 1;
+  try {
+    await video.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default function MovementExerciseGuideScreen() {
   const { exerciseId } = useParams<{ exerciseId: string }>();
   const navigate = useNavigate();
@@ -391,31 +413,45 @@ export default function MovementExerciseGuideScreen() {
   }, [exerciseId, movementLanguage]);
   const session = exercise ? MOVEMENT_EXERCISE_SESSIONS[exercise.id] : null;
   const visual = exercise ? MOVEMENT_EXERCISE_VISUALS[exercise.id] : null;
+  const completeGuide = useMemo(
+    () => exercise ? getNarratedMovementGuide(exercise.id, movementLanguage) : undefined,
+    [exercise, movementLanguage],
+  );
   const steps = useMemo(
-    () => session?.steps[movementLanguage] ?? EMPTY_MOVEMENT_STEPS,
-    [movementLanguage, session],
+    () => completeGuide ? [completeGuide.instruction] : session?.steps[movementLanguage] ?? EMPTY_MOVEMENT_STEPS,
+    [completeGuide, movementLanguage, session],
   );
   const currentStep = steps[stepIndex] ?? steps[0] ?? "";
   const totalSteps = Math.max(steps.length, 1);
   const isLastStep = stepIndex >= steps.length - 1;
   const progressPercent = Math.max(0, Math.min(100, ((stepIndex + 1) / totalSteps) * 100));
-  const stepDurationMs = Math.max(15_000, Math.round(MOVEMENT_GUIDE_TOTAL_DURATION_MS / totalSteps));
+  const routineDurationMs = completeGuide?.durationMs ?? MOVEMENT_GUIDE_TOTAL_DURATION_MS;
+  const stepDurationMs = Math.max(15_000, Math.round(routineDurationMs / totalSteps));
   const stepElapsedPercent = Math.max(0, Math.min(100, (elapsedInStepMs / stepDurationMs) * 100));
   const stepRemainingMs = Math.max(0, stepDurationMs - elapsedInStepMs);
   const stepRemainingText = formatGuideTime(stepRemainingMs);
-  const showStepInstructionIntro = elapsedInStepMs < MOVEMENT_STEP_INSTRUCTION_INTRO_MS;
-  const isVisualGuideRunning = runState === "guiding" || runState === "blocked";
+  const isVisualGuideRunning = runState === "guiding";
   const isVisualGuidePresent = isVisualGuideRunning || runState === "starting";
   const motionForStep = useCallback((nextStepIndex: number): MovementStepMotion => (
     session?.visuals[nextStepIndex] ?? DEFAULT_MOVEMENT_STEP_MOTION
   ), [session]);
   const sceneForStep = useCallback((nextStepIndex: number) => (
-    session?.sceneLabels[nextStepIndex] ?? steps[nextStepIndex] ?? ""
-  ), [session, steps]);
+    completeGuide?.sceneLabel ?? session?.sceneLabels[nextStepIndex] ?? steps[nextStepIndex] ?? ""
+  ), [completeGuide, session, steps]);
   const currentStepMotion = motionForStep(stepIndex);
   const currentSceneLabel = sceneForStep(stepIndex);
   const currentStepImage = exercise && visual ? getMovementStepImage(exercise.id, stepIndex, currentStepMotion) ?? visual.image : "";
-  const currentStepVideo = exercise ? getMovementStepVideo(exercise.id, stepIndex, currentStepMotion) : undefined;
+  const narratedVideoForStep = useCallback((nextStepIndex: number) => {
+    if (!exercise) return undefined;
+    if (completeGuide) return nextStepIndex === 0 ? completeGuide.video : undefined;
+    return getNarratedMovementStepVideo(exercise.id, nextStepIndex, motionForStep(nextStepIndex), movementLanguage);
+  }, [completeGuide, exercise, motionForStep, movementLanguage]);
+  const currentNarratedStepVideo = narratedVideoForStep(stepIndex);
+  const currentStepVideo = currentNarratedStepVideo ?? (exercise ? getMovementStepVideo(exercise.id, stepIndex, currentStepMotion) : undefined);
+  const isCurrentStepNarrated = Boolean(currentNarratedStepVideo);
+  const showStepInstructionIntro = completeGuide
+    ? runState === "blocked" || (runState === "starting" && !isAudioStarting)
+    : elapsedInStepMs < MOVEMENT_STEP_INSTRUCTION_INTRO_MS;
   const routeState = location.state as { autoStartVoiceGuide?: unknown; returnTo?: unknown } | null;
   const hasAutoStartIntent = routeState?.autoStartVoiceGuide === true;
   const guideReturnPath = safeInternalReturnPath(routeState?.returnTo)
@@ -444,7 +480,7 @@ export default function MovementExerciseGuideScreen() {
       routine_id: exercise?.id ?? "",
       routine_title: exercise?.title ?? "",
       routine_type: session?.logType ?? "",
-      duration_seconds: Math.round(MOVEMENT_GUIDE_TOTAL_DURATION_MS / 1000),
+      duration_seconds: Math.round(routineDurationMs / 1000),
       step_duration_seconds: Math.round(stepDurationMs / 1000),
       current_step: steps[nextStepIndex] ?? "",
       current_step_index: nextStepIndex,
@@ -462,7 +498,7 @@ export default function MovementExerciseGuideScreen() {
       app_user_instruction: isFinalStep ? guideCopy.finishHint : guideCopy.nextHint,
       audio_role: "agent_spoken_guidance_only",
     };
-  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, movementLanguage, sceneForStep, session?.logType, sessionCopy.safety, stepDurationMs, steps]);
+  }, [exercise?.benefit, exercise?.id, exercise?.title, guideCopy, motionForStep, movementLanguage, sceneForStep, session?.logType, sessionCopy.safety, stepDurationMs, routineDurationMs, steps]);
 
   const promptForStep = useCallback(
     (nextStepIndex: number) => buildVoicePrompt(
@@ -507,6 +543,19 @@ export default function MovementExerciseGuideScreen() {
 
   const startVyvaGuide = useCallback(async (nextStepIndex = stepIndex) => {
     if (!exercise || !session) return;
+    if (narratedVideoForStep(nextStepIndex)) {
+      stopVoice();
+      setAudioStarting(true);
+      flushSync(() => {
+        if (completeGuide) setRunState("starting");
+        setElapsedInStepMs((currentElapsed) => Math.max(currentElapsed, completeGuide ? 0 : MOVEMENT_STEP_INSTRUCTION_INTRO_MS));
+      });
+      const didStartVideo = await playNarratedMovementVideo();
+      setRunState(didStartVideo ? "guiding" : "blocked");
+      setAudioStarting(false);
+      return;
+    }
+
     setAudioStarting(true);
     setRunState("starting");
     try {
@@ -524,17 +573,21 @@ export default function MovementExerciseGuideScreen() {
     } finally {
       setAudioStarting(false);
     }
-  }, [exercise, promptForStep, sendContextUpdate, session, setMicrophoneMuted, startVoice, stepIndex, voiceVariables]);
+  }, [completeGuide, exercise, narratedVideoForStep, promptForStep, sendContextUpdate, session, setMicrophoneMuted, startVoice, stepIndex, stopVoice, voiceVariables]);
 
   useEffect(() => {
     if (!exercise || !session || autoStartAttempted) return;
     setAutoStartAttempted(true);
+    if (narratedVideoForStep(0)) {
+      setRunState("blocked");
+      return;
+    }
     if (!hasAutoStartIntent && !browserHasUserActivation) {
       setRunState("blocked");
       return;
     }
     void startVyvaGuide(0);
-  }, [autoStartAttempted, browserHasUserActivation, exercise, hasAutoStartIntent, session, startVyvaGuide]);
+  }, [autoStartAttempted, browserHasUserActivation, exercise, hasAutoStartIntent, narratedVideoForStep, session, startVyvaGuide]);
 
   const pauseGuide = useCallback(() => {
     setRunState("paused");
@@ -638,7 +691,7 @@ export default function MovementExerciseGuideScreen() {
         method: "POST",
         body: JSON.stringify({
           activity_type: session.logType,
-          duration_minutes: 10,
+          duration_minutes: Math.max(1, Math.round(routineDurationMs / 60_000)),
         }),
       });
       if (!response.ok) throw new Error("Failed to log movement exercise");
@@ -650,7 +703,7 @@ export default function MovementExerciseGuideScreen() {
       setLogStatus("error");
       setRunState("paused");
     }
-  }, [exercise, guideReturnPath, logStatus, navigate, session, stopVoice]);
+  }, [exercise, guideReturnPath, logStatus, navigate, session, stopVoice, routineDurationMs]);
 
   useEffect(() => {
     if (!exercise || !session || !isVisualGuideRunning || logStatus === "saving") return undefined;
@@ -666,12 +719,19 @@ export default function MovementExerciseGuideScreen() {
 
         const nextStepIndex = stepIndex + 1;
         setStepIndex(nextStepIndex);
-        sendStepPrompt(nextStepIndex);
+        if (narratedVideoForStep(nextStepIndex)) {
+          stopVoice();
+          setRunState("guiding");
+        } else if (narratedVideoForStep(stepIndex)) {
+          void startVyvaGuide(nextStepIndex);
+        } else {
+          sendStepPrompt(nextStepIndex);
+        }
         return 0;
       });
     }, MOVEMENT_GUIDE_TICK_MS);
     return () => window.clearInterval(timer);
-  }, [exercise, finishAndLog, isVisualGuideRunning, logStatus, sendStepPrompt, session, stepDurationMs, stepIndex, steps.length]);
+  }, [exercise, finishAndLog, isVisualGuideRunning, logStatus, narratedVideoForStep, sendStepPrompt, session, startVyvaGuide, stepDurationMs, stepIndex, steps.length, stopVoice]);
 
   if (!exercise || !session || !visual || !isMovementExerciseCardId(exerciseId)) {
     return (
@@ -696,8 +756,11 @@ export default function MovementExerciseGuideScreen() {
     );
   }
 
+  const isNarratedStartPending = runState === "blocked" && isCurrentStepNarrated;
   const statusText = logStatus === "saving" || runState === "saving"
     ? guideCopy.saving
+    : isNarratedStartPending
+      ? guideCopy.sessionReady
     : runState === "blocked"
       ? guideCopy.audioUnavailable
       : runState === "paused"
@@ -736,18 +799,18 @@ export default function MovementExerciseGuideScreen() {
         {runState !== "saving" ? (
           <button
             type="button"
-            onClick={runState === "paused" ? resumeGuide : pauseGuide}
+            onClick={runState === "paused" || isNarratedStartPending ? resumeGuide : pauseGuide}
             disabled={logStatus === "saving" || runState === "saving" || isAudioStarting}
             className="vyva-tap inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 font-body text-[14px] font-black text-white shadow-[0_10px_20px_rgba(18,48,71,0.12)] disabled:opacity-65"
             style={{ background: visual.accent }}
             data-testid="button-movement-guide-pause"
           >
-            {runState === "paused" ? (
+            {runState === "paused" || isNarratedStartPending ? (
               <Play size={18} strokeWidth={2.7} aria-hidden="true" />
             ) : (
               <Pause size={18} strokeWidth={2.7} aria-hidden="true" />
             )}
-            {runState === "paused" ? guideCopy.resumeSession : guideCopy.pauseSession}
+            {isNarratedStartPending ? guideCopy.startAudio : runState === "paused" ? guideCopy.resumeSession : guideCopy.pauseSession}
           </button>
         ) : null}
       </div>
@@ -811,6 +874,7 @@ export default function MovementExerciseGuideScreen() {
             image={currentStepImage}
             imageAlt={`${exercise.title}: ${currentSceneLabel}`}
             video={currentStepVideo}
+            playbackMode={isCurrentStepNarrated ? "narrated-once" : "silent-loop"}
             accent={visual.accent}
             softBg={visual.softBg}
             border={visual.border}
@@ -820,7 +884,7 @@ export default function MovementExerciseGuideScreen() {
           />
         )}
 
-        {runState === "blocked" ? (
+        {runState === "blocked" && !isCurrentStepNarrated ? (
           <div className="mt-4 rounded-[22px] border border-[#FECDD3] bg-[#FFF1F2] p-4 text-center" data-testid="movement-guide-audio-fallback">
             <p className="font-body text-[15px] font-bold leading-snug text-[#BE185D]">
               {voiceError ? `${voiceError} ` : ""}{guideCopy.audioUnavailable}
