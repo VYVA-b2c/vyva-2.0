@@ -51,6 +51,17 @@ describe("Task 11 real PostgreSQL preventive outbound call store", () => {
       await client.connect();
       try {
         await client.query(migrationSql);
+        // Provider-start admission now requires the shared deployment policy and ledger.
+        await client.query(`
+          create table if not exists public.profiles (
+            id text primary key, deployment text not null default 'standard', timezone text default 'Europe/Madrid'
+          );
+          create table if not exists public.user_channel_preferences (
+            user_id text primary key, max_outbound_calls_per_day integer
+          );
+        `);
+        await client.query(fs.readFileSync(new URL("../../migrations/0115_deployment_contact_policy.sql", import.meta.url), "utf8"));
+        await client.query("insert into public.profiles(id) values ('user.test.pg') on conflict (id) do nothing");
       } finally {
         await client.end();
       }

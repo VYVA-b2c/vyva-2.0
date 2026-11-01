@@ -1,3 +1,4 @@
+import contactPolicyRouter from "./routes/contactPolicy.js";
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -271,6 +272,7 @@ app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioW
 app.use("/api/public/whatsapp-private-checkins", publicWhatsappCheckinRouter);
 app.use("/api/integrations/care-operations/whatsapp-private-checkins", careOperationsWhatsappRouter);
 app.use("/api/integrations/website-leads", websiteLeadIntegrationRouter);
+app.use("/api/contact-policy", contactPolicyRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/vyva-demo", vyvaDemoRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);

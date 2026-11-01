@@ -131,6 +131,14 @@ async function prepareAttempt(input: {
   callSid: string;
   occurrence: string;
 }) {
+  // The shared call budget resolves every resident through profiles.
+  const profileClient = new pg.Client({ connectionString: task11PostgresUrl });
+  await profileClient.connect();
+  try {
+    await profileClient.query("insert into public.profiles(id) values ($1) on conflict (id) do nothing", [input.userId]);
+  } finally {
+    await profileClient.end();
+  }
   const parsed = parsePreventiveOutboundCallConfirmationToken(input.token);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) throw new Error("invalid token");
@@ -160,12 +168,13 @@ async function prepareAttempt(input: {
   });
   expect(claim.outcome).toBe("acquired");
   if (claim.outcome !== "acquired") throw new Error("claim failed");
-  await input.store.markProviderAttemptStarted({
+  const providerStart = await input.store.markProviderAttemptStarted({
     attemptId: claim.attempt.id,
     claimToken: `claim.${input.occurrence}`,
     providerAttemptId: `provider-attempt.${input.occurrence}`,
     now: validPreventiveOutboundCallNow,
   });
+  expect(providerStart.outcome).toBe("started");
   await expect(input.store.markProviderStarted({
     attemptId: claim.attempt.id,
     providerAttemptId: `provider-attempt.${input.occurrence}`,

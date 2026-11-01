@@ -1,3 +1,5 @@
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { PoolClient } from "pg";
 import { getContactPolicyForUser } from "../lib/contactPolicyStore.js";
 import { checkinNoAnswerPlan } from "../../shared/contactPolicy.js";
 import { and, desc, eq, gte, isNull } from "drizzle-orm";
@@ -162,8 +164,8 @@ function buildNoResponseMessage(profile: ProfileAlertContext | null, status: Dai
   ].filter(Boolean).join("\n");
 }
 
-async function profileContext(userId: string): Promise<ProfileAlertContext | null> {
-  const result = await pool.query(
+async function profileContext(userId: string, queryClient: Pick<typeof pool, "query"> = pool): Promise<ProfileAlertContext | null> {
+  const result = await queryClient.query(
     `select caregiver_name, caregiver_contact, data_sharing_consent, language, language_preference, timezone
      from profiles
      where id::text = $1
@@ -173,8 +175,8 @@ async function profileContext(userId: string): Promise<ProfileAlertContext | nul
   return result.rows[0] as ProfileAlertContext | undefined ?? null;
 }
 
-async function acceptedCareTeamRecipients(userId: string): Promise<string[]> {
-  const rows = await db
+async function acceptedCareTeamRecipients(userId: string, queryDb: Pick<typeof db, "select"> = db): Promise<string[]> {
+  const rows = await queryDb
     .select({
       name: teamInvitations.invitee_name,
       phone: teamInvitations.invitee_phone,
@@ -289,8 +291,8 @@ async function checkinTrendForUser(userId: string): Promise<DailyCheckinTodaySta
   }
 }
 
-async function recentNoResponseAlert(userId: string, dayStart: Date): Promise<DailyCheckinAlert | null> {
-  const rows = await db
+async function recentNoResponseAlert(userId: string, dayStart: Date, queryDb: Pick<typeof db, "select"> = db): Promise<DailyCheckinAlert | null> {
+  const rows = await queryDb
     .select({
       id: caregiverAlerts.id,
       alert_type: caregiverAlerts.alert_type,
@@ -380,12 +382,13 @@ async function recordCompletedLog(userId: string, schedule: ScheduleRow, complet
   );
 }
 
-async function createNoResponseAlert(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus): Promise<{
+async function createNoResponseAlertUnlocked(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus, client: PoolClient): Promise<{
   alert: DailyCheckinAlert | null;
   canAlert: boolean;
   reason: string | null;
 }> {
-  const profile = await profileContext(userId);
+  const scopedDb = drizzle(client);
+  const profile = await profileContext(userId, client);
   if (!caregiverConsentAllows(profile?.data_sharing_consent)) {
     return { alert: null, canAlert: false, reason: "caregiver consent is not enabled" };
   }
@@ -394,16 +397,16 @@ async function createNoResponseAlert(userId: string, schedule: ScheduleRow, stat
     ...parseEscalationContacts(schedule.escalation_contacts),
     profile?.caregiver_contact,
     profile?.caregiver_name,
-    ...(await acceptedCareTeamRecipients(userId)),
+    ...(await acceptedCareTeamRecipients(userId, scopedDb)),
   ]);
   if (recipients.length === 0) {
     return { alert: null, canAlert: false, reason: "no caregiver contact is available" };
   }
 
-  const existing = await recentNoResponseAlert(userId, status.day_start);
+  const existing = await recentNoResponseAlert(userId, status.day_start, scopedDb);
   if (existing) return { alert: existing, canAlert: true, reason: null };
 
-  const [alert] = await db.insert(caregiverAlerts).values({
+  const [alert] = await scopedDb.insert(caregiverAlerts).values({
     user_id: userId,
     alert_type: DAILY_CHECKIN_ALERT_TYPE,
     severity: "warning",
@@ -412,6 +415,22 @@ async function createNoResponseAlert(userId: string, schedule: ScheduleRow, stat
   }).returning();
 
   return { alert: alert ?? null, canAlert: true, reason: null };
+}
+
+export async function createNoResponseAlert(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus) {
+ const client=await pool.connect();
+ try{await client.query("select pg_advisory_lock(hashtext($1))",["checkin-alert:"+userId]);return await createNoResponseAlertUnlocked(userId,schedule,status,client);}
+ finally{try{await client.query("select pg_advisory_unlock(hashtext($1))",["checkin-alert:"+userId]);}finally{client.release();}}
+}
+export async function reportCheckinNoAnswer(userId:string,input:{scheduled_for:string;attempts:number},now=new Date()){
+ const {policy,timezone}=await getContactPolicyForUser(userId);
+ const schedule=await activeCheckinSchedule(userId,false,now);
+ if(!schedule)throw new Error("No active check-in schedule");
+ const scheduledTimes=normalizeCheckinTimes(schedule.times_of_day);
+ const status=evaluateDailyCheckinSchedule({now,timezone,scheduledTimes,latestCompletedAt:schedule.last_completed_at,graceMinutes:checkinNoAnswerPlan(scheduledTimes[0]??"10:00",policy).graceMinutes});
+ const latest=await latestCheckinForDay(userId,status.day_start,status.day_end);
+ if(latest||status.state!=="overdue"||!status.scheduled_for||new Date(input.scheduled_for).getTime()!==new Date(status.scheduled_for).getTime()||input.attempts<policy.checkinNoAnswerRetries+1)throw new Error("Check-in is complete, retry window is open, or report does not match today's schedule");
+ return createNoResponseAlert(userId,schedule,status);
 }
 
 function messageFor(status: DailyCheckinScheduleStatus["state"], alertReason: string | null, locale?: string | null) {

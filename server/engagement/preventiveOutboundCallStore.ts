@@ -1,3 +1,6 @@
+import {getContactPolicyForUser} from "../lib/contactPolicyStore.js";
+import {effectiveDailyCallLimit} from "../../shared/contactPolicy.js";
+import {localDayWindow} from "../lib/dailyCheckinSchedule.js";
 import { randomUUID } from "node:crypto";
 import {
   constantTimeEqual,
@@ -858,6 +861,11 @@ export class PostgresPreventiveOutboundCallStore implements PreventiveOutboundCa
             await client.query("rollback");
             return { outcome: "conflict", reason: "claim_mismatch" };
           }
+          const {policy,timezone,residentCallOverride}=await getContactPolicyForUser(attempt.userId);
+          await client.query("select pg_advisory_xact_lock(hashtext($1))",["contact-budget:"+attempt.userId]);
+          const day=localDayWindow(input.now,timezone);
+          const budget=await client.query<{calls:string}>(`select (select count(*) from outbound_contact_ledger where user_id=$1 and local_date=$2 and decided_channel='voice_outbound' and reason in ('allowed','urgent')) + (select count(*) from preventive_outbound_call_attempts where user_id=$1 and provider_attempt_started_at >= $3 and provider_attempt_started_at < $4) as calls`,[attempt.userId,day.date_key,day.start,day.end]);
+          if(Number(budget.rows[0].calls)>=effectiveDailyCallLimit(policy,residentCallOverride)){await client.query("rollback");return {outcome:"conflict",reason:"claim_mismatch"};}
           const updated = await client.query<AttemptRow>(
             `update preventive_outbound_call_attempts
                 set status = 'provider_attempt_started',
