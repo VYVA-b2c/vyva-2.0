@@ -1,3 +1,4 @@
+import { DEFAULT_CONTACT_POLICY } from "../../shared/contactPolicy.js";
 import type {
   ProactiveEngagementEvaluationInput,
   ProactivePurposeId,
@@ -100,8 +101,8 @@ export function baseProactiveEvaluationInput(
     ],
     quietHours: {
       mode: "window",
-      startLocalTime: "21:00",
-      endLocalTime: "08:00",
+      startLocalTime: DEFAULT_CONTACT_POLICY.quietHoursStart,
+      endLocalTime: DEFAULT_CONTACT_POLICY.quietHoursEnd,
     },
     recentAttempts: [],
     limitPolicy: {

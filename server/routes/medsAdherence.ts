@@ -1,3 +1,4 @@
+import { MORNING_MEDICATION_TIME } from "../../shared/medicationScheduleDefaults.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { eq, and, desc, gte, inArray, isNull } from "drizzle-orm";
@@ -466,14 +467,14 @@ function scheduleTimesFromText(value: string | null | undefined): string[] {
     .map((match) => `${match[1].padStart(2, "0")}:${match[2]}`);
   if (explicitTimes.length) return Array.from(new Set(explicitTimes));
   if (/\b(twice|two times|2 times|morning and night|morning and evening|twice daily)\b/.test(textValue)) {
-    return ["08:00", "20:00"];
+    return [MORNING_MEDICATION_TIME, "20:00"];
   }
   if (/\b(three times|3 times|three daily)\b/.test(textValue)) {
-    return ["08:00", "14:00", "20:00"];
+    return [MORNING_MEDICATION_TIME, "14:00", "20:00"];
   }
   if (/\b(bed|bedtime|night|evening)\b/.test(textValue)) return ["20:00"];
   if (/\b(noon|lunch|afternoon)\b/.test(textValue)) return ["14:00"];
-  if (/\b(morning|breakfast)\b/.test(textValue)) return ["08:00"];
+  if (/\b(morning|breakfast)\b/.test(textValue)) return [MORNING_MEDICATION_TIME];
   return ["anytime"];
 }
 

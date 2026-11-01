@@ -1,3 +1,5 @@
+vi.mock("../lib/contactPolicyStore.js",()=>({getContactPolicyForUser:vi.fn(async()=>({policy:{quietHoursStart:"21:00",quietHoursEnd:"08:00",maxOutboundCallsPerDay:3,overLimitFallback:"whatsapp_outbound",checkinNoAnswerRetries:3,checkinRetryIntervalMinutes:15},timezone:"Europe/Madrid",residentCallOverride:null}))}));
+vi.mock("../lib/outboundCallBudget.js",()=>({countOutboundCallsToday:vi.fn(async()=>0)}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => ({

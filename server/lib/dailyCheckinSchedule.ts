@@ -1,5 +1,7 @@
+import { DEFAULT_CONTACT_POLICY } from "../../shared/contactPolicy.js";
 export const DAILY_CHECKIN_ALERT_TYPE = "daily_checkin_no_response";
-export const DAILY_CHECKIN_GRACE_MINUTES = 120;
+/** @deprecated Pass deployment policy grace explicitly. */
+export const DAILY_CHECKIN_GRACE_MINUTES = DEFAULT_CONTACT_POLICY.checkinNoAnswerRetries * DEFAULT_CONTACT_POLICY.checkinRetryIntervalMinutes;
 
 export type DailyCheckinState = "completed" | "upcoming" | "due_now" | "overdue" | "not_scheduled";
 
@@ -223,7 +225,7 @@ export function evaluateDailyCheckinSchedule(input: DailyCheckinScheduleInput): 
 
   const minutesSinceDue = Math.max(0, Math.round((now.getTime() - latestDue.getTime()) / 60000));
   const overdueMinutes = Math.max(0, minutesSinceDue - graceMinutes);
-  const state: DailyCheckinState = overdueMinutes > 0 ? "overdue" : "due_now";
+  const state: DailyCheckinState = minutesSinceDue >= graceMinutes ? "overdue" : "due_now";
 
   return {
     state,

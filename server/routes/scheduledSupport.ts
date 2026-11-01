@@ -1,3 +1,5 @@
+import { isInQuietHours, widerQuietHours } from "../../shared/contactPolicy.js";
+import { getContactPolicyForUser } from "../lib/contactPolicyStore.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { and, desc, eq } from "drizzle-orm";
@@ -160,15 +162,6 @@ function zonedDateTimeToUtc(local: ZoneDateParts, hour: number, minute: number, 
   return new Date(guess.getTime() - offset);
 }
 
-function timeInQuietHours(time: string, quietStart: string, quietEnd: string): boolean {
-  const t = minutes(time);
-  const start = minutes(quietStart);
-  const end = minutes(quietEnd);
-  if (start === end) return false;
-  if (start < end) return t >= start && t < end;
-  return t >= start || t < end;
-}
-
 function isUrgent(value: unknown): boolean {
   return Boolean(value && typeof value === "object" && (value as Record<string, unknown>).urgent === true);
 }
@@ -316,8 +309,9 @@ async function createDefaultSchedules(userId: string) {
   const existingKeys = new Set(existing.filter((row) => row.status !== "CANCELLED").map((row) => `${row.interaction_type}:${row.source_ref_id ?? ""}`));
   const language = normalizeAppLanguage(profile?.language_preference ?? profile?.language, "es");
   const timezone = profile?.timezone || "Europe/Madrid";
-  const quietStart = "21:00";
-  const quietEnd = "08:00";
+  const { policy } = await getContactPolicyForUser(userId);
+  const quietStart = policy.quietHoursStart;
+  const quietEnd = policy.quietHoursEnd;
   const toCreate: Array<typeof scheduledInteractions.$inferInsert> = [];
 
   if (!existingKeys.has("CHECK_IN:")) {
@@ -400,15 +394,18 @@ async function syncMedicationTimes(schedule: typeof scheduledInteractions.$infer
     .where(and(eq(userMedications.id, schedule.source_ref_id), eq(userMedications.user_id, schedule.user_id)));
 }
 
-function buildSchedulePatch(data: z.infer<typeof scheduleBodySchema>, existing?: typeof scheduledInteractions.$inferSelect) {
+async function buildSchedulePatch(userId: string, data: Partial<z.infer<typeof scheduleBodySchema>>, existing?: typeof scheduledInteractions.$inferSelect) {
   const times = data.times_of_day !== undefined ? normalizeTimes(data.times_of_day) : existing?.times_of_day ?? [];
   if (data.times_of_day !== undefined && data.times_of_day.length > 0 && times.length === 0) {
     throw new Error("Usa horarios como 09:00 o 18:30.");
   }
-  const quietStart = normalizeTime(data.quiet_hours_start ?? existing?.quiet_hours_start ?? "21:00") ?? "21:00";
-  const quietEnd = normalizeTime(data.quiet_hours_end ?? existing?.quiet_hours_end ?? "08:00") ?? "08:00";
+  const { policy } = await getContactPolicyForUser(userId);
+  const requestedStart = normalizeTime(data.quiet_hours_start ?? existing?.quiet_hours_start ?? policy.quietHoursStart);
+  const requestedEnd = normalizeTime(data.quiet_hours_end ?? existing?.quiet_hours_end ?? policy.quietHoursEnd);
+  if (!requestedStart || !requestedEnd) throw new Error("Usa horarios como 09:00 o 18:30.");
+  const {quietHoursStart:quietStart,quietHoursEnd:quietEnd} = widerQuietHours(policy,requestedStart,requestedEnd);
   const urgent = isUrgent(data.frequency_value ?? existing?.frequency_value);
-  const quietConflict = !urgent && times.some((time) => timeInQuietHours(time, quietStart, quietEnd));
+  const quietConflict = !urgent && times.some((time) => isInQuietHours(time, {quietHoursStart:quietStart,quietHoursEnd:quietEnd}));
   if (quietConflict) {
     throw new Error("Ese horario cae dentro de las horas de descanso. Elige otra hora o cambia las horas tranquilas.");
   }
@@ -446,7 +443,7 @@ function buildSchedulePatch(data: z.infer<typeof scheduleBodySchema>, existing?:
 async function requireSchedule(req: Request, res: Response) {
   const [schedule] = await db.select()
     .from(scheduledInteractions)
-    .where(eq(scheduledInteractions.id, req.params.scheduleId))
+    .where(eq(scheduledInteractions.id, String(req.params.scheduleId)))
     .limit(1);
   if (!schedule) {
     res.status(404).json({ error: "No encontramos ese horario." });
@@ -461,7 +458,7 @@ async function requireSchedule(req: Request, res: Response) {
 }
 
 router.get("/users/:userId/schedules", requireUser, async (req: Request, res: Response) => {
-  const targetUserId = await resolveTargetUserId(req, req.params.userId);
+  const targetUserId = await resolveTargetUserId(req, String(req.params.userId));
   if (!targetUserId) return res.status(401).json({ error: "Inicia sesion para ver tus horarios." });
   const access = await resolveAccess(req, targetUserId);
   if (!access.canView) return res.status(403).json({ error: "No tienes permiso para ver estos horarios." });
@@ -475,7 +472,7 @@ router.get("/users/:userId/schedules", requireUser, async (req: Request, res: Re
 });
 
 router.post("/users/:userId/schedules", requireUser, async (req: Request, res: Response) => {
-  const targetUserId = await resolveTargetUserId(req, req.params.userId);
+  const targetUserId = await resolveTargetUserId(req, String(req.params.userId));
   if (!targetUserId) return res.status(401).json({ error: "Inicia sesion para crear horarios." });
   const access = await resolveAccess(req, targetUserId);
   if (!access.canView || !(await canCreateForTarget(access))) {
@@ -488,7 +485,7 @@ router.post("/users/:userId/schedules", requireUser, async (req: Request, res: R
   }
 
   try {
-    const patch = buildSchedulePatch(parsed.data);
+    const patch = await buildSchedulePatch(targetUserId, parsed.data);
     const [schedule] = await db.insert(scheduledInteractions)
       .values({
         ...patch,
@@ -519,7 +516,7 @@ router.patch("/schedules/:scheduleId", requireUser, async (req: Request, res: Re
   if (!parsed.success) return res.status(400).json({ error: "Revisa los datos del horario." });
 
   try {
-    const patch = buildSchedulePatch(parsed.data, schedule);
+    const patch = await buildSchedulePatch(schedule.user_id, parsed.data, schedule);
     const [updated] = await db.update(scheduledInteractions)
       .set({ ...patch, updated_by: req.user!.id })
       .where(eq(scheduledInteractions.id, schedule.id))
@@ -580,6 +577,7 @@ router.post("/schedules/:scheduleId/resume", requireUser, async (req: Request, r
   if (!canEditSchedule(access, schedule)) {
     return res.status(403).json({ error: "Necesitas permiso de la persona para reactivar este horario." });
   }
+
   const nextRunAt = computeNextRunAt({
     status: "ACTIVE",
     is_paused: false,
@@ -606,7 +604,7 @@ router.post("/schedules/:scheduleId/resume", requireUser, async (req: Request, r
 });
 
 router.get("/users/:userId/interaction-logs", requireUser, async (req: Request, res: Response) => {
-  const targetUserId = await resolveTargetUserId(req, req.params.userId);
+  const targetUserId = await resolveTargetUserId(req, String(req.params.userId));
   if (!targetUserId) return res.status(401).json({ error: "Inicia sesion para ver el historial." });
   const access = await resolveAccess(req, targetUserId);
   if (!access.canView) return res.status(403).json({ error: "No tienes permiso para ver este historial." });
@@ -619,7 +617,7 @@ router.get("/users/:userId/interaction-logs", requireUser, async (req: Request, 
 });
 
 router.get("/users/:userId/consent-audit-logs", requireUser, async (req: Request, res: Response) => {
-  const targetUserId = await resolveTargetUserId(req, req.params.userId);
+  const targetUserId = await resolveTargetUserId(req, String(req.params.userId));
   if (!targetUserId) return res.status(401).json({ error: "Inicia sesion para ver cambios de permisos." });
   const access = await resolveAccess(req, targetUserId);
   if (!access.canView) return res.status(403).json({ error: "No tienes permiso para ver estos cambios." });

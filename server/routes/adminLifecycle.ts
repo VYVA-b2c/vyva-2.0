@@ -1,3 +1,4 @@
+import { DEFAULT_CONTACT_POLICY } from "../../shared/contactPolicy.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
@@ -418,11 +419,11 @@ const adminChannelPreferenceDefaults = {
   preferred_checkin_channel: "voice_outbound",
   preferred_reminder_channel: "whatsapp_outbound",
   support_mode: "ai_powered",
-  voice_available_from: "08:00",
-  voice_available_until: "21:00",
+  voice_available_from: DEFAULT_CONTACT_POLICY.quietHoursEnd,
+  voice_available_until: DEFAULT_CONTACT_POLICY.quietHoursStart,
   whatsapp_available_from: "07:00",
   whatsapp_available_until: "22:00",
-  max_outbound_calls_per_day: 1,
+  max_outbound_calls_per_day: null,
   max_whatsapp_messages_per_day: 5,
 };
 

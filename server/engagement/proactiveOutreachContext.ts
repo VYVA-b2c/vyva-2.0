@@ -1,3 +1,6 @@
+import { getContactPolicyForUser } from "../lib/contactPolicyStore.js";
+import { effectiveDailyCallLimit } from "../../shared/contactPolicy.js";
+import { countOutboundCallsToday } from "../lib/outboundCallBudget.js";
 import { randomUUID } from "node:crypto";
 import { db } from "../db.js";
 import { profiles } from "../../shared/schema.js";
@@ -57,12 +60,6 @@ export const PROACTIVE_OUTREACH_LIMIT_POLICY: ProactiveLimitPolicy = Object.free
   maxRecentDismissals: 1,
   channelLimits: [{ channel: "voice_call", maxAttemptsPerLocalDay: 1 }],
 }) as ProactiveLimitPolicy;
-
-export const PROACTIVE_OUTREACH_QUIET_HOURS = Object.freeze({
-  mode: "window",
-  startLocalTime: "21:00",
-  endLocalTime: "08:00",
-}) as ProactiveEngagementEvaluationInput["quietHours"];
 
 const RECENT_ATTEMPTS_WINDOW_DAYS = 30;
 
@@ -164,6 +161,8 @@ export async function buildProactiveOutreachRuntimeInput(
     since: new Date(now.getTime() - RECENT_ATTEMPTS_WINDOW_DAYS * 24 * 60 * 60_000),
   }).catch(() => []);
 
+  const {policy,timezone,residentCallOverride} = await getContactPolicyForUser(candidate.userId);
+  const budgetReached = await countOutboundCallsToday(candidate.userId, timezone, now) >= effectiveDailyCallLimit(policy,residentCallOverride);
   const evaluationInput: ProactiveEngagementEvaluationInput = {
     schemaVersion: PROACTIVE_ENGAGEMENT_SCHEMA_VERSION,
     evaluationId: idFactory(),
@@ -187,10 +186,10 @@ export async function buildProactiveOutreachRuntimeInput(
     channelCandidates: [{
       channel: "voice_call",
       preferenceRank: 0,
-      availability: consent.phoneE164 ? "available" : "unavailable",
+      availability: consent.phoneE164 && !budgetReached ? "available" : "unavailable",
       purposeId: PREVENTIVE_OUTBOUND_CALL_PURPOSE_ID,
     }],
-    quietHours: PROACTIVE_OUTREACH_QUIET_HOURS,
+    quietHours: {mode:"window",startLocalTime:policy.quietHoursStart,endLocalTime:policy.quietHoursEnd},
     recentAttempts: buildRecentAttemptSummaries(recentAttempts),
     limitPolicy: PROACTIVE_OUTREACH_LIMIT_POLICY,
     existingAuditStates: [],
