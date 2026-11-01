@@ -223,7 +223,7 @@ export function evaluateDailyCheckinSchedule(input: DailyCheckinScheduleInput): 
     };
   }
 
-  const minutesSinceDue = Math.max(0, Math.round((now.getTime() - latestDue.getTime()) / 60000));
+  const minutesSinceDue = Math.max(0, Math.floor((now.getTime() - latestDue.getTime()) / 60000));
   const overdueMinutes = Math.max(0, minutesSinceDue - graceMinutes);
   const state: DailyCheckinState = minutesSinceDue >= graceMinutes ? "overdue" : "due_now";
 

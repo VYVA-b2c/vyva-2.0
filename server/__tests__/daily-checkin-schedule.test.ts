@@ -71,3 +71,5 @@ describe("deployment retry windows",()=>{
  expect(evaluateDailyCheckinSchedule({now:new Date(Date.UTC(2026,4,29,10,minute as number)),timezone:"UTC",scheduledTimes:["10:00"],graceMinutes:grace as number}).state).toBe(state);
  });
 });
+
+it("does not escalate a second before the retry window ends",()=>{expect(evaluateDailyCheckinSchedule({now:new Date("2026-05-29T10:44:59Z"),timezone:"UTC",scheduledTimes:["10:00"],graceMinutes:45}).state).toBe("due_now");});
