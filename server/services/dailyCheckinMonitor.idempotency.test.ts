@@ -12,6 +12,7 @@ vi.mock("../db.js", () => ({
 vi.mock("../lib/contactPolicyStore.js", () => ({
   getContactPolicyForUser: vi.fn(),
 }));
+vi.mock("drizzle-orm/node-postgres",()=>({drizzle:()=>({select:mocks.select,insert:mocks.insert})}));
 import { createNoResponseAlert } from "./dailyCheckinMonitor";
 import { evaluateDailyCheckinSchedule } from "../lib/dailyCheckinSchedule";
 describe("no-answer daily idempotency", () => {
@@ -28,7 +29,7 @@ describe("no-answer daily idempotency", () => {
       ],
     });
     mocks.connect.mockResolvedValue({
-      query: vi.fn().mockResolvedValue({ rows: [] }),
+      query: mocks.query,
       release: vi.fn(),
     });
     mocks.select.mockImplementation(() => {
