@@ -380,7 +380,7 @@ async function recordCompletedLog(userId: string, schedule: ScheduleRow, complet
   );
 }
 
-async function createNoResponseAlert(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus): Promise<{
+async function createNoResponseAlertUnlocked(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus): Promise<{
   alert: DailyCheckinAlert | null;
   canAlert: boolean;
   reason: string | null;
@@ -412,6 +412,22 @@ async function createNoResponseAlert(userId: string, schedule: ScheduleRow, stat
   }).returning();
 
   return { alert: alert ?? null, canAlert: true, reason: null };
+}
+
+export async function createNoResponseAlert(userId: string, schedule: ScheduleRow, status: DailyCheckinScheduleStatus) {
+ const client=await pool.connect();
+ try{await client.query("select pg_advisory_lock(hashtext($1))",["checkin-alert:"+userId]);return await createNoResponseAlertUnlocked(userId,schedule,status);}
+ finally{try{await client.query("select pg_advisory_unlock(hashtext($1))",["checkin-alert:"+userId]);}finally{client.release();}}
+}
+export async function reportCheckinNoAnswer(userId:string,input:{scheduled_for:string;attempts:number},now=new Date()){
+ const {policy,timezone}=await getContactPolicyForUser(userId);
+ const schedule=await activeCheckinSchedule(userId,false,now);
+ if(!schedule)throw new Error("No active check-in schedule");
+ const scheduledTimes=normalizeCheckinTimes(schedule.times_of_day);
+ const status=evaluateDailyCheckinSchedule({now,timezone,scheduledTimes,latestCompletedAt:schedule.last_completed_at,graceMinutes:checkinNoAnswerPlan(scheduledTimes[0]??"10:00",policy).graceMinutes});
+ const latest=await latestCheckinForDay(userId,status.day_start,status.day_end);
+ if(latest||status.state!=="overdue"||!status.scheduled_for||new Date(input.scheduled_for).getTime()!==new Date(status.scheduled_for).getTime()||input.attempts<policy.checkinNoAnswerRetries+1)throw new Error("Check-in is complete, retry window is open, or report does not match today's schedule");
+ return createNoResponseAlert(userId,schedule,status);
 }
 
 function messageFor(status: DailyCheckinScheduleStatus["state"], alertReason: string | null, locale?: string | null) {
