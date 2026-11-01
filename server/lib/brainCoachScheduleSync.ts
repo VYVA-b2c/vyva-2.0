@@ -1,3 +1,4 @@
+import {parseDays} from "../../shared/dayOfWeek.js";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { profiles, scheduledInteractions } from "../../shared/schema.js";
@@ -32,12 +33,7 @@ export function normalizeBrainCoachScheduleTimes(values: string[] | null | undef
   return Array.from(new Set(result)).sort();
 }
 
-function normalizeDays(values: string[] | null | undefined) {
-  const result = (values ?? [])
-    .map((value) => value.trim().slice(0, 3).toUpperCase())
-    .filter((value): value is typeof DAYS[number] => DAYS.includes(value as typeof DAYS[number]));
-  return Array.from(new Set(result));
-}
+function normalizeDays(values:string[]|null|undefined){const parsed=parseDays(values??[]);if(values?.length&&!parsed.days.length)throw new Error(`No entendí los días: ${parsed.unknown.join(", ")}. Usa, por ejemplo, lunes, miércoles y viernes.`);return parsed.days;}
 
 type ZoneDateParts = {
   year: number;
@@ -114,7 +110,9 @@ export function computeBrainCoachNextRunAt(input: {
 }): Date | null {
   if (input.status !== "ACTIVE" || input.isPaused) return null;
   const times = input.timesOfDay.length ? input.timesOfDay : DEFAULT_BRAIN_COACH_TIMES;
-  const weeklyDays = input.frequencyType === "WEEKLY" || input.frequencyType === "CUSTOM"
+  const restrictedDaily=input.frequencyType === "DAILY" && input.daysOfWeek.length>0 && normalizeDays(input.daysOfWeek).length<7;
+  if(restrictedDaily) console.warn("[brain-coach] DAILY with restricted days treated as CUSTOM");
+  const weeklyDays = restrictedDaily || input.frequencyType === "WEEKLY" || input.frequencyType === "CUSTOM"
     ? new Set(normalizeDays(input.daysOfWeek))
     : null;
   const now = input.now ?? new Date();

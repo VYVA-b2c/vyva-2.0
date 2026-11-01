@@ -1,3 +1,4 @@
+import {parseDays} from "../../shared/dayOfWeek.js";
 import { isInQuietHours, widerQuietHours } from "../../shared/contactPolicy.js";
 import { getContactPolicyForUser } from "../lib/contactPolicyStore.js";
 import { Router } from "express";
@@ -40,7 +41,7 @@ const scheduleBodySchema = z.object({
   status: statusSchema.optional(),
   frequency_type: frequencyTypeSchema.optional(),
   frequency_value: z.record(z.unknown()).optional().default({}),
-  days_of_week: z.array(z.string()).optional().default([]),
+  days_of_week: z.array(z.string()).optional(),
   times_of_day: z.array(z.string()).optional().default([]),
   timezone: z.string().trim().min(1).max(100).optional().default("Europe/Madrid"),
   preferred_language: z.string().trim().min(2).max(12).optional().default("es"),
@@ -90,12 +91,7 @@ function normalizeTimes(values: string[]): string[] {
   return Array.from(new Set(result)).sort();
 }
 
-function normalizeDays(values: string[]): string[] {
-  const result = values
-    .map((value) => value.trim().slice(0, 3).toUpperCase())
-    .filter((value): value is typeof DAYS[number] => DAYS.includes(value as typeof DAYS[number]));
-  return Array.from(new Set(result));
-}
+function normalizeDays(values:string[]):string[]{return parseDays(values).days;}
 
 function minutes(value: string): number {
   const [hour, minute] = value.split(":").map(Number);
@@ -170,7 +166,7 @@ function dayKeyFromLocalParts(local: ZoneDateParts): typeof DAYS[number] {
   return DAYS[(new Date(Date.UTC(local.year, local.month - 1, local.day)).getUTCDay() + 6) % 7];
 }
 
-function computeNextRunAt(input: {
+export function computeNextRunAt(input: {
   status: string;
   is_paused?: boolean;
   pause_until?: Date | null;
@@ -183,7 +179,9 @@ function computeNextRunAt(input: {
   if (input.is_paused) return null;
   if (input.pause_until && input.pause_until.getTime() > Date.now()) return null;
   const times = input.times_of_day.length ? input.times_of_day : ["10:00"];
-  const allowedDays = input.frequency_type === "WEEKLY" || input.frequency_type === "CUSTOM"
+  const restrictedDaily = input.frequency_type === "DAILY" && input.days_of_week.length > 0 && normalizeDays(input.days_of_week).length < 7;
+  if(restrictedDaily) console.warn("[schedule] DAILY with restricted days treated as CUSTOM");
+  const allowedDays = restrictedDaily || input.frequency_type === "WEEKLY" || input.frequency_type === "CUSTOM"
     ? new Set(normalizeDays(input.days_of_week))
     : null;
   const now = new Date();
@@ -416,6 +414,7 @@ async function buildSchedulePatch(userId: string, data: Partial<z.infer<typeof s
   const isPaused = status === "PAUSED" || Boolean(pauseUntil && pauseUntil.getTime() > Date.now()) || (data.status === undefined && existing?.is_paused === true);
   const frequencyType = data.frequency_type ?? existing?.frequency_type ?? "DAILY";
   const days = data.days_of_week !== undefined ? normalizeDays(data.days_of_week) : existing?.days_of_week ?? [];
+  if ((data.days_of_week !== undefined && data.days_of_week.length > 0 && !days.length) || (["WEEKLY","CUSTOM"].includes(frequencyType) && !days.length)) throw new Error(`No entendí los días: ${parseDays(data.days_of_week ?? []).unknown.join(", ")}. Usa, por ejemplo, lunes, miércoles y viernes.`);
   const nextRunAt = computeNextRunAt({
     status,
     is_paused: isPaused,
