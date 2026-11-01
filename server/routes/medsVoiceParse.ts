@@ -8,7 +8,7 @@ Return a JSON object with these optional fields:
 - name: medication name (string)
 - dosage: dosage amount and unit like "500mg" (string)
 - frequency: one of "once_daily", "twice_daily", "three_daily", "as_needed" — pick the closest match (string)
-- times: time(s) to take it like "08:00" or "08:00, 20:00" (string)
+- times: time(s) to take it like "09:00" or "08:00, 20:00" (string)
 - withFood: one of "with_food", "without_food", "doesnt_matter" (string)
 - prescribedBy: prescriber name (string)
 

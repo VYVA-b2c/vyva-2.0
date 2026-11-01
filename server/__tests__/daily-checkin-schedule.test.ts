@@ -65,3 +65,11 @@ describe("daily check-in schedule evaluation", () => {
     expect(next?.toISOString()).toBe("2026-05-30T10:00:00.000Z");
   });
 });
+
+describe("deployment retry windows",()=>{
+ it.each([[45,45,"overdue"],[44,45,"due_now"],[60,60,"overdue"],[59,60,"due_now"]])("at minute %s with grace %s",(minute,grace,state)=>{
+ expect(evaluateDailyCheckinSchedule({now:new Date(Date.UTC(2026,4,29,10,minute as number)),timezone:"UTC",scheduledTimes:["10:00"],graceMinutes:grace as number}).state).toBe(state);
+ });
+});
+
+it("does not escalate a second before the retry window ends",()=>{expect(evaluateDailyCheckinSchedule({now:new Date("2026-05-29T10:44:59Z"),timezone:"UTC",scheduledTimes:["10:00"],graceMinutes:45}).state).toBe("due_now");});

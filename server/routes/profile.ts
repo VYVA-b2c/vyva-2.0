@@ -1,3 +1,4 @@
+import { DEFAULT_CONTACT_POLICY } from "../../shared/contactPolicy.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { and, desc, eq, count, inArray, or } from "drizzle-orm";
@@ -245,7 +246,7 @@ const channelPreferencesPatchSchema = z.object({
   voice_available_until: channelPreferenceTimeSchema.optional(),
   whatsapp_available_from: channelPreferenceTimeSchema.optional(),
   whatsapp_available_until: channelPreferenceTimeSchema.optional(),
-  max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
+  max_outbound_calls_per_day: z.number().int().min(1).max(6).nullable().optional(),
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
   concierge_task_notifications_enabled: z.boolean().optional(),
   medication_refill_push_enabled: z.boolean().optional(),
@@ -266,11 +267,11 @@ const channelPreferencesDefaults = {
   preferred_checkin_channel: "voice_outbound" as ContactChannel,
   preferred_reminder_channel: "whatsapp_outbound" as ContactChannel,
   support_mode: "ai_powered" as ContactSupportMode,
-  voice_available_from: "08:00",
-  voice_available_until: "21:00",
+  voice_available_from: DEFAULT_CONTACT_POLICY.quietHoursEnd,
+  voice_available_until: DEFAULT_CONTACT_POLICY.quietHoursStart,
   whatsapp_available_from: "07:00",
   whatsapp_available_until: "22:00",
-  max_outbound_calls_per_day: 1,
+  max_outbound_calls_per_day: null,
   max_whatsapp_messages_per_day: 5,
   concierge_task_notifications_enabled: true,
   medication_refill_push_enabled: false,

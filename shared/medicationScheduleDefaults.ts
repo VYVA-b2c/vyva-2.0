@@ -1,0 +1,1 @@
+export const MORNING_MEDICATION_TIME = "08:00";

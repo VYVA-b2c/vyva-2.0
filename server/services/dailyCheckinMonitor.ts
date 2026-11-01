@@ -1,3 +1,5 @@
+import { getContactPolicyForUser } from "../lib/contactPolicyStore.js";
+import { checkinNoAnswerPlan } from "../../shared/contactPolicy.js";
 import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import {
@@ -8,7 +10,6 @@ import {
 import { languageText, normalizeAppLanguage } from "../../shared/language.js";
 import {
   DAILY_CHECKIN_ALERT_TYPE,
-  DAILY_CHECKIN_GRACE_MINUTES,
   evaluateDailyCheckinSchedule,
   nextCheckinRunAt,
   normalizeCheckinTimes,
@@ -220,13 +221,13 @@ async function activeCheckinSchedule(userId: string, createDefaultSchedule: bool
       user_description: "A short daily check to confirm how you feel and whether you need support.",
       status: "ACTIVE",
       frequency_type: "DAILY",
-      frequency_value: { no_response_grace_minutes: DAILY_CHECKIN_GRACE_MINUTES },
+      frequency_value: {},
       days_of_week: [],
       times_of_day: times,
       timezone,
       preferred_language: profileLanguage(profile),
-      quiet_hours_start: "21:00",
-      quiet_hours_end: "08:00",
+      quiet_hours_start: (await getContactPolicyForUser(userId)).policy.quietHoursStart,
+      quiet_hours_end: (await getContactPolicyForUser(userId)).policy.quietHoursEnd,
       escalation_contacts: recipients.map((contact) => ({ contact, relationship: "caregiver" })),
       next_run_at: nextRun,
       created_by: userId,
@@ -510,6 +511,7 @@ export async function getDailyCheckinTodayStatus(
   const schedule = await activeCheckinSchedule(userId, options.createDefaultSchedule ?? true, now);
   const profile = await profileContext(userId);
   const locale = profileLanguage(profile);
+  const {policy} = await getContactPolicyForUser(userId);
   const timezone = schedule?.timezone || profile?.timezone || "Europe/Madrid";
   const scheduledTimes = schedule ? normalizeCheckinTimes(schedule.times_of_day) : [];
   const provisional = evaluateDailyCheckinSchedule({
@@ -517,7 +519,7 @@ export async function getDailyCheckinTodayStatus(
     timezone,
     scheduledTimes,
     latestCompletedAt: null,
-    graceMinutes: DAILY_CHECKIN_GRACE_MINUTES,
+    graceMinutes: checkinNoAnswerPlan(scheduledTimes[0] ?? "10:00", policy).graceMinutes,
   });
   const latest = await latestCheckinForDay(userId, provisional.day_start, provisional.day_end).catch(() => undefined);
   const trend = await checkinTrendForUser(userId);
@@ -526,7 +528,7 @@ export async function getDailyCheckinTodayStatus(
     timezone,
     scheduledTimes,
     latestCompletedAt: latest?.completed_at ?? schedule?.last_completed_at ?? null,
-    graceMinutes: DAILY_CHECKIN_GRACE_MINUTES,
+    graceMinutes: checkinNoAnswerPlan(scheduledTimes[0] ?? "10:00", policy).graceMinutes,
   });
 
   let alert: DailyCheckinAlert | null = null;
@@ -572,7 +574,7 @@ export async function getDailyCheckinTodayStatus(
       times_of_day: scheduledTimes,
       next_run_at: iso(schedule?.next_run_at) ?? status.next_scheduled_for,
       last_completed_at: iso(schedule?.last_completed_at),
-      grace_minutes: DAILY_CHECKIN_GRACE_MINUTES,
+      grace_minutes: checkinNoAnswerPlan(scheduledTimes[0] ?? "10:00", policy).graceMinutes,
     },
     latest_checkin: latest ? {
       id: latest.id,

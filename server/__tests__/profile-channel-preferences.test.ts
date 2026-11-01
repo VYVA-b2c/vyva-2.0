@@ -87,7 +87,7 @@ describe("Profile channel preferences", () => {
       voice_available_until: "21:00",
       whatsapp_available_from: "07:00",
       whatsapp_available_until: "22:00",
-      max_outbound_calls_per_day: 1,
+      max_outbound_calls_per_day: null,
       max_whatsapp_messages_per_day: 5,
       concierge_task_notifications_enabled: true,
       medication_refill_push_enabled: false,
