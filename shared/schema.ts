@@ -1009,7 +1009,7 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   whatsapp_available_until: text("whatsapp_available_until").default("22:00"),
 
   fallback_chain:                text("fallback_chain").array().default(["whatsapp_outbound", "voice_outbound"]),
-  max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
+  max_outbound_calls_per_day:    integer("max_outbound_calls_per_day"),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
   concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
   medication_refill_push_enabled: boolean("medication_refill_push_enabled").notNull().default(false),
@@ -5205,3 +5205,29 @@ export const schema = {
   conciergeShoppingRequests,
   conciergeShoppingRequestItems,
 };
+
+export const deploymentContactPolicies = pgTable("deployment_contact_policies", {
+ deployment: text("deployment").primaryKey(),
+ quietHoursStart: text("quiet_hours_start").notNull().default("21:00"),
+ quietHoursEnd: text("quiet_hours_end").notNull().default("08:00"),
+ maxOutboundCallsPerDay: integer("max_outbound_calls_per_day").notNull().default(3),
+ overLimitFallback: text("over_limit_fallback").notNull().default("whatsapp_outbound"),
+ checkinNoAnswerRetries: integer("checkin_no_answer_retries").notNull().default(3),
+ checkinRetryIntervalMinutes: integer("checkin_retry_interval_minutes").notNull().default(15),
+ updatedBy: text("updated_by"), updatedAt: timestamp("updated_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [
+ check("dcp_quiet_start_fmt", sql`${t.quietHoursStart} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+ check("dcp_quiet_end_fmt", sql`${t.quietHoursEnd} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+ check("dcp_max_calls", sql`${t.maxOutboundCallsPerDay} between 1 and 6`),
+ check("dcp_fallback", sql`${t.overLimitFallback} in ('whatsapp_outbound','skip')`),
+ check("dcp_retries", sql`${t.checkinNoAnswerRetries} between 0 and 5`),
+ check("dcp_interval", sql`${t.checkinRetryIntervalMinutes} in (10,15,20,30)`),
+]);
+export const outboundContactLedger = pgTable("outbound_contact_ledger", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ userId: text("user_id").notNull().references(() => profiles.id, {onDelete:"cascade"}),
+ purpose: text("purpose").notNull(), requestedChannel: text("requested_channel").notNull(),
+ decidedChannel: text("decided_channel").notNull(), reason: text("reason").notNull(),
+ localDate: date("local_date").notNull(), sourceRef: text("source_ref"),
+ decidedAt: timestamp("decided_at", {withTimezone:true}).notNull().defaultNow(),
+}, t => [index("outbound_contact_ledger_user_day_idx").on(t.userId,t.localDate)]);
