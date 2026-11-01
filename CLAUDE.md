@@ -234,14 +234,16 @@ dictation plumbing.
 
 ## Hard rules
 
-**UID discipline — non-negotiable.** A real bug was caught this way (Scent
-Memory, migration 0042, TEXT where UUID was required).
+**UID discipline — non-negotiable.**
 
-- Every `user_id` is `UUID REFERENCES auth.users(id) ON DELETE CASCADE`
-- Every RLS policy uses `auth.uid() = user_id` — never `auth.uid()::text`
-- Never reference `profiles.id` as a foreign key. Known drift: `profiles.id`
-  is TEXT while `auth.users.id` is UUID
-- Run a UID audit before any merge touching a table with a `user_id`
+- The canonical user identity is `public.profiles(id)` (TEXT). Every login path resolves to it.
+- New tables: `user_id text not null references public.profiles(id) on delete cascade`.
+- Never reference `auth.users(id)` in Replit Postgres. The `auth` schema is Supabase-only and is not
+  guaranteed to exist here. Tables still on the old rule: 0070, 0071, 0075 (pending review).
+- Never mix UUID and TEXT user ids in one join; cast explicitly (`user_id::text`) where a legacy UUID
+  column has to meet `profiles.id`.
+- Access control lives in Express (`requireUser` + domain access checks), not in RLS, for this database.
+- Run a UID audit before any merge touching a table with a `user_id`.
 
 **Migrations.** Additive only. Never edit an applied migration — write a new
 one. Development first, always. Never run against Production. Note that
