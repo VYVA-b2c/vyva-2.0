@@ -199,6 +199,7 @@ function ChannelCard({
   onRegenerateImage,
   onSaveAltText,
   onCopy,
+  onPublishLinkedIn,
 }: {
   content: StudioContent;
   readiness: ReadinessItem;
@@ -211,6 +212,7 @@ function ChannelCard({
   onRegenerateImage: () => void;
   onSaveAltText: (altText: string) => void;
   onCopy: () => void;
+  onPublishLinkedIn: () => void;
 }) {
   const channel = CHANNELS.find((item) => item.value === content.channel) ?? CHANNELS[0];
   const variantSuffix = content.language === "en" ? "" : `-${content.language}`;
@@ -224,6 +226,8 @@ function ChannelCard({
   const imageUrl = mediaAsset?.localUrl || mediaAsset?.originalUrl || (Array.isArray(content.mediaAssets) ? String(metadataRecord(content.mediaAssets[0]).url || "") : "");
   const imageApproved = studioMediaApproval(mediaAsset);
   const isCopyApproved = content.status === "approved";
+  const publishStatus = metadataRecord(metadataRecord(content.metadata).socialStudio).publishStatus;
+  const isPublished = publishStatus === "published" || content.status === "published";
   const [editingCopy, setEditingCopy] = useState(false);
   const [draftSubject, setDraftSubject] = useState(content.subject ?? "");
   const [draftBody, setDraftBody] = useState(content.body);
@@ -313,7 +317,8 @@ function ChannelCard({
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0e7df] pt-3">
           <div className="flex flex-wrap gap-1.5">{readiness.issues.map((issue) => <span key={issue} className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">{issue}</span>)}</div>
-          {!isCopyApproved ? <button type="button" onClick={onApproveCopy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-copy-${variantTestId}`}><CheckCircle2 size={13} /> Approve copy</button> : <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> Copy approved</span>}
+          {!isCopyApproved && !isPublished ? <button type="button" onClick={onApproveCopy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-copy-${variantTestId}`}><CheckCircle2 size={13} /> Approve copy</button> : <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> {isPublished ? "Published" : "Copy approved"}</span>}
+          {content.channel === "linkedin" && isCopyApproved && !isPublished ? <button type="button" onClick={onPublishLinkedIn} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0a66c2] px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-publish-linkedin-${variantTestId}`}><Send size={13} /> Publish text to LinkedIn</button> : null}
         </div>
       </div>
     </article>
@@ -516,6 +521,22 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
     }
   }
 
+  async function publishLinkedIn(content: StudioContent) {
+    if (!studioPackage) return;
+    setBusyAction(`publish-linkedin-${content.id}`);
+    setFeedback("Publishing the approved LinkedIn variant...");
+    try {
+      const response = await requestJson<{ content: StudioContent }>(`/api/admin/marketing/social-packages/content/${content.id}/publish-linkedin`, { method: "POST" });
+      setStudioPackage((current) => current ? { ...current, content: current.content.map((item) => item.id === response.content.id ? response.content : item) } : current);
+      await refreshReadiness(studioPackage.campaign.id);
+      setFeedback("LinkedIn post published from the VYVA company page.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "LinkedIn post could not be published.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function exportRunSheet() {
     if (!studioPackage) return;
     const lines = [
@@ -648,7 +669,7 @@ export default function SocialStudioPanel({ audiences = [], onCreated }: { audie
               {studioPackage.content.map((content) => {
                 const readiness = readinessByVariant.get(`${content.channel}:${content.language}`) ?? { channel: content.channel, language: content.language, state: "needs_action" as const, issues: ["Readiness is not available yet."] };
                 const mediaAsset = mediaByContentId.get(content.id);
-                return <ChannelCard key={content.id} content={content} readiness={readiness} mediaAsset={mediaAsset} busy={busyAction !== null} onApproveCopy={() => void approveCopy(content)} onSaveCopy={(subject, body) => void saveCopy(content, subject, body)} onRegenerateCopy={() => void regenerateCopy(content)} onApproveImage={() => mediaAsset && void approveImage(mediaAsset, content.channel)} onRegenerateImage={() => void regenerateImage(content)} onSaveAltText={(altText) => mediaAsset && void saveAltText(mediaAsset, altText, content.channel)} onCopy={() => void copyContent(content)} />;
+                return <ChannelCard key={content.id} content={content} readiness={readiness} mediaAsset={mediaAsset} busy={busyAction !== null} onApproveCopy={() => void approveCopy(content)} onSaveCopy={(subject, body) => void saveCopy(content, subject, body)} onRegenerateCopy={() => void regenerateCopy(content)} onApproveImage={() => mediaAsset && void approveImage(mediaAsset, content.channel)} onRegenerateImage={() => void regenerateImage(content)} onSaveAltText={(altText) => mediaAsset && void saveAltText(mediaAsset, altText, content.channel)} onCopy={() => void copyContent(content)} onPublishLinkedIn={() => void publishLinkedIn(content)} />;
               })}
             </>
           )}
