@@ -3583,10 +3583,7 @@ adminMarketingRouter.post("/social-packages/content/:contentId/publish-linkedin"
     const studio = socialStudioContentMetadata(content);
     if (!studio.campaignId) return res.status(409).json({ error: "This LinkedIn variant is not linked to a Social Studio campaign." });
     const bundle = await loadSocialPackageReadiness(String(studio.campaignId));
-    const readiness = bundle?.readiness.find((item) => item.channel === "linkedin" && item.language === content.language);
-    if (!bundle || !readiness || readiness.state !== "approved") {
-      return res.status(409).json({ error: "Approve the LinkedIn copy and image before publishing.", readiness: readiness ? [readiness] : [] });
-    }
+    if (!bundle) return res.status(404).json({ error: "Social Studio campaign not found." });
 
     const published = await publishLinkedInOrganizationPost({ commentary: socialStudioLinkedInText(content) });
     const now = new Date();

@@ -318,7 +318,7 @@ function ChannelCard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0e7df] pt-3">
           <div className="flex flex-wrap gap-1.5">{readiness.issues.map((issue) => <span key={issue} className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">{issue}</span>)}</div>
           {!isCopyApproved && !isPublished ? <button type="button" onClick={onApproveCopy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-approve-copy-${variantTestId}`}><CheckCircle2 size={13} /> Approve copy</button> : <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 size={14} /> {isPublished ? "Published" : "Copy approved"}</span>}
-          {content.channel === "linkedin" && isCopyApproved && !isPublished ? <button type="button" onClick={onPublishLinkedIn} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0a66c2] px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-publish-linkedin-${variantTestId}`}><Send size={13} /> Publish to LinkedIn</button> : null}
+          {content.channel === "linkedin" && isCopyApproved && !isPublished ? <button type="button" onClick={onPublishLinkedIn} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0a66c2] px-3 text-xs font-black text-white" disabled={busy} data-testid={`button-social-studio-publish-linkedin-${variantTestId}`}><Send size={13} /> Publish text to LinkedIn</button> : null}
         </div>
       </div>
     </article>
