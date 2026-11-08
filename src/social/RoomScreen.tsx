@@ -47,6 +47,7 @@ import {
   MOVEMENT_EXERCISE_VISUALS,
   MOVEMENT_FEATURED_EXERCISE_IDS,
   getMovementExerciseLanguage,
+  getNarratedMovementGuide,
   getMovementExerciseLibraryCopy,
   getMovementSessionUiCopy,
   getMovementSwapExerciseId,
@@ -4339,6 +4340,7 @@ const RoomScreen = () => {
             <div className="mt-4 grid grid-cols-2 gap-3 sm:ml-[72px] sm:grid-cols-4" data-testid="movement-room-exercise-cards">
               {movementFeaturedExerciseCards.map((card) => {
                 const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                const durationLabel = getNarratedMovementGuide(card.id, movementExerciseLanguage)?.durationLabel ?? "10 min";
                 const exerciseCompleted = completedMovementExerciseId === card.id;
                 const exerciseLastUsed = lastMovementExerciseId === card.id;
                 return (
@@ -4346,7 +4348,7 @@ const RoomScreen = () => {
                     key={card.id}
                     type="button"
                     onClick={() => openMovementExerciseCard(card.id)}
-                    aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                    aria-label={`${card.title}. ${card.benefit}. ${durationLabel}.`}
                     className="group min-w-0 overflow-hidden rounded-[22px] border bg-white text-left shadow-[0_12px_24px_rgba(2,132,199,0.08)] transition-transform active:scale-[0.98]"
                     style={{
                       borderColor: exerciseCompleted ? visual.accent : visual.border,
@@ -4380,7 +4382,7 @@ const RoomScreen = () => {
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-1.5 font-body text-[13px] font-black" style={{ color: visual.accent }}>
                           <Clock size={15} strokeWidth={2.4} aria-hidden="true" />
-                          10 min
+                          {durationLabel}
                         </span>
                         {exerciseCompleted || exerciseLastUsed ? (
                           <span
@@ -4590,6 +4592,7 @@ const RoomScreen = () => {
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="movement-room-extra-exercise-cards">
                     {selectedMovementExerciseGroupCards.map((card) => {
                       const visual = MOVEMENT_EXERCISE_VISUALS[card.id];
+                      const durationLabel = getNarratedMovementGuide(card.id, movementExerciseLanguage)?.durationLabel ?? "10 min";
                       const exerciseCompleted = completedMovementExerciseId === card.id;
                       const exerciseLastUsed = lastMovementExerciseId === card.id;
                       return (
@@ -4597,7 +4600,7 @@ const RoomScreen = () => {
                           key={card.id}
                           type="button"
                           onClick={() => openMovementExerciseCard(card.id)}
-                          aria-label={`${card.title}. ${card.benefit}. 10 min.`}
+                          aria-label={`${card.title}. ${card.benefit}. ${durationLabel}.`}
                           className="group min-w-0 overflow-hidden rounded-[20px] border bg-white text-left shadow-[0_10px_20px_rgba(2,132,199,0.07)] transition-transform active:scale-[0.98]"
                           style={{
                             borderColor: exerciseCompleted ? visual.accent : visual.border,
@@ -4631,7 +4634,7 @@ const RoomScreen = () => {
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                               <span className="inline-flex items-center gap-1.5 font-body text-[12px] font-black" style={{ color: visual.accent }}>
                                 <Clock size={14} strokeWidth={2.4} aria-hidden="true" />
-                                10 min
+                                {durationLabel}
                               </span>
                               {exerciseCompleted || exerciseLastUsed ? (
                                 <span

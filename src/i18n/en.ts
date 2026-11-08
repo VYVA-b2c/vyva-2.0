@@ -1143,7 +1143,7 @@ const en = {
       completeTitle: "A calm pause is complete.",
       completeBody: "You can come back to this whenever you want a quieter moment.",
       tryAgain: "Try again",
-      audioUnavailable: "The visual guide still works without audio.",
+      audioUnavailable: "Audio is not available right now.",
       stages: {
         settle: {
           title: "Settle",
