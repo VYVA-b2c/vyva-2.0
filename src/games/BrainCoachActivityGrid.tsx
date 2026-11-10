@@ -1,5 +1,7 @@
 import { useBrainCoachNavigate as useNavigate } from "@/hooks/useBrainCoachNavigate";
-import { CanonicalBrainCoachActivityCard } from "@/components/brain/CanonicalBrainCoachActivityCard";
+import { CanonicalMenuTile } from "@/components/CanonicalMenuTile";
+import { MENU_GRID_CLASS } from "@/design/canonicalMenuLayout";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useLanguage } from "@/i18n";
 import {
   getBrainCoachActivitiesForModule,
@@ -10,39 +12,30 @@ import {
 
 type BrainCoachActivityGridProps = {
   moduleId: BrainCoachModuleId;
-  featuredFirst?: boolean;
 };
 
-export default function BrainCoachActivityGrid({ moduleId, featuredFirst = false }: BrainCoachActivityGridProps) {
+export default function BrainCoachActivityGrid({ moduleId }: BrainCoachActivityGridProps) {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const activities = getBrainCoachActivitiesForModule(moduleId);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5" data-scene-layout="activity_grid">
-      {activities.map((activity, index) => {
+    <div className={MENU_GRID_CLASS} data-scene-layout="activity_grid" data-card-layout="canonical-health-hub-grid">
+      {activities.map((activity) => {
         const copy = getBrainCoachActivityDisplay(activity, t);
-        const isFeatured = featuredFirst && index === 0;
 
         return (
-          <CanonicalBrainCoachActivityCard
+          <CanonicalMenuTile
             key={activity.id}
-            type="button"
             onClick={() => navigate(getBrainCoachActivityPath(activity.id))}
             title={copy.title}
-            description={copy.description}
+            detail={copy.description}
             icon={activity.icon}
-            iconAccent={activity.iconAccent}
-            iconBg={activity.iconBg}
-            iconColor={activity.iconColor}
-            borderColor={activity.borderColor}
-            badge={copy.badge}
-            meta={copy.meta}
-            actionLabel={copy.actionLabel}
-            variant={isFeatured ? "featured" : "default"}
-            className={isFeatured ? "lg:col-span-2" : undefined}
-            aria-label={copy.ariaLabel}
-            data-testid={activity.testId}
+            accent={activity.iconAccent}
+            isDark={isDark}
+            ariaLabel={copy.ariaLabel}
+            testId={activity.testId}
           />
         );
       })}

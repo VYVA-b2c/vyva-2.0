@@ -7,13 +7,11 @@ export default function AttentionBoostersPage() {
   const { t } = useLanguage();
   const module = getBrainCoachModule("reflexes");
   const title = t(module.titleKey, module.title);
-  const subtitle = t(module.descriptionKey, module.description);
 
   return (
     <BrainCoachFlowShell
       testId="attention-boosters-flow-shell"
       title={title}
-      subtitle={subtitle}
       icon={module.icon}
       iconAccent={module.iconAccent}
       iconBg={module.tone.iconBg}
@@ -21,7 +19,7 @@ export default function AttentionBoostersPage() {
       presentationId={module.presentationId}
       sceneId={module.sceneId}
     >
-      <BrainCoachActivityGrid moduleId="reflexes" featuredFirst />
+      <BrainCoachActivityGrid moduleId="reflexes" />
     </BrainCoachFlowShell>
   );
 }
