@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ScheduledTelecareCheckins } from "@/components/ScheduledTelecareCheckins";
 import {
   Activity,
   AlertTriangle,
@@ -1598,6 +1599,7 @@ export function PrototypeCheckInScreen({ returnPath = "/dev/home-master/health" 
     <PrototypeShell testId="prototype-checkin-screen" width="flow" dockPadding={false}>
       <CheckInAdapterBoundary state={flowState} currentQuestion={question} />
       <PrototypeTopbar kind="detail" backPath={returnPath} title="Check-in" />
+      {returnPath === "/health" && <ScheduledTelecareCheckins />}
       <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-[#EEE5F6]">
         <div className="h-full rounded-full bg-vyva-purple" style={{ width: question.id === "feeling" ? "50%" : "100%" }} />
       </div>

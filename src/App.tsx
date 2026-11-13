@@ -1447,7 +1447,7 @@ const App = () => (
                   <Route path="/games/breath-garden" element={<Navigate to="/senses/breath-garden" replace />} />
                   <Route path="/health/medications" element={<Navigate to="/meds" replace />} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
+                  <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen returnPath="/health" /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><VitalsScreen /></AppShell>} />
