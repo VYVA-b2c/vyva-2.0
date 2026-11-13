@@ -74,6 +74,7 @@ import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
 import resendWebhooksRouter from "./routes/resendWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
+import { scheduledCheckinsRouter } from "./routes/scheduledCheckins.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
 import { languageMiddleware } from "./middleware/language.js";
 import {
@@ -229,6 +230,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "20mb" }));
+app.use("/api/health/scheduled-checkins", scheduledCheckinsRouter);
 
 app.post("/api/router", orchestratorRouterHandler);
 app.post("/api/chat", authMiddleware, liveChatHandler);
