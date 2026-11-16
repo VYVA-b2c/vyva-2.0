@@ -5408,6 +5408,18 @@ export default function MarketingAdminPage() {
     () => contacts.find((contact) => contact.id === editingContactId) ?? null,
     [contacts, editingContactId],
   );
+  const websiteLeadMetadata =
+    editingContact?.source === "website_leads" ? editingContact.metadata ?? {} : null;
+  const submittedForm = websiteLeadMetadata
+    ? firstMetadataText([websiteLeadMetadata], [
+        "websiteLead.selected_form_type",
+        "selectedFormType",
+        "websiteLead.cta_source",
+      ])
+    : "";
+  const submittedPage = websiteLeadMetadata
+    ? firstMetadataText([websiteLeadMetadata], ["attribution.pagePath", "websiteLead.page_path"])
+    : "";
   const editingAudience = useMemo(
     () =>
       audiences.find((audience) => audience.id === editingAudienceId) ?? null,
@@ -11827,6 +11839,18 @@ export default function MarketingAdminPage() {
                           ) : null
                         }
                       >
+                        {websiteLeadMetadata && (
+                          <dl className="mb-4 grid gap-3 rounded-lg border p-3 text-sm sm:grid-cols-2">
+                            <div className="min-w-0">
+                              <dt className="font-medium">Form filled</dt>
+                              <dd className="break-words text-muted-foreground">{submittedForm || "Not recorded"}</dd>
+                            </div>
+                            <div className="min-w-0">
+                              <dt className="font-medium">Page submitted from</dt>
+                              <dd className="break-all text-muted-foreground">{submittedPage || "Not recorded"}</dd>
+                            </div>
+                          </dl>
+                        )}
                         <form
                           className="grid gap-3"
                           onSubmit={(event) => void saveContactEdit(event)}
