@@ -292,6 +292,8 @@ const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const BenefitsNavigatorScreen = lazy(() => import("./benefits/BenefitsNavigatorScreen"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
+const MovementLibraryPreview = lazy(() => import("./social/MovementLibraryPreview"));
+const MovementLibraryScreen = lazy(() => import("./social/MovementLibraryScreen"));
 const ScreenContactSheet = lazy(() => import("./pages/dev/ScreenContactSheet"));
 const AdminModulesPage = lazy(() => import("./pages/admin/AdminModulesPage"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -1090,6 +1092,11 @@ function HomeMasterMovementExercisePreviewRoute() {
   );
 }
 
+function HomeMasterMovementLibraryPreviewRoute() {
+  primeHomeMasterPreviewData();
+  return <AppShell><MovementLibraryPreview /></AppShell>;
+}
+
 const LONGEVITY_PREVIEW_MOMENTS: LongevityMoment[] = ["morning", "midday", "afternoon", "evening"];
 
 function parseLongevityPreviewMoment(value: string | null): LongevityMoment | undefined {
@@ -1368,6 +1375,7 @@ const App = () => (
                     <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
                     <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
                     <Route path="/dev/social-rooms/morning-movement/exercises/:exerciseId" element={<HomeMasterMovementExercisePreviewRoute />} />
+                    <Route path="/dev/social-rooms/morning-movement" element={<HomeMasterMovementLibraryPreviewRoute />} />
                     <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
                     <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
                     <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
@@ -1459,6 +1467,7 @@ const App = () => (
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
+                  <Route path="/social-rooms/morning-movement" element={<AppShell><MovementLibraryScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />
                   <Route path="/social-rooms/experts" element={<AppShell><AdvisorHub /></AppShell>} />
