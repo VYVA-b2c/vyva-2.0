@@ -54,6 +54,7 @@ import {
   linkedInOAuthRedirectUri,
   linkedInOAuthUrl,
   listLinkedInConnections,
+  publishLinkedInOrganizationPost,
   verifyLinkedInConnection,
 } from "../services/linkedinMarketingConnection.js";
 import {
@@ -2720,7 +2721,7 @@ async function socialPublishingStatus() {
         name: "LinkedIn",
         channels: ["linkedin"],
         manualPublishingEnabled: true,
-        directPublishingEnabled: false,
+        directPublishingEnabled: linkedInConnections.some((connection) => Boolean(connection.organizationUrn)),
         connectionReady: linkedInConnections.length > 0 ||
           hasMarketingEnvValue("LINKEDIN_MARKETING_ACCESS_TOKEN"),
         connectionConfigured: linkedInOAuthConfigured(),
@@ -2754,6 +2755,16 @@ function socialStudioContentMetadata(content: MarketingContentAssetRow) {
   return asRecord(asRecord(content.metadata).socialStudio);
 }
 
+function socialStudioLinkedInText(content: MarketingContentAssetRow) {
+  const design = asRecord(content.design_json);
+  const studio = asRecord(design.socialStudio);
+  const hashtags = Array.isArray(studio.hashtags) ? studio.hashtags.map(String).filter(Boolean).join(" ") : "";
+  const cta = content.cta_label
+    ? `${content.cta_label}${content.cta_url ? `: ${content.cta_url}` : ""}`
+    : "";
+  return [content.body.trim(), hashtags, cta].filter(Boolean).join("\n\n");
+}
+
 type MarketingSocialReadiness = {
   channel: string;
   language: string;
@@ -2781,7 +2792,7 @@ function socialStudioReadiness(
     if (!content) {
       issues.push("Channel content is missing.");
     } else {
-      if (content.status !== "approved") issues.push("Approve the channel copy.");
+      if (!["approved", "published"].includes(content.status)) issues.push("Approve the channel copy.");
       const studio = socialStudioContentMetadata(content);
       const media = mediaByContentId.get(content.id) ?? [];
       if (studio.imageRequired === true && media.length === 0) issues.push("Generate or attach a channel image.");
@@ -2792,7 +2803,7 @@ function socialStudioReadiness(
     return {
       channel: campaignChannel.channel,
       language: content?.language || "en",
-      state: issues.length ? "needs_action" : content?.status === "approved" ? "approved" : "ready",
+      state: issues.length ? "needs_action" : ["approved", "published"].includes(content?.status ?? "") ? "approved" : "ready",
       issues,
     };
   });
@@ -3560,6 +3571,56 @@ adminMarketingRouter.post("/social-packages/media/:mediaId/approve", async (req,
   } catch (error) {
     console.error("[admin/marketing] social image approval failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Social Studio image could not be approved.") });
+  }
+});
+
+adminMarketingRouter.post("/social-packages/content/:contentId/publish-linkedin", async (req, res) => {
+  try {
+    const [content] = await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, req.params.contentId)).limit(1);
+    if (!content) return res.status(404).json({ error: "Marketing content asset not found." });
+    if (content.channel !== "linkedin") return res.status(409).json({ error: "Only LinkedIn variants can be published through this action." });
+    if (content.status !== "approved") return res.status(409).json({ error: "Approve the LinkedIn copy before publishing." });
+    const studio = socialStudioContentMetadata(content);
+    if (!studio.campaignId) return res.status(409).json({ error: "This LinkedIn variant is not linked to a Social Studio campaign." });
+    const bundle = await loadSocialPackageReadiness(String(studio.campaignId));
+    if (!bundle) return res.status(404).json({ error: "Social Studio campaign not found." });
+
+    const published = await publishLinkedInOrganizationPost({ commentary: socialStudioLinkedInText(content) });
+    const now = new Date();
+    const updatedMetadata = {
+      ...asRecord(content.metadata),
+      socialStudio: {
+        ...studio,
+        publishStatus: "published",
+        publishedAt: published.publishedAt,
+        publishedBy: actor(req),
+        linkedinPostUrn: published.postUrn,
+      },
+    };
+    const [updated] = await db.update(marketingContentAssets).set({
+      status: "published",
+      metadata: updatedMetadata,
+      updated_by: actor(req),
+      updated_at: now,
+    }).where(eq(marketingContentAssets.id, content.id)).returning();
+    const linkedChannel = bundle.channelRows.find((item) => item.content_asset_id === content.id);
+    if (linkedChannel) {
+      await db.update(marketingCampaignChannels).set({
+        status: "published",
+        send_capability: "enabled",
+        metadata: {
+          ...asRecord(linkedChannel.metadata),
+          publishedAt: published.publishedAt,
+          publishedBy: actor(req),
+          linkedinPostUrn: published.postUrn,
+        },
+        updated_at: now,
+      }).where(eq(marketingCampaignChannels.id, linkedChannel.id));
+    }
+    return res.json({ ok: true, content: serializeContent(updated ?? content), postUrn: published.postUrn, publishedAt: published.publishedAt });
+  } catch (error) {
+    console.error("[admin/marketing] LinkedIn social content publish failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "LinkedIn content could not be published." });
   }
 });
 

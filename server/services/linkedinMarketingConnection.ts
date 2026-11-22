@@ -180,6 +180,37 @@ async function linkedInRestFetch<T>(path: string, accessToken: string, params: R
   return payload;
 }
 
+async function publishLinkedInPost(input: { accessToken: string; organizationUrn: string; commentary: string }) {
+  const response = await fetch("https://api.linkedin.com/rest/posts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.accessToken}`,
+      "Linkedin-Version": linkedInApiVersion(),
+      "X-Restli-Protocol-Version": "2.0.0",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      author: input.organizationUrn,
+      commentary: input.commentary,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: "PUBLISHED",
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown> & LinkedInError;
+  if (!response.ok) {
+    throw new Error(linkedinErrorMessage(payload, `LinkedIn post publishing failed with status ${response.status}.`));
+  }
+  return {
+    postUrn: response.headers.get("x-restli-id") || stringValue(payload.id),
+  };
+}
+
 function organizationIdFromEnv() {
   const configured = process.env.LINKEDIN_ORGANIZATION_URN?.trim()
     || process.env.LINKEDIN_ORGANIZATION_ID?.trim()
@@ -409,5 +440,39 @@ export async function verifyLinkedInConnection(connectionId?: string) {
     verifiedOrganizationUrn: connection.organizationUrn,
     verifiedOrganizationName: connection.accountName,
     checkedAt: new Date().toISOString(),
+  };
+}
+
+export async function publishLinkedInOrganizationPost(input: { connectionId?: string; commentary: string }) {
+  const rows = await db.select()
+    .from(marketingSocialConnections)
+    .where(and(
+      eq(marketingSocialConnections.provider, LINKEDIN_PROVIDER),
+      ...(input.connectionId ? [eq(marketingSocialConnections.id, input.connectionId)] : []),
+      eq(marketingSocialConnections.status, "connected"),
+    ))
+    .orderBy(desc(marketingSocialConnections.updated_at))
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw new Error("No connected LinkedIn organization was found.");
+  const connection = serializeLinkedInConnection(row);
+  if (!connection.organizationUrn) {
+    throw new Error("This LinkedIn connection has member access only. Connect a VYVA company-page administrator with organization publishing access.");
+  }
+  const metadata = metadataFor(row);
+  if (!hasOrganizationSocialScopes(stringValue(metadata.scope))) {
+    throw new Error("LinkedIn organization publishing permission is missing. Reconnect LinkedIn and approve company-page publishing access.");
+  }
+  const commentary = input.commentary.trim();
+  if (!commentary) throw new Error("LinkedIn post text cannot be empty.");
+  const result = await publishLinkedInPost({
+    accessToken: decryptMarketingAccessToken(row.access_token_encrypted),
+    organizationUrn: connection.organizationUrn,
+    commentary,
+  });
+  return {
+    connection,
+    postUrn: result.postUrn,
+    publishedAt: new Date().toISOString(),
   };
 }
