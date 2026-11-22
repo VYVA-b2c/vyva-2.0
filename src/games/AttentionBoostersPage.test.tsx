@@ -22,10 +22,15 @@ describe("AttentionBoostersPage", () => {
     expect(screen.getByTestId("attention-boosters-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
     expect(screen.getByTestId("attention-boosters-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.train_reflexes");
     expect(screen.getByTestId("button-brain-coach-category-voice")).toBeInTheDocument();
+    expect(screen.getByTestId("brain-coach-activity-dual-task-walk")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
+    expect(screen.getByTestId("brain-coach-activity-rhythm-sequence")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
+    expect(screen.getByTestId("brain-coach-activity-listen-closely")).toHaveAttribute("data-vyva-card-layout", "canonical-menu");
     const listenCloselyButton = screen.getByRole("button", { name: /Listen Closely/i });
     expect(listenCloselyButton.querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
     expect(screen.queryByText("Attention, rhythm, and response.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Listen for gentle sounds and build calm focus.")).not.toBeInTheDocument();
+    expect(screen.getByText("Listen for gentle sounds and build calm focus.")).toHaveClass("sr-only");
+    expect(screen.queryByText("Exercise")).not.toBeInTheDocument();
+    expect(screen.queryByText("Game")).not.toBeInTheDocument();
 
     fireEvent.click(listenCloselyButton);
 
