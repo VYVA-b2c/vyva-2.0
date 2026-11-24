@@ -39,7 +39,8 @@ jobs:
         run: npm run build
 
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 does not support GitHub's ubuntu-26.04 image yet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
