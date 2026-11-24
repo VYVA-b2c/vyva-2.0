@@ -4,6 +4,7 @@
   "version": "2.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
     "dev": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite\"",
     "predev:replit": "npm run db:concierge-dismissals",
     "dev:replit": "cross-env PORT=5000 NODE_ENV=development tsx server/index.ts",
@@ -13,6 +14,7 @@
     "preview:adherence": "node scripts/preview-adherence-report.mjs",
     "db:audit": "node scripts/db-audit.mjs",
     "db:audit:json": "node scripts/db-audit.mjs --json",
+    "db:compare-cutover": "node scripts/compare-database-cutover.mjs",
     "db:push": "echo \"db:push disabled; use reviewed SQL migrations\"",
     "db:push:manual": "cross-env ALLOW_DRIZZLE_SCHEMA_PUSH=true drizzle-kit push --config scripts/drizzle.manual.config.ts",
     "db:auth": "node scripts/apply-auth-schema.mjs",
