@@ -160,7 +160,7 @@ import { startMedicationRefillMonitor } from "./services/medicationRefillMonitor
 import { startProactiveOutreachMonitor } from "./engagement/proactiveOutreachSweep.js";
 
 const isProduction = process.env.NODE_ENV === "production";
-const isVercel = process.env.VERCEL === "1";
+const isVercel = process.env.VERCEL === "1" || process.env.VYVA_SERVERLESS === "1";
 const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 const SERVER_BUILD_ID = "hero-messages-admin-2026-05-04";

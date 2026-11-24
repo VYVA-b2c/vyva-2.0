@@ -87,9 +87,9 @@ Use `.env.example` as the full inventory. Rotate secrets that were ever exposed 
 
 ## Gate 5: scheduled and webhook traffic
 
-The Vercel runtime does not start in-process timers. `/api/cron/operations` drains communications and runs the existing operational sweeps through Vercel Cron with `CRON_SECRET` authentication.
+The Vercel runtime does not start in-process timers. `/api/cron/operations` drains communications and runs the existing operational sweeps through Vercel Cron with `CRON_SECRET` authentication. `/api/cron/health-insights` preserves the weekly, monthly, and daily health-insight schedule in `Europe/Madrid`; Vercel invokes it at the relevant UTC hours and the handler applies the local-time/DST guard. The health-insight function has the Vercel Pro 800-second duration limit.
 
-Before production, review jobs that may exceed a function's duration. The weekly/monthly health-insight synthesis remains a long-running workload and must be moved to a durable worker/workflow or explicitly disabled before Replit is stopped.
+Before production, review actual health-insight runtimes in Vercel. If a run approaches 800 seconds as the active-user count grows, move the per-user work to Vercel Workflow/Queues before it can time out.
 
 Update external callbacks only after the preview API is healthy:
 
@@ -111,8 +111,9 @@ On the protected Vercel preview, verify at minimum:
 4. A read and a reversible write reach the new database.
 5. Stripe webhook signature verification works in test mode.
 6. One test delivery per enabled channel works without duplicate dispatch.
-7. The cron endpoint rejects missing/wrong authorization and succeeds with Vercel Cron authorization.
-8. Browser console and Vercel runtime logs contain no new errors or secret values.
+7. Both cron endpoints reject missing/wrong authorization and succeed with Vercel Cron authorization.
+8. A health-insight cron dry run outside the scheduled local hours reports `skipped: true`; a scheduled test run completes within 800 seconds.
+9. Browser console and Vercel runtime logs contain no new errors or secret values.
 
 Do not promote a build that has only passed the static frontend check.
 

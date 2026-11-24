@@ -15,7 +15,7 @@ type VercelResponseLike = {
 };
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
 };
 
 function isAuthorized(req: VercelRequestLike): boolean {
