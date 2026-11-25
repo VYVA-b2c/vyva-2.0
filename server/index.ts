@@ -1,6 +1,7 @@
 import contactPolicyRouter from "./routes/contactPolicy.js";
 import express from "express";
 import cors from "cors";
+import { sql } from "drizzle-orm";
 import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
@@ -146,6 +147,7 @@ import learningRouter from "./routes/learning.js";
 import { learningImageHandler } from "./routes/learningImages.js";
 import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
+import { db } from "./db.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import {
@@ -304,6 +306,15 @@ app.get("/api/admin/voice/conversations", authMiddleware, requireAdminUser, list
 app.get("/api/admin/voice/conversations/:conversationId/details", authMiddleware, requireAdminUser, getElevenLabsConversationDetailsHandler);
 app.get("/api/admin/voice/conversations/:conversationId/audio", authMiddleware, requireAdminUser, getElevenLabsConversationAudioHandler);
 app.patch("/api/admin/voice/conversations/:conversationId/review", authMiddleware, requireAdminUser, updateElevenLabsConversationReviewHandler);
+app.get("/api/health", async (_req, res) => {
+  try {
+    await db.execute(sql`select 1`);
+    return res.json({ ok: true, build: SERVER_BUILD_ID, database: "connected" });
+  } catch (error) {
+    console.error("[health] database connectivity check failed:", error);
+    return res.status(503).json({ ok: false, build: SERVER_BUILD_ID, database: "unavailable" });
+  }
+});
 app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
@@ -367,10 +378,6 @@ app.get("/api/debug-runtime", (_req, res) => {
     bill_reader_route: true,
     json_limit: "20mb",
   });
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, build: SERVER_BUILD_ID });
 });
 
 app.get("/api/config/places-key", (_req, res) => {
