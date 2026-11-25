@@ -518,7 +518,7 @@ export async function startPreventiveHealthFlowForEntry(input: {
   if (!flow.ok) {
     return {
       outcome: "rejected",
-      reasonCode: flow.reasonCode === "contract_invalid"
+      reasonCode: "reasonCode" in flow && flow.reasonCode === "contract_invalid"
         ? "preventive_health_flow_contract_invalid"
         : "preventive_health_flow_runtime_failed",
       flagResolution,
@@ -620,7 +620,7 @@ export async function attemptPreventiveHealthCheckin<
   });
   if (!flow.ok) {
     return legacy(
-      flow.reasonCode === "contract_invalid"
+      "reasonCode" in flow && flow.reasonCode === "contract_invalid"
         ? "preventive_health_flow_contract_invalid"
         : "preventive_health_flow_validation_failed",
       flagResolution,

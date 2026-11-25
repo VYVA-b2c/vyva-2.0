@@ -110,7 +110,8 @@ export function compatibleCaptureMethods(signal: VitalsSignalKey): VitalsCapture
   if (BLUETOOTH_SIGNALS.has(signal)) methods.push("web_bluetooth");
   if (PHONE_CAMERA_SIGNALS.has(signal)) methods.push("phone_camera");
   if (DEVICE_PHOTO_SIGNALS.has(signal)) methods.push("device_photo");
-  if (!VITALS_SIGNAL_CATALOG[signal].futureReady || signal === "hrv_ms") {
+  const metadata = VITALS_SIGNAL_CATALOG[signal];
+  if (!("futureReady" in metadata) || !metadata.futureReady || signal === "hrv_ms") {
     methods.push("voice", "manual");
   }
   return methods;

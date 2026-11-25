@@ -350,7 +350,7 @@ export function promptSignalsForProfile(conditions: string[]): VitalsSignalKey[]
 
   for (const key of VITALS_SIGNAL_KEYS) {
     const meta = VITALS_SIGNAL_CATALOG[key];
-    if (meta.futureReady) continue;
+    if ("futureReady" in meta && meta.futureReady) continue;
     if (key === "bp_diastolic") continue;
     if (meta.profileTriggers.some((trigger) => haystack.includes(trigger))) {
       prioritized.push(key);

@@ -199,7 +199,7 @@ export function updateExpertCareVerification(
   if (!candidateExists) return current;
   const verification = current.verification.filter((entry) => entry.candidateId !== candidateId);
   verification.push({ candidateId, status, details, updatedAt: now });
-  const specialists = current.specialists ? {
+  const specialists: ExpertCareCaseState["specialists"] = current.specialists ? {
     ...current.specialists,
     result: {
       ...current.specialists.result,
