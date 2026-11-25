@@ -194,8 +194,8 @@ function operatorAssignmentFromPayload(payload: unknown) {
 }
 
 function operatorIdentity(req: Request) {
-  const email = req.user?.email?.trim() || null;
-  const id = req.user?.id?.trim() || email || null;
+  const email = typeof req.user?.email === "string" ? req.user.email.trim() || null : null;
+  const id = typeof req.user?.id === "string" ? req.user.id.trim() || email : email;
   return { id, email };
 }
 
@@ -997,7 +997,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const row = await loadPendingQueueRow(req.params.id);
+    const row = await loadPendingQueueRow(Array.isArray(req.params.id) ? req.params.id[0] ?? "" : req.params.id ?? "");
     if (!row) return res.status(404).json({ error: "Concierge task not found." });
 
     if (row.action_payload?.request_deleted_at || row.status === "completed" || row.status === "cancelled") {
