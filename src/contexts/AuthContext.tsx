@@ -228,17 +228,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
     const email = emailFromIdentifier(identifier);
-    if (email) {
-      try {
-        const session = await signInWithSupabase(email, password);
-        const currentUser = await loadCurrentUser(session.token, { userId: session.userId, email: session.email });
-        return applyToken(currentUser.token ?? session.token, currentUser.user, currentUser.prevSeenAt);
-      } catch {
-        // Fall back to VYVA's backend auth so regular email/password accounts
-        // are not blocked by Supabase confirmation or SMTP setup.
-      }
-    }
-
     const res = await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
@@ -248,8 +237,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(err instanceof TypeError ? LOCAL_API_UNAVAILABLE_MESSAGE : "Login failed");
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(apiErrorMessage(data, "Login failed"));
-    return applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
+    if (res.ok) return applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
+
+    if (email && res.status === 401) {
+      try {
+        const session = await signInWithSupabase(email, password);
+        const currentUser = await loadCurrentUser(session.token, { userId: session.userId, email: session.email });
+        return applyToken(currentUser.token ?? session.token, currentUser.user, currentUser.prevSeenAt);
+      } catch {
+        // Keep the backend's useful authentication error when neither account
+        // source accepts the credentials.
+      }
+    }
+
+    throw new Error(apiErrorMessage(data, "Login failed"));
   }, [applyToken]);
 
   const register = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
