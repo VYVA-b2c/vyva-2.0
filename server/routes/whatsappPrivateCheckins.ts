@@ -45,7 +45,7 @@ const answerValueSchema = z.union([
   z.array(z.string().max(500)).max(20),
 ]);
 const responseSchema = z.object({
-  answers: z.record(answerValueSchema),
+  answers: z.record(z.string(), answerValueSchema),
   submittedLanguage: z.enum(WHATSAPP_CHECKIN_LANGUAGES).optional(),
 });
 

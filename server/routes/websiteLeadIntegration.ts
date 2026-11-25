@@ -20,7 +20,7 @@ const websiteLeadSchema = z.object({
   phone: stringOrNull,
   language: stringOrNull,
   consent_given: booleanOrNull,
-  lead_context: z.record(z.unknown()).nullable().optional(),
+  lead_context: z.record(z.string(), z.unknown()).nullable().optional(),
   cta_source: stringOrNull,
   source: stringOrNull,
   page_path: stringOrNull,

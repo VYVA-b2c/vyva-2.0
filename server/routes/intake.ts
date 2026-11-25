@@ -21,8 +21,8 @@ const publicIntakeSchema = z.object({
   email: z.string().trim().email().optional().or(z.literal("")),
   organization_id: z.string().uuid().optional().nullable(),
   tier: z.string().trim().min(1).default("free"),
-  source_payload: z.record(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  source_payload: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   elder: contactSchema.optional(),
   family: contactSchema.optional(),
 });
@@ -91,7 +91,7 @@ function normalizePublicIntake(entryPoint: "form" | "phone" | "whatsapp", body: 
   const twilioLike = twilioLikeSchema.safeParse(payload);
   if (!parsed.success && !twilioLike.success) return { error: parsed.success ? undefined : parsed.error };
 
-  const data = parsed.success
+  const data: z.infer<typeof publicIntakeSchema> = parsed.success
     ? parsed.data
     : {
       user_type: "elder" as const,
@@ -99,8 +99,11 @@ function normalizePublicIntake(entryPoint: "form" | "phone" | "whatsapp", body: 
       phone: inferPhoneFromPayload(payload),
       email: "",
       tier: "free",
+      organization_id: null,
       source_payload: payload && typeof payload === "object" ? payload as Record<string, unknown> : {},
       metadata: {},
+      elder: undefined,
+      family: undefined,
     };
 
   const family = data.family ?? { name: data.name, phone: data.phone, email: data.email };
@@ -133,7 +136,7 @@ function normalizePublicIntake(entryPoint: "form" | "phone" | "whatsapp", body: 
 
 async function handlePublicIntake(entryPoint: "form" | "phone" | "whatsapp", req: Request, res: Response) {
   const normalized = normalizePublicIntake(entryPoint, req.body);
-  if ("error" in normalized) return res.status(400).json({ error: normalized.error?.errors[0]?.message ?? "Invalid intake payload" });
+  if ("error" in normalized) return res.status(400).json({ error: normalized.error?.issues[0]?.message ?? "Invalid intake payload" });
   if ("validationError" in normalized) return res.status(400).json({ error: normalized.validationError });
 
   const result = await lifecycleService.createLifecycleIntake(normalized.intake);
