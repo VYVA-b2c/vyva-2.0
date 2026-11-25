@@ -676,20 +676,6 @@ const JOURNEY_BUILDER_STAGES: Array<{
   { id: 5, label: "Review and save" },
 ];
 
-type ContentDraft = {
-  title: string;
-  channel: Channel;
-  language: string;
-  status: ContentStatus;
-  subject: string;
-  body: string;
-  htmlBody: string;
-  ctaLabel: string;
-  ctaUrl: string;
-  designJsonText: string;
-  mediaAssetsText: string;
-};
-
 type ContentEditDraft = {
   title: string;
   channel: Channel;
@@ -1668,22 +1654,6 @@ function emptyCampaignDraft(): CampaignDraft {
     targetAudienceId: "",
     recipientFilter: "",
     snapshotRecipients: false,
-  };
-}
-
-function emptyContentDraft(): ContentDraft {
-  return {
-    title: "",
-    channel: "email",
-    language: "en",
-    status: "draft",
-    subject: "",
-    body: "",
-    htmlBody: "",
-    ctaLabel: "",
-    ctaUrl: "",
-    designJsonText: "{}",
-    mediaAssetsText: "[]",
   };
 }
 
@@ -4298,9 +4268,6 @@ export default function MarketingAdminPage() {
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<
     string | null
   >(null);
-  const [contentDraft, setContentDraft] = useState<ContentDraft>(() =>
-    emptyContentDraft(),
-  );
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
     null,
   );
@@ -4762,9 +4729,11 @@ export default function MarketingAdminPage() {
           (item.contentAssetId
             ? visibleContentIdSet.has(item.contentAssetId)
             : item.source === contentSourceFilter);
-        return matchesText && matchesSource;
+        const matchesChannel = channelFilter === "all"
+          || Boolean(item.contentAssetId && visibleContentIdSet.has(item.contentAssetId));
+        return matchesText && matchesSource && matchesChannel;
       }),
-    [mediaAssets, search, contentSourceFilter, visibleContentIdSet],
+    [mediaAssets, search, channelFilter, contentSourceFilter, visibleContentIdSet],
   );
 
   const contactSourceOptions = useMemo(
@@ -6170,63 +6139,6 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setJourneySaving(false);
-    }
-  }
-
-  async function createContent(event: FormEvent) {
-    event.preventDefault();
-    setContentFeedback("");
-    if (!contentDraft.title.trim()) {
-      setContentFeedback("Content title is required before creating a draft.");
-      return;
-    }
-    setContentSaving(true);
-    try {
-      const result = await api<{ content: ContentAsset }>(
-        "/api/admin/marketing/content",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            title: contentDraft.title,
-            channel: contentDraft.channel,
-            language: contentDraft.language.trim() || "en",
-            status: contentDraft.status,
-            subject: contentDraft.subject || null,
-            body: contentDraft.body,
-            htmlBody: contentDraft.htmlBody.trim() || null,
-            ctaLabel: contentDraft.ctaLabel.trim() || null,
-            ctaUrl: contentDraft.ctaUrl.trim() || null,
-            designJson: parseJsonText(
-              contentDraft.designJsonText,
-              "Design JSON",
-            ),
-            mediaAssets: parseJsonArrayText(
-              contentDraft.mediaAssetsText,
-              "Media assets",
-            ),
-          }),
-        },
-      );
-      setContentDraft(emptyContentDraft());
-      setSelectedContentId(result.content.id);
-      setEditingContentId(result.content.id);
-      setContentEditDraft(contentEditDraftFromContent(result.content));
-      setContentFeedback("Content draft created.");
-      setContentActionFeedback("Content draft created. Editor opened.");
-      setContentDrawerMode("edit");
-      setMessage("Content draft created.");
-      await refreshAll();
-      scrollToContentPanel(contentEditorPanelRef);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Content draft could not be created.";
-      setContentFeedback(errorMessage);
-      setContentActionFeedback(errorMessage);
-      setMessage(errorMessage);
-    } finally {
-      setContentSaving(false);
     }
   }
 
@@ -9990,224 +9902,6 @@ export default function MarketingAdminPage() {
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
               <SectionCard
-                title="Content draft"
-                subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references."
-                className="order-2"
-              >
-                <form
-                  className="grid gap-3"
-                  onSubmit={(event) =>
-                    createContent(event).catch((error) =>
-                      setMessage(error.message),
-                    )
-                  }
-                  data-testid="marketing-content-draft-form"
-                >
-                  <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
-                    <Field label="Title">
-                      <input
-                        className={inputClass}
-                        value={contentDraft.title}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            title: event.target.value,
-                          }))
-                        }
-                        placeholder="Caregiver invite follow-up"
-                        disabled={contentSaving}
-                        data-testid="input-marketing-content-title"
-                      />
-                    </Field>
-                    <Field label="Channel">
-                      <select
-                        className={inputClass}
-                        value={contentDraft.channel}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            channel: event.target.value as Channel,
-                          }))
-                        }
-                        disabled={contentSaving}
-                        data-testid="select-marketing-content-channel"
-                      >
-                        {CHANNELS.map((channel) => (
-                          <option key={channel} value={channel}>
-                            {channelLabel[channel]}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Status">
-                      <select
-                        className={inputClass}
-                        value={contentDraft.status}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            status: event.target.value as ContentStatus,
-                          }))
-                        }
-                        disabled={contentSaving}
-                        data-testid="select-marketing-content-status"
-                      >
-                        {CONTENT_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Language">
-                      <input
-                        className={inputClass}
-                        value={contentDraft.language}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            language: event.target.value,
-                          }))
-                        }
-                        placeholder="en"
-                        disabled={contentSaving}
-                        data-testid="input-marketing-content-language"
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 xl:grid-cols-[1fr_220px_1fr]">
-                    <Field label="Subject">
-                      <input
-                        className={inputClass}
-                        value={contentDraft.subject}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            subject: event.target.value,
-                          }))
-                        }
-                        placeholder="Optional subject"
-                        disabled={contentSaving}
-                        data-testid="input-marketing-content-subject"
-                      />
-                    </Field>
-                    <Field label="CTA label">
-                      <input
-                        className={inputClass}
-                        value={contentDraft.ctaLabel}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            ctaLabel: event.target.value,
-                          }))
-                        }
-                        placeholder="Read more"
-                        disabled={contentSaving}
-                        data-testid="input-marketing-content-cta-label"
-                      />
-                    </Field>
-                    <Field label="CTA URL">
-                      <input
-                        className={inputClass}
-                        value={contentDraft.ctaUrl}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            ctaUrl: event.target.value,
-                          }))
-                        }
-                        placeholder="https://..."
-                        disabled={contentSaving}
-                        data-testid="input-marketing-content-cta-url"
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 xl:grid-cols-2">
-                    <Field label="Plain copy">
-                      <textarea
-                        className={textareaClass}
-                        value={contentDraft.body}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            body: event.target.value,
-                          }))
-                        }
-                        placeholder="Campaign copy"
-                        disabled={contentSaving}
-                        data-testid="textarea-marketing-content-body"
-                      />
-                    </Field>
-                    <Field label="HTML body">
-                      <textarea
-                        className={`${textareaClass} font-mono text-xs`}
-                        value={contentDraft.htmlBody}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            htmlBody: event.target.value,
-                          }))
-                        }
-                        placeholder="<p>Optional HTML</p>"
-                        disabled={contentSaving}
-                        data-testid="textarea-marketing-content-html"
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 xl:grid-cols-2">
-                    <Field label="Design JSON">
-                      <textarea
-                        className={`${textareaClass} font-mono text-xs`}
-                        value={contentDraft.designJsonText}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            designJsonText: event.target.value,
-                          }))
-                        }
-                        placeholder="{ }"
-                        disabled={contentSaving}
-                        data-testid="textarea-marketing-content-design-json"
-                      />
-                    </Field>
-                    <Field label="Media assets JSON">
-                      <textarea
-                        className={`${textareaClass} font-mono text-xs`}
-                        value={contentDraft.mediaAssetsText}
-                        onChange={(event) =>
-                          setContentDraft((draft) => ({
-                            ...draft,
-                            mediaAssetsText: event.target.value,
-                          }))
-                        }
-                        placeholder="[]"
-                        disabled={contentSaving}
-                        data-testid="textarea-marketing-content-media-assets"
-                      />
-                    </Field>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                      type="submit"
-                      disabled={contentSaving}
-                      data-testid="button-marketing-add-content"
-                    >
-                      <FileText size={16} />{" "}
-                      {contentSaving ? "Saving..." : "Add content"}
-                    </button>
-                  </div>
-                </form>
-                {contentFeedback && !contentEditDraft ? (
-                  <p
-                    className={`mt-3 rounded-xl px-4 py-3 text-sm font-bold ${contentFeedback.includes("failed") || contentFeedback.includes("required") || contentFeedback.includes("valid JSON") || contentFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
-                    data-testid="marketing-content-feedback"
-                  >
-                    {contentFeedback}
-                  </p>
-                ) : null}
-              </SectionCard>
-              <SectionCard
                 title="Content library"
                 subtitle={
                   visibleContent.length
@@ -10217,6 +9911,15 @@ export default function MarketingAdminPage() {
                 className="order-1"
                 action={
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-black ${channelFilter === "whatsapp" ? "border-purple-600 bg-purple-100 text-purple-900" : "border-purple-200 bg-white text-purple-700 hover:bg-purple-50"}`}
+                      onClick={() => setChannelFilter((current) => current === "whatsapp" ? "all" : "whatsapp")}
+                      aria-pressed={channelFilter === "whatsapp"}
+                      data-testid="button-marketing-whatsapp-templates-filter"
+                    >
+                      WhatsApp templates
+                    </button>
                     <button
                       type="button"
                       className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
