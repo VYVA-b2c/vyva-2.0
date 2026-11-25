@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { assetReferenceSchema } from "./assets";
-import { contractError } from "./errors";
+import { assetReferenceSchema } from "./assets.js";
+import { contractError } from "./errors.js";
 
 export const USER_INPUT_EVENT_TYPES = [
   "USER_SPOKE",

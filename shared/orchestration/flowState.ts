@@ -4,12 +4,12 @@ import {
   acceptedImageMimeTypeSchema,
   assetReferenceSchema,
   isAcceptedContentType,
-} from "./assets";
+} from "./assets.js";
 import {
   OrchestrationContractError,
   contractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 
 export const FLOW_LIFECYCLE_STATES = [
   "idle",

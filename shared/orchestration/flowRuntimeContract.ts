@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { FLOW_LIFECYCLE_STATES, type FlowLifecycleState } from "./flowState";
-import type { FlowDefinition } from "./flowCatalogue";
-import type { PresentationDefinition } from "./presentationRegistry";
+import { FLOW_LIFECYCLE_STATES, type FlowLifecycleState } from "./flowState.js";
+import type { FlowDefinition } from "./flowCatalogue.js";
+import type { PresentationDefinition } from "./presentationRegistry.js";
 
 const stableIdSchema = z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/).max(240);
 const namespaceIdSchema = z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/).max(160);

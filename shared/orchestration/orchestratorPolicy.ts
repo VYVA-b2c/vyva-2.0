@@ -3,7 +3,7 @@ import {
   interactionEventSchema,
   parseInteractionEvent,
   type InteractionEvent,
-} from "./events";
+} from "./events.js";
 import {
   canTransition,
   expectedFlowInputSchema,
@@ -11,7 +11,7 @@ import {
   flowStateSchema,
   parseFlowState,
   type FlowState,
-} from "./flowState";
+} from "./flowState.js";
 import {
   boundedMetadataSchema,
   CONSENT_SCOPE_IDS,
@@ -20,14 +20,14 @@ import {
   VYVA_FLOW_CATALOGUE,
   type FlowCatalogue,
   type FlowDefinition,
-} from "./flowCatalogue";
+} from "./flowCatalogue.js";
 import {
   PRESENTATION_DEVICE_CLASSES,
   parsePresentationRegistry,
   VYVA_PRESENTATION_REGISTRY,
   type PresentationDefinition,
   type PresentationRegistry,
-} from "./presentationRegistry";
+} from "./presentationRegistry.js";
 import {
   escalationProposalSchema,
   followUpRecommendationSchema,
@@ -45,11 +45,11 @@ import {
   validateSpecialistResponse,
   type SpecialistRequest,
   type SpecialistResponse,
-} from "./specialist";
+} from "./specialist.js";
 import {
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 
 const opaqueIdSchema = z.string()
   .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);

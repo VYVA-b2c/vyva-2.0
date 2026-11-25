@@ -5,27 +5,27 @@ import {
   INTERACTION_EVENT_TYPES,
   INTERACTION_MODALITIES,
   interactionTriggerSourceSchema,
-} from "./events";
+} from "./events.js";
 import {
   ANSWER_KIND_MODALITY_COMPATIBILITY,
   ANSWER_KINDS,
   expectedFlowInputSchema,
   type AnswerKind,
   type ExpectedFlowInput,
-} from "./flowState";
+} from "./flowState.js";
 import {
   boundedMetadataSchema,
   FLOW_CHANNELS,
   VYVA_FLOW_CATALOGUE,
-} from "./flowCatalogue";
+} from "./flowCatalogue.js";
 import {
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 import {
   specialistUIInstructionSchema,
   type SpecialistUIInstruction,
-} from "./specialist";
+} from "./specialist.js";
 
 const stableIdSchema = z.string()
   .regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/);

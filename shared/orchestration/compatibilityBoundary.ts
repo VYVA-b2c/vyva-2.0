@@ -3,22 +3,22 @@ import {
   interactionEventSchema,
   parseInteractionEvent,
   type InteractionEvent,
-} from "./events";
+} from "./events.js";
 import {
   flowStateSchema,
   parseFlowState,
   type FlowState,
-} from "./flowState";
+} from "./flowState.js";
 import {
   parseFlowCatalogue,
   VYVA_FLOW_CATALOGUE,
   type FlowCatalogue,
-} from "./flowCatalogue";
+} from "./flowCatalogue.js";
 import {
   parsePresentationRegistry,
   VYVA_PRESENTATION_REGISTRY,
   type PresentationRegistry,
-} from "./presentationRegistry";
+} from "./presentationRegistry.js";
 import {
   ORCHESTRATOR_POLICY_PRECEDENCE,
   orchestratorPolicyDecisionSchema,
@@ -29,16 +29,16 @@ import {
   type OrchestratorPolicyDecision,
   type OrchestratorPolicyEvaluationRequest,
   type OrchestratorPolicyValidationOptions,
-} from "./orchestratorPolicy";
+} from "./orchestratorPolicy.js";
 import {
   specialistRiskLevelSchema,
   type SpecialistRiskLevel,
-} from "./specialist";
+} from "./specialist.js";
 import {
   contractError,
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 
 const MAX_ITEMS = 128;
 const MAX_SEAMS = 32;

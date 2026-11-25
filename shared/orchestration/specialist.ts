@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { assetReferenceSchema } from "./assets";
-import { interactionTriggerSourceSchema } from "./events";
+import { assetReferenceSchema } from "./assets.js";
+import { interactionTriggerSourceSchema } from "./events.js";
 import {
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 import {
   canTransition,
   expectedFlowInputSchema,
@@ -12,7 +12,7 @@ import {
   normalizedAnswerSchema,
   pendingToolSchema,
   resumeMetadataSchema,
-} from "./flowState";
+} from "./flowState.js";
 
 const id = z.string().min(1).max(160);
 const text = z.string().min(1).max(4_000);

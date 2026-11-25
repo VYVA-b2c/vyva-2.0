@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { contractError } from "./errors";
+import { contractError } from "./errors.js";
 
 const OPAQUE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const CONTENT_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\*)$/;
