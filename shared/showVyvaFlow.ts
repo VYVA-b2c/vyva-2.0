@@ -1,5 +1,5 @@
-import { CONCIERGE_FLOW_REFERENCES, type ConciergeFlowReference } from "./conciergeFlowRegistry";
-import { APP_WORKFLOW_REFERENCES, type WorkflowReference } from "./workflowRegistry";
+import { CONCIERGE_FLOW_REFERENCES, type ConciergeFlowReference } from "./conciergeFlowRegistry.js";
+import { APP_WORKFLOW_REFERENCES, type WorkflowReference } from "./workflowRegistry.js";
 
 export const SHOW_VYVA_CAPTURE_SOURCES = ["camera", "upload", "paste_text", "paste_link"] as const;
 export type ShowVyvaCaptureSource = typeof SHOW_VYVA_CAPTURE_SOURCES[number];

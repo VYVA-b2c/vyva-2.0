@@ -1,19 +1,19 @@
-import { type ConciergeFlowReference } from "./conciergeFlowRegistry";
+import { type ConciergeFlowReference } from "./conciergeFlowRegistry.js";
 import {
   getShowVyvaUseCase,
   inferShowVyvaPasteSource,
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
   type ShowVyvaUseCaseId,
-} from "./showVyvaFlow";
+} from "./showVyvaFlow.js";
 import {
   showVyvaFollowUpActionsFor,
   showVyvaFollowUpContextForUseCase,
   type ShowVyvaFollowUpAction,
   type ShowVyvaFollowUpActionId,
   type ShowVyvaFollowUpContext,
-} from "./showVyvaFollowUp";
-import { type WorkflowReference } from "./workflowRegistry";
+} from "./showVyvaFollowUp.js";
+import { type WorkflowReference } from "./workflowRegistry.js";
 
 export const SHOW_VYVA_REVIEW_INPUT_TYPES = {
   cameraPhoto: "camera_photo",

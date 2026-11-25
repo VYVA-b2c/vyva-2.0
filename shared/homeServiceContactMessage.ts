@@ -1,4 +1,4 @@
-import { languageText, normalizeAppLanguage, SUPPORTED_APP_LANGUAGES, type AppLanguage } from "./language";
+import { languageText, normalizeAppLanguage, SUPPORTED_APP_LANGUAGES, type AppLanguage } from "./language.js";
 
 const CRITERIA_LABELS: Record<AppLanguage, Record<string, string>> = {
   en: { fastest: "fastest available help", trusted: "a trusted provider", lowest_cost: "lower cost", highest_rated: "highest rated" },

@@ -1,4 +1,4 @@
-import type { SocialActivityType, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types";
+import type { SocialActivityType, SocialLanguage, SocialRoom, SocialRoomCategory } from "../../src/social/types.js";
 
 type LocalizedText = Partial<Record<SocialLanguage, string>> & {
   es: string;

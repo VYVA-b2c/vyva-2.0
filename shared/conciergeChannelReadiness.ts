@@ -1,4 +1,4 @@
-import type { ConciergeToolRequirement } from "./conciergeFlowRegistry";
+import type { ConciergeToolRequirement } from "./conciergeFlowRegistry.js";
 
 export type ConciergeProductionChannel =
   | "phone_call"

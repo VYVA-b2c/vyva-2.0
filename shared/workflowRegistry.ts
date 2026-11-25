@@ -4,7 +4,7 @@ import {
   CONCIERGE_FLOW_REGISTRY,
   getConciergeFlowDefinition,
   type ConciergeFlowReference,
-} from "./conciergeFlowRegistry";
+} from "./conciergeFlowRegistry.js";
 
 export const APP_WORKFLOW_REFERENCES = {
   homeHub: "WF_HOME_HUB",

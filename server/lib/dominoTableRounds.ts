@@ -3,7 +3,7 @@ import type {
   SocialGameRound,
   SocialGameRoundInteraction,
   SocialGameRoundVisual,
-} from "../../src/social/types";
+} from "../../src/social/types.js";
 
 type DominoValue = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 type DominoTile = readonly [DominoValue, DominoValue];

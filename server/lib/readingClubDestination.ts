@@ -2,7 +2,7 @@ import type {
   SocialLanguage,
   SocialReadingClubDestination,
   SocialRoomMember,
-} from "../../src/social/types";
+} from "../../src/social/types.js";
 
 type Localized<T> = Partial<Record<SocialLanguage, T>> & {
   en: T;

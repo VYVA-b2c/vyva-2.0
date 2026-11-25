@@ -1,4 +1,4 @@
-import { SHOW_VYVA_USE_CASE_IDS, type ShowVyvaUseCaseId } from "./showVyvaFlow";
+import { SHOW_VYVA_USE_CASE_IDS, type ShowVyvaUseCaseId } from "./showVyvaFlow.js";
 
 export const SHOW_VYVA_FOLLOW_UP_CONTEXTS = {
   scam: "scam",

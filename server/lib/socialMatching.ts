@@ -1,4 +1,4 @@
-import type { SocialGameKind, SocialLanguage } from "../../src/social/types";
+import type { SocialGameKind, SocialLanguage } from "../../src/social/types.js";
 import { resolveSocialRoomSlug } from "./socialRoomsSeed.js";
 import { buildGamePreferenceTag, labelForGameKind } from "./socialGameRounds.js";
 

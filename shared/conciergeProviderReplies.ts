@@ -3,7 +3,7 @@ import {
   parseConciergeProviderReplyResolution,
   resetConciergeProviderReplyExternalExecution,
   type ConciergeProviderReplyResolution,
-} from "./conciergeProviderReplyResolution";
+} from "./conciergeProviderReplyResolution.js";
 
 export const CONCIERGE_PROVIDER_TASK_STATUSES = [
   "waiting",

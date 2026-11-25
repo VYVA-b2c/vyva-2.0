@@ -6,8 +6,8 @@ import {
   validateVitalsSignalValue,
   type VitalsCaptureMethod,
   type VitalsSignalKey,
-} from "./vitalsSignalCatalog";
-import type { VitalsReadingSource, VitalsSourceConfidence } from "./vitalsEvidence";
+} from "./vitalsSignalCatalog.js";
+import type { VitalsReadingSource, VitalsSourceConfidence } from "./vitalsEvidence.js";
 
 export type ProposedVitalsReading = {
   signal_type: VitalsSignalKey;

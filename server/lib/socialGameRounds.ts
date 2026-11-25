@@ -8,8 +8,8 @@ import type {
   SocialGameRoundVisual,
   SocialGameTable,
   SocialLanguage,
-} from "../../src/social/types";
-import { buildDominoTablePuzzleBank } from "./dominoTableRounds";
+} from "../../src/social/types.js";
+import { buildDominoTablePuzzleBank } from "./dominoTableRounds.js";
 
 type ExtraGameLanguage = Exclude<SocialGameLanguage, SocialLanguage>;
 

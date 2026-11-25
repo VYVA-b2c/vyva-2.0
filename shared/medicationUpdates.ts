@@ -1,4 +1,4 @@
-import { normalizeAppLanguage, type AppLanguage } from "./language";
+import { normalizeAppLanguage, type AppLanguage } from "./language.js";
 
 export const MEDICATION_UPDATE_KINDS = [
   "recall",

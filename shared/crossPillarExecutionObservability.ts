@@ -3,7 +3,7 @@ import {
   CROSS_PILLAR_PRIMARY_ACTION_IDS,
   CROSS_PILLAR_TOOL_FAMILIES,
   type CrossPillarToolFamily,
-} from "./crossPillarToolReadiness";
+} from "./crossPillarToolReadiness.js";
 
 export const CROSS_PILLAR_EXECUTION_OUTCOMES = [
   "started",

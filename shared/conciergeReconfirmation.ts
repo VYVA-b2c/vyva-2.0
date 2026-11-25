@@ -1,4 +1,4 @@
-import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract";
+import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract.js";
 
 export type ConciergeReconfirmationStatus = "needed" | "resolved";
 

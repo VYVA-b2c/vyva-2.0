@@ -26,7 +26,7 @@ import {
   type PreventionRecommendationCard,
   type SignalInput,
   type TrendResult,
-} from "./vyva-scoring";
+} from "./vyva-scoring.js";
 
 type VyvaDbClient = PrismaClient | Prisma.TransactionClient;
 

@@ -3,7 +3,7 @@ import {
   type ConciergeFlowReference,
   type ConciergeProviderCategoryId,
   type ConciergeToolRequirement,
-} from "./conciergeFlowRegistry";
+} from "./conciergeFlowRegistry.js";
 
 export const CONCIERGE_DRY_RUN_TEST_MODE = "concierge_dry_run";
 
