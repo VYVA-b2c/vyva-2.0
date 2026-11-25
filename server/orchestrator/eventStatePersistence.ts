@@ -434,7 +434,8 @@ export class DurableEventStateCompatibilityStore implements EventStateCompatibil
       event,
     ]);
     if (!localValidation.ok && localParentEvents.length) {
-      return { outcome: "rejected", reason: localValidation.error === "duplicate_conflict" ? "duplicate_conflict" : localValidation.error };
+      const validationError = "error" in localValidation ? localValidation.error : "correlation_invalid";
+      return { outcome: "rejected", reason: validationError === "duplicate_conflict" ? "duplicate_conflict" : validationError };
     }
 
     const semanticDigest = interactionEventSemanticDigest(event);

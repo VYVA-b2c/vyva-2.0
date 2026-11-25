@@ -169,7 +169,7 @@ export function buildMentalWellbeingSpecialistRouteAugmentation(
     : "fallback_to_legacy";
   const reasonCode = accepted
     ? proposal.auditMetadata.decisionCodes.at(-1) ?? "mental_wellbeing.specialist_accepted"
-    : validation.reasonCode;
+    : "reasonCode" in validation ? validation.reasonCode : "mental_wellbeing.specialist_rejected";
   const presentationId = stringField(completion.presentationId);
   const presentationFamilyId = stringField(completion.presentationFamilyId);
   const supportIntent = stringField(completion.supportIntent);

@@ -758,7 +758,7 @@ const allowedOutcomesByDimensionSchema = z.object(
   Object.fromEntries(COMPARISON_DIMENSION_NAMES.map((dimension) => [
     dimension,
     unique(z.enum(COMPARISON_OUTCOMES), COMPARISON_OUTCOMES.length),
-  ])) as Record<ComparisonDimensionName, z.ZodTypeAny>,
+  ])) as unknown as Record<ComparisonDimensionName, z.ZodTypeAny>,
 ).strict();
 
 export const COMPARISON_POLICY_IDS = [
@@ -1055,7 +1055,7 @@ function comparatorFor(
 ): ComparatorDescriptor | undefined {
   return VYVA_COMPARATOR_REGISTRY.comparators.find((item) =>
     item.comparatorId === comparatorId &&
-    item.comparatorVersion === comparatorVersion) as
+    item.comparatorVersion === comparatorVersion) as unknown as
       ComparatorDescriptor | undefined;
 }
 
