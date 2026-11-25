@@ -7,6 +7,7 @@ const CHECKSUM = /^(?:sha256:)?[A-Fa-f0-9]{64}$/;
 const MAX_ASSET_BYTES = 5 * 1024 * 1024 * 1024;
 
 const assetMetadataSchema = z.record(
+  z.string(),
   z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()]),
 ).superRefine((metadata, context) => {
   const entries = Object.entries(metadata);

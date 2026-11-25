@@ -1436,13 +1436,13 @@ export function parsePresentationRegistry(input: unknown): PresentationRegistry 
   return parsed.data;
 }
 
-const compatibility = {
+const compatibility: z.infer<typeof presentationCompatibilitySchema> = {
   isCurrent: true,
   minimumCompatibleVersion: "1.0.0",
   migrationPolicy: "none",
   breakingChange: false,
   deprecatedVersions: [],
-} as const;
+};
 
 type FamilySeed = {
   id: string;

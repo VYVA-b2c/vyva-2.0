@@ -178,7 +178,7 @@ export const safetyContextSchema = z.object({
   flags: z.array(z.string().min(1)).optional(),
 }).strict();
 
-const eventPayloadSchema = z.record(z.unknown());
+const eventPayloadSchema = z.record(z.string(), z.unknown());
 
 const answerContextPayload = {
   questionId: z.string().min(1),
@@ -400,7 +400,7 @@ export const interactionEventSchema = z.object({
   payload: eventPayloadSchema,
   consentContext: consentContextSchema.optional(),
   safetyContext: safetyContextSchema.optional(),
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
 }).strict();
 
 export type EventPayloadFor<TType extends InteractionEventType> =

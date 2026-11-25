@@ -719,7 +719,7 @@ export const consentDecisionReferenceSchema = z.object({
   auditReferenceId: opaqueIdSchema.optional(),
 }).strict();
 
-const specialistRequestObjectSchema = specialistRequestSchema.innerType();
+const specialistRequestObjectSchema = specialistRequestSchema;
 
 export const orchestratorSafetyContextSchema =
   specialistRequestObjectSchema.shape.safetyContext.extend({
@@ -2377,6 +2377,7 @@ function assertAdjudications(
                 adjudication.subjectId,
               );
               return proposal?.operation !== "write" ||
+                !("target" in proposal.proposal) ||
                 !constraint.parameters.allowedTargets.includes(
                   proposal.proposal.target,
                 );
