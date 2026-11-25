@@ -1575,7 +1575,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    if (adminOnly) {
+    if (adminOnly || user.role === "admin") {
       navigate("/admin", { replace: true });
       return;
     }
@@ -1710,6 +1710,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
       } else {
         const signedInUser = await login(authContactPayload(), password);
+        if (signedInUser.role === "admin") {
+          navigate("/admin", { replace: true });
+          return;
+        }
         const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, signedInUser);
         const returnDestination = safeReturnPathForActiveProfile(from, signedInUser);
         if (inviteDestination) {
