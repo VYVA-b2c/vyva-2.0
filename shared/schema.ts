@@ -4325,7 +4325,7 @@ export const voiceConsultationSummaries = pgTable("voice_consultation_summaries"
 ]);
 
 export const insertVoiceConsultationSummarySchema = createInsertSchema(voiceConsultationSummaries).omit({ id: true, created_at: true, updated_at: true });
-export type InsertVoiceConsultationSummary = z.infer<typeof insertVoiceConsultationSummarySchema>;
+export type InsertVoiceConsultationSummary = typeof voiceConsultationSummaries.$inferInsert;
 export type VoiceConsultationSummaryRow = typeof voiceConsultationSummaries.$inferSelect;
 
 export const homePlanCards = pgTable("home_plan_cards", {
