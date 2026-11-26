@@ -2527,6 +2527,52 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
   });
 
+  it("filters content by audience, type, channel and search without guessing unknown audiences", async () => {
+    const entries = [
+      { id: "b2b", title: "web_visit_first_welcome_b2b_telco_es", channel: "whatsapp", designJson: { audience: "B2B", templateGroup: "web_visit_first_welcome_b2b" } },
+      { id: "b2c", title: "web_visit_first_welcome_b2c_es", channel: "whatsapp" },
+      { id: "personal", title: "Personalised welcome", channel: "whatsapp", metadata: { audience: "b2c", draftKind: "website_first_welcome" } },
+      { id: "shared", title: "Shared email template", channel: "email", metadata: { audienceType: "both" } },
+      { id: "unknown", title: "Unclassified content", channel: "email" },
+    ].map((item) => ({ language: "es", status: "draft", body: "Welcome", source: "vyva", ...item }));
+    renderPage({}, { content: entries, mediaAssets: [] });
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    const audience = screen.getByRole("combobox", { name: "Audience filter" });
+    const type = screen.getByRole("combobox", { name: "Content type filter" });
+    const row = (id: string) => screen.queryByTestId(`marketing-content-row-${id}`);
+    fireEvent.change(audience, { target: { value: "b2b" } });
+    expect(row("b2b")).toHaveTextContent("B2B");
+    expect(row("shared")).toBeInTheDocument();
+    expect(row("b2c")).not.toBeInTheDocument();
+    expect(row("unknown")).not.toBeInTheDocument();
+    fireEvent.change(audience, { target: { value: "b2c" } });
+    expect(row("b2c")).toHaveTextContent("B2C");
+    expect(row("personal")).toBeInTheDocument();
+    expect(row("b2b")).not.toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "welcome_templates" } });
+    expect(row("b2c")).toBeInTheDocument();
+    expect(row("personal")).not.toBeInTheDocument();
+    expect(row("shared")).not.toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "personalised_welcome_drafts" } });
+    expect(row("personal")).toBeInTheDocument();
+    expect(row("b2c")).not.toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "email_templates" } });
+    expect(row("shared")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Channel filter" }), { target: { value: "whatsapp" } });
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Content is loaded, but hidden by filters");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-content-filters"));
+    expect(audience).toHaveValue("all");
+    expect(type).toHaveValue("all");
+    expect(row("unknown")).toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "whatsapp_templates" } });
+    expect(row("b2b")).toBeInTheDocument();
+    expect(row("personal")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Search campaigns, journeys, content, contacts, lists, or media"), { target: { value: "telco" } });
+    expect(row("b2b")).toBeInTheDocument();
+    expect(row("b2c")).not.toBeInTheDocument();
+  });
+
   it("edits and deletes imported content assets", async () => {
     renderPage();
 
