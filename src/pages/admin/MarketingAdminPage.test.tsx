@@ -2502,76 +2502,29 @@ describe("MarketingAdminPage", () => {
     ).toHaveTextContent("social_posts");
   });
 
-  it("creates rich marketing content drafts", async () => {
-    renderPage();
-
+  it("shows saved content without a draft form and toggles WhatsApp templates", async () => {
+    renderPage({}, { content: [...content, {
+      id: "whatsapp-welcome", title: "web_visit_first_welcome_b2c_es",
+      channel: "whatsapp", language: "es", status: "draft", body: "Hola {{1}}",
+      source: "vyva",
+    }] });
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    fireEvent.change(screen.getByTestId("input-marketing-content-title"), {
-      target: { value: "Rich content draft" },
-    });
-    fireEvent.change(screen.getByTestId("select-marketing-content-channel"), {
-      target: { value: "linkedin" },
-    });
-    fireEvent.change(screen.getByTestId("select-marketing-content-status"), {
-      target: { value: "review" },
-    });
-    fireEvent.change(screen.getByTestId("input-marketing-content-language"), {
-      target: { value: "es" },
-    });
-    fireEvent.change(screen.getByTestId("input-marketing-content-subject"), {
-      target: { value: "Subject line" },
-    });
-    fireEvent.change(screen.getByTestId("input-marketing-content-cta-label"), {
-      target: { value: "Open" },
-    });
-    fireEvent.change(screen.getByTestId("input-marketing-content-cta-url"), {
-      target: { value: "https://v2.vyva.life/open" },
-    });
-    fireEvent.change(screen.getByTestId("textarea-marketing-content-body"), {
-      target: { value: "Plain copy" },
-    });
-    fireEvent.change(screen.getByTestId("textarea-marketing-content-html"), {
-      target: { value: "<p>HTML copy</p>" },
-    });
-    fireEvent.change(
-      screen.getByTestId("textarea-marketing-content-design-json"),
-      { target: { value: '{"blocks":[{"type":"hero"}]}' } },
-    );
-    fireEvent.change(
-      screen.getByTestId("textarea-marketing-content-media-assets"),
-      { target: { value: '[{"url":"https://cdn.example.test/rich.png"}]' } },
-    );
-    fireEvent.click(screen.getByTestId("button-marketing-add-content"));
-
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith(
-        "/api/admin/marketing/content",
-        expect.objectContaining({ method: "POST" }),
-      );
-    });
-    const postCall = apiFetchMock.mock.calls.find(
-      ([path, init]) =>
-        path === "/api/admin/marketing/content" && init?.method === "POST",
-    );
-    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
-      title: "Rich content draft",
-      channel: "linkedin",
-      status: "review",
-      language: "es",
-      subject: "Subject line",
-      body: "Plain copy",
-      htmlBody: "<p>HTML copy</p>",
-      ctaLabel: "Open",
-      ctaUrl: "https://v2.vyva.life/open",
-      designJson: { blocks: [{ type: "hero" }] },
-      mediaAssets: [{ url: "https://cdn.example.test/rich.png" }],
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("marketing-content-editor-feedback"),
-      ).toHaveTextContent("Content draft created.");
-    });
+    expect(screen.queryByTestId("marketing-content-draft-form")).not.toBeInTheDocument();
+    const filter = screen.getByRole("button", { name: "WhatsApp templates" });
+    expect(filter).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(filter);
+    expect(filter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("web_visit_first_welcome_b2c_es");
+    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Partner post");
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-whatsapp-welcome"));
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("web_visit_first_welcome_b2c_es");
+    fireEvent.click(screen.getByTestId("button-marketing-close-content-drawer"));
+    fireEvent.click(filter);
+    expect(filter).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
   });
 
   it("edits and deletes imported content assets", async () => {
