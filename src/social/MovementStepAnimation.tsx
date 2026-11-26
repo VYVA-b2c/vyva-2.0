@@ -12,11 +12,12 @@ type MovementStepAnimationProps = {
   stepLabel: string;
   instruction: string;
   isGuiding?: boolean;
+  playbackMode?: "silent-loop" | "narrated-once";
 };
 
-function requestVideoPlayback(videoElement: HTMLVideoElement | null) {
+function requestVideoPlayback(videoElement: HTMLVideoElement | null, playbackMode: "silent-loop" | "narrated-once") {
   if (!videoElement) return;
-  videoElement.muted = true;
+  videoElement.muted = playbackMode === "silent-loop";
   videoElement.playsInline = true;
   try {
     const playResult = videoElement.play();
@@ -41,6 +42,7 @@ export default function MovementStepAnimation({
   stepLabel,
   instruction,
   isGuiding = false,
+  playbackMode = "silent-loop",
 }: MovementStepAnimationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const style = {
@@ -51,8 +53,17 @@ export default function MovementStepAnimation({
 
   useEffect(() => {
     if (!video) return;
-    requestVideoPlayback(videoRef.current);
-  }, [video]);
+    requestVideoPlayback(videoRef.current, playbackMode);
+  }, [playbackMode, video]);
+
+  useEffect(() => {
+    if (playbackMode !== "narrated-once" || !videoRef.current) return;
+    if (isGuiding) {
+      requestVideoPlayback(videoRef.current, playbackMode);
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isGuiding, playbackMode]);
 
   return (
     <div
@@ -76,12 +87,13 @@ export default function MovementStepAnimation({
             className="movement-guide-portrait-image movement-guide-step-video absolute inset-0 h-full w-full object-contain"
             data-testid="movement-exercise-step-video"
             autoPlay
-            loop
-            muted
+            loop={playbackMode === "silent-loop"}
+            muted={playbackMode === "silent-loop"}
             playsInline
             preload="metadata"
             disablePictureInPicture
-            onCanPlay={() => requestVideoPlayback(videoRef.current)}
+            data-playback-mode={playbackMode}
+            onCanPlay={() => requestVideoPlayback(videoRef.current, playbackMode)}
           />
         ) : (
           <img

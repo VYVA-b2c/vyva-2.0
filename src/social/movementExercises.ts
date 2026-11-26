@@ -27,6 +27,121 @@ export function getMovementStepVideo(exerciseId: MovementExerciseCardId, stepInd
   return `/assets/movement/${exerciseId}-step-${stepNumber}-${motion}.mp4`;
 }
 
+const NARRATED_MOVEMENT_STEP_VIDEOS: Partial<Record<MovementExerciseCardId, Partial<Record<MovementStepMotion, string>>>> = {
+  // Add narrated assets here only after their Google Vids master has passed preview QA and the approved MP4 has been exported.
+  "chair-yoga": {
+    "seated-tall": "/assets/movement/narrated/chair-yoga-step-01-seated-tall.mp4",
+    "shoulder-roll": "/assets/movement/narrated/chair-yoga-step-02-shoulder-roll.mp4",
+    "overhead-reach": "/assets/movement/narrated/chair-yoga-step-03-overhead-reach.mp4",
+    "side-change": "/assets/movement/narrated/chair-yoga-step-04-side-change.mp4",
+  },
+  "tai-chi": {
+    "standing-support": "/assets/movement/narrated/tai-chi-step-01-standing-support.mp4",
+    "soft-knees": "/assets/movement/narrated/tai-chi-step-02-soft-knees.mp4",
+    "weight-shift": "/assets/movement/narrated/tai-chi-step-03-weight-shift.mp4",
+    "hand-flow": "/assets/movement/narrated/tai-chi-step-04-hand-flow.mp4",
+  },
+  "seated-strength": {
+    "chair-front": "/assets/movement/narrated/seated-strength-step-01-chair-front.mp4",
+    "chair-hold": "/assets/movement/narrated/seated-strength-step-02-chair-hold.mp4",
+    "knee-lift": "/assets/movement/narrated/seated-strength-step-03-knee-lift.mp4",
+    "leg-lower": "/assets/movement/narrated/seated-strength-step-04-leg-lower.mp4",
+  },
+  "calm-breathing": {
+    "calm-seat": "/assets/movement/narrated/calm-breathing-step-01-calm-seat.mp4",
+    "hands-belly": "/assets/movement/narrated/calm-breathing-step-02-hands-belly.mp4",
+    "inhale": "/assets/movement/narrated/calm-breathing-step-03-inhale.mp4",
+    "exhale": "/assets/movement/narrated/calm-breathing-step-04-exhale.mp4",
+  },
+  "sit-to-stand": {
+    "sit-ready": "/assets/movement/narrated/sit-to-stand-step-01-sit-ready.mp4",
+    "feet-under": "/assets/movement/narrated/sit-to-stand-step-02-feet-under.mp4",
+    "stand-up": "/assets/movement/narrated/sit-to-stand-step-03-stand-up.mp4",
+    "sit-down": "/assets/movement/narrated/sit-to-stand-step-04-sit-down.mp4",
+  },
+  "heel-raises": {
+    "chair-behind": "/assets/movement/narrated/heel-raises-step-01-chair-behind.mp4",
+    "chair-hold": "/assets/movement/narrated/heel-raises-step-02-chair-hold.mp4",
+    "toe-rise": "/assets/movement/narrated/heel-raises-step-03-toe-rise.mp4",
+    "heel-lower": "/assets/movement/narrated/heel-raises-step-04-heel-lower.mp4",
+  },
+  "wall-push-ups": {
+    "wall-ready": "/assets/movement/narrated/wall-push-ups-step-01-wall-ready.mp4",
+    "hands-wall": "/assets/movement/narrated/wall-push-ups-step-02-hands-wall.mp4",
+    "wall-lean": "/assets/movement/narrated/wall-push-ups-step-03-wall-lean.mp4",
+    "wall-press": "/assets/movement/narrated/wall-push-ups-step-04-wall-press.mp4",
+  },
+};
+
+// Approved complete guides include narration and play once.
+const NARRATED_MOVEMENT_GUIDES: Partial<Record<MovementExerciseCardId, {
+  video: string;
+  durationMs: number;
+  durationLabel: string;
+  instruction: string;
+  sceneLabel: string;
+}>> = {
+  "ankle-mobility": {
+    video: "/assets/movement/narrated/ankle-mobility-short-guide-en-v2.mp4",
+    durationMs: 72_000,
+    durationLabel: "1:12",
+    instruction: "Follow the short guide: sit tall, flex, point, then change feet.",
+    sceneLabel: "Seated ankle flex, point and change feet",
+  },
+  "chest-opener": {
+    video: "/assets/movement/narrated/chest-opener-short-guide-en-v2.mp4",
+    durationMs: 60_000,
+    durationLabel: "1:00",
+    instruction: "Follow the short guide: sit tall, open gently, breathe, then rest.",
+    sceneLabel: "Seated chest opener with gentle arm opening, breathing and rest",
+  },
+  "side-steps": {
+    video: "/assets/movement/narrated/side-steps-short-guide-en-v2.mp4",
+    durationMs: 60_000,
+    durationLabel: "1:00",
+    instruction: "Follow the short guide: hold your support, step sideways, bring your feet together, then return.",
+    sceneLabel: "Supported side steps at a kitchen counter",
+  },
+  "hand-breathing": {
+    video: "/assets/movement/narrated/hand-breathing-short-guide-en-v2.mp4",
+    durationMs: 60_000,
+    durationLabel: "1:00",
+    instruction: "Follow the short guide: support your hand, trace up as you breathe in, trace down as you breathe out, then rest.",
+    sceneLabel: "Supported hand with gentle finger tracing and breathing",
+  },
+  "shoulder-release": {
+    video: "/assets/movement/narrated/shoulder-release-short-guide-en-v2.mp4",
+    durationMs: 60_000,
+    durationLabel: "1:00",
+    instruction: "Follow the short guide: sit comfortably, lift your shoulders gently, roll them back, then relax and rest.",
+    sceneLabel: "Seated shoulder lift, gentle backward roll and relaxed rest",
+  },
+};
+
+export function getNarratedMovementGuide(exerciseId: MovementExerciseCardId, language: MovementExerciseLanguage) {
+  return language === "en" ? NARRATED_MOVEMENT_GUIDES[exerciseId] : undefined;
+}
+
+export function getNarratedMovementStepVideo(
+  exerciseId: MovementExerciseCardId,
+  stepIndex: number,
+  motion: MovementStepMotion,
+  language: MovementExerciseLanguage,
+) {
+  if (language !== "en") {
+    return undefined;
+  }
+
+  const stepVideo = NARRATED_MOVEMENT_STEP_VIDEOS[exerciseId]?.[motion];
+  const expectedStepNumber = stepVideo?.match(/-step-(\d+)-/)?.[1];
+
+  if (expectedStepNumber !== `${stepIndex + 1}`.padStart(2, "0")) {
+    return undefined;
+  }
+
+  return stepVideo;
+}
+
 export const MOVEMENT_EXERCISE_VISUALS: Record<MovementExerciseCardId, { image: string; accent: string; softBg: string; border: string }> = {
   "chair-yoga":      { image: chairYogaImage,      accent: "#6B21A8", softBg: "#F5F3FF", border: "#D8B4FE" },
   "tai-chi":         { image: taiChiImage,         accent: "#33691E", softBg: "#EEF8DF", border: "#CFE8B8" },
@@ -482,7 +597,7 @@ export const MOVEMENT_EXERCISE_SESSIONS: Record<MovementExerciseCardId, {
     visuals: ["ankle-seat", "foot-lift", "toe-flex", "foot-change"],
     sceneLabels: ["Seated tall with foot ready", "One foot lifted slightly", "Toes flexing gently", "Switching to the other foot"],
     steps: {
-      en: ["Sit tall and hold the chair if helpful.", "Lift one foot slightly.", "Flex your toes up, then point gently.", "Change feet when ready."],
+      en: ["Sit tall, then lift one foot slightly.", "Keep the lift small and steady.", "Flex your toes up, then point gently.", "Change feet when ready."],
       de: ["Sitz aufrecht und halte den Stuhl, wenn es hilft.", "Heb einen Fuss leicht an.", "Zieh die Zehen hoch und strecke sie sanft.", "Wechsle den Fuss, wenn du bereit bist."],
       es: ["Sientate erguido y sujeta la silla si ayuda.", "Levanta un pie un poco.", "Sube los dedos y luego apuntalos suavemente.", "Cambia de pie cuando estes listo."],
       fr: ["Asseyez-vous droit et tenez la chaise si besoin.", "Levez legerement un pied.", "Relevez les orteils, puis pointez doucement.", "Changez de pied quand vous etes pret."],
