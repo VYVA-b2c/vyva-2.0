@@ -2,7 +2,7 @@ import {
   conciergeFlowNeedsSavedProvider,
   CONCIERGE_FLOW_REFERENCES,
   type ConciergeFlowReference,
-} from "./conciergeFlowRegistry";
+} from "./conciergeFlowRegistry.js";
 
 export type ConciergeFlowRequirementKey =
   | "destination"

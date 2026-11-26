@@ -48,20 +48,20 @@ export type TriageProfileSignals = {
 };
 
 type DraftSuggestion = Omit<TriagePersonalizedSuggestion, "label" | "description" | "initialClue" | "score"> & {
-  label: LanguageCopy;
-  description: LanguageCopy;
-  initialClue?: LanguageCopy;
+  label: LanguageCopy<string>;
+  description: LanguageCopy<string>;
+  initialClue?: LanguageCopy<string>;
   score: number;
 };
 
 const MAX_CONCERNS = 6;
 const MAX_IMPROVEMENTS = 5;
 
-function copy(en: string, es: string, fr: string, de: string, it: string, pt: string): LanguageCopy {
+function copy(en: string, es: string, fr: string, de: string, it: string, pt: string): LanguageCopy<string> {
   return { en, es, fr, de, it, pt };
 }
 
-function localize(copyValue: LanguageCopy | undefined, language: string): string | undefined {
+function localize(copyValue: LanguageCopy<string> | undefined, language: string): string | undefined {
   return copyValue ? languageText(normalizeAppLanguage(language, "en"), copyValue) : undefined;
 }
 

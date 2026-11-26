@@ -120,7 +120,7 @@ export function createPreventiveWebPushRouter(
     const body = subscribeBodySchema.safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: "Invalid subscription request" });
     const normalized = normalizePreventiveWebPushSubscription(body.data.subscription);
-    if (!normalized.ok) {
+    if (normalized.ok === false) {
       return res.status(400).json({ error: "Invalid push subscription", reason: normalized.reason });
     }
     const consent = await store.setConsent({ userId, enabled: true, now: safeNow(currentTime) });
@@ -130,12 +130,11 @@ export function createPreventiveWebPushRouter(
       consentRevision: consent.revision,
       now: safeNow(currentTime),
     });
-    if (stored.outcome === "endpoint_conflict") {
+    if (stored.outcome !== "stored") {
       await store.setConsent({ userId, enabled: false, now: safeNow(currentTime) }).catch(() => {});
-      return res.status(409).json({ error: "Push subscription belongs to another user" });
-    }
-    if (stored.outcome === "unavailable") {
-      await store.setConsent({ userId, enabled: false, now: safeNow(currentTime) }).catch(() => {});
+      if (stored.outcome === "endpoint_conflict") {
+        return res.status(409).json({ error: "Push subscription belongs to another user" });
+      }
       return res.status(503).json({ error: "Unable to save push subscription" });
     }
     return res.json({
@@ -183,6 +182,9 @@ export function createPreventiveWebPushRouter(
     if (redeemed.outcome === "unavailable") {
       return res.status(503).json({ error: "Push entry temporarily unavailable" });
     }
+    if (!("entryId" in redeemed)) {
+      return res.status(503).json({ error: "Push entry temporarily unavailable" });
+    }
     return res.json({
       ok: true,
       entryId: redeemed.entryId,
@@ -210,6 +212,9 @@ export function createPreventiveWebPushRouter(
       return res.status(410).json({ error: "Push entry expired" });
     }
     if (marked.outcome === "unavailable") {
+      return res.status(503).json({ error: "Push entry temporarily unavailable" });
+    }
+    if (!("entryId" in marked)) {
       return res.status(503).json({ error: "Push entry temporarily unavailable" });
     }
     return res.json({

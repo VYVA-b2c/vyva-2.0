@@ -20,7 +20,7 @@ import {
 const TERMINAL_STATES: readonly FlowLifecycleState[] = ["completed", "escalated", "cancelled", "expired", "failed"];
 const ACTIVE_STATES: readonly FlowLifecycleState[] = ["initializing", "active", "waiting_for_user", "waiting_for_tool", "interrupted", "paused", "resuming"];
 const opaqueId = z.string().min(1).max(160).regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/);
-const boundedMetadataSchema = z.record(z.unknown()).default({});
+const boundedMetadataSchema = z.record(z.string(), z.unknown()).default({});
 const completionOutcomeSchema = z.object({
   outcome: z.enum(["completed", "cancelled", "expired", "escalated", "failed"]),
   reason: z.string().min(1).max(256).optional(),
@@ -42,13 +42,13 @@ export const flowStateProjectionInputSchema = z.object({
   pendingTool: pendingToolSchema.optional(),
   interruptedState: z.enum(["idle", "initializing", "active", "waiting_for_user", "waiting_for_tool", "interrupted", "paused", "resuming", "completed", "escalated", "cancelled", "expired", "failed"]).optional(),
   resumeMetadata: resumeMetadataSchema.optional(),
-  domainState: z.record(z.unknown()).optional(),
+  domainState: z.record(z.string(), z.unknown()).optional(),
   completionOutcome: completionOutcomeSchema.optional(),
   correlationId: opaqueId.optional(),
   causationEventId: opaqueId.optional(),
   metadata: boundedMetadataSchema.optional(),
   updatedAt: z.string().datetime({ offset: true }),
-  context: z.record(z.unknown()).default({}),
+  context: z.record(z.string(), z.unknown()).default({}),
 }).strict().superRefine((flow, context) => {
   if (flow.state === "resuming" && !flow.resumeMetadata) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "resumeMetadata is required while resuming", path: ["resumeMetadata"] });

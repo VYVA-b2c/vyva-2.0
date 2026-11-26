@@ -26,7 +26,7 @@ export const breathingExercises = pgTable("breathing_exercises", {
 });
 
 export const insertBreathingExerciseSchema = createInsertSchema(breathingExercises).omit({ id: true, created_at: true, updated_at: true });
-export type InsertBreathingExercise = z.infer<typeof insertBreathingExerciseSchema>;
+export type InsertBreathingExercise = typeof breathingExercises.$inferInsert;
 export type BreathingExerciseRow = typeof breathingExercises.$inferSelect;
 
 export const breathingUserPreferences = pgTable("breathing_user_preferences", {
@@ -44,7 +44,7 @@ export const breathingUserPreferences = pgTable("breathing_user_preferences", {
 });
 
 export const insertBreathingUserPreferenceSchema = createInsertSchema(breathingUserPreferences).omit({ updated_at: true });
-export type InsertBreathingUserPreference = z.infer<typeof insertBreathingUserPreferenceSchema>;
+export type InsertBreathingUserPreference = typeof breathingUserPreferences.$inferInsert;
 export type BreathingUserPreferenceRow = typeof breathingUserPreferences.$inferSelect;
 
 export const breathingSessions = pgTable("breathing_sessions", {
@@ -76,7 +76,7 @@ export const breathingSessions = pgTable("breathing_sessions", {
 ]);
 
 export const insertBreathingSessionSchema = createInsertSchema(breathingSessions).omit({ id: true, created_at: true, updated_at: true });
-export type InsertBreathingSession = z.infer<typeof insertBreathingSessionSchema>;
+export type InsertBreathingSession = typeof breathingSessions.$inferInsert;
 export type BreathingSessionRow = typeof breathingSessions.$inferSelect;
 
 export const breathingSessionEvents = pgTable("breathing_session_events", {
@@ -92,5 +92,5 @@ export const breathingSessionEvents = pgTable("breathing_session_events", {
 ]);
 
 export const insertBreathingSessionEventSchema = createInsertSchema(breathingSessionEvents).omit({ id: true, created_at: true });
-export type InsertBreathingSessionEvent = z.infer<typeof insertBreathingSessionEventSchema>;
+export type InsertBreathingSessionEvent = typeof breathingSessionEvents.$inferInsert;
 export type BreathingSessionEventRow = typeof breathingSessionEvents.$inferSelect;

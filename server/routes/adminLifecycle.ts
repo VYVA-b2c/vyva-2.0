@@ -4674,7 +4674,9 @@ adminLifecycleRouter.post("/signup-share", async (req: Request, res: Response) =
   const intro = parsed.data.message || copy.defaultIntro;
   const buildBody = (setupUrl: string) => `${intro}\n\n${copy.startHere}: ${setupUrl}`;
   const buildSetupUrl = (prefill: SignupInvitePrefill) => buildSignupInviteUrl(baseUrl, language, { ...prefill, setupFor });
-  const sharedBy = req.user?.email ?? req.user?.id ?? null;
+  const sharedBy = typeof req.user?.email === "string"
+    ? req.user.email
+    : typeof req.user?.id === "string" ? req.user.id : null;
   const rows: Array<typeof communicationsLog.$inferInsert> = [];
 
   for (const emailRecipient of emailRecipients) {
@@ -4857,7 +4859,7 @@ adminLifecycleRouter.patch("/admin-users/:userId/role", async (req: Request, res
   const [existing] = await db
     .select({ id: profiles.id, email: profiles.email, role: profiles.role })
     .from(profiles)
-    .where(eq(profiles.id, req.params.userId))
+    .where(eq(profiles.id, Array.isArray(req.params.userId) ? req.params.userId[0] ?? "" : req.params.userId ?? ""))
     .limit(1);
 
   if (!existing) return res.status(404).json({ error: "User not found" });

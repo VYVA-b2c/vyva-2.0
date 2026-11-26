@@ -37,7 +37,7 @@ adminProviderDirectoryRouter.patch("/:profileId/providers/:providerIndex", async
 
   try {
     const result = await updateAdminProviderDirectoryItem({
-      profileId: req.params.profileId,
+      profileId: Array.isArray(req.params.profileId) ? req.params.profileId[0] ?? "" : req.params.profileId ?? "",
       providerIndex: providerIndex.data,
       patch,
     });

@@ -1,4 +1,4 @@
-import type { ConciergeFlowReference, ConciergeToolRequirement } from "./conciergeFlowRegistry";
+import type { ConciergeFlowReference, ConciergeToolRequirement } from "./conciergeFlowRegistry.js";
 
 export type ConciergeToolReadinessStatus = "ready" | "manual_review" | "unavailable";
 

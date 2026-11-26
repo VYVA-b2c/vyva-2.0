@@ -65,7 +65,8 @@ type TriggerSource =
   | "agent_confirmed"
   | "automation"
   | "no_contact_nudge"
-  | "manual";
+  | "manual"
+  | "medication_refill_canvas";
 
 export interface ConciergeTriggerInput {
   userId: string;

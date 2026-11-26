@@ -14,8 +14,8 @@ import {
   type MedicationUpdateSource,
   type MedicationUpdateSourceCheck,
   type MedicationUpdatesResponse,
-} from "../../shared/medicationUpdates";
-import type { AppLanguage } from "../../shared/language";
+} from "../../shared/medicationUpdates.js";
+import type { AppLanguage } from "../../shared/language.js";
 
 type FetchLike = typeof fetch;
 type Authority = MedicationUpdateSource["authority"];

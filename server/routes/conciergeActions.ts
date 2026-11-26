@@ -28,6 +28,10 @@ function resolveUserId(req: Request): string | null {
   return null;
 }
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 const triggerSchema = z.object({
   use_case: z.enum(CONCIERGE_USE_CASES),
   provider_id: z.string().uuid().optional().nullable(),
@@ -98,7 +102,7 @@ router.patch("/:id/details", async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await updatePendingConciergeActionDetails(req.params.id, userId, {
+    const result = await updatePendingConciergeActionDetails(routeParam(req.params.id), userId, {
       actionPayload: parsed.data.action_payload,
       answerKey: parsed.data.answer_key,
       answerValue: parsed.data.answer_value,
@@ -115,7 +119,7 @@ router.post("/:id/confirm", async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
   try {
-    const result = await startPendingConciergeAction(req.params.id, userId);
+    const result = await startPendingConciergeAction(routeParam(req.params.id), userId);
     return res.json(result);
   } catch (err) {
     console.error("[concierge/actions POST /:id/confirm]", err);
@@ -128,7 +132,7 @@ router.post("/:id/review-confirm", async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
   try {
-    const result = await confirmPendingConciergeActionReview(req.params.id, userId);
+    const result = await confirmPendingConciergeActionReview(routeParam(req.params.id), userId);
     return res.json(result);
   } catch (err) {
     console.error("[concierge/actions POST /:id/review-confirm]", err);
@@ -141,7 +145,7 @@ router.post("/:id/cancel", async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
   try {
-    await cancelPendingConciergeAction(req.params.id, userId);
+    await cancelPendingConciergeAction(routeParam(req.params.id), userId);
     return res.json({ ok: true });
   } catch (err) {
     console.error("[concierge/actions POST /:id/cancel]", err);
@@ -159,7 +163,7 @@ router.post("/:id/complete", async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await completePendingConciergeAction(req.params.id, userId, {
+    const result = await completePendingConciergeAction(routeParam(req.params.id), userId, {
       outcomeSummary: parsed.data.outcome_summary,
       outcomePayload: parsed.data.outcome_payload,
     });

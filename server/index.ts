@@ -1,6 +1,7 @@
 import contactPolicyRouter from "./routes/contactPolicy.js";
 import express from "express";
 import cors from "cors";
+import { sql } from "drizzle-orm";
 import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
@@ -146,6 +147,7 @@ import learningRouter from "./routes/learning.js";
 import { learningImageHandler } from "./routes/learningImages.js";
 import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
+import { db } from "./db.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import {
@@ -160,6 +162,7 @@ import { startMedicationRefillMonitor } from "./services/medicationRefillMonitor
 import { startProactiveOutreachMonitor } from "./engagement/proactiveOutreachSweep.js";
 
 const isProduction = process.env.NODE_ENV === "production";
+const isVercel = process.env.VERCEL === "1" || process.env.VYVA_SERVERLESS === "1";
 const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 const SERVER_BUILD_ID = "hero-messages-admin-2026-05-04";
@@ -303,6 +306,15 @@ app.get("/api/admin/voice/conversations", authMiddleware, requireAdminUser, list
 app.get("/api/admin/voice/conversations/:conversationId/details", authMiddleware, requireAdminUser, getElevenLabsConversationDetailsHandler);
 app.get("/api/admin/voice/conversations/:conversationId/audio", authMiddleware, requireAdminUser, getElevenLabsConversationAudioHandler);
 app.patch("/api/admin/voice/conversations/:conversationId/review", authMiddleware, requireAdminUser, updateElevenLabsConversationReviewHandler);
+app.get("/api/health", async (_req, res) => {
+  try {
+    await db.execute(sql`select 1`);
+    return res.json({ ok: true, build: SERVER_BUILD_ID, database: "connected" });
+  } catch (error) {
+    console.error("[health] database connectivity check failed:", error);
+    return res.status(503).json({ ok: false, build: SERVER_BUILD_ID, database: "unavailable" });
+  }
+});
 app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
@@ -354,8 +366,6 @@ app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHan
 app.get("/api/checkins/history", authMiddleware, requireUser, checkinHistoryHandler);
 app.use("/api/checkins", authMiddleware, checkinsRouter);
 
-registerHealthInsightsJobs();
-
 app.get("/api/debug-runtime", (_req, res) => {
   res.json({
     ok: true,
@@ -368,10 +378,6 @@ app.get("/api/debug-runtime", (_req, res) => {
     bill_reader_route: true,
     json_limit: "20mb",
   });
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, build: SERVER_BUILD_ID });
 });
 
 app.get("/api/config/places-key", (_req, res) => {
@@ -585,28 +591,35 @@ async function configureFrontend() {
   });
 }
 
-configureFrontend().then(() => {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[server] listening on port ${PORT} (${isProduction ? "production" : "development"})`);
-    if (startCommunicationDispatcher()) {
-      console.log("[communications] dispatcher enabled");
-    }
-    if (startDailyCheckinNoResponseMonitor()) {
-      console.log("[daily-checkin-monitor] no-response monitor enabled");
-    }
-    if (startMarketingEmailScheduler()) {
-      console.log("[marketing-email-scheduler] scheduled email campaign runner enabled");
-    }
-    if (startMedicationRefillMonitor()) {
-      console.log("[medication-refill-monitor] proactive refill alerts enabled");
-    }
-    if (startProactiveOutreachMonitor()) {
-      console.log("[proactive-outreach] silence/signal detector sweep enabled");
-    }
+// Vercel owns the HTTP listener and static frontend. Long-running timers are
+// intentionally disabled there; scheduled work is invoked by Vercel Cron
+// handlers instead. Local and traditional Node deployments keep the existing
+// all-in-one server behavior.
+if (!isVercel) {
+  configureFrontend().then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[server] listening on port ${PORT} (${isProduction ? "production" : "development"})`);
+      registerHealthInsightsJobs();
+      if (startCommunicationDispatcher()) {
+        console.log("[communications] dispatcher enabled");
+      }
+      if (startDailyCheckinNoResponseMonitor()) {
+        console.log("[daily-checkin-monitor] no-response monitor enabled");
+      }
+      if (startMarketingEmailScheduler()) {
+        console.log("[marketing-email-scheduler] scheduled email campaign runner enabled");
+      }
+      if (startMedicationRefillMonitor()) {
+        console.log("[medication-refill-monitor] proactive refill alerts enabled");
+      }
+      if (startProactiveOutreachMonitor()) {
+        console.log("[proactive-outreach] silence/signal detector sweep enabled");
+      }
+    });
+  }).catch((err) => {
+    console.error("[server] failed to start", err);
+    process.exit(1);
   });
-}).catch((err) => {
-  console.error("[server] failed to start", err);
-  process.exit(1);
-});
+}
 
 export default app;

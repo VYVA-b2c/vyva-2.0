@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { assetReferenceSchema } from "./assets";
-import { contractError } from "./errors";
+import { assetReferenceSchema } from "./assets.js";
+import { contractError } from "./errors.js";
 
 export const USER_INPUT_EVENT_TYPES = [
   "USER_SPOKE",
@@ -178,7 +178,7 @@ export const safetyContextSchema = z.object({
   flags: z.array(z.string().min(1)).optional(),
 }).strict();
 
-const eventPayloadSchema = z.record(z.unknown());
+const eventPayloadSchema = z.record(z.string(), z.unknown());
 
 const answerContextPayload = {
   questionId: z.string().min(1),
@@ -400,7 +400,7 @@ export const interactionEventSchema = z.object({
   payload: eventPayloadSchema,
   consentContext: consentContextSchema.optional(),
   safetyContext: safetyContextSchema.optional(),
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
 }).strict();
 
 export type EventPayloadFor<TType extends InteractionEventType> =

@@ -20,7 +20,9 @@ const reviewActionSchema = z.discriminatedUnion("action", [
 ]);
 
 function reviewer(req: Request): string {
-  return req.user?.email?.trim() || req.user?.id?.trim() || "admin";
+  if (typeof req.user?.email === "string" && req.user.email.trim()) return req.user.email.trim();
+  if (typeof req.user?.id === "string" && req.user.id.trim()) return req.user.id.trim();
+  return "admin";
 }
 
 adminConciergeInboundRepliesRouter.get("/", async (_req: Request, res: Response) => {

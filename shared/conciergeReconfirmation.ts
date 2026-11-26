@@ -1,4 +1,4 @@
-import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract";
+import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract.js";
 
 export type ConciergeReconfirmationStatus = "needed" | "resolved";
 
@@ -25,7 +25,7 @@ function stringOrNull(value: unknown): string | null {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim()).map((entry) => entry.trim())
+    ? value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => entry.trim())
     : [];
 }
 

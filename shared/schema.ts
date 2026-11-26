@@ -1888,6 +1888,7 @@ export const insightOutcomes = pgTable("insight_outcomes", {
   id:                   uuid("id").primaryKey().defaultRandom(),
   report_id:            uuid("report_id"),
   action_id:            uuid("action_id"),
+  triage_report_id:     uuid("triage_report_id"),
   user_id:              uuid("user_id").notNull(),
   tier_at_generation:   integer("tier_at_generation").notNull(),
   delivered_at:         timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1897,6 +1898,7 @@ export const insightOutcomes = pgTable("insight_outcomes", {
   action_taken:         text("action_taken").notNull().default("none"),
   follow_up_check_at:   timestamp("follow_up_check_at", { withTimezone: true }),
   outcome_metric_delta: jsonb("outcome_metric_delta"),
+  outcome_payload:      jsonb("outcome_payload").notNull().default({}),
   resolved:             boolean("resolved").notNull().default(false),
   created_at:           timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
@@ -4323,7 +4325,7 @@ export const voiceConsultationSummaries = pgTable("voice_consultation_summaries"
 ]);
 
 export const insertVoiceConsultationSummarySchema = createInsertSchema(voiceConsultationSummaries).omit({ id: true, created_at: true, updated_at: true });
-export type InsertVoiceConsultationSummary = z.infer<typeof insertVoiceConsultationSummarySchema>;
+export type InsertVoiceConsultationSummary = typeof voiceConsultationSummaries.$inferInsert;
 export type VoiceConsultationSummaryRow = typeof voiceConsultationSummaries.$inferSelect;
 
 export const homePlanCards = pgTable("home_plan_cards", {

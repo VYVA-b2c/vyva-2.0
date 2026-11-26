@@ -548,8 +548,14 @@ function invitedContactMatchesAccount(input: {
 }) {
   return invitedContactMatchesValues({
     invitation: input.invitation,
-    emails: [input.user.email, input.requestUser?.email],
-    phones: [input.user.phone_number, input.requestUser?.phone],
+    emails: [
+      input.user.email,
+      typeof input.requestUser?.email === "string" ? input.requestUser.email : null,
+    ],
+    phones: [
+      input.user.phone_number,
+      typeof input.requestUser?.phone === "string" ? input.requestUser.phone : null,
+    ],
   });
 }
 
@@ -778,7 +784,7 @@ authRouter.post("/signup-invite/track", async (req: Request, res: Response) => {
 authRouter.post("/register", async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
-    const msg = parsed.error.errors[0]?.message ?? "Invalid request";
+    const msg = parsed.error.issues[0]?.message ?? "Invalid request";
     return res.status(400).json({ error: msg });
   }
 
@@ -1010,7 +1016,7 @@ authRouter.post("/magic-link-request", async (req: Request, res: Response) => {
 authRouter.post("/magic-login", async (req: Request, res: Response) => {
   const parsed = magicLoginSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid magic link" });
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid magic link" });
   }
 
   const userId = await verifyMagicLoginToken(parsed.data.token);
@@ -1269,7 +1275,7 @@ authRouter.post("/careteam-invites/:token/accept", authMiddleware, async (req: R
 authRouter.post("/access-link/consume", async (req: Request, res: Response) => {
   const parsed = consumeAccessLinkSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid access link" });
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid access link" });
   }
 
   const [link] = await db
@@ -1368,7 +1374,7 @@ authRouter.post("/access-link/consume", async (req: Request, res: Response) => {
 authRouter.post("/reset-request", async (req: Request, res: Response) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
-    const msg = parsed.error.errors[0]?.message ?? "Invalid request";
+    const msg = parsed.error.issues[0]?.message ?? "Invalid request";
     return res.status(400).json({ error: msg });
   }
 
@@ -1439,7 +1445,7 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
 authRouter.post("/reset-password", async (req: Request, res: Response) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
-    const msg = parsed.error.errors[0]?.message ?? "Invalid request";
+    const msg = parsed.error.issues[0]?.message ?? "Invalid request";
     return res.status(400).json({ error: msg });
   }
 

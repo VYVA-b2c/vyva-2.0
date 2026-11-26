@@ -634,7 +634,7 @@ export async function buildReadingClubPulse(
 ): Promise<SocialRoomPulse> {
   if (!roomId) return fallbackPulse(userId, language, memberPresence);
 
-  return safeDb(
+  return safeDb<SocialRoomPulse>(
     "build pulse",
     async () => {
       await ensureSeedRows(roomId);

@@ -205,7 +205,7 @@ export function buildBrainCoachVoiceContext(input: {
 }): BrainCoachVoiceContext {
   const sessions = input.sessions ?? [];
   const now = input.now ?? new Date();
-  const plan = input.plan ?? buildBrainCoachDailyPlan({
+  const plan: VoiceContextPlan = input.plan ?? buildBrainCoachDailyPlan({
     sessions,
     preferences: input.preferences,
     now,

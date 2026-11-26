@@ -1575,7 +1575,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    if (adminOnly) {
+    if (adminOnly || user.role === "admin") {
       navigate("/admin", { replace: true });
       return;
     }
@@ -1710,6 +1710,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         }
       } else {
         const signedInUser = await login(authContactPayload(), password);
+        if (signedInUser.role === "admin") {
+          navigate("/admin", { replace: true });
+          return;
+        }
         const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, signedInUser);
         const returnDestination = safeReturnPathForActiveProfile(from, signedInUser);
         if (inviteDestination) {
@@ -2741,7 +2745,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             disabled={!canSendMagic}
                             className="vyva-primary-action min-h-[56px] w-full rounded-[16px] bg-[linear-gradient(135deg,#7130C7_0%,#8B3FC8_100%)] px-5 py-3.5 text-[16px] font-black shadow-[0_14px_30px_rgba(113,48,199,0.24)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#D9C7E9] disabled:text-white disabled:shadow-none"
                           >
-                            {magicLoading ? copy.sending : magicSubmitLabel}
+                            {magicLoading ? copy.sending : copy.sendMagicLink}
                             {!magicLoading && <Link2 size={17} />}
                           </button>
                         </>

@@ -94,7 +94,7 @@ const cognitiveSessionWriteSchema = z.object({
   sourceTable: z.string().trim().min(1).max(80).nullable().optional(),
   sourceSessionId: z.string().trim().min(1).max(120).nullable().optional(),
   clientResultId: z.string().trim().min(1).max(160).nullable().optional(),
-  metadata: z.record(z.unknown()).optional().default({}),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 const dailyPlanEventSchema = z.object({
@@ -104,7 +104,7 @@ const dailyPlanEventSchema = z.object({
   nudgeEventId: z.string().trim().min(1).max(120).optional(),
   eventType: z.enum(["accepted", "started", "skipped", "caregiver_nudge_read", "caregiver_nudge_dismissed"]),
   source: z.string().trim().min(1).max(80).optional().default("app"),
-  metadata: z.record(z.unknown()).optional().default({}),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
 }).superRefine((value, ctx) => {
   if (isCaregiverNudgeVisibilityEvent(value.eventType)) {
     if (!value.nudgeEventId) {
@@ -1359,7 +1359,7 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
         completionReason,
         completed: data.completed,
         abandoned: data.abandoned,
-      })
+      } as typeof breathGardenSessions.$inferInsert)
       .returning();
 
     let nextState: ReturnType<typeof normalizeBreathGardenState> | null = null;
@@ -1651,7 +1651,7 @@ export async function createCognitiveSessionHandler(req: Request, res: Response)
         sourceSessionId: data.sourceSessionId ?? null,
         clientResultId: data.clientResultId ?? null,
         metadata: data.metadata,
-      })
+      } as typeof cognitiveSessionIndex.$inferInsert)
       .returning();
 
     await syncSessionToDailyPlan(ctx, req.user!.id, session).catch((error) => {
@@ -1952,7 +1952,7 @@ export async function brainCoachDailyPlanEventHandler(req: Request, res: Respons
     if (Object.keys(patch).length > 0) {
       await db
         .update(cognitiveDailyPlanItems)
-        .set(patch)
+        .set(patch as Partial<typeof cognitiveDailyPlanItems.$inferInsert>)
         .where(and(
           eq(cognitiveDailyPlanItems.id, item.id),
           eq(cognitiveDailyPlanItems.userId, req.user!.id),
@@ -2454,22 +2454,26 @@ async function runGameDataRequest(req: Request, res: Response, table: string, pa
 }
 
 export async function supabaseCompatHandler(req: Request, res: Response) {
-  return runGameDataRequest(req, res, req.params.table, req.body as SupabaseCompatPayload);
+  return runGameDataRequest(req, res, routeParam(req.params.table), req.body as SupabaseCompatPayload);
 }
 
 export async function gameDataQueryHandler(req: Request, res: Response) {
-  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "GET" });
+  return runGameDataRequest(req, res, routeParam(req.params.table), { ...(req.body as SupabaseCompatPayload), method: "GET" });
 }
 
 export async function gameDataCreateHandler(req: Request, res: Response) {
-  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "POST" });
+  return runGameDataRequest(req, res, routeParam(req.params.table), { ...(req.body as SupabaseCompatPayload), method: "POST" });
 }
 
 export async function gameDataUpdateHandler(req: Request, res: Response) {
-  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "PATCH" });
+  return runGameDataRequest(req, res, routeParam(req.params.table), { ...(req.body as SupabaseCompatPayload), method: "PATCH" });
 }
 
 const router = Router();
+
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
 router.post("/data/:table/query", gameDataQueryHandler);
 router.post("/data/:table", gameDataCreateHandler);
 router.patch("/data/:table", gameDataUpdateHandler);

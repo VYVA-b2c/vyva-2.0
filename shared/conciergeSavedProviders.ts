@@ -94,7 +94,8 @@ export function savedProviderContactReadiness(
 ): ConciergeSavedProviderReadiness {
   const trusted = savedProviderIsTrusted(provider);
   const canContactAfterConfirmation = (provider.can_contact_after_confirmation ?? provider.canContactAfterConfirmation) !== false;
-  const channels: ConciergeSavedProviderContactChannel[] = ["phone", "email", "whatsapp", "booking_url", "website"]
+  const channelCandidates: ConciergeSavedProviderContactChannel[] = ["phone", "email", "whatsapp", "booking_url", "website"];
+  const channels: ConciergeSavedProviderContactChannel[] = channelCandidates
     .filter((channel) => providerHasChannel(provider, channel));
   const preferred = clean(provider.preferred_channel ?? provider.preferredChannel).toLowerCase();
   const preferredChannel = (
@@ -103,7 +104,7 @@ export function savedProviderContactReadiness(
     || preferred === "whatsapp"
     || preferred === "booking_url"
     || preferred === "website"
-  ) ? preferred : null;
+  ) ? preferred as ConciergeSavedProviderContactChannel : null;
   const usablePreferred = preferredChannel && channels.includes(preferredChannel);
   const conciergeUsable = trusted && canContactAfterConfirmation && (usablePreferred || channels.length > 0);
 

@@ -3,22 +3,22 @@ import {
   interactionEventSchema,
   parseInteractionEvent,
   type InteractionEvent,
-} from "./events";
+} from "./events.js";
 import {
   flowStateSchema,
   parseFlowState,
   type FlowState,
-} from "./flowState";
+} from "./flowState.js";
 import {
   parseFlowCatalogue,
   VYVA_FLOW_CATALOGUE,
   type FlowCatalogue,
-} from "./flowCatalogue";
+} from "./flowCatalogue.js";
 import {
   parsePresentationRegistry,
   VYVA_PRESENTATION_REGISTRY,
   type PresentationRegistry,
-} from "./presentationRegistry";
+} from "./presentationRegistry.js";
 import {
   ORCHESTRATOR_POLICY_PRECEDENCE,
   orchestratorPolicyDecisionSchema,
@@ -29,16 +29,16 @@ import {
   type OrchestratorPolicyDecision,
   type OrchestratorPolicyEvaluationRequest,
   type OrchestratorPolicyValidationOptions,
-} from "./orchestratorPolicy";
+} from "./orchestratorPolicy.js";
 import {
   specialistRiskLevelSchema,
   type SpecialistRiskLevel,
-} from "./specialist";
+} from "./specialist.js";
 import {
   contractError,
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 
 const MAX_ITEMS = 128;
 const MAX_SEAMS = 32;
@@ -161,7 +161,7 @@ function isAuditSafe(
   return false;
 }
 
-const safeMetadataSchema = z.record(z.unknown()).superRefine((value, context) => {
+const safeMetadataSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
   if (!isAuditSafe(value)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "unsafe metadata" });
   }
@@ -758,7 +758,7 @@ const allowedOutcomesByDimensionSchema = z.object(
   Object.fromEntries(COMPARISON_DIMENSION_NAMES.map((dimension) => [
     dimension,
     unique(z.enum(COMPARISON_OUTCOMES), COMPARISON_OUTCOMES.length),
-  ])) as Record<ComparisonDimensionName, z.ZodTypeAny>,
+  ])) as unknown as Record<ComparisonDimensionName, z.ZodTypeAny>,
 ).strict();
 
 export const COMPARISON_POLICY_IDS = [
@@ -1055,7 +1055,7 @@ function comparatorFor(
 ): ComparatorDescriptor | undefined {
   return VYVA_COMPARATOR_REGISTRY.comparators.find((item) =>
     item.comparatorId === comparatorId &&
-    item.comparatorVersion === comparatorVersion) as
+    item.comparatorVersion === comparatorVersion) as unknown as
       ComparatorDescriptor | undefined;
 }
 
@@ -1358,8 +1358,7 @@ export const compatibilityFeatureFlagStateSchema = z.object({
   auditReference: opaqueReferenceSchema,
   nonExecutable: z.literal(true),
 }).strict().superRefine((flag, context) => {
-  if (flag.effectiveMode === "authoritative" ||
-    (flag.denyListMatched && flag.effectiveMode !== "legacy_only") ||
+  if ((flag.denyListMatched && flag.effectiveMode !== "legacy_only") ||
     (flag.effectiveMode !== "legacy_only" && !flag.rollbackPlanId) ||
     (flag.effectiveMode !== "legacy_only" &&
       flag.prerequisiteEvidenceIds.length === 0) ||
@@ -1653,7 +1652,6 @@ function allDecisionPlanIds(decision: OrchestratorPolicyDecision): Set<string> {
     decision.approvedFlowStateProposal?.approvalId,
     decision.followUpAuthorization?.authorizationId,
     decision.escalationAuthorization?.authorizationId,
-    decision.deferPlan?.deferPlanId,
     decision.safeFailurePlan?.failureCode,
     ...decision.toolAuthorizations.map((item) => item.authorizationId),
     ...decision.memoryAuthorizations.map((item) => item.authorizationId),
@@ -1704,7 +1702,7 @@ function task4AuthorityVector(
       escalation?.approvedChannel,
       followUp?.approvedChannel,
       ...(followUp?.fallbackChannels ?? []),
-    ].filter((item): item is string => Boolean(item)),
+    ].filter((item) => item !== undefined),
     targets: [escalation?.targetId].filter(
       (item): item is string => Boolean(item),
     ),
@@ -2492,7 +2490,7 @@ function assertComparison(
   if (!policy || !comparator ||
     dimensions.some((item, index) =>
       item.dimension !== expectedDimensionOrder[index] ||
-      !policy.allowedOutcomeByDimension[item.dimension]
+      !(policy.allowedOutcomeByDimension[item.dimension] as readonly string[])
         .includes(item.classification) ||
       !sources.comparatorRegistry.comparators.some((candidate) =>
         candidate.comparatorId === item.comparatorId &&

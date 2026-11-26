@@ -2,22 +2,22 @@ import {
   CONCIERGE_FLOW_REFERENCES,
   type ConciergeFlowReference,
   type ConciergeToolRequirement,
-} from "./conciergeFlowRegistry";
+} from "./conciergeFlowRegistry.js";
 import {
   evaluateConciergeFlowRequirements,
   type ConciergeFlowRequirementKey,
-} from "./conciergeFlowRequirements";
-import { isConciergeDryRunPayload } from "./conciergeDryRun";
+} from "./conciergeFlowRequirements.js";
+import { isConciergeDryRunPayload } from "./conciergeDryRun.js";
 import {
   conciergeExecutionModeFromState,
   evaluateConciergeChannelReadiness,
   type ConciergeChannelReadinessResult,
   type ConciergeExecutionMode,
-} from "./conciergeChannelReadiness";
+} from "./conciergeChannelReadiness.js";
 import {
   buildConciergeAdapterApprovalFingerprint,
   type ConciergeAdapterApprovalFingerprint,
-} from "./conciergeAdapterPayloadContract";
+} from "./conciergeAdapterPayloadContract.js";
 
 export type ConciergeExecutionActionType =
   | "phone_call"

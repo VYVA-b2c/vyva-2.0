@@ -5995,22 +5995,67 @@ router.get("/smart-nudge/current/:userId", async (req: Request, res: Response) =
 });
 
 let jobsRegistered = false;
+export type HealthInsightsJobResult = {
+  processed: number;
+  failed: number;
+};
+
+export async function runWeeklyHealthInsightsJob(): Promise<HealthInsightsJobResult> {
+  console.log("[InsightsEngine] Weekly synthesis starting...");
+  const activeUsers = await getActiveUserIds();
+  let failed = 0;
+  for (const userId of activeUsers) {
+    try {
+      await runFullSynthesis(userId, "weekly", 7);
+    } catch (err) {
+      failed += 1;
+      console.error(`[InsightsEngine] Weekly failed for ${userId}:`, err);
+    }
+  }
+  console.log(`[InsightsEngine] Weekly synthesis complete (${activeUsers.length - failed}/${activeUsers.length}).`);
+  return { processed: activeUsers.length, failed };
+}
+
+export async function runMonthlyHealthInsightsJob(): Promise<HealthInsightsJobResult> {
+  console.log("[InsightsEngine] Monthly deep report starting...");
+  const activeUsers = await getActiveUserIds();
+  let failed = 0;
+  for (const userId of activeUsers) {
+    try {
+      await runFullSynthesis(userId, "monthly", 30);
+    } catch (err) {
+      failed += 1;
+      console.error(`[InsightsEngine] Monthly failed for ${userId}:`, err);
+    }
+    try {
+      if (await hasAtLeastThirtyDaysOfData(userId)) {
+        await runPreventionPlanSynthesis(userId);
+      } else {
+        console.log(`[PreventionPlan] Skipped ${userId}; fewer than 30 days of data.`);
+      }
+    } catch (err) {
+      failed += 1;
+      console.error(`[PreventionPlan] Monthly synthesis failed for ${userId}:`, err);
+    }
+  }
+  console.log(`[InsightsEngine] Monthly deep report complete (${activeUsers.length} users, ${failed} failures).`);
+  return { processed: activeUsers.length, failed };
+}
+
+export async function runHealthInsightsOutcomeFollowUpJob(): Promise<HealthInsightsJobResult> {
+  console.log("[InsightsEngine] Outcome follow-up starting...");
+  await resolvePendingOutcomes();
+  console.log("[InsightsEngine] Outcome follow-up complete.");
+  return { processed: 1, failed: 0 };
+}
+
 export function registerHealthInsightsJobs(): void {
   if (jobsRegistered || process.env.NODE_ENV === "test" || process.env.DISABLE_HEALTH_INSIGHTS_CRON === "true") return;
   jobsRegistered = true;
   const timezone = process.env.HEALTH_INSIGHTS_CRON_TIMEZONE ?? "Europe/Madrid";
 
   cron.schedule("0 3 * * 1", async () => {
-    console.log("[InsightsEngine] Weekly synthesis starting...");
-    const activeUsers = await getActiveUserIds();
-    for (const userId of activeUsers) {
-      try {
-        await runFullSynthesis(userId, "weekly", 7);
-      } catch (err) {
-        console.error(`[InsightsEngine] Weekly failed for ${userId}:`, err);
-      }
-    }
-    console.log("[InsightsEngine] Weekly synthesis complete.");
+    await runWeeklyHealthInsightsJob();
   }, { timezone });
 
   cron.schedule("0 3 * * 1", async () => {
@@ -6019,31 +6064,11 @@ export function registerHealthInsightsJobs(): void {
       console.log("[InsightsEngine] Monthly guard skipped; not first Monday window.");
       return;
     }
-    console.log("[InsightsEngine] Monthly deep report starting...");
-    const activeUsers = await getActiveUserIds();
-    for (const userId of activeUsers) {
-      try {
-        await runFullSynthesis(userId, "monthly", 30);
-      } catch (err) {
-        console.error(`[InsightsEngine] Monthly failed for ${userId}:`, err);
-      }
-      try {
-        if (await hasAtLeastThirtyDaysOfData(userId)) {
-          await runPreventionPlanSynthesis(userId);
-        } else {
-          console.log(`[PreventionPlan] Skipped ${userId}; fewer than 30 days of data.`);
-        }
-      } catch (err) {
-        console.error(`[PreventionPlan] Monthly synthesis failed for ${userId}:`, err);
-      }
-    }
-    console.log("[InsightsEngine] Monthly deep report complete.");
+    await runMonthlyHealthInsightsJob();
   }, { timezone });
 
   cron.schedule("0 4 * * *", async () => {
-    console.log("[InsightsEngine] Outcome follow-up starting...");
-    await resolvePendingOutcomes();
-    console.log("[InsightsEngine] Outcome follow-up complete.");
+    await runHealthInsightsOutcomeFollowUpJob();
   }, { timezone });
 }
 

@@ -4,12 +4,12 @@ import {
   acceptedImageMimeTypeSchema,
   assetReferenceSchema,
   isAcceptedContentType,
-} from "./assets";
+} from "./assets.js";
 import {
   OrchestrationContractError,
   contractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 
 export const FLOW_LIFECYCLE_STATES = [
   "idle",
@@ -318,7 +318,7 @@ export const flowStateSchema = z.object({
   interruptedState: flowLifecycleStateSchema.optional(),
   resumeMetadata: resumeMetadataSchema.optional(),
   pendingTool: pendingToolSchema.optional(),
-  context: z.record(z.unknown()),
+  context: z.record(z.string(), z.unknown()),
   updatedAt: z.string().datetime({ offset: true }),
 }).strict().superRefine((flow, context) => {
   if (flow.state === "waiting_for_user" && !flow.expectedInput) {

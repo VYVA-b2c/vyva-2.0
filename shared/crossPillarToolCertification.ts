@@ -4,8 +4,8 @@ import {
   type CrossPillarPrimaryActionId,
   type CrossPillarToolEvidence,
   type CrossPillarToolFamily,
-} from "./crossPillarToolReadiness";
-import type { CrossPillarExecutionAttemptSnapshot } from "./crossPillarExecutionObservability";
+} from "./crossPillarToolReadiness.js";
+import type { CrossPillarExecutionAttemptSnapshot } from "./crossPillarExecutionObservability.js";
 
 export const CROSS_PILLAR_TOOL_CERTIFICATION_STATUSES = [
   "certified",

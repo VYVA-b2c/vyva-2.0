@@ -1,0 +1,12 @@
+.agents/
+artifacts/
+design-reference/
+docs/
+e2e/
+presentation-vyva-sales/
+test-results/
+playwright-report/
+
+*.png
+!public/**/*.png
+!src/**/*.png

@@ -118,6 +118,10 @@ type Queryable = {
 
 const router = Router();
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 const ASSESSMENT_TASK_TOTAL = 12;
 const languageSchema = z.enum(COGNITIVE_ASSESSMENT_LANGUAGES);
 const startSessionSchema = z.object({
@@ -133,7 +137,7 @@ const joinProgramSchema = z.object({
 });
 const saveResponseSchema = z.object({
   taskDefinitionId: z.string().min(1),
-  responseData: z.record(z.unknown()),
+  responseData: z.record(z.string(), z.unknown()),
   itemBankId: z.string().uuid().nullable().optional(),
   rotationFormId: z.string().uuid().nullable().optional(),
 });
@@ -1249,7 +1253,7 @@ router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
   const userId = requireUuidUser(req, res);
   if (!userId) return;
 
-  const { sessionId } = req.params;
+  const sessionId = routeParam(req.params.sessionId);
   if (!sessionId || !isUuid(sessionId)) return res.status(400).json({ error: "Invalid assessment session." });
 
   try {
@@ -1270,7 +1274,7 @@ router.post("/sessions/:sessionId/responses", async (req: Request, res: Response
   const userId = requireUuidUser(req, res);
   if (!userId) return;
 
-  const { sessionId } = req.params;
+  const sessionId = routeParam(req.params.sessionId);
   if (!sessionId || !isUuid(sessionId)) return res.status(400).json({ error: "Invalid assessment session." });
 
   const parsed = saveResponseSchema.safeParse(req.body ?? {});
@@ -1396,7 +1400,7 @@ router.post("/sessions/:sessionId/complete", async (req: Request, res: Response)
   const userId = requireUuidUser(req, res);
   if (!userId) return;
 
-  const { sessionId } = req.params;
+  const sessionId = routeParam(req.params.sessionId);
   if (!sessionId || !isUuid(sessionId)) return res.status(400).json({ error: "Invalid assessment session." });
 
   try {
@@ -1453,7 +1457,7 @@ router.get("/latest-report", async (req: Request, res: Response) => {
 
 router.get("/reports/:sessionId", async (req: Request, res: Response) => {
   const userId = req.user?.id;
-  const { sessionId } = req.params;
+  const sessionId = routeParam(req.params.sessionId);
   if (!userId || !isUuid(userId) || !sessionId || !isUuid(sessionId)) return res.json({ report: null });
 
   try {

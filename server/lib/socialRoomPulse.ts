@@ -119,6 +119,15 @@ type MemoryModerationAction = {
   created_at: string;
 };
 
+type TogetherModerationResult = {
+  reports: MemoryReport[];
+  proposals: MemoryProposal[];
+  replies: MemoryReply[] | Array<typeof socialRoomReplies.$inferSelect>;
+  actions: MemoryModerationAction[] | Array<typeof socialRoomModerationActions.$inferSelect>;
+  plans?: Array<typeof socialRoomPlans.$inferSelect>;
+  polls?: Array<typeof socialRoomPolls.$inferSelect>;
+};
+
 const TOGETHER_ROOM_SLUG = "together-room";
 const DAILY_POLL_KEY = "daily-room-choice";
 const ISSUE_POLL_PREFIX = "issue-";
@@ -4468,7 +4477,7 @@ export async function saveTogetherQuietPause(input: {
   };
 }
 
-export async function listTogetherModeration(roomSlug: string, roomId?: string | null) {
+export async function listTogetherModeration(roomSlug: string, roomId?: string | null): Promise<TogetherModerationResult> {
   const publicSlug = publicRoomId(roomSlug);
   const memoryActions = memoryModerationActions.filter((action) => action.room_id === publicSlug);
   if (!roomId) {
@@ -4480,7 +4489,7 @@ export async function listTogetherModeration(roomSlug: string, roomId?: string |
     };
   }
 
-  return safeDb(
+  return safeDb<TogetherModerationResult>(
     "list moderation",
     async () => {
       const [reportRows, actionRows, planRows, pollRows] = await Promise.all([

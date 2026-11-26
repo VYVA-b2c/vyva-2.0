@@ -192,7 +192,7 @@ export function buildSocialSupportSpecialistRouteAugmentation(
     : "fallback_to_legacy";
   const reasonCode = accepted
     ? proposal.auditMetadata.decisionCodes.at(-1) ?? "social_support.specialist_accepted"
-    : validation.reasonCode;
+    : "reasonCode" in validation ? validation.reasonCode : "social_support.specialist_rejected";
   const route = typeof tool?.arguments.route === "string" ? tool.arguments.route : undefined;
   const actionType = typeof tool?.arguments.action_type === "string"
     ? tool.arguments.action_type

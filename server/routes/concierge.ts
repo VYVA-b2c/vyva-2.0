@@ -1224,7 +1224,7 @@ function actionPayloadFor(
   return {
     flow: base.flow,
     needs: base.needs,
-    search_terms: base.search_terms,
+    search_terms: "search_terms" in base ? base.search_terms : base.searchTerms,
     title: candidate.title[locale === "es" ? "es" : "en"],
     category: candidate.category,
     personal_signals: signals,

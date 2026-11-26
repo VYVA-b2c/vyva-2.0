@@ -1,8 +1,8 @@
-import type { ConciergeProviderTaskStatus } from "./conciergeProviderReplies";
+import type { ConciergeProviderTaskStatus } from "./conciergeProviderReplies.js";
 import {
   buildConciergeProviderReplyResolution,
   type ConciergeProviderReplyResolution,
-} from "./conciergeProviderReplyResolution";
+} from "./conciergeProviderReplyResolution.js";
 
 export const CONCIERGE_INBOUND_REPLY_MATCH_STATUSES = [
   "processing",

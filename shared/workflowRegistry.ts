@@ -4,7 +4,7 @@ import {
   CONCIERGE_FLOW_REGISTRY,
   getConciergeFlowDefinition,
   type ConciergeFlowReference,
-} from "./conciergeFlowRegistry";
+} from "./conciergeFlowRegistry.js";
 
 export const APP_WORKFLOW_REFERENCES = {
   homeHub: "WF_HOME_HUB",
@@ -2047,12 +2047,13 @@ function workflowHasResumeEvidence(workflow: WorkflowDefinition): boolean {
 }
 
 function workflowNeedsRealToolService(workflow: WorkflowDefinition): boolean {
-  return [
+  const realToolFlows: readonly ConciergeFlowReference[] = [
     CONCIERGE_FLOW_REFERENCES.shoppingSupport,
     CONCIERGE_FLOW_REFERENCES.scamCheck,
     CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
     CONCIERGE_FLOW_REFERENCES.toolGatedTask,
-  ].includes(workflow.reference as ConciergeFlowReference);
+  ];
+  return realToolFlows.includes(workflow.reference as ConciergeFlowReference);
 }
 
 function workflowParityStatusFor(workflow: WorkflowDefinition): WorkflowParityStatus {

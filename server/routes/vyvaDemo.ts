@@ -75,6 +75,10 @@ function shortName(name: string) {
   return name.split(" ")[0] ?? name;
 }
 
+function routeParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 function concernStatus(severity?: string | null) {
   if (severity === "ATTENTION") return "Attention recommended";
   if (severity === "WATCH") return "Change from usual pattern";
@@ -239,14 +243,15 @@ router.get("/users", async (_req: Request, res: Response) => {
 });
 
 router.get("/senior/:seniorKey/home", async (req: Request, res: Response) => {
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const seniorKey = routeParam(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(seniorKey);
   if (!senior) return res.status(404).json({ error: "Demo senior not found. Run the database seed first." });
 
   const overview = await seniorOverview(senior.profile.id);
   res.json({
     senior: {
       id: senior.profile.id,
-      key: req.params.seniorKey,
+      key: seniorKey,
       name: senior.user.name,
       firstName: shortName(senior.user.name),
       consentCaregiverAlerts: senior.profile.consentCaregiverAlerts,
@@ -259,13 +264,13 @@ router.get("/senior/:seniorKey/home", async (req: Request, res: Response) => {
 });
 
 router.get("/senior/:seniorKey/my-week", async (req: Request, res: Response) => {
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
   res.json(await myWeekForSenior(senior.profile.id));
 });
 
 router.get("/senior/:seniorKey/weekly/start", async (req: Request, res: Response) => {
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
 
   const baselineStart = senior.profile.baselineStartedAt ?? new Date();
@@ -318,7 +323,7 @@ router.post("/senior/:seniorKey/weekly/submit", async (req: Request, res: Respon
   const parsed = submitWeeklySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid weekly check-in answers." });
 
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
 
   const session = await prisma.assessmentSession.create({
@@ -361,7 +366,7 @@ router.post("/senior/:seniorKey/daily/submit", async (req: Request, res: Respons
   const parsed = submitDailySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid daily check-in answers." });
 
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
 
   const session = await prisma.assessmentSession.create({
@@ -391,7 +396,7 @@ router.post("/senior/:seniorKey/daily/submit", async (req: Request, res: Respons
 });
 
 router.post("/senior/:seniorKey/ask-help", async (req: Request, res: Response) => {
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
 
   const alert = await prisma.alert.create({
@@ -412,7 +417,7 @@ router.patch("/senior/:seniorKey/consent", async (req: Request, res: Response) =
   const parsed = consentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid consent value." });
 
-  const senior = await seniorProfileFromKey(req.params.seniorKey);
+  const senior = await seniorProfileFromKey(routeParam(req.params.seniorKey));
   if (!senior) return res.status(404).json({ error: "Demo senior not found." });
 
   const profile = await prisma.seniorProfile.update({
@@ -427,7 +432,8 @@ router.patch("/senior/:seniorKey/consent", async (req: Request, res: Response) =
 });
 
 router.get("/caregiver/:caregiverKey/dashboard", async (req: Request, res: Response) => {
-  const caregiver = await demoCaregiverByKey(req.params.caregiverKey);
+  const caregiverKey = routeParam(req.params.caregiverKey);
+  const caregiver = await demoCaregiverByKey(caregiverKey);
   if (!caregiver) return res.status(404).json({ error: "Demo caregiver not found." });
 
   const seniors = await Promise.all(
@@ -450,7 +456,7 @@ router.get("/caregiver/:caregiverKey/dashboard", async (req: Request, res: Respo
   );
 
   res.json({
-    caregiver: { id: caregiver.id, key: req.params.caregiverKey, name: caregiver.name },
+    caregiver: { id: caregiver.id, key: caregiverKey, name: caregiver.name },
     summary: {
       seniorsMonitored: seniors.length,
       checkInsThisWeek: seniors.length * 7,
@@ -462,7 +468,7 @@ router.get("/caregiver/:caregiverKey/dashboard", async (req: Request, res: Respo
 });
 
 router.get("/caregiver/:caregiverKey/seniors/:seniorId", async (req: Request, res: Response) => {
-  const access = await seniorProfileForCaregiver(req.params.caregiverKey, req.params.seniorId);
+  const access = await seniorProfileForCaregiver(routeParam(req.params.caregiverKey), routeParam(req.params.seniorId));
   if (!access) return res.status(404).json({ error: "Senior not found for caregiver." });
 
   const { profile } = access;
@@ -528,12 +534,12 @@ router.get("/caregiver/:caregiverKey/seniors/:seniorId", async (req: Request, re
 });
 
 router.patch("/caregiver/:caregiverKey/alerts/:alertId/review", async (req: Request, res: Response) => {
-  const caregiver = await demoCaregiverByKey(req.params.caregiverKey);
+  const caregiver = await demoCaregiverByKey(routeParam(req.params.caregiverKey));
   if (!caregiver) return res.status(404).json({ error: "Demo caregiver not found." });
 
   const alert = await prisma.alert.findFirst({
     where: {
-      id: req.params.alertId,
+      id: routeParam(req.params.alertId),
       senior: { caregiverId: caregiver.id },
     },
   });
@@ -551,7 +557,7 @@ router.post("/caregiver/:caregiverKey/seniors/:seniorId/notes", async (req: Requ
   const parsed = noteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Note is required." });
 
-  const access = await seniorProfileForCaregiver(req.params.caregiverKey, req.params.seniorId);
+  const access = await seniorProfileForCaregiver(routeParam(req.params.caregiverKey), routeParam(req.params.seniorId));
   if (!access) return res.status(404).json({ error: "Senior not found for caregiver." });
 
   const note = await prisma.caregiverNote.create({

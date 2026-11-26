@@ -150,7 +150,7 @@ export function buildBrainCoachSpecialistRouteAugmentation(
   const tool = accepted ? proposal.proposedToolCalls[0] : undefined;
   const reasonCode = accepted
     ? proposal.auditMetadata.decisionCodes.at(-1) ?? "brain_coach.specialist_accepted"
-    : validation.reasonCode;
+    : "reasonCode" in validation ? validation.reasonCode : "brain_coach.specialist_rejected";
   const route = typeof tool?.arguments.route === "string" ? tool.arguments.route : undefined;
   const actionType = typeof tool?.arguments.action_type === "string"
     ? tool.arguments.action_type

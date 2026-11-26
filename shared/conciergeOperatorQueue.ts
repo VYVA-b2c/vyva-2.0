@@ -1,9 +1,9 @@
-import type { ConciergeExecutionTask, ConciergeExecutionTaskStatus } from "./conciergeActionExecution";
+import type { ConciergeExecutionTask, ConciergeExecutionTaskStatus } from "./conciergeActionExecution.js";
 import type {
   ConciergeAdapterApprovalComparison,
   ConciergeAdapterPayloadPreview,
-} from "./conciergeAdapterPayloadContract";
-import type { ConciergeReconfirmationRequest } from "./conciergeReconfirmation";
+} from "./conciergeAdapterPayloadContract.js";
+import type { ConciergeReconfirmationRequest } from "./conciergeReconfirmation.js";
 
 export const OPERATOR_CONCIERGE_ADAPTER_STATUSES = [
   "blocked",

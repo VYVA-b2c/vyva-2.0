@@ -31,6 +31,10 @@ import {
 
 const router = Router();
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 const reportStatusSchema = z.object({
   status: z.enum(["open", "reviewing", "resolved", "dismissed"]),
   notes: z.string().trim().max(400).optional(),
@@ -316,7 +320,7 @@ router.patch("/reports/:reportId", async (req: Request, res: Response) => {
   }
   const roomId = roomSlug ? await resolveRoomId(roomSlug) : null;
   const payload = {
-    reportId: req.params.reportId,
+    reportId: routeParam(req.params.reportId),
     adminUserId: adminUserId(req),
     status: parsed.data.status,
     notes: parsed.data.notes,
@@ -344,7 +348,7 @@ router.patch("/plans/:planId", async (req: Request, res: Response) => {
   }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherPlanModeration({
-    planKey: req.params.planId,
+    planKey: routeParam(req.params.planId),
     adminUserId: adminUserId(req),
     roomSlug,
     roomId,
@@ -367,7 +371,7 @@ router.patch("/polls/:pollId", async (req: Request, res: Response) => {
   }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherPollModeration({
-    pollKey: req.params.pollId,
+    pollKey: routeParam(req.params.pollId),
     adminUserId: adminUserId(req),
     roomSlug,
     roomId,
@@ -390,7 +394,7 @@ router.patch("/replies/:replyId", async (req: Request, res: Response) => {
   }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherReplyModeration({
-    replyId: req.params.replyId,
+    replyId: routeParam(req.params.replyId),
     adminUserId: adminUserId(req),
     roomSlug,
     roomId,

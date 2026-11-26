@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { contractError } from "./errors";
+import { contractError } from "./errors.js";
 
 const OPAQUE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const CONTENT_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\*)$/;
@@ -7,6 +7,7 @@ const CHECKSUM = /^(?:sha256:)?[A-Fa-f0-9]{64}$/;
 const MAX_ASSET_BYTES = 5 * 1024 * 1024 * 1024;
 
 const assetMetadataSchema = z.record(
+  z.string(),
   z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()]),
 ).superRefine((metadata, context) => {
   const entries = Object.entries(metadata);

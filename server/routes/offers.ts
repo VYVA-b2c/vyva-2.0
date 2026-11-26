@@ -126,7 +126,7 @@ interface PlaceCandidate {
 
 interface RankedOffer {
   id?: string;
-  label: "Opcion recomendada" | "Alternativa 1" | "Alternativa 2";
+  label: string;
   name: string;
   category: OfferCategory;
   what_it_offers: string;
@@ -342,7 +342,7 @@ Rules:
 export async function extractPdfText(base64Data: string): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const bytes = Uint8Array.from(Buffer.from(base64Data, "base64"));
-  const loadingTask = pdfjs.getDocument({ data: bytes, disableWorker: true });
+  const loadingTask = pdfjs.getDocument({ data: bytes });
   const pdf = await loadingTask.promise;
   const pages: string[] = [];
   const maxPages = Math.min(pdf.numPages, 6);
@@ -581,9 +581,9 @@ async function getOfferProfileContext(userId: string): Promise<OfferProfileConte
   });
 
   return {
-    city: profile?.city?.trim() || "",
-    region: profile?.region?.trim() || "",
-    countryCode: profile?.country_code?.trim() || "ES",
+    city: typeof profile?.city === "string" ? profile.city.trim() : "",
+    region: typeof profile?.region === "string" ? profile.region.trim() : "",
+    countryCode: typeof profile?.country_code === "string" ? profile.country_code.trim() || "ES" : "ES",
     mobilityPreference: isDeliveryPreferred(profileText) ? "delivery" : "either",
     priceSensitivity: isPriceSensitive(profileText) ? "high" : "medium",
     interests: [
@@ -1451,7 +1451,7 @@ function personaliseOffers(
     && !winnerHasPriorityConflict
     && !mustHaveCriteria.some((criterion) => winner.offer.comparison[criterion].status !== "verified");
   const bestFitProviderId = confident ? winner.offer.id ?? null : null;
-  const options = evaluated.map((item, index) => ({
+  const options: RankedOffer[] = evaluated.map((item, index) => ({
     ...item.offer,
     personalised_fit: {
       matchedPriorities: item.matchedPriorities,

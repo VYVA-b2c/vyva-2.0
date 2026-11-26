@@ -1,8 +1,8 @@
 import {
   conciergeProductionChannelForTool,
   type ConciergeProductionChannel,
-} from "./conciergeChannelReadiness";
-import type { ConciergeToolRequirement } from "./conciergeFlowRegistry";
+} from "./conciergeChannelReadiness.js";
+import type { ConciergeToolRequirement } from "./conciergeFlowRegistry.js";
 
 export type ConciergeAdapterPayloadMissingField = {
   key: string;

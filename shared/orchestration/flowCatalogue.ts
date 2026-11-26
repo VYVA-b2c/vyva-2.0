@@ -2,12 +2,12 @@ import { z } from "zod";
 import {
   INTERACTION_MODALITIES,
   interactionTriggerSourceSchema,
-} from "./events";
+} from "./events.js";
 import {
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
-import { ANSWER_KINDS, FLOW_LIFECYCLE_STATES } from "./flowState";
+} from "./errors.js";
+import { ANSWER_KINDS, FLOW_LIFECYCLE_STATES } from "./flowState.js";
 
 const idSchema = z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/);
 const namespaceIdSchema = z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/);

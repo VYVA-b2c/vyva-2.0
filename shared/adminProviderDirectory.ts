@@ -72,8 +72,10 @@ export function providerDirectoryItemFromConsent(input: {
     name,
     role,
     website_uri: website,
-    is_trusted: input.provider.is_trusted,
-    can_contact_after_confirmation: input.provider.can_contact_after_confirmation,
+    is_trusted: typeof input.provider.is_trusted === "boolean" ? input.provider.is_trusted : undefined,
+    can_contact_after_confirmation: typeof input.provider.can_contact_after_confirmation === "boolean"
+      ? input.provider.can_contact_after_confirmation
+      : undefined,
   };
   const readiness = savedProviderContactReadiness(providerForReadiness);
   const category = savedProviderCategory(providerForReadiness);

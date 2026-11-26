@@ -1538,7 +1538,7 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
       console.error("[checkins] profile context failed; using minimal profile:", err);
       profile = minimalProfileContext(language);
     }
-    const effectiveLanguage = normalizeAppLanguage(language, profile.language);
+    const effectiveLanguage = normalizeAppLanguage(language, normalizeAppLanguage(profile.language, "es"));
     const now = new Date();
     const orchestration = await attemptPreventiveHealthCheckin({
       accountUserId: req.user!.id,

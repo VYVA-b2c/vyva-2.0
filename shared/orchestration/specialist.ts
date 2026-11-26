@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { assetReferenceSchema } from "./assets";
-import { interactionTriggerSourceSchema } from "./events";
+import { assetReferenceSchema } from "./assets.js";
+import { interactionTriggerSourceSchema } from "./events.js";
 import {
   OrchestrationContractError,
   type OrchestrationContractErrorCode,
-} from "./errors";
+} from "./errors.js";
 import {
   canTransition,
   expectedFlowInputSchema,
@@ -12,12 +12,12 @@ import {
   normalizedAnswerSchema,
   pendingToolSchema,
   resumeMetadataSchema,
-} from "./flowState";
+} from "./flowState.js";
 
 const id = z.string().min(1).max(160);
 const text = z.string().min(1).max(4_000);
 const dateTime = z.string().datetime({ offset: true });
-const record = z.record(z.unknown());
+const record = z.record(z.string(), z.unknown());
 
 export const specialistRiskLevelSchema = z.enum([
   "none", "low", "medium", "high", "emergency",
@@ -107,7 +107,7 @@ export const specialistRequestSchema = z.object({
     caregiverEscalationAllowed: z.boolean(),
     operatorEscalationAllowed: z.boolean(),
   }).strict(),
-  previousAnswers: z.record(normalizedAnswerSchema),
+  previousAnswers: z.record(z.string(), normalizedAnswerSchema),
   currentQuestion: expectedFlowInputSchema.optional(),
   availableTools: z.array(specialistToolDescriptorSchema),
   uiContext: z.object({
@@ -285,7 +285,7 @@ function isSafeDomainStatePatch(value: Record<string, unknown>): boolean {
   }
 }
 
-export const domainStatePatchSchema = z.record(z.unknown()).superRefine(
+export const domainStatePatchSchema = z.record(z.string(), z.unknown()).superRefine(
   (patch, context) => {
     if (!isSafeDomainStatePatch(patch)) {
       context.addIssue({

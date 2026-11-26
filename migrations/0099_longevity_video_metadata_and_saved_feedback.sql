@@ -1,4 +1,7 @@
 alter table if exists public.longevity_video_resources
+  add column if not exists transcript_status text not null default 'pending',
+  add column if not exists key_points text[] not null default array[]::text[],
+  add column if not exists senior_takeaway text,
   add column if not exists pillar text,
   add column if not exists transcript_summary text,
   add column if not exists after_watch_action text,

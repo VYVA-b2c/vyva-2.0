@@ -31,7 +31,7 @@ import type {
   SocialMusicThread,
   SocialMusicThreadEntry,
   SocialRoomSafetyFlag,
-} from "../../src/social/types";
+} from "../../src/social/types.js";
 import {
   buildDailyRoomSession,
   getSocialRoomBySlug,

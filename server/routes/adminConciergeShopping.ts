@@ -23,6 +23,10 @@ import {
 const router = Router();
 const MIGRATION_MESSAGE = "Concierge supply packages are not migrated yet. Run schema/concierge_shopping.sql.";
 
+function routeParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 const productIdSchema = z.string().trim().min(2).max(90).regex(/^[a-z0-9][a-z0-9_-]*$/);
 const localizedTextSchema = z.object({
   en: z.string().trim().min(1).max(300),
@@ -212,7 +216,7 @@ router.post("/products", async (req: Request, res: Response) => {
   try {
     const [row] = await db
       .insert(conciergeShoppingProducts)
-      .values({ product_id: parsed.data.product_id, ...valuesFromProduct(parsed.data) })
+      .values({ product_id: parsed.data.product_id, ...valuesFromProduct(parsed.data) } as typeof conciergeShoppingProducts.$inferInsert)
       .returning();
     return res.status(201).json({ product: productToAdmin(row) });
   } catch {
@@ -227,8 +231,8 @@ router.patch("/products/:productId", async (req: Request, res: Response) => {
   try {
     const [row] = await db
       .update(conciergeShoppingProducts)
-      .set({ ...valuesFromProduct(parsed.data), updated_at: new Date() })
-      .where(eq(conciergeShoppingProducts.product_id, req.params.productId))
+      .set({ ...valuesFromProduct(parsed.data), updated_at: new Date() } as Partial<typeof conciergeShoppingProducts.$inferInsert>)
+      .where(eq(conciergeShoppingProducts.product_id, routeParam(req.params.productId)))
       .returning();
 
     if (!row) return res.status(404).json({ error: "Supply item not found" });
@@ -257,7 +261,7 @@ router.post("/packages", async (req: Request, res: Response) => {
   try {
     const [row] = await db
       .insert(conciergeShoppingPackages)
-      .values({ package_id: parsed.data.package_id, ...valuesFromPackage(parsed.data) })
+      .values({ package_id: parsed.data.package_id, ...valuesFromPackage(parsed.data) } as typeof conciergeShoppingPackages.$inferInsert)
       .returning();
     await replacePackageItems(parsed.data.package_id, parsed.data.product_ids);
     return res.status(201).json({ package: packageToAdmin(row, parsed.data.product_ids) });
@@ -273,12 +277,12 @@ router.patch("/packages/:packageId", async (req: Request, res: Response) => {
   try {
     const [row] = await db
       .update(conciergeShoppingPackages)
-      .set({ ...valuesFromPackage(parsed.data), updated_at: new Date() })
-      .where(eq(conciergeShoppingPackages.package_id, req.params.packageId))
+      .set({ ...valuesFromPackage(parsed.data), updated_at: new Date() } as Partial<typeof conciergeShoppingPackages.$inferInsert>)
+      .where(eq(conciergeShoppingPackages.package_id, routeParam(req.params.packageId)))
       .returning();
 
     if (!row) return res.status(404).json({ error: "Package not found" });
-    if (parsed.data.product_ids) await replacePackageItems(req.params.packageId, parsed.data.product_ids);
+    if (parsed.data.product_ids) await replacePackageItems(routeParam(req.params.packageId), parsed.data.product_ids);
     const linkedIds = await productIdsByPackage();
     return res.json({ package: packageToAdmin(row, linkedIds[row.package_id] ?? []) });
   } catch {
