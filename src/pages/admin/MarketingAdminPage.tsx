@@ -1401,6 +1401,45 @@ function contentOriginKey(item: ContentAsset) {
   return item.source || "vyva";
 }
 
+function contentAudience(item: ContentAsset): Audience | null {
+  for (const data of [item.metadata, item.designJson]) {
+    for (const key of ["audience", "audienceType", "audience_type"]) {
+      const value = metadataString(data, key).toLowerCase();
+      if (value === "b2b" || value === "b2c" || value === "both") return value;
+    }
+  }
+  const match = /^web_visit_first_welcome_(b2b|b2c)(?:_|$)/i.exec(item.title);
+  return match ? match[1].toLowerCase() as Audience : null;
+}
+
+const CONTENT_KIND_OPTIONS = [
+  { key: "welcome_templates", label: "First welcome templates" },
+  { key: "personalised_welcome_drafts", label: "Personalised welcome drafts" },
+  { key: "whatsapp_templates", label: "WhatsApp templates" },
+  { key: "email_templates", label: "Email templates" },
+  { key: "social_posts", label: "Social posts" },
+  { key: "content_briefs", label: "Content briefs" },
+  { key: "journey_step_presets", label: "Journey step presets" },
+  { key: "other", label: "Other content" },
+] as const;
+
+function matchesContentKind(item: ContentAsset, kind: string): boolean {
+  const personal = metadataString(item.metadata, "draftKind") === "website_first_welcome";
+  const welcome = !personal && (metadataString(item.designJson, "templateGroup").startsWith("web_visit_first_welcome_")
+    || /^web_visit_first_welcome_(b2b|b2c)_/.test(item.title));
+  const origin = contentOriginKey(item);
+  const kinds: Record<string, boolean> = {
+    welcome_templates: welcome,
+    personalised_welcome_drafts: personal,
+    whatsapp_templates: item.channel === "whatsapp" && !personal,
+    email_templates: item.channel === "email" && !personal,
+    social_posts: ["facebook", "instagram", "linkedin", "tiktok"].includes(item.channel) || origin === "social_post",
+    content_briefs: origin === "content_brief",
+    journey_step_presets: origin === "journey_step_preset",
+  };
+  return kind === "all" || (kind === "other" ? !Object.values(kinds).some(Boolean) : Boolean(kinds[kind]));
+}
+
 function isMissingLovableContentAsset(item: ContentAsset) {
   return contentOriginKey(item) === "missing_lovable_reference";
 }
@@ -4221,6 +4260,7 @@ export default function MarketingAdminPage() {
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [contentSourceFilter, setContentSourceFilter] = useState("all");
+  const [contentKindFilter, setContentKindFilter] = useState("all");
   const [contactSourceFilter, setContactSourceFilter] = useState("all");
   const [contactConsentFilter, setContactConsentFilter] = useState("all");
   const [contactLanguageFilter, setContactLanguageFilter] = useState("all");
@@ -4667,9 +4707,13 @@ export default function MarketingAdminPage() {
         const matchesSource =
           contentSourceFilter === "all" ||
           contentOriginKey(item) === contentSourceFilter;
-        return contentMatchesSearch && matchesChannel && matchesSource;
+        const audience = contentAudience(item);
+        const matchesAudience = audienceFilter === "all" || audience === audienceFilter
+          || (audience === "both" && (audienceFilter === "b2b" || audienceFilter === "b2c"));
+        return contentMatchesSearch && matchesChannel && matchesSource && matchesAudience
+          && matchesContentKind(item, contentKindFilter);
       }),
-    [content, search, channelFilter, contentSourceFilter],
+    [content, search, channelFilter, audienceFilter, contentSourceFilter, contentKindFilter],
   );
 
   const contentPageCount = Math.max(
@@ -4693,7 +4737,7 @@ export default function MarketingAdminPage() {
 
   useEffect(() => {
     setContentPage(1);
-  }, [search, channelFilter, contentSourceFilter]);
+  }, [search, channelFilter, audienceFilter, contentSourceFilter, contentKindFilter]);
 
   useEffect(() => {
     if (contentPage <= contentPageCount) return;
@@ -4729,11 +4773,11 @@ export default function MarketingAdminPage() {
           (item.contentAssetId
             ? visibleContentIdSet.has(item.contentAssetId)
             : item.source === contentSourceFilter);
-        const matchesChannel = channelFilter === "all"
+        const matchesChannel = (channelFilter === "all" && audienceFilter === "all" && contentKindFilter === "all")
           || Boolean(item.contentAssetId && visibleContentIdSet.has(item.contentAssetId));
         return matchesText && matchesSource && matchesChannel;
       }),
-    [mediaAssets, search, channelFilter, contentSourceFilter, visibleContentIdSet],
+    [mediaAssets, search, channelFilter, audienceFilter, contentKindFilter, contentSourceFilter, visibleContentIdSet],
   );
 
   const contactSourceOptions = useMemo(
@@ -5254,7 +5298,7 @@ export default function MarketingAdminPage() {
     if (content.length > 0 && visibleContent.length === 0) {
       return {
         title: "Content is loaded, but hidden by filters.",
-        detail: `${content.length} content asset${content.length === 1 ? "" : "s"} are in VYVA. Clear search, channel, or content type filters to see them.`,
+        detail: `${content.length} content asset${content.length === 1 ? "" : "s"} are in VYVA. Clear search, audience, channel, content type, or source filters to see them.`,
         action: "clear_filters" as const,
       };
     }
@@ -9930,16 +9974,30 @@ export default function MarketingAdminPage() {
                       <Languages size={15} /> Bulk translate
                     </button>
                     <select
+                      className={`${inputClass} w-[260px]`}
+                      value={contentKindFilter}
+                      onChange={(event) => setContentKindFilter(event.target.value)}
+                      aria-label="Content type filter"
+                      data-testid="select-marketing-content-kind-filter"
+                    >
+                      <option value="all">All content types ({content.length})</option>
+                      {CONTENT_KIND_OPTIONS.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label} ({content.filter((item) => !isMissingLovableContentAsset(item) && matchesContentKind(item, option.key)).length})
+                        </option>
+                      ))}
+                    </select>
+                    <select
                       className={`${inputClass} w-[240px]`}
                       value={contentSourceFilter}
                       onChange={(event) =>
                         setContentSourceFilter(event.target.value)
                       }
-                      aria-label="Content type filter"
+                      aria-label="Content source filter"
                       data-testid="select-marketing-content-source-filter"
                     >
                       <option value="all">
-                        All content types ({content.length})
+                        All sources ({content.length})
                       </option>
                       {contentSourceOptions.map((option) => (
                         <option key={option.key} value={option.key}>
@@ -10198,6 +10256,8 @@ export default function MarketingAdminPage() {
                                 setSearch("");
                                 setChannelFilter("all");
                                 setContentSourceFilter("all");
+                                setContentKindFilter("all");
+                                setAudienceFilter("all");
                               }}
                               data-testid="button-marketing-clear-content-filters"
                             >
@@ -10277,6 +10337,11 @@ export default function MarketingAdminPage() {
                                     <Pill className="bg-[#f5eee8] text-[#5b4a46]">
                                       {item.language}
                                     </Pill>
+                                    {contentAudience(item) ? (
+                                      <Pill className="bg-purple-50 text-purple-800">
+                                        {contentAudience(item) === "both" ? "B2B + B2C" : contentAudience(item)?.toUpperCase()}
+                                      </Pill>
+                                    ) : null}
                                     <Pill className={statusClass(item.status)}>
                                       {item.status}
                                     </Pill>
