@@ -18,6 +18,7 @@ const dbMock = vi.hoisted(() => {
     return {
       id: `00000000-0000-4000-8000-${String(idCounter++).padStart(12, "0")}`,
       created_at: new Date("2026-07-05T10:00:00.000Z"),
+      connected_at: new Date("2026-07-05T10:00:00.000Z"),
       updated_at: new Date("2026-07-05T10:00:00.000Z"),
       ...value,
     };
@@ -2554,13 +2555,59 @@ describe("admin marketing router", () => {
     expect(location.searchParams.get("client_id")).toBe("meta-app-id");
     expect(location.searchParams.get("redirect_uri")).toBe("https://v2.vyva.life/api/admin/marketing/social-publishing/meta/callback");
     expect(location.searchParams.get("state")).toBeTruthy();
-    expect(location.searchParams.get("scope")).toBe("pages_show_list,pages_read_engagement,pages_manage_posts");
+    expect(location.searchParams.get("scope")).toBe("pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata");
 
     const instagramResponse = await request(buildApp("ops@example.com"))
       .get("/api/admin/marketing/social-publishing/meta/connect?instagram=1")
       .expect(302);
     const instagramLocation = new URL(instagramResponse.headers.location);
     expect(instagramLocation.searchParams.get("scope")).toContain("instagram_content_publish");
+  });
+
+  it("resolves selected Meta Pages from granular scopes when /me/accounts is empty", async () => {
+    vi.stubEnv("META_APP_ID", "meta-app-id");
+    vi.stubEnv("META_APP_SECRET", "meta-app-secret");
+    vi.stubEnv("META_OAUTH_REDIRECT_URI", "https://v2.vyva.life/api/admin/marketing/social-publishing/meta/callback");
+    vi.stubEnv("JWT_SECRET", "test-jwt-secret");
+
+    const startResponse = await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/social-publishing/meta/connect")
+      .expect(302);
+    const state = new URL(startResponse.headers.location).searchParams.get("state");
+    expect(state).toBeTruthy();
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "user-token", expires_in: 3600 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: {
+          granular_scopes: [
+            { scope: "pages_show_list", target_ids: ["662858126921951"] },
+            { scope: "pages_manage_posts", target_ids: ["662858126921951"] },
+          ],
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "662858126921951",
+        name: "VYVA",
+        access_token: "page-token",
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await request(buildApp("ops@example.com"))
+      .get(`/api/admin/marketing/social-publishing/meta/callback?code=meta-code&state=${encodeURIComponent(state!)}`)
+      .expect(302)
+      .expect("Location", "/admin/marketing/settings?meta_connection=connected");
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[2][0].toString()).toContain("/debug_token");
+    expect(fetchMock.mock.calls[3][0].toString()).toContain("/662858126921951");
+    expect(table("marketing_social_connections")[0]).toMatchObject({
+      provider: "meta",
+      external_account_id: "662858126921951",
+      external_account_name: "VYVA",
+      status: "connected",
+    });
   });
 
   it("reports Meta connection configuration without exposing credentials", async () => {

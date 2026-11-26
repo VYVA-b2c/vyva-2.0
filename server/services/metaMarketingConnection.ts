@@ -40,6 +40,15 @@ type MetaOAuthTokenResponse = {
   expires_in?: unknown;
 };
 
+type MetaDebugTokenResponse = {
+  data?: {
+    granular_scopes?: Array<{
+      scope?: unknown;
+      target_ids?: unknown;
+    }>;
+  };
+};
+
 function metaGraphApiVersion() {
   return process.env.META_GRAPH_API_VERSION?.trim() || DEFAULT_META_GRAPH_API_VERSION;
 }
@@ -132,6 +141,7 @@ export function metaOAuthUrl(state: string, options: { includeInstagram?: boolea
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
+    "pages_manage_metadata",
   ];
   if (options.includeInstagram) {
     scopes.push("instagram_basic", "instagram_content_publish");
@@ -170,7 +180,42 @@ export async function connectMetaFromAuthorizationCode(input: { code: string; co
       ? "id,name,access_token,instagram_business_account{id,username}"
       : "id,name,access_token",
   });
-  const pages = Array.isArray(pagesPayload.data) ? pagesPayload.data : [];
+  let pages = Array.isArray(pagesPayload.data) ? pagesPayload.data : [];
+
+  // Facebook Login for Business can return an empty /me/accounts collection
+  // even when the person selected Pages in the consent dialog. In that flow,
+  // the selected Page IDs are carried in the token's granular scopes. Resolve
+  // those IDs explicitly so the callback can still obtain Page access tokens.
+  if (!pages.length) {
+    const debugPayload = await metaFetch<MetaDebugTokenResponse>(
+      "/debug_token",
+      `${metaAppId()}|${metaAppSecret()}`,
+      { input_token: exchanged.accessToken },
+    );
+    const targetIds = Array.from(new Set(
+      (debugPayload.data?.granular_scopes ?? [])
+        .filter((entry) => [
+          "pages_show_list",
+          "pages_read_engagement",
+          "pages_manage_posts",
+          "pages_manage_metadata",
+        ].includes(stringValue(entry.scope) || ""))
+        .flatMap((entry) => Array.isArray(entry.target_ids) ? entry.target_ids : [])
+        .map(stringValue)
+        .filter((value): value is string => Boolean(value)),
+    ));
+    pages = (await Promise.all(targetIds.map(async (targetId) => {
+      try {
+        return await metaFetch<MetaPage>(`/${encodeURIComponent(targetId)}`, exchanged.accessToken, {
+          fields: input.includeInstagram
+            ? "id,name,access_token,instagram_business_account{id,username}"
+            : "id,name,access_token",
+        });
+      } catch {
+        return null;
+      }
+    }))).filter((page): page is MetaPage => Boolean(page));
+  }
   const saved: MetaConnectionSummary[] = [];
 
   for (const page of pages) {
